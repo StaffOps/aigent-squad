@@ -1,0 +1,40 @@
+# Removed LangGraph - using direct Bedrock API
+# langgraph==0.2.45
+# langchain-aws==0.2.6
+# langchain-core==0.3.21
+
+# AWS (latest)
+boto3==1.35.80
+
+# Web Framework (latest)
+fastapi==0.115.8
+uvicorn[standard]==0.32.1
+httpx==0.28.1
+
+# Cache & Storage (latest)
+redis==5.2.1
+
+# Kubernetes (latest)
+kubernetes==31.0.0
+
+# Slack Integration (latest)
+slack-sdk==3.33.4
+
+# Data Validation (latest)
+pydantic==2.10.5
+pydantic-settings==2.7.0
+
+# OpenTelemetry (observability)
+opentelemetry-api==1.29.0
+opentelemetry-sdk==1.29.0
+opentelemetry-instrumentation-fastapi==0.50b0
+opentelemetry-instrumentation-httpx==0.50b0
+opentelemetry-instrumentation-logging==0.50b0
+opentelemetry-exporter-otlp==1.29.0
+
+# Monitoring
+prometheus-client==0.21.1
+python-json-logger==3.2.1
+
+# MCP Server
+mcp==1.0.0

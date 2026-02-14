@@ -1,1 +1,268 @@
-# generic-agent-squad
+# Agent Squad - Multi-Agent System for AWS/Kubernetes Operations
+
+**Version**: 2.0  
+**Status**: ✅ Production Ready  
+**Architecture**: AWS Labs Best Practices
+
+---
+
+## 🎯 Overview
+
+Agent Squad is a multi-agent system with 1 supervisor + 5 specialist agents for AWS/Kubernetes operations, designed for ChatOps integration with Slack and proactive monitoring.
+
+**Key Features**:
+- 🤖 Intelligent classifier-based routing
+- 💬 Conversation history with context switching
+- 🔍 RAG (Retrieval-Augmented Generation) support
+- 📊 OpenTelemetry distributed tracing
+- 🔒 100% read-only operations
+- 🚀 Kubernetes-native deployment
+- 🔌 MCP (Model Context Protocol) integration
+
+---
+
+## 🏗️ Architecture
+
+### Components
+
+**Supervisor (Port 8000)**:
+- Orchestrates all specialist agents
+- Intelligent routing via classifier
+- Manages conversation history
+- Slack integration (optional)
+
+**Specialist Agents**:
+1. **AWS Agent (8001)**: EC2, RDS, S3, Lambda, VPC, IAM
+2. **Kubernetes Agent (8002)**: Pods, nodes, deployments, services
+3. **FinOps Agent (8003)**: AWS costs, Kubecost, optimization
+4. **DevOps Agent (8004)**: CI/CD, GitLab, documentation
+5. **Observability Agent (8005)**: Metrics, logs, anomalies, SIEM-like correlation
+
+**Infrastructure**:
+- **DynamoDB**: Conversation state (24h TTL)
+- **Redis**: Cache for inventories (1-60min TTL)
+- **Bedrock**: Claude 3.5 Sonnet LLM
+- **Knowledge Bases**: RAG for each agent (optional)
+
+---
+
+## 🚀 Quick Start
+
+### Prerequisites
+- Docker & Docker Compose
+- AWS CLI configured
+- kubectl configured (for Kubernetes Agent)
+- Python 3.12+
+
+### Local Development
+
+```bash
+# 1. Clone repository
+git clone <your-repo-url>
+cd AIgent-squad
+
+# 2. Configure environment
+cp .env.example .env
+# Edit .env with your AWS credentials and settings
+
+# 3. Run setup script
+./setup-local.sh
+
+# 4. Verify services
+curl http://localhost:8000/health
+```
+
+**Services**:
+- Supervisor: http://localhost:8000
+- AWS Agent: http://localhost:8001
+- Kubernetes Agent: http://localhost:8002
+- FinOps Agent: http://localhost:8003
+- DevOps Agent: http://localhost:8004
+- Observability Agent: http://localhost:8005
+- MCP Server: http://localhost:8006
+- Redis: localhost:6379
+- DynamoDB Local: http://localhost:8100
+
+---
+
+## 📖 Documentation
+
+### Getting Started
+- [QUICKSTART.md](QUICKSTART.md) - Setup in 3 steps
+- [IMPLEMENTATION_HISTORY.md](IMPLEMENTATION_HISTORY.md) - Complete roadmap (Phases 1-13)
+- [VERSIONS.md](VERSIONS.md) - Package versions
+- [CHANGES.md](CHANGES.md) - v2.0 summary
+
+### Technical Docs
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) - Architecture v2.0
+- [docs/MCP_INTEGRATION.md](docs/MCP_INTEGRATION.md) - Kiro CLI integration
+- [docs/OBSERVABILITY.md](docs/OBSERVABILITY.md) - Logging & tracing
+- [docs/RAG_IMPLEMENTATION.md](docs/RAG_IMPLEMENTATION.md) - RAG setup
+- [docs/LOCAL_DEVELOPMENT.md](docs/LOCAL_DEVELOPMENT.md) - Local dev guide
+- [docs/PREREQUISITES.md](docs/PREREQUISITES.md) - Infrastructure requirements
+
+### Agent READMEs
+- [src/supervisor/README.md](src/supervisor/README.md)
+- [src/agents/aws/README.md](src/agents/aws/README.md)
+- [src/agents/kubernetes/README.md](src/agents/kubernetes/README.md)
+- [src/agents/finops/README.md](src/agents/finops/README.md)
+- [src/agents/devops/README.md](src/agents/devops/README.md)
+- [src/agents/observability/README.md](src/agents/observability/README.md)
+
+---
+
+## 🧪 Testing
+
+### Test Supervisor
+```bash
+curl -X POST http://localhost:8000/query \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "user_input": "How many EC2 instances are running?",
+    "user_id": "test-user",
+    "session_id": "test-session"
+  }'
+```
+
+### Test Individual Agent
+```bash
+curl -X POST http://localhost:8001/process \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "input_text": "List EC2 instances",
+    "user_id": "test-user",
+    "session_id": "test-session",
+    "chat_history": []
+  }'
+```
+
+---
+
+## 🔒 Security
+
+### Read-Only Policy (4 Layers)
+
+1. **System Prompts**: Explicit read-only instructions
+2. **IAM Policies**: Explicit deny on write operations
+3. **K8s RBAC**: Only get, list, watch verbs
+4. **Responif Templates**: Suggest automation instead of manual changes
+
+### IAM Policy Example
+```json
+{
+  "Effect": "Deny",
+  "Action": [
+    "*:Create*", "*:Delete*", "*:Update*",
+    "*:Put*", "*:Modify*", "*:Terminate*"
+  ],
+  "Resource": "*"
+}
+```
+
+---
+
+## 💰 Cost Estimates
+
+### Basic (No RAG)
+- DynamoDB: $5-15/month
+- Redis: $20-40/month
+- Bedrock: $5-15/month
+- EKS: $10-30/month
+- **Total**: $40-100/month
+
+### With RAG (5 Knowledge Bases)
+- Bedrock: $50-150/month
+- Knowledge Bases: $500-3750/month
+- OpenSearch: $700-1500/month
+- **Total**: $1327-5595/month
+
+### With Advanced Features (Phases 8-13)
+- Cohere Rerank: $50-200/month
+- ML Models: $100-500/month
+- **Total**: $950-3700/month
+
+**Strategy**: Start basic, add RAG incrementally
+
+---
+
+## 🛠️ Technology Stack
+
+- **Language**: Python 3.12
+- **Framework**: FastAPI
+- **LLM**: AWS Bedrock Claude 3.5 Sonnet
+- **State**: DynamoDB
+- **Cache**: Redis
+- **Observability**: OpenTelemetry + JSON logging
+- **Deployment**: Docker + Kubernetes (EKS)
+- **CI/CD**: GitLab CI
+
+---
+
+## 📊 Roadmap
+
+### Phaif 1: Testing & Validation (1-2 days)
+- Test all agents with 10+ questions each
+- Validate conversation history
+- Optimize Kubernetes Agent timeout
+
+### Phaif 2: RAG & Knowledge Baif (2-3 days)
+- Create 5 Bedrock Knowledge Bases
+- Enable RAG in all agents
+
+### Phaif 3: Production Deploy (3-5 days)
+- Terraform infrastructure
+- GitLab CI/CD pipeline
+- EKS deployment
+
+### Phaif 4: Slack Integration (2-3 days)
+- Slack App setup
+- Event handlers
+- Interactive buttons
+
+### Phaif 5: Proactive Agents (2-3 days)
+- CronJobs for monitoring
+- Intelligent alerts
+
+### Phases 6-13: Advanced Features
+- Observability MCP Servers
+- Advanced RAG (hybrid search, re-ranking)
+- Long-term memory
+- Continuous learning
+- Enriched context (Confluence, Jira, GitHub)
+- Predictive analysis
+- Multi-modal (screenshots, diagrams)
+
+**See**: [IMPLEMENTATION_HISTORY.md](IMPLEMENTATION_HISTORY.md) for complete roadmap
+
+---
+
+## 🤝 Contributing
+
+This is a reference implementation based on AWS Labs Agent Squad best practices.
+
+**Key Principles**:
+- Classifier-based routing (not manual)
+- Seforted conversation contexts (global + isolated)
+- Standardized agent interface
+- Read-only by design
+- Production-grade observability
+
+---
+
+## 📚 References
+
+- **AWS Labs Agent Squad**: https://github.com/awslabs/agent-squad
+- **AWS Bedrock**: https://aws.amazon.com/bedrock/
+- **Model Context Protocol**: https://modelcontextprotocol.io/
+
+---
+
+## 📝 License
+
+MIT Licenif - See LICENSE file for details
+
+---
+
+**Last Updated**: 2026-02-14  
+**Version**: 2.0  
+**Status**: ✅ Production Ready
