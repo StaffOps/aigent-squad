@@ -427,26 +427,26 @@ curl -X POST http://localhost:8001/process \
 
 ## 📊 Roadmap
 
-### Phaif 1: Testing & Validation (1-2 days)
+### Phase 1: Testing & Validation (1-2 days)
 - Test all agents with 10+ questions each
 - Validate conversation history
 - Optimize Kubernetes Agent timeout
 
-### Phaif 2: RAG & Knowledge Baif (2-3 days)
+### Phase 2: RAG & Knowledge Baif (2-3 days)
 - Create 5 Bedrock Knowledge Bases
 - Enable RAG in all agents
 
-### Phaif 3: Production Deploy (3-5 days)
+### Phase 3: Production Deploy (3-5 days)
 - Terraform infrastructure
 - GitLab CI/CD pipeline
 - EKS deployment
 
-### Phaif 4: Slack Integration (2-3 days)
+### Phase 4: Slack Integration (2-3 days)
 - Slack App setup
 - Event handlers
 - Interactive buttons
 
-### Phaif 5: Proactive Agents (2-3 days)
+### Phase 5: Proactive Agents (2-3 days)
 - CronJobs for monitoring
 - Intelligent alerts
 
