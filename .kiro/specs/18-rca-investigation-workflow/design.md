@@ -95,13 +95,23 @@ class RCAResult:
     prevention: list[str]         # alerta/teste/guardrail/runbook
 ```
 
-### Hierarquia de força de evidência (do `investigation-protocol`)
-- **Forte**: métrica com timestamp exato; trace com error span; log com stack+correlation id; diff de deploy/config no período.
-- **Média**: alerta que disparou (pode ser efeito, não causa); correlação temporal sem mecanismo; relato de usuário.
-- **Fraca**: "sempre funcionou"; "acho que é X"; ausência de erro nos logs.
+### Modelo de evidência e correlação → ver `../EVIDENCE-MODEL.md`
 
-### Regra de correlação
-≥3 sinais **independentes** (fontes/tipos distintos) apontando a mesma causa → confiança **alta**. 2 → média. 1 → baixa + lista o que falta. Contra-evidência não-explicada **rebaixa** a confiança.
+O catálogo completo de sinais (33 signals C1-C8/M1-M13/I1-I8/T1-T4/E1-E4), as 14 assinaturas de root-cause, o algoritmo de confiança e o teste de independência vivem em **`.kiro/specs/EVIDENCE-MODEL.md`** (deliberação observability+sre+troubleshoot, 2026-06-02). Resumo do que muda aqui:
+
+**Correlação por CAMADAS causais, não por contagem de sinais:**
+```
+CHANGE (o que mudou) + MECHANISM (como causou) + IMPACT (dano) + ordem temporal válida
+  + 0 contra-evidência não-explicada  →  confiança ALTA
+```
+- **Track A** (event-driven): CHANGE+MECHANISM+IMPACT.
+- **Track B** (degradação sem mudança explícita): MECHANISM contínuo (ex: memory growth monotônico) + MECHANISM confirmante + IMPACT + sem CHANGE alternativo.
+
+**Independência real** (resolve o "≥3 sinais" ingênuo): dois sinais derivados um do outro (OOMKill→restart, error_rate↔error_log) contam como UM. Exemplar metric→trace→log do mesmo request é profundidade (qualidade da prova), não largura (contagem). Sinais da mesma camada+mesmo fault_domain são dependentes por default.
+
+**Timestamps**: CloudWatch atrasa até 120s — nunca ancora ordem causal. Métricas (15s) não resolvem cascata sub-15s — usar Loki `direction=forward&limit=1` por serviço. Tolerâncias de timing por par de fontes em `EVIDENCE-MODEL.md §5`.
+
+**Confiança do LLM**: teto (synthesizer nunca aumenta) + piso flexível (pode baixar com justificativa logada).
 
 ## Decisão trivial vs investigar
 

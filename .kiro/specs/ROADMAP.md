@@ -91,6 +91,8 @@ A análise em [`ANALYSIS.md`](ANALYSIS.md) (8 specialists em paralelo) encontrou
 
 > Ver [`ECOSYSTEM.md`](ECOSYSTEM.md): **decisão (2026-06-02) = manter SEPARADO**. Specs 14/17/19/21 existem mais maduras no `staffops-chaitops` → reusar **por cópia** (não dependência). gRPC (20) removida. Docs em inglês. Diferencial real = especialistas leves com acesso direto a dados (não comunicação).
 
+> Ver [`EVIDENCE-MODEL.md`](EVIDENCE-MODEL.md): catálogo de sinais cross-domain + regra de correlação por camadas causais + teste de independência (deliberação observability+sre+troubleshoot, 2026-06-02). Substitui o "≥3 sinais" ingênuo. Alimenta a spec 18 (modelo de evidência) e as specs 09/10 (catálogo de métricas).
+
 > A spec 08 (CI/CD) substitui a referência a "GitLab CI" — o repo está no **GitHub**, não há pipeline configurado. A spec 07 cobre o pré-requisito de `/healthz`+`/ready` que a 05-helm-chart assume.
 
 ### Direção de produto (RCA-first)
