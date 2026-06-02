@@ -100,11 +100,30 @@ O ganho esperado é **troubleshooting/RCA**. Caminho crítico do diferencial:
 ```
 06 (async) → 17 (fan-out) → 18 (RCA)      ← núcleo do produto
 19 (config) cedo, em paralelo              ← destrava produtização (config file + env)
-21 (learning) após 18                      ← aprendizado simples (sem Knowledge Base cara)
-20 (gRPC) por último                       ← maior custo; só após contratos estabilizarem
+21 (learning) após 18                      ← aprendizado (Sonnet extractor → Opus enricher → KB)
 ```
 
-Princípios: comunicação eficiente (async + fan-out, gRPC quando maduro), aprendizado leve (memória de incidentes, não RAG caro), config via arquivo+env, **não complexo demais** (1 rodada de investigação na Fase 1; iteração só com promotion trigger).
+Princípios: comunicação eficiente (async + fan-out), aprendizado com qualidade (Opus enriquece antes de persistir), config via arquivo+env, **não complexo demais** (limites de rodada como hard stop).
+
+### Limites de rodadas por nível
+
+| Nível | max_rounds | Modelo synthesizer | Custo/RCA (5 agentes) |
+|-------|------------|-------------------|------------------------|
+| 1 (MVP) | 1 | Sonnet | ~$0.17 |
+| 2 (iterativo) | 5 | Sonnet | ~$0.80 |
+| 3 (contexto compartilhado) | 10 | Opus | ~$1.65 |
+| 4 (autônomo) | 25 | Opus | ~$4.20 |
+
+### Checklist de milestone (obrigatório a cada entrega)
+
+Per `documentation-sync.md` — ao fechar qualquer fase/milestone:
+
+- [ ] Specs tocadas refletem o que foi **implementado** (não o planejado — corrigir divergências)
+- [ ] ROADMAP atualizado (status, datas, items concluídos)
+- [ ] README atualizado se mudou algo visível ao usuário
+- [ ] CHANGELOG entry (se bump de versão)
+- [ ] Testes passando (≥90% cobertura)
+- [ ] Custos reais medidos vs estimativas (ajustar tabela no ANALYSIS.md se divergir >30%)
 
 ---
 

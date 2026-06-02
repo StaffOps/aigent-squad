@@ -29,10 +29,26 @@ sessão ─▶ token budget (hard cap) ─▶ corta antes de explodir
 
 ## Decisões e trade-offs
 
-### Decisão 1: Haiku no classifier, Sonnet na resposta/síntese
-**Escolha**: modelo por papel.
-**Justificativa**: roteamento é classificação simples (qual agente?) — Haiku resolve com qualidade comparável a ~1/13 do custo e menos latência. A *resposta* e a *síntese de RCA* precisam de raciocínio → Sonnet.
-**Trade-off**: Haiku pode errar roteamento em query muito ambígua → mitigado pelo fallback do classifier (spec 06) e pelo fan-out multi-agente (spec 17) que cobre vários domínios mesmo.
+### Decisão 1: Model tiering por camada (Haiku / Sonnet / Opus)
+
+**Escolha**: cada camada do sistema usa o modelo mais custo-eficiente para sua complexidade.
+
+**Tabela de tiering (config-driven, não hardcoded):**
+
+| Camada | Modelo | Justificativa | Custo/chamada |
+|--------|--------|---------------|---------------|
+| Classifier (roteamento) | **Haiku** | Classificação simples (qual agente?). 1/13 do custo, menos latência. | ~$0.001 |
+| Agentes coletores (evidência) | **Sonnet** | Query direcionada a datasource, raciocínio moderado. | ~$0.02 |
+| Synthesizer Nível 1–2 (correlação) | **Sonnet** | Correlação com ≤5 rodadas de evidência. Suficiente. | ~$0.05 |
+| Synthesizer Nível 3–4 (correlação complexa) | **Opus** | Correlação multi-rodada (10–25 rounds), raciocínio causal profundo. | ~$0.50 |
+| Destilação extractor (draft KB) | **Sonnet** | Extrair fatos estruturados de investigação. Volume alto, qualidade OK. | ~$0.03 |
+| Destilação enricher (refine KB) | **Opus** | Generalizar, encontrar padrões não-óbvios, escrever pra reuso futuro. Qualidade > velocidade. | ~$0.24 |
+
+**Promotion triggers entre modelos:**
+- Synthesizer Sonnet→Opus: RCA com confiança 'baixa' em >40% dos casos Nível 3+.
+- Enricher Opus→Sonnet (demotion): Opus não adiciona valor mensurável em >60% das destilações (output ≈ input do Sonnet).
+
+**Trade-off**: Haiku pode errar roteamento em query muito ambígua → mitigado pelo fallback do classifier (spec 06) e pelo fan-out multi-agente (spec 17) que cobre vários domínios.
 **Quando reabrir**: se medições mostrarem queda de acurácia de roteamento com Haiku > limiar aceitável.
 
 ### Decisão 2: Reabilitar prompt caching

@@ -20,15 +20,57 @@ Sintoma → [decisão: trivial? → fast-path]
    6. Sintetizar RCA (1 Bedrock call) + propor prevenção
 ```
 
+## Triggers de investigação
+
+A investigação pode ser disparada por **duas fontes** (decisão 2026-06-02):
+
+| Trigger | Endpoint | Payload |
+|---------|----------|---------|
+| **Usuário** (chat) | `POST /chat` com `mode=investigate` ou detecção automática de sintoma | Texto livre |
+| **Alertmanager** (webhook) | `POST /alerts/incoming` | Alertmanager v2 JSON (alerts[], groupLabels, commonLabels) |
+
+O endpoint `/alerts/incoming` vive no **supervisor** (que já é FastAPI). Não requer serviço novo. O alerta é convertido em sintoma estruturado (severity, service, timestamp, labels) e entra no mesmo ciclo de investigação.
+
+## Rodadas e scratchpad
+
+**max_rounds** (config-driven, default=5): número máximo de rodadas de coleta por investigação. A cada rodada, o synthesizer avalia se a evidência é suficiente ou precisa de mais. O teto é hard stop (não recomendação).
+
+| Nível (ROADMAP) | max_rounds | Contexto entre rodadas |
+|-----------------|------------|------------------------|
+| 1 (MVP) | 1 (fixa) | — |
+| 2 (iterativo) | 5 | Synthesizer identifica gaps → 2ª+ rodada direcionada |
+| 3 (compartilhado) | 10 | Agentes recebem resumo dos outros via scratchpad |
+| 4 (autônomo) | 25 | Agentes propõem hipóteses + delegam |
+
+**Scratchpad** (memória curta por investigação):
+- Dict/Redis hash keyed por `investigation_id`
+- Contém: evidência coletada até agora, hipóteses correntes, gaps identificados
+- Lifetime: duração da investigação (deletado ao finalizar)
+- A partir do Nível 3, o scratchpad é injetado no prompt dos agentes na rodada seguinte
+
+```python
+@dataclass
+class InvestigationState:
+    id: str
+    symptom: str
+    rounds_completed: int
+    max_rounds: int
+    evidence: list[Evidence]
+    hypotheses: list[str]
+    gaps: list[str]  # "o que falta coletar"
+```
+
 ## Componentes
 
 | Componente | Responsabilidade | Onde |
 |-----------|------------------|------|
-| Investigation orchestrator | Ciclo acima; decide trivial vs investigar | `src/supervisor/investigation.py` (novo) |
+| Investigation orchestrator | Ciclo acima; decide trivial vs investigar; controla rodadas | `src/supervisor/investigation.py` (novo) |
+| Alert ingestion | Converte payload Alertmanager → sintoma estruturado | `src/supervisor/alert_handler.py` (novo) |
 | Evidence model | Estrutura normalizada de evidência | `src/core/investigation.py` (novo) |
 | Timeline builder | Ordena eventos, marca candidatos a causa | `src/core/investigation.py` |
 | Correlator | Regra de confiança por nº de sinais independentes | `src/core/investigation.py` |
-| RCA synthesizer | Funde evidência → RCA + prevenção (Bedrock Sonnet) | `src/supervisor/investigation.py` |
+| RCA synthesizer | Funde evidência → RCA + prevenção; detecta gaps pra próxima rodada | `src/supervisor/investigation.py` |
+| Scratchpad | Estado por investigação (evidência, hipóteses, gaps) | `src/core/investigation.py` (in-memory ou Redis) |
 
 > Agentes **não mudam de responsabilidade**: continuam consultivos e read-only. O que muda é o supervisor passar uma *intenção de coleta de evidência* (janela + foco) em vez de uma pergunta livre.
 

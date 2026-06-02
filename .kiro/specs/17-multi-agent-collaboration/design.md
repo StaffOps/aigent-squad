@@ -151,3 +151,31 @@ Testes-chave (test-author ≠ autor do código): classifier devolve N agentes p/
 - Custo: fan-out multiplica chamadas Bedrock. Mitigado por `max_agents` + Haiku no classifier + circuit breaker.
 - Qualidade da síntese: prompt mal calibrado funde respostas de forma confusa. Mitigar com exemplos no prompt + atribuição explícita.
 - Pré-requisito async (spec 06): sem ele, `asyncio.gather` não dá paralelismo real (boto3 síncrono bloqueia o loop).
+
+---
+
+## Extensibilidade: contexto compartilhado (Nível 3+ do ROADMAP)
+
+> Esta seção documenta como o fan-out evolui sem reescrita. NÃO implementar no Nível 1–2.
+
+**Problema do Nível 3**: agentes coletam independentemente; cada um não sabe o que os outros encontraram. Isso limita a qualidade quando a evidência de um agente MUDARIA a query de outro.
+
+**Solução**: o `asyncio.gather` passa a aceitar um **scratchpad** (spec 18 `InvestigationState`) como contexto injetado no prompt dos agentes em rodadas subsequentes.
+
+```python
+# Nível 1-2: fan-out simples
+results = await asyncio.gather(*[call_agent(a, payload) for a in agents])
+
+# Nível 3+: fan-out COM contexto compartilhado
+for round in range(max_rounds):
+    context = scratchpad.summary()  # resumo das rodadas anteriores
+    enriched_payload = {**payload, "prior_evidence": context}
+    results = await asyncio.gather(*[call_agent(a, enriched_payload) for a in agents])
+    scratchpad.update(results)
+    if synthesizer.evidence_sufficient(scratchpad):
+        break
+```
+
+**O que muda no contrato dos agentes**: recebem campo opcional `prior_evidence` (string, resumo). Agentes que não suportam (Nível 1) ignoram o campo. Zero breaking change.
+
+**Promotion trigger**: "contexto de outros agentes melhoraria a coleta em >20% dos casos" (medido pela diff de confiança da RCA com/sem contexto em testes A/B).

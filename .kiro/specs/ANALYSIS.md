@@ -194,3 +194,51 @@ Suíte mínima de maior valor (prioridade por branch/error-path): parsing do cla
 7. **15/16** (SLO + runbooks) — quando houver tráfego real pra medir.
 
 > O AUDIT respondeu *"por que não roda"*. Esta análise responde *"por que, mesmo rodando, não está pronto pra produção"*: sem concorrência, falha fechada, cego e indefensável. As specs 06–14 fecham essa distância.
+
+---
+
+## Cost Estimates — Investigação RCA (referência 2026-06)
+
+Preços Bedrock (Claude): Haiku $0.25/$1.25 | Sonnet $3/$15 | Opus $15/$75 (input/output por 1M tokens).
+
+### Por chamada (média estimada)
+
+| Papel | Modelo | Tokens (in/out) | Custo |
+|-------|--------|-----------------|-------|
+| Classifier (roteamento) | Haiku | ~1K / ~0.2K | ~$0.001 |
+| Agente coletor (evidência) | Sonnet | ~2K / ~1K | ~$0.02 |
+| Synthesizer (correlação) | Sonnet (Nível 1–2) | ~8K / ~2K | ~$0.05 |
+| Synthesizer (correlação) | Opus (Nível 3–4) | ~8K / ~2K | ~$0.50 |
+| Destilação extractor (draft KB) | Sonnet | ~4K / ~1K | ~$0.03 |
+| Destilação enricher (refine KB) | Opus | ~6K / ~2K | ~$0.24 |
+
+### Por investigação RCA (5 agentes, problema de conectividade)
+
+| Nível | Max rodadas | Chamadas Bedrock | Tokens (in/out) | Custo/RCA | Tempo estimado |
+|-------|-------------|-----------------|------------------|-----------|----------------|
+| **1** Hub-and-spoke | 1 | ~7 | ~22K / ~7K | **~$0.17** | ~6s |
+| **2** Iterativo | 5 | ~31 | ~90K / ~35K | **~$0.80** | ~25s |
+| **3** Contexto compartilhado | 10 | ~62 | ~200K / ~70K | **~$1.65** | ~50s |
+| **4** Autônomo | 25 | ~150+ | ~500K / ~180K | **~$4.20** | ~2min |
+
++ Destilação (1× por investigação): ~$0.27 (Sonnet draft + Opus enricher)
+
+### Comparativo custo/valor
+
+| Abordagem | Custo | Tempo |
+|-----------|-------|-------|
+| Engenheiro senior investigando manualmente | ~$50–100 | 30–60min |
+| AIgent-squad Nível 1 | $0.17 | 6s |
+| AIgent-squad Nível 4 (máximo) | $4.20 + $0.27 destilação | ~2min |
+
+**Conclusão**: mesmo no cenário mais caro (Nível 4), o custo é ~10–25× menor que investigação humana.
+
+### Projeção mensal (por volume de incidentes)
+
+| Incidentes/mês | Nível 1 | Nível 2 | Nível 4 |
+|----------------|---------|---------|---------|
+| 10 | $1.70 | $8.00 | $42.00 |
+| 50 | $8.50 | $40.00 | $210.00 |
+| 200 | $34.00 | $160.00 | $840.00 |
+
+Nota: na prática, nem toda investigação precisa de todas as rodadas. O max_rounds é teto, não uso médio.
