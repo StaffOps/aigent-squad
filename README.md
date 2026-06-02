@@ -1,8 +1,10 @@
 # Agent Squad - Multi-Agent System for AWS/Kubernetes Operations
 
-**Version**: 2.0  
-**Status**: ✅ Production Ready  
+**Version**: 0.x (pre-release)
+**Status**: 🚧 Em estabilização — ver `.kiro/specs/ROADMAP.md`
 **Architecture**: AWS Labs Best Practices
+
+> ⚠️ **Estado real**: este projeto está em **Fase 0 (estabilização)**, não em produção. Há blockers conhecidos (build, arquitetura, segurança, testes) documentados na auditoria em [`.kiro/specs/AUDIT.md`](.kiro/specs/AUDIT.md). O plano de trabalho está em [`.kiro/specs/ROADMAP.md`](.kiro/specs/ROADMAP.md). O trabalho acontece na branch `dev`.
 
 ---
 
@@ -314,6 +316,16 @@ curl http://localhost:8000/health
 
 ## 📖 Documentation
 
+### Specs & Planejamento (spec-driven — `.kiro/`)
+- [`.kiro/specs/AUDIT.md`](.kiro/specs/AUDIT.md) - Auditoria do estado real (achados + severidade)
+- [`.kiro/specs/ROADMAP.md`](.kiro/specs/ROADMAP.md) - Roadmap por fases (Fase 0 = estabilização)
+- [`.kiro/specs/01-fix-blockers/`](.kiro/specs/01-fix-blockers/) - Destravar build e código quebrado
+- [`.kiro/specs/02-unify-agent-architecture/`](.kiro/specs/02-unify-agent-architecture/) - Unificar agentes no padrão base
+- [`.kiro/specs/03-fix-cache-observability/`](.kiro/specs/03-fix-cache-observability/) - Cache determinístico + OTel
+- [`.kiro/specs/04-harden-security/`](.kiro/specs/04-harden-security/) - Auth, non-root, prompt injection
+- [`.kiro/specs/05-helm-chart/`](.kiro/specs/05-helm-chart/) - Helm chart para EKS (Fase 2 — deploy)
+- [`.kiro/steering/project.md`](.kiro/steering/project.md) - Regras e invariantes do projeto
+
 ### Getting Started
 - [QUICKSTART.md](QUICKSTART.md) - Setup in 3 steps
 - [IMPLEMENTATION_HISTORY.md](IMPLEMENTATION_HISTORY.md) - Complete roadmap (Phases 1-13)
@@ -372,7 +384,7 @@ curl -X POST http://localhost:8001/process \
 1. **System Prompts**: Explicit read-only instructions
 2. **IAM Policies**: Explicit deny on write operations
 3. **K8s RBAC**: Only get, list, watch verbs
-4. **Responif Templates**: Suggest automation instead of manual changes
+4. **Response Templates**: Suggest automation instead of manual changes
 
 ### IAM Policy Example
 ```json
@@ -416,7 +428,7 @@ curl -X POST http://localhost:8001/process \
 
 - **Language**: Python 3.12
 - **Framework**: FastAPI
-- **LLM**: AWS Bedrock Claude 3.5 Sonnet
+- **LLM**: AWS Bedrock (Claude) — modelo único via env `BEDROCK_MODEL_ID` (ver `src/core/config.py`)
 - **State**: DynamoDB
 - **Cache**: Redis
 - **Observability**: OpenTelemetry + JSON logging
@@ -432,7 +444,7 @@ curl -X POST http://localhost:8001/process \
 - Validate conversation history
 - Optimize Kubernetes Agent timeout
 
-### Phase 2: RAG & Knowledge Baif (2-3 days)
+### Phase 2: RAG & Knowledge Bases (2-3 days)
 - Create 5 Bedrock Knowledge Bases
 - Enable RAG in all agents
 
@@ -469,7 +481,7 @@ This is a reference implementation based on AWS Labs Agent Squad best practices.
 
 **Key Principles**:
 - Classifier-based routing (not manual)
-- Seforted conversation contexts (global + isolated)
+- Sorted conversation contexts (global + isolated)
 - Standardized agent interface
 - Read-only by design
 - Production-grade observability
@@ -486,10 +498,10 @@ This is a reference implementation based on AWS Labs Agent Squad best practices.
 
 ## 📝 License
 
-MIT Licenif - See LICENSE file for details
+MIT License - See LICENSE file for details
 
 ---
 
-**Last Updated**: 2026-02-14  
-**Version**: 2.0  
-**Status**: ✅ Production Ready
+**Last Updated**: 2026-05-30
+**Version**: 0.x (pre-release)
+**Status**: 🚧 Em estabilização (Fase 0) — ver `.kiro/specs/ROADMAP.md`
