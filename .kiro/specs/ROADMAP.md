@@ -126,3 +126,51 @@ Per `version-management.md`:
 | 03-fix-cache-observability | C1, C2, O1, O2, O3, O4, D5 |
 | 04-harden-security | S1, S2, S3, S4, S5 |
 | Fase 1 (docs/higiene) | D1, D2, D3, D4, H2, H3, H4, H5, testes |
+
+---
+
+## Long-term Vision: Autonomous Multi-Agent System
+
+**Norte**: sistema de agentes autônomos com memória compartilhada e raciocínio multi-step.
+**Abordagem**: evolução incremental — cada nível só se justifica quando o anterior prova limitação mensurável.
+
+### Nível 1 — Hub-and-spoke com fan-out (specs atuais)
+
+O supervisor orquestra; agentes coletam evidência independentemente; synthesizer correlaciona.
+
+- **Entrega**: RCA em ~5s com evidência cruzada de N agentes em paralelo.
+- **Limitação esperada**: coleta cega — cada agente não sabe o que os outros encontraram.
+- **Promotion trigger para Nível 2**: RCA de 1 rodada é insuficiente em >30% dos casos (evidência incompleta, gaps não cobertos).
+
+### Nível 2 — Investigação iterativa
+
+Synthesizer detecta gaps na evidência → dispara 2ª rodada direcionada (agentes específicos, perguntas refinadas).
+
+- **Entrega**: investigação adaptativa que aprofunda onde a 1ª rodada foi fraca.
+- **Limitação esperada**: agentes ainda operam isolados — refinam sem saber o que outros acharam.
+- **Promotion trigger para Nível 3**: contexto de outros agentes melhoraria a coleta em >20% dos casos (ex: observability sabendo que devops encontrou deploy recente mudaria a query de métricas).
+
+### Nível 3 — Memória compartilhada + contexto cruzado
+
+Agentes recebem resumo do que os outros coletaram (blackboard/scratchpad compartilhado). Cada agente pode refinar sua coleta com base nas descobertas alheias. Não é conversa P2P — é 1 broadcast de contexto → coleta informada.
+
+- **Entrega**: evidência que se reforça (agente A encontra deploy → agente B foca métricas pós-deploy → correlação mais precisa).
+- **Limitação esperada**: fluxo ainda orquestrado pelo supervisor; agentes não tomam decisão de "preciso investigar X que ninguém pediu".
+- **Promotion trigger para Nível 4**: o sistema precisa de autonomia real — decisão sem humano no loop, auto-trigger, hipóteses emergentes que nenhum agente individual proporia.
+- **Custo**: cada rodada com contexto = mais tokens (N resumos × M agentes). Validar ROI antes de avançar.
+
+### Nível 4 — Agentes autônomos com raciocínio multi-step
+
+Agentes propõem hipóteses, delegam entre si, iteram até convergir em RCA. Memória de longo prazo compartilhada. Auto-trigger (detecta sintoma → investiga sem esperar humano). Convergência por votação/confiança, não por rodada fixa.
+
+- **Entrega**: sistema que resolve problemas emergentes que nenhum nível anterior resolveria.
+- **Riscos**: custo de tokens explosivo, loops infinitos, decisões incorretas sem supervisão.
+- **Guardrails obrigatórios**: budget cap por investigação, max iterations, human-in-the-loop para ações (read-only para coleta), kill switch.
+- **Pré-requisitos**: Níveis 1–3 validados + métricas de qualidade de RCA + custo controlado.
+
+### Princípios da evolução
+
+- **Cada nível prova valor antes de avançar** — não construir Nível 3 sem evidência de que Nível 2 é insuficiente.
+- **Promotion triggers são mensuráveis** — não "parece que precisamos", mas "em X% dos casos, Y falhou por Z".
+- **Custo é constraint real** — cada nível multiplica tokens. Medir $/investigação em cada nível.
+- **Read-only é invariante** — em todos os níveis, agentes coletam e analisam. Nunca executam fix automaticamente (sem humano aprovando).
