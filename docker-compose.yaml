@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # Redis for caching
   redis:
@@ -15,175 +13,14 @@ services:
       timeout: 3s
       retries: 5
 
-  # AWS Agent
-  aws-agent:
-    build:
-      context: .
-      dockerfile: src/agents/aws/Dockerfile
-      ssh:
-        - default
+  # DynamoDB Local (for conversation history in dev)
+  dynamodb-local:
+    image: amazon/dynamodb-local:latest
     ports:
-      - "8001:8001"
-    environment:
-      - SERVICE_NAME=aws-agent
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
-      - ENVIRONMENT=LOCAL
-      - AWS_REGION=${AWS_REGION:-us-east-1}
-      - BEDROCK_MODEL_ID=${BEDROCK_MODEL_ID:-anthropic.claude-sonnet-4-5-20250929-v1:0}
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - REDIS_SSL=false
-      - REDIS_PASSWORD=${REDIS_PASSWORD:-changeme}
-      - INTERNAL_API_TOKEN=${INTERNAL_API_TOKEN:-dev-secret-token}
-    volumes:
-      - ${HOME}/.aws:/root/.aws:ro
-    depends_on:
-      redis:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:8001/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
+      - "8100:8000"
+    command: "-jar DynamoDBLocal.jar -sharedDb -inMemory"
 
-  # Kubernetes Agent
-  kubernetes-agent:
-    build:
-      context: .
-      dockerfile: src/agents/kubernetes/Dockerfile
-      ssh:
-        - default
-    ports:
-      - "8002:8002"
-    environment:
-      - SERVICE_NAME=kubernetes-agent
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
-      - ENVIRONMENT=LOCAL
-      - AWS_REGION=${AWS_REGION:-us-east-1}
-      - BEDROCK_MODEL_ID=${BEDROCK_MODEL_ID:-anthropic.claude-sonnet-4-5-20250929-v1:0}
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - REDIS_SSL=false
-      - REDIS_PASSWORD=${REDIS_PASSWORD:-changeme}
-      - INTERNAL_API_TOKEN=${INTERNAL_API_TOKEN:-dev-secret-token}
-      - KUBECONFIG=/root/.kube/config
-    volumes:
-      - ${HOME}/.aws:/root/.aws:ro
-      - ${HOME}/.kube:/root/.kube:ro
-    depends_on:
-      redis:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:8002/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-
-  # FinOps Agent
-  finops-agent:
-    build:
-      context: .
-      dockerfile: src/agents/finops/Dockerfile
-      ssh:
-        - default
-    ports:
-      - "8003:8003"
-    environment:
-      - SERVICE_NAME=finops-agent
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
-      - ENVIRONMENT=LOCAL
-      - AWS_REGION=${AWS_REGION:-us-east-1}
-      - BEDROCK_MODEL_ID=${BEDROCK_MODEL_ID:-anthropic.claude-sonnet-4-5-20250929-v1:0}
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - REDIS_SSL=false
-      - REDIS_PASSWORD=${REDIS_PASSWORD:-changeme}
-      - INTERNAL_API_TOKEN=${INTERNAL_API_TOKEN:-dev-secret-token}
-      - ATHENA_PROJECT_ID=${ATHENA_PROJECT_ID:-123456789012}
-      - ATHENA_BUCKET=${ATHENA_BUCKET:-s3://company-athena-kubecost}
-      - ATHENA_REGION=${ATHENA_REGION:-us-east-1}
-      - ATHENA_DATABASE=${ATHENA_DATABASE:-kubecost}
-      - ATHENA_TABLE=${ATHENA_TABLE:-kubecost_split}
-      - ATHENA_WORKGROUP=${ATHENA_WORKGROUP:-primary}
-    volumes:
-      - ${HOME}/.aws:/root/.aws:ro
-    depends_on:
-      redis:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:8003/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-
-  # DevOps Agent
-  devops-agent:
-    build:
-      context: .
-      dockerfile: src/agents/devops/Dockerfile
-      ssh:
-        - default
-    ports:
-      - "8004:8004"
-    environment:
-      - SERVICE_NAME=devops-agent
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
-      - ENVIRONMENT=LOCAL
-      - AWS_REGION=${AWS_REGION:-us-east-1}
-      - BEDROCK_MODEL_ID=${BEDROCK_MODEL_ID:-anthropic.claude-sonnet-4-5-20250929-v1:0}
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - REDIS_SSL=false
-      - REDIS_PASSWORD=${REDIS_PASSWORD:-changeme}
-      - INTERNAL_API_TOKEN=${INTERNAL_API_TOKEN:-dev-secret-token}
-      - GITLAB_TOKEN=${GITLAB_TOKEN}
-      - GITLAB_URL=${GITLAB_URL:-https://gitlab.com}
-      - DOCS_PORTAL_URL=${DOCS_PORTAL_URL:-https://docs.company.internal/}
-      - DOCS_PORTAL_URL_NEW=${DOCS_PORTAL_URL_NEW:-https://docs.company.com/}
-    volumes:
-      - ${HOME}/.aws:/root/.aws:ro
-    depends_on:
-      redis:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:8004/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-
-  # Observability Agent
-  observability-agent:
-    build:
-      context: .
-      dockerfile: src/agents/observability/Dockerfile
-      ssh:
-        - default
-    ports:
-      - "8005:8005"
-    environment:
-      - SERVICE_NAME=observability-agent
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
-      - ENVIRONMENT=LOCAL
-      - AWS_REGION=${AWS_REGION:-us-east-1}
-      - BEDROCK_MODEL_ID=${BEDROCK_MODEL_ID:-anthropic.claude-sonnet-4-5-20250929-v1:0}
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - REDIS_SSL=false
-      - REDIS_PASSWORD=${REDIS_PASSWORD:-changeme}
-      - INTERNAL_API_TOKEN=${INTERNAL_API_TOKEN:-dev-secret-token}
-      - PROMETHEUS_URL=${PROMETHEUS_URL:-http://prometheus:9090}
-    volumes:
-      - ${HOME}/.aws:/root/.aws:ro
-    depends_on:
-      redis:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:8005/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-
-  # Supervisor
+  # Supervisor (all agents run in-process via GenericAgent + AGENTS_DIR)
   supervisor:
     build:
       context: .
@@ -193,13 +30,14 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - SERVICE_NAME=supervisor
+      - SERVICE_NAME=aigent-squad
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
       - ENVIRONMENT=LOCAL
+      - AGENTS_DIR=/app/agents
       - AWS_REGION=${AWS_REGION:-us-east-1}
       - BEDROCK_MODEL_ID=${BEDROCK_MODEL_ID:-anthropic.claude-sonnet-4-5-20250929-v1:0}
       - DYNAMODB_SESSIONS_TABLE=${DYNAMODB_SESSIONS_TABLE:-agent-sessions}
-      - DYNAMODB_ENDPOINT=${DYNAMODB_ENDPOINT:-http://dynamodb-local:8000}
+      - DYNAMODB_ENDPOINT=http://dynamodb-local:8000
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_SSL=false
@@ -207,39 +45,25 @@ services:
       - INTERNAL_API_TOKEN=${INTERNAL_API_TOKEN:-dev-secret-token}
       - SLACK_BOT_TOKEN=${SLACK_BOT_TOKEN}
       - SLACK_SIGNING_SECRET=${SLACK_SIGNING_SECRET}
-      - SLACK_PROACTIVE_CHANNEL=${SLACK_PROACTIVE_CHANNEL}
-      - INTERNAL_API_TOKEN=${INTERNAL_API_TOKEN:-dev-secret-token}
+      - GITLAB_TOKEN=${GITLAB_TOKEN}
+      - GITLAB_URL=${GITLAB_URL:-https://gitlab.com}
+      - DOCS_PORTAL_URL=${DOCS_PORTAL_URL:-https://docs.company.internal/}
+      - PROMETHEUS_URL=${PROMETHEUS_URL:-http://prometheus:9090}
     volumes:
-      - ${HOME}/.aws:/root/.aws:ro
+      - ${HOME}/.aws:/home/appuser/.aws:ro
+      - ./agents:/app/agents:ro
     depends_on:
       redis:
         condition: service_healthy
       dynamodb-local:
         condition: service_started
-      aws-agent:
-        condition: service_healthy
-      kubernetes-agent:
-        condition: service_healthy
-      finops-agent:
-        condition: service_healthy
-      devops-agent:
-        condition: service_healthy
-      observability-agent:
-        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://127.0.0.1:8000/health"]
       interval: 10s
       timeout: 5s
       retries: 3
 
-  # DynamoDB Local (for testing)
-  dynamodb-local:
-    image: amazon/dynamodb-local:latest
-    ports:
-      - "8100:8000"
-    command: "-jar DynamoDBLocal.jar -sharedDb -inMemory"
-
-  # MCP Server (for Kiro CLI integration)
+  # MCP Server (HTTP gateway for Kiro CLI)
   mcp-server:
     build:
       context: .
@@ -271,11 +95,6 @@ services:
       - "4318:4318"
     depends_on:
       - tempo
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:13133/"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
 
   tempo:
     image: grafana/tempo:2.4.1

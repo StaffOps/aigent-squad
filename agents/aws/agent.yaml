@@ -1,0 +1,22 @@
+name: aws
+description: "AWS infrastructure specialist. Queries EC2, S3, RDS, IAM. Read-only."
+domain: cloud-infrastructure
+capabilities: [ec2_inventory, security_group_audit, s3_management, rds_status, iam_audit]
+routing_keywords: [ec2, instance, s3, bucket, rds, database, iam, role, security group, vpc, lambda]
+datasources:
+  - type: boto3
+    services: [ec2, s3, rds, iam]
+cache:
+  ttl: 300
+model:
+  tier: standard
+  temperature: 0.1
+read_only: true
+evidence_types: [aws_api_response]
+delegates_to:
+  - agent: kubernetes
+    when: "issue points to EKS pod/node level"
+  - agent: finops
+    when: "question involves cost attribution"
+required_env: [AWS_REGION]
+port: 8001

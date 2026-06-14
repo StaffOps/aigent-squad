@@ -1,0 +1,169 @@
+"""Datasource adapters — read-only collectors for agent context."""
+from __future__ import annotations
+
+import os
+import re
+import time
+from abc import ABC, abstractmethod
+from datetime import datetime, timedelta
+
+import boto3
+import httpx
+from kubernetes import client as k8s_client, config as k8s_config
+from kubernetes.config import ConfigException
+
+from src.core.agent_config import DatasourceConfig
+
+
+class DatasourceAdapter(ABC):
+    """Base class for all datasource adapters."""
+
+    @abstractmethod
+    async def collect(self, query: str) -> str:
+        """Collect data relevant to the query. Returns text summary."""
+
+
+class Boto3Adapter(DatasourceAdapter):
+    """Collects read-only inventory from AWS services."""
+
+    def __init__(self, services: list[str]):
+        self.services = services
+
+    async def collect(self, query: str) -> str:
+        parts = []
+        for svc in self.services:
+            try:
+                parts.append(self._collect_service(svc))
+            except Exception as e:
+                parts.append(f"[{svc}] error: {e}")
+        return "\n".join(parts)
+
+    def _collect_service(self, svc: str) -> str:
+        if svc == "ec2":
+            c = boto3.client("ec2")
+            r = c.describe_instances()
+            instances = [i for res in r["Reservations"] for i in res["Instances"]]
+            running = sum(1 for i in instances if i["State"]["Name"] == "running")
+            return f"[ec2] {len(instances)} instances ({running} running)"
+        elif svc == "s3":
+            c = boto3.client("s3")
+            buckets = c.list_buckets().get("Buckets", [])
+            return f"[s3] {len(buckets)} buckets"
+        elif svc == "rds":
+            c = boto3.client("rds")
+            dbs = c.describe_db_instances()["DBInstances"]
+            summary = ", ".join(f"{d['DBInstanceIdentifier']}({d['DBInstanceStatus']})" for d in dbs[:5])
+            return f"[rds] {len(dbs)} instances: {summary}"
+        elif svc == "ce":
+            c = boto3.client("ce")
+            end = datetime.utcnow().strftime("%Y-%m-%d")
+            start = (datetime.utcnow() - timedelta(days=30)).strftime("%Y-%m-%d")
+            r = c.get_cost_and_usage(
+                TimePeriod={"Start": start, "End": end},
+                Granularity="MONTHLY",
+                Metrics=["UnblendedCost"],
+            )
+            total = sum(float(p["Total"]["UnblendedCost"]["Amount"]) for p in r["ResultsByTime"])
+            return f"[ce] last 30d cost: ${total:.2f}"
+        elif svc == "iam":
+            c = boto3.client("iam")
+            roles = c.list_roles()["Roles"]
+            return f"[iam] {len(roles)} roles"
+        else:
+            return f"[{svc}] unsupported service"
+
+
+class KubernetesAdapter(DatasourceAdapter):
+    """Collects K8s cluster summary."""
+
+    async def collect(self, query: str) -> str:
+        try:
+            try:
+                k8s_config.load_incluster_config()
+            except ConfigException:
+                k8s_config.load_kube_config()
+            v1 = k8s_client.CoreV1Api()
+            nodes = v1.list_node().items
+            pods = v1.list_pod_for_all_namespaces().items
+            namespaces = v1.list_namespace().items
+            return (
+                f"[k8s] {len(nodes)} nodes, {len(pods)} pods, "
+                f"{len(namespaces)} namespaces"
+            )
+        except Exception as e:
+            return f"[k8s] error: {e}"
+
+
+class HttpAdapter(DatasourceAdapter):
+    """Collects data from an HTTP endpoint."""
+
+    def __init__(self, name: str, url: str, headers: dict[str, str]):
+        self.name = name
+        self.url = self._interpolate_env(url)
+        self.headers = headers
+
+    @staticmethod
+    def _interpolate_env(url: str) -> str:
+        return re.sub(r"\$\{(\w+)\}", lambda m: os.environ.get(m.group(1), m.group(0)), url)
+
+    async def collect(self, query: str) -> str:
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                r = await client.get(self.url, headers=self.headers)
+                r.raise_for_status()
+                return f"[http:{self.name}] {r.text[:2000]}"
+        except Exception as e:
+            return f"[http:{self.name}] error: {e}"
+
+
+class AthenaAdapter(DatasourceAdapter):
+    """Runs a sample query on Athena."""
+
+    def __init__(self, database: str, table: str, workgroup: str = "primary"):
+        self.database = database
+        self.table = table
+        self.workgroup = workgroup
+
+    async def collect(self, query: str) -> str:
+        try:
+            c = boto3.client("athena")
+            q = f"SELECT * FROM {self.table} LIMIT 5"
+            r = c.start_query_execution(
+                QueryString=q,
+                QueryExecutionContext={"Database": self.database},
+                WorkGroup=self.workgroup,
+            )
+            qid = r["QueryExecutionId"]
+            # Poll for completion (max 30s)
+            for _ in range(15):
+                status = c.get_query_execution(QueryExecutionId=qid)
+                state = status["QueryExecution"]["Status"]["State"]
+                if state in ("SUCCEEDED", "FAILED", "CANCELLED"):
+                    break
+                time.sleep(2)
+            if state != "SUCCEEDED":
+                return f"[athena:{self.table}] query {state}"
+            results = c.get_query_results(QueryExecutionId=qid)
+            rows = results["ResultSet"]["Rows"]
+            header = [c["VarCharValue"] for c in rows[0]["Data"]]
+            lines = [", ".join(header)]
+            for row in rows[1:]:
+                lines.append(", ".join(c.get("VarCharValue", "") for c in row["Data"]))
+            return f"[athena:{self.table}]\n" + "\n".join(lines)
+        except Exception as e:
+            return f"[athena:{self.table}] error: {e}"
+
+
+def create_adapters(datasource_configs: list[DatasourceConfig]) -> list[DatasourceAdapter]:
+    """Instantiate adapters from config."""
+    adapters: list[DatasourceAdapter] = []
+    for cfg in datasource_configs:
+        if cfg.type == "boto3":
+            adapters.append(Boto3Adapter(services=cfg.services))
+        elif cfg.type == "kubernetes":
+            adapters.append(KubernetesAdapter())
+        elif cfg.type == "http":
+            adapters.append(HttpAdapter(name=cfg.name, url=cfg.url, headers=cfg.headers))
+        elif cfg.type == "athena":
+            adapters.append(AthenaAdapter(database=cfg.database, table=cfg.table, workgroup=cfg.workgroup))
+    return adapters
