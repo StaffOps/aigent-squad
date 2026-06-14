@@ -5,7 +5,7 @@ from unittest.mock import patch, MagicMock, AsyncMock
 import pytest
 
 from src.core.agent_config import AgentConfig
-from src.core.classifier import Classifier, ClassifierResult
+from src.core.classifier import Classifier, ClassifierResult, AgentMatch
 
 
 def _make_registry():
@@ -28,8 +28,7 @@ async def test_classify_returns_agent_name():
     classifier = Classifier(registry)
 
     bedrock_response = json.dumps({
-        "selected_agent": "aws",
-        "confidence": 0.95,
+        "agents": [{"agent": "aws", "confidence": 0.95}],
         "reasoning": "User asks about EC2"
     })
 
@@ -39,7 +38,9 @@ async def test_classify_returns_agent_name():
 
     assert isinstance(result, ClassifierResult)
     assert result.selected_agent == "aws"
-    assert result.confidence == 0.95
+    assert result.agents[0].agent == "aws"
+    assert result.agents[0].confidence == 0.95
+    assert result.reasoning == "User asks about EC2"
 
 
 @pytest.mark.asyncio
@@ -47,7 +48,6 @@ async def test_classify_fallback_on_invalid_json():
     registry = _make_registry()
     classifier = Classifier(registry)
 
-    # Non-JSON but contains agent name
     bedrock_response = "I think this should go to the kubernetes agent for pods."
 
     with patch("src.core.classifier.bedrock") as mock_bedrock:
@@ -55,7 +55,8 @@ async def test_classify_fallback_on_invalid_json():
         result = await classifier.classify("list pods", [])
 
     assert result.selected_agent == "kubernetes"
-    assert result.confidence == 0.5
+    assert result.agents[0].agent == "kubernetes"
+    assert result.agents[0].confidence == 0.5
     assert result.reasoning == "Fallback parsing"
 
 
@@ -71,4 +72,5 @@ async def test_classify_unknown_on_garbage():
         result = await classifier.classify("asdfghjkl", [])
 
     assert result.selected_agent == "unknown"
+    assert result.agents == []
     assert result.confidence == 0.0

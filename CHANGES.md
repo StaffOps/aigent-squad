@@ -2,6 +2,18 @@
 
 ## [Unreleased] - 2026-06-14
 
+### Added (Spec 17: Multi-Agent Fan-Out + Synthesizer)
+- `src/supervisor/synthesizer.py`: fuses N agent responses into 1 coherent answer
+- `src/core/agent_tools.py`: agent-as-tools helper with depth=1 guard (contextvars)
+- Supervisor fan-out: cross-domain queries trigger parallel `asyncio.gather` of N agents
+- Classifier returns multi-agent list (`AgentMatch[]`) with backward-compat `selected_agent`
+- max_agents=3 cap (cost protection)
+- Partial failure tolerance: 1 agent down → response synthesized with the rest
+
+### Changed (Spec 17)
+- ClassifierResult: now holds `agents: list[AgentMatch]` (was scalar `selected_agent`)
+- N=1 queries: fast-path preserved (zero synthesis overhead)
+
 ### Added (Spec 06: Resilience Patterns)
 - `src/core/circuit_breaker.py`: CircuitBreaker (closed→open→half-open) for Bedrock calls
 - Classifier keyword fallback using `routing_keywords` from agent configs when LLM unavailable

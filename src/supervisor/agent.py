@@ -1,3 +1,4 @@
+import asyncio
 from typing import Dict
 import time
 from datetime import datetime, timezone
@@ -9,6 +10,7 @@ from src.core.metrics import request_counter, error_counter, request_duration
 from src.core.registry import AgentRegistry
 from src.core.generic_agent import GenericAgent
 from src.core.adapters import create_adapters
+from src.supervisor.synthesizer import synthesizer
 
 tracer = trace.get_tracer(__name__)
 
@@ -19,6 +21,7 @@ class SupervisorAgent:
     def __init__(self, registry: AgentRegistry):
         self.registry = registry
         self.classifier = Classifier(registry)
+        self.max_agents = 3
 
         # Create in-process agent instances
         self.agents: dict[str, GenericAgent] = {}
@@ -35,7 +38,7 @@ class SupervisorAgent:
         user_id: str,
         session_id: str
     ) -> Dict:
-        """Process user request with intelligent routing"""
+        """Process user request with intelligent routing and optional fan-out"""
 
         start_time = time.time()
 
@@ -60,93 +63,54 @@ class SupervisorAgent:
                 logger.info("Intent classified", extra={
                     "selected_agent": classification.selected_agent,
                     "confidence": classification.confidence,
-                    "reasoning": classification.reasoning
+                    "reasoning": classification.reasoning,
+                    "agent_count": len(classification.agents),
                 })
 
-                if classification.selected_agent == "unknown":
+                if not classification.agents or classification.selected_agent == "unknown":
                     return {
                         "agent": "supervisor",
                         "response": "I'm not sure how to help with that. Could you please rephrase your question?",
                         "confidence": classification.confidence
                     }
 
-                # 3. Save user message
+                # 3. Apply max_agents cap and filter to known agents
+                agents = [
+                    a for a in classification.agents[:self.max_agents]
+                    if a.agent in self.agents
+                ]
+
+                if not agents:
+                    return {
+                        "agent": "supervisor",
+                        "response": "I'm not sure how to help with that. Could you please rephrase your question?",
+                        "confidence": 0.0
+                    }
+
+                # 4. Save user message (tagged to primary agent)
+                primary_agent = agents[0].agent
                 user_message = ConversationMessage(
                     role="user",
                     content=user_input,
                     timestamp=datetime.now(timezone.utc).isoformat(),
-                    agent_id=classification.selected_agent
+                    agent_id=primary_agent
                 )
                 await storage.save_chat_message(
-                    user_id,
-                    session_id,
-                    classification.selected_agent,
-                    user_message
+                    user_id, session_id, primary_agent, user_message
                 )
 
-                # 4. Get agent-specific history
-                agent_history = await storage.fetch_chat(
-                    user_id,
-                    session_id,
-                    classification.selected_agent
+                # 5. Single agent fast-path (current behavior)
+                if len(agents) == 1:
+                    return await self._single_agent_call(
+                        agents[0].agent, classification, user_input,
+                        user_id, session_id, start_time
+                    )
+
+                # 6. Fan-out to multiple agents
+                return await self._fan_out(
+                    agents, classification, user_input,
+                    user_id, session_id, start_time
                 )
-
-                # 5. Call specialist agent in-process
-                agent = self.agents[classification.selected_agent]
-
-                with tracer.start_as_current_span("agent.process") as agent_span:
-                    agent_span.set_attribute("agent_id", classification.selected_agent)
-
-                    try:
-                        result = await agent.process_request(
-                            input_text=user_input,
-                            user_id=user_id,
-                            session_id=session_id,
-                            chat_history=agent_history,
-                        )
-                    except Exception as e:
-                        logger.error("Agent processing error", extra={
-                            "agent_id": classification.selected_agent,
-                            "error": str(e)
-                        })
-                        error_counter.add(1, {"agent_id": classification.selected_agent, "error_type": "internal"})
-                        return {
-                            "agent": classification.selected_agent,
-                            "response": f"Error processing request in {classification.selected_agent} agent.",
-                            "confidence": 0.0,
-                            "error": str(e)
-                        }
-
-                response_text = result.content
-
-                # Record RED metrics
-                agent_attrs = {"agent_id": classification.selected_agent}
-                request_counter.add(1, agent_attrs)
-                request_duration.record((time.time() - start_time) * 1000, agent_attrs)
-
-                # 6. Save assistant message
-                assistant_message = ConversationMessage(
-                    role="assistant",
-                    content=response_text,
-                    timestamp=datetime.now(timezone.utc).isoformat(),
-                    agent_id=classification.selected_agent
-                )
-                await storage.save_chat_message(
-                    user_id,
-                    session_id,
-                    classification.selected_agent,
-                    assistant_message
-                )
-
-                duration_ms = (time.time() - start_time) * 1000
-                log_response("supervisor", user_id, session_id, len(response_text), duration_ms)
-
-                return {
-                    "agent": classification.selected_agent,
-                    "response": response_text,
-                    "confidence": classification.confidence,
-                    "reasoning": classification.reasoning
-                }
 
             except Exception as e:
                 log_error("supervisor", e, user_id=user_id, session_id=session_id)
@@ -156,6 +120,110 @@ class SupervisorAgent:
                     "confidence": 0.0,
                     "error": str(e)
                 }
+
+    async def _single_agent_call(
+        self, agent_name: str, classification: ClassifierResult,
+        user_input: str, user_id: str, session_id: str, start_time: float
+    ) -> Dict:
+        """Fast-path: route to a single agent."""
+        agent_history = await storage.fetch_chat(user_id, session_id, agent_name)
+        agent = self.agents[agent_name]
+
+        with tracer.start_as_current_span("agent.process") as agent_span:
+            agent_span.set_attribute("agent_id", agent_name)
+
+            try:
+                result = await agent.process_request(
+                    input_text=user_input,
+                    user_id=user_id,
+                    session_id=session_id,
+                    chat_history=agent_history,
+                )
+            except Exception as e:
+                logger.error("Agent processing error", extra={
+                    "agent_id": agent_name, "error": str(e)
+                })
+                error_counter.add(1, {"agent_id": agent_name, "error_type": "internal"})
+                return {
+                    "agent": agent_name,
+                    "response": f"Error processing request in {agent_name} agent.",
+                    "confidence": 0.0,
+                    "error": str(e)
+                }
+
+        response_text = result.content
+        self._record_metrics(agent_name, response_text, user_id, session_id, start_time)
+        await self._save_assistant_message(user_id, session_id, agent_name, response_text)
+
+        return {
+            "agent": agent_name,
+            "response": response_text,
+            "confidence": classification.confidence,
+            "reasoning": classification.reasoning
+        }
+
+    async def _fan_out(
+        self, agents, classification: ClassifierResult,
+        user_input: str, user_id: str, session_id: str, start_time: float
+    ) -> Dict:
+        """Fan-out: call multiple agents in parallel, then synthesize."""
+        with tracer.start_as_current_span("supervisor.fan_out") as span:
+            span.set_attribute("agent_count", len(agents))
+
+            tasks = [
+                self.agents[a.agent].process_request(
+                    input_text=user_input,
+                    user_id=user_id,
+                    session_id=session_id,
+                    chat_history=[],
+                )
+                for a in agents
+            ]
+
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+
+            ok: list[tuple[str, str]] = []
+            failed: list[str] = []
+            for a, r in zip(agents, results):
+                if isinstance(r, Exception):
+                    failed.append(a.agent)
+                    logger.error("Fan-out agent failed", extra={
+                        "agent_id": a.agent, "error": str(r)
+                    })
+                    error_counter.add(1, {"agent_id": a.agent, "error_type": "fan_out"})
+                else:
+                    ok.append((a.agent, r.content))
+
+            final_response = await synthesizer.synthesize(user_input, ok, failed)
+
+            # Record metrics for primary agent
+            primary = agents[0].agent
+            self._record_metrics(primary, final_response, user_id, session_id, start_time)
+            await self._save_assistant_message(user_id, session_id, primary, final_response)
+
+            return {
+                "agent": "supervisor",
+                "response": final_response,
+                "agents_consulted": [a.agent for a in agents],
+                "agents_failed": failed,
+                "confidence": min(a.confidence for a in agents),
+            }
+
+    def _record_metrics(self, agent_name: str, response_text: str, user_id: str, session_id: str, start_time: float):
+        duration_ms = (time.time() - start_time) * 1000
+        agent_attrs = {"agent_id": agent_name}
+        request_counter.add(1, agent_attrs)
+        request_duration.record(duration_ms, agent_attrs)
+        log_response("supervisor", user_id, session_id, len(response_text), duration_ms)
+
+    async def _save_assistant_message(self, user_id: str, session_id: str, agent_name: str, content: str):
+        assistant_message = ConversationMessage(
+            role="assistant",
+            content=content,
+            timestamp=datetime.now(timezone.utc).isoformat(),
+            agent_id=agent_name
+        )
+        await storage.save_chat_message(user_id, session_id, agent_name, assistant_message)
 
     async def close(self):
         """No-op — agents are in-process, no connections to close."""
