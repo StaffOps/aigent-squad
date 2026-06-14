@@ -2,6 +2,17 @@
 
 ## [Unreleased] - 2026-06-14
 
+### Added (Spec 08: CI/CD Pipeline)
+- `.github/workflows/test.yml`: ruff lint + pytest --cov-fail-under=80 on push/PR
+- `.github/workflows/build.yml`: multi-arch buildx (amd64+arm64) + Trivy scan + SBOM + OIDC push to ECR
+- `.github/workflows/release.yml`: manual workflow_dispatch, semver tag + stable image
+
+### Removed
+- `docs/GITLAB_CI_SETUP.md` (obsolete, repo is on GitHub not GitLab)
+
+### Changed
+- `docs/SETUP.md` rewritten with current architecture (docker compose + Helm + GitHub Actions)
+
 ### Added (Spec 22 Phase B: Helm Chart)
 - Helm chart at `helm-charts/charts/aigent-squad/` (deploy to K8s)
 - `agentsSource: configmap` — agents inline in values.yaml
