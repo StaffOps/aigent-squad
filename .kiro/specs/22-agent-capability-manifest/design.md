@@ -1,118 +1,312 @@
-# Design: Agent Capability Manifest
+# Design: Config-Driven Agent Platform
 
 ## Arquitetura
 
-Um registry capability-rich, alimentado por manifestos YAML auto-descobertos. Estende o `AgentRegistry` do `staffops-chaitops` (que já faz discovery + `required_env` + `/ready`) adicionando os campos de **colaboração** e **evidência**.
-
 ```
-config/agents/*.yaml ─▶ AgentRegistry (startup discovery + validação)
-                              │
-        ┌─────────────────────┼──────────────────────────┐
-        ▼                     ▼                          ▼
-   Classifier            Coordinator (spec 17)      RCA flow (spec 18)
-   usa name/description/  seleciona N agentes por    usa evidence_types
-   capabilities/keywords  capability/domain +        p/ montar coleta
-                          resolve delegates_to
+┌─────────────────────────────────────────────────────────────────┐
+│  AGENTS_DIR (volume — fonte: local/configmap/git/s3)            │
+│                                                                 │
+│  agents/aws/           agents/finops/        agents/custom/     │
+│  ├── agent.yaml        ├── agent.yaml        ├── agent.yaml    │
+│  └── prompt.md         ├── prompt.md         └── prompt.md     │
+│                        └── examples/                            │
+└────────────────────────────────┬────────────────────────────────┘
+                                 │ startup discovery
+                                 ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                      AgentRegistry                               │
+│  parse YAML → validate schema → resolve adapters → register     │
+└────────────────────────────────┬────────────────────────────────┘
+                                 │
+         ┌───────────────────────┼───────────────────────┐
+         ▼                       ▼                       ▼
+   GenericAgent(aws)      GenericAgent(finops)    GenericAgent(custom)
+   adapters: [Boto3]      adapters: [Boto3,Athena] adapters: [Http]
+   prompt: loaded          prompt: loaded           prompt: loaded
+         │                       │                       │
+         └───────────────────────┼───────────────────────┘
+                                 │
+                    ┌────────────┴────────────┐
+                    ▼                         ▼
+              Classifier                 Supervisor
+              (usa registry)             (roteia por registry)
 ```
 
-A lista de agentes **deixa de existir no código** — vive só nos manifestos.
-
-## Schema do manifesto
+## Schema: `agent.yaml`
 
 ```yaml
-# config/agents/observability.yaml
-name: observability
-description: >
-  Consulta métricas, logs e traces (VictoriaMetrics, Loki, Tempo).
-  Responde sobre error rate, latência, saúde de serviço e anomalias.
-domain: observability
-capabilities: [metrics_query, log_query, trace_query, anomaly_lookup]
-routing_keywords: [latency, error rate, prometheus, grafana, logs, trace, p99, slo]
-datasources: [prometheus, loki, tempo]          # o que ele acessa de fato
-evidence_types: [metric, log, trace]            # o que contribui numa RCA (spec 18)
-delegates_to:                                   # COMO se ajuda — dirigido por dados
+# Campos obrigatórios
+name: aws                           # identificador único
+description: >                      # usado pelo classifier para roteamento
+  AWS infrastructure specialist.
+  Queries EC2, S3, RDS, IAM. Read-only.
+domain: cloud-infrastructure        # agrupamento lógico
+
+# Campos de roteamento
+capabilities:                       # O QUE sabe fazer
+  - ec2_inventory
+  - security_group_audit
+  - cost_summary
+routing_keywords:                   # fast-path sem LLM (match literal)
+  - ec2
+  - instance
+  - security group
+  - s3 bucket
+  - iam role
+
+# Dados que coleta
+datasources:
+  - type: boto3
+    services: [ec2, s3, rds, iam]
+  - type: http
+    name: cloudwatch-metrics
+    url: "${CLOUDWATCH_ENDPOINT}"
+    headers:
+      Authorization: "Bearer ${CW_TOKEN}"
+
+# Comportamento
+cache:
+  ttl: 300                          # segundos
+  namespace: aws                    # isolamento de cache
+model:
+  tier: standard                    # fast (Haiku) | standard (Sonnet) | premium (Opus)
+  temperature: 0.1
+read_only: true                     # invariante de segurança
+
+# Colaboração (spec 17 — fan-out)
+evidence_types: [aws_api_response, cloudwatch_metric]
+delegates_to:
   - agent: kubernetes
-    when: "metric anomaly points to pod restarts / OOM / scheduling"
-  - agent: devops
-    when: "latency regression correlates with a recent deploy"
-read_only: true
-model_tier: standard                            # fast | standard | premium
-required_env: []
-sidecar_url: http://observability-agent:8005/process
-enabled: true
+    when: "issue points to pod/node level (EKS)"
+  - agent: finops
+    when: "question involves cost attribution"
+
+# Operacional
+required_env: [AWS_REGION]          # validado no startup
+enabled: true                       # false = ignorado
+port: 8001                          # porta do container
 ```
 
-Campos e papéis:
+### Campos opcionais vs obrigatórios
 
-| Campo | Quem consome | Para quê |
-|-------|-------------|----------|
-| `name`, `description` | classifier | roteamento semântico (o que você pediu) |
-| `domain`, `capabilities` | coordinator | seleção multi-agente (match de N) |
-| `routing_keywords` | classifier | desempate / fast-path sem LLM |
-| `datasources` | RCA, ops | saber o que o agente acessa de verdade |
-| `evidence_types` | RCA (spec 18) | montar a coleta de evidência por tipo de sinal |
-| `delegates_to` (`agent`+`when`) | coordinator, agent-as-tools | **como os agentes se ajudam** — sua peça-chave |
-| `read_only` | safety | invariante; nunca rotear mutação |
-| `model_tier` | bedrock layer | custo por papel (specs 11/19) |
-| `required_env`, `sidecar_url`, `enabled` | registry | discovery/health (herdado do chaitops) |
+| Campo | Obrigatório | Default |
+|-------|:-----------:|---------|
+| `name` | ✅ | — |
+| `description` | ✅ | — |
+| `domain` | ✅ | — |
+| `capabilities` | ✅ | — |
+| `datasources` | ✅ | — |
+| `routing_keywords` | ❌ | `[]` |
+| `cache.ttl` | ❌ | `300` |
+| `cache.namespace` | ❌ | `name` |
+| `model.tier` | ❌ | `standard` |
+| `model.temperature` | ❌ | `0.1` |
+| `read_only` | ❌ | `true` |
+| `evidence_types` | ❌ | `[]` |
+| `delegates_to` | ❌ | `[]` |
+| `required_env` | ❌ | `[]` |
+| `enabled` | ❌ | `true` |
+| `port` | ❌ | auto-assign |
 
-## Rationale (decisões e trade-offs)
+## Componentes
 
-### Decisão 1: Colaboração declarativa via `delegates_to` (não matriz hardcoded, não LLM puro)
+| Componente | Responsabilidade |
+|-----------|------------------|
+| `AgentRegistry` | Discovery + validação + acesso ao roster |
+| `GenericAgent` | Classe única: load prompt + call adapters + build context + call Bedrock |
+| `DatasourceAdapter` (interface) | Contrato: `async collect(query, params) → str` |
+| `Boto3Adapter` | AWS SDK (read-only by config) |
+| `KubernetesAdapter` | kubernetes-client |
+| `HttpAdapter` | Qualquer HTTP (Prometheus, GitLab, docs portal, APIs internas) |
+| `AthenaAdapter` | AWS Athena queries |
+| `Classifier` (atualizado) | Consome registry em vez de lista hardcoded |
+| `Supervisor` (atualizado) | Roteia para URL do registry |
 
-**Escolha**: cada agente declara **no próprio manifesto** a quem delega e **sob que condição** (`when`), em vez de (a) uma matriz de colaboração no código ou (b) o LLM adivinhar do zero toda vez.
+## GenericAgent — fluxo unificado
 
-**Justificativa, em ordem de força**:
-1. **Roster aberto exige isso**: se a colaboração fosse hardcoded, adicionar o 12º agente exigiria editar código de todos os outros. Declarativo = adicionar manifesto e pronto.
-2. **Dá ao LLM um prior barato e auditável**: o `when` textual guia o coordinator/classifier sem uma chamada extra cara só pra descobrir "quem ajuda quem". O LLM ainda decide, mas com dica.
-3. **Versionável e revisável**: colaboração vira diff de YAML num PR, não lógica enterrada.
+```python
+class GenericAgent:
+    """Single implementation that works for any agent config."""
+
+    def __init__(self, config: AgentConfig, prompt: str, adapters: list[DatasourceAdapter]):
+        self.config = config
+        self.prompt = prompt
+        self.adapters = adapters
+
+    async def process_request(self, input_text, user_id, session_id, chat_history):
+        # 1. Validate input
+        # 2. Check cache
+        # 3. Collect context from all adapters (parallel)
+        contexts = await asyncio.gather(*[a.collect(input_text) for a in self.adapters])
+        # 4. Format history
+        # 5. Build prompt: system_prompt + contexts + history + query
+        # 6. Call Bedrock (model from config.model.tier)
+        # 7. Cache response
+        # 8. Return ConversationMessage
+```
+
+## Datasource Adapters
+
+```python
+class DatasourceAdapter(ABC):
+    @abstractmethod
+    async def collect(self, query: str, params: dict | None = None) -> str:
+        """Collect context relevant to the query. Returns formatted string."""
+        ...
+
+class Boto3Adapter(DatasourceAdapter):
+    def __init__(self, services: list[str], read_only: bool = True): ...
+
+class KubernetesAdapter(DatasourceAdapter):
+    def __init__(self, resources: list[str] | None = None): ...
+
+class HttpAdapter(DatasourceAdapter):
+    def __init__(self, name: str, url: str, headers: dict | None = None): ...
+
+class AthenaAdapter(DatasourceAdapter):
+    def __init__(self, database: str, table: str, workgroup: str): ...
+```
+
+Adapters são **stateless** e **read-only** (o `Boto3Adapter` só chama `describe_*`, `list_*`, `get_*`).
+
+## Helm chart (deploy N agentes de 1 imagem)
+
+```yaml
+# values.yaml
+image:
+  repository: harbor.company.com/aigent-squad
+  tag: "0.3.0"
+
+agentsSource:
+  type: configmap           # configmap | git | s3
+  # Para git:
+  # repo: https://github.com/company/agent-definitions.git
+  # path: agents/
+  # ref: main
+
+agents:
+  - name: aws
+    port: 8001
+    resources:
+      requests: { cpu: 100m, memory: 128Mi }
+  - name: kubernetes
+    port: 8002
+  - name: finops
+    port: 8003
+  - name: devops
+    port: 8004
+  - name: observability
+    port: 8005
+  # Adicionar um novo: basta uma linha + um dir com agent.yaml+prompt.md
+  - name: security
+    port: 8010
+```
+
+```yaml
+# templates/agent-deployment.yaml
+{{- range .Values.agents }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .name }}-agent
+  labels:
+    app.kubernetes.io/name: {{ .name }}-agent
+    app.kubernetes.io/component: agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .name }}-agent
+  template:
+    spec:
+      containers:
+        - name: agent
+          image: {{ $.Values.image.repository }}:{{ $.Values.image.tag }}
+          args: ["--agent={{ .name }}"]
+          ports:
+            - containerPort: {{ .port }}
+          env:
+            - name: AGENTS_DIR
+              value: /config/agents
+            - name: AGENT_NAME
+              value: {{ .name }}
+          volumeMounts:
+            - name: agents-config
+              mountPath: /config/agents
+              readOnly: true
+          resources: {{ toYaml (.resources | default $.Values.defaultResources) | nindent 12 }}
+      volumes:
+        - name: agents-config
+          configMap:
+            name: agents-config
+{{- end }}
+```
+
+## Rationale
+
+### Decisão 1: Imagem única genérica (não 1 imagem por agente)
+
+**Escolha**: todos os agentes rodam a mesma imagem Docker, diferenciados apenas por config.
+
+**Justificativa**:
+1. **Produto customizável**: o usuário final cria agentes sem código, Docker, ou CI — só YAML + prompt.
+2. **Manutenção**: 1 imagem para patchar, atualizar, scannear. Não 5+ pipelines.
+3. **Extensibilidade**: de 5 para 50 agentes sem build a mais.
 
 **Trade-offs aceitos**:
 | Custo | Realidade |
 |-------|-----------|
-| Manter `delegates_to` à mão | É 2-4 linhas por agente; muito mais barato que matriz N×N no código |
-| Pode ficar stale | Validação no startup pega destino órfão; revisão em PR pega o resto |
+| Imagem maior (tem todos os adapters) | ~200MB total — aceitável. Adapters são libs Python leves |
+| Adapter não usado consome memória? | Não — instanciado só o declarado no agent.yaml |
 
-**Quando estaria errada** (signals pra reabrir): se o roster crescer a ponto de `delegates_to` virar inadministrável manualmente → aí sim avaliar inferência por LLM/embedding (fora de escopo agora).
+**Quando estaria errada**: se um agente precisar de runtime diferente (Go, .NET) — aí seria sidecar. Fora de escopo.
 
-**Alternativas descartadas**:
-- **Matriz no código** — não escala com roster aberto (o ponto do usuário).
-- **LLM infere tudo sempre** — custo por query + não-determinístico + não-auditável.
+### Decisão 2: Directory-per-agent (filesystem as config)
 
-### Decisão 2: Estender o `AgentRegistry` do chaitops, não criar outro
+**Escolha**: cada agente é um diretório (`agent.yaml` + `prompt.md` + extras), não uma entrada num YAML monolítico.
 
-**Escolha**: adicionar campos ao manifesto/registry existente do chaitops em vez de um registry novo no AIgent-squad.
+**Justificativa**:
+1. **Prompts longos não poluem**: um `prompt.md` de 200 linhas fica em arquivo próprio.
+2. **Padrão estabelecido**: ArgoCD ApplicationSets, Terraform modules, Backstage catalog — todos usam directory-per-entity.
+3. **Git-friendly**: PR mostra diff de 1 agent sem ruído dos outros.
+4. **Extras por agent**: examples/, few-shot.md, RAG docs — vivem no mesmo dir.
 
-**Justificativa**: o chaitops já tem discovery + `required_env` + `/ready` testados (ver `ECOSYSTEM.md`). Reusar evita a duplicação de plataforma que o `ECOSYSTEM.md` alerta. Os campos novos (`capabilities`, `evidence_types`, `delegates_to`) são aditivos e retrocompatíveis.
+**Trade-off aceito**: mais arquivos vs menos — complexidade de FS é gerenciável com bom tooling.
 
-**Trade-off aceito**: acopla o AIgent-squad ao schema do chaitops — aceitável e desejável dado o reposicionamento recomendado (Opção B).
+### Decisão 3: Fonte do diretório é configuração de deploy (não de código)
+
+**Escolha**: o runtime lê de `AGENTS_DIR` (um path). De onde esse path vem (local mount, configmap, git clone, S3) é decisão de **deploy**, via Helm values.
+
+**Justificativa**: desacopla plataforma de configuração de agentes. Permite cenários diversos (dev local com volume, prod com git-sync, multi-tenant com buckets separados) sem mudar código.
 
 ## Invariantes
 
-- Lista de agentes **nunca** hardcoded — só manifestos.
-- `delegates_to.agent` **sempre** existe no roster (validado no startup).
-- `read_only: true` é honrado em todo caminho de roteamento.
-- Adicionar agente = adicionar manifesto (zero código).
-- Manifesto inválido = falha no **startup**, nunca no request.
+- Zero código para criar um agente novo (só YAML + prompt).
+- 1 imagem Docker para todo o sistema (exceto infra: redis, dynamodb).
+- `read_only` honrado em todos os adapters.
+- Config inválida → falha no startup (fail-fast, não fail-runtime).
+- Adapters são stateless e paralelizáveis.
+
+## Migração dos 5 agentes atuais
+
+| Agente atual | Migra para |
+|-------------|------------|
+| `src/agents/aws/agent.py` | `agents/aws/agent.yaml` + `prompt.md` (lógica absorvida pelo GenericAgent + Boto3Adapter) |
+| `src/agents/kubernetes/agent.py` | `agents/kubernetes/agent.yaml` + `prompt.md` + KubernetesAdapter |
+| `src/agents/finops/agent.py` | `agents/finops/agent.yaml` + `prompt.md` + Boto3Adapter + AthenaAdapter |
+| `src/agents/devops/agent.py` | `agents/devops/agent.yaml` + `prompt.md` + HttpAdapter(gitlab) + HttpAdapter(docs) |
+| `src/agents/observability/agent.py` | `agents/observability/agent.yaml` + `prompt.md` + HttpAdapter(prometheus) |
+
+Após migração, `src/agents/*/agent.py` são **deletados** — a lógica vive no `GenericAgent` + adapters.
 
 ## Dependências externas
 
-| Lib/serviço | Uso |
-|-------------|-----|
-| `pydantic` + `PyYAML` | schema + parse |
-| `AgentRegistry` (chaitops) | base de discovery a estender |
-
-## Verificação
-
-```bash
-docker run --rm -v $(pwd):/app -w /app python:3.11-slim sh -c \
-  "pip install -q -r requirements.txt pytest && pytest tests/ -v --cov=src --cov-fail-under=90"
-```
-
-Testes-chave (test-author ≠ autor): discovery de N manifestos; classifier seleciona por `capabilities`/`keywords`; coordinator seleciona conjunto multi-agente; `delegates_to` órfão → erro de startup; ciclo direto A→B→A detectado; `read_only` nunca recebe mutação; adicionar manifesto novo aparece no roster sem código.
-
-## Riscos
-
-- `delegates_to` stale → mitigado por validação de startup + revisão em PR.
-- Explosão de agentes com capabilities sobrepostas → desempate por `routing_keywords`/`domain`/`priority`; documentar convenção de nomes.
-- Acoplamento ao schema do chaitops → aceitável dado o reposicionamento; manter campos aditivos.
+| Lib | Uso |
+|-----|-----|
+| `pydantic` | Schema validation do agent.yaml |
+| `PyYAML` | Parse |
+| `boto3` | Boto3Adapter |
+| `kubernetes` | KubernetesAdapter |
+| `httpx` | HttpAdapter |
+| Existentes no requirements.txt | Nenhuma dep nova |

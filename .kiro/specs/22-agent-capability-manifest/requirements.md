@@ -1,48 +1,93 @@
-# Feature: Agent Capability Manifest
+# Feature: Config-Driven Agent Platform
 
 **Spec**: `22-agent-capability-manifest`
-**Severidade**: 🟠 High (mecanismo central — habilita roster aberto + colaboração)
-**Origem**: requisito do usuário (não limitar a 5 agentes; colaboração via nome/descrição + metadados úteis)
-**Relação**: estende o `AgentRegistry`/`agent-extensibility` do `staffops-chaitops` (ver `ECOSYSTEM.md`) e o `specialists.yaml` do `multi-agent-coordinator`. Substitui a nossa spec `19-config-driven-platform` (registry plano) por um registry **capability-rich**.
+**Severidade**: 🟠 High (redesign arquitetural — habilita produto customizável)
+**Substitui**: spec 19 (`config-driven-platform`)
+**Visão de produto**: 1 imagem genérica + N agentes definidos por diretório (YAML + prompt.md). Quem deploya escolhe quantos e quais agentes quer via Helm values, sem escrever código.
 
-O roster de especialistas é **aberto e declarativo**: adicionar um agente = adicionar um manifesto YAML (zero código). Cada manifesto descreve o agente com metadados suficientes para que o classifier/coordinator saibam **quando** acioná-lo, **o que** ele acessa, e **como** os agentes se ajudam entre si — sem matriz de colaboração hardcoded.
+---
+
+## Conceito
+
+Um agente **não é código** — é um **diretório de configuração**:
+
+```
+agents/
+├── aws/
+│   ├── agent.yaml      # datasources, capabilities, cache, model
+│   └── prompt.md       # system prompt (pode ser longo)
+├── finops/
+│   ├── agent.yaml
+│   ├── prompt.md
+│   └── examples/       # few-shot, RAG docs, referências
+│       └── cost-patterns.md
+└── custom-team-x/
+    ├── agent.yaml
+    └── prompt.md
+```
+
+A imagem genérica **auto-descobre** o diretório no startup: cada subdir com `agent.yaml` vira um agente funcional.
+
+---
 
 ## User Stories
 
-WHEN o operador adiciona um manifesto de agente em `config/agents/<name>.yaml` THEN o sistema SHALL descobri-lo no startup e disponibilizá-lo ao classifier/coordinator **sem mudança de código**.
+WHEN o operador aponta `AGENTS_DIR` para um diretório THEN o sistema SHALL descobrir todos os subdirs com `agent.yaml` e registrar um agente por cada.
 
-WHEN o classifier decide o roteamento THEN ele SHALL usar `name` + `description` + `capabilities` + `routing_keywords` dos manifestos (não uma lista fixa no código).
+WHEN o operador adiciona um novo subdir com `agent.yaml` + `prompt.md` e reinicia THEN o sistema SHALL disponibilizar o novo agente ao classifier **sem mudança de código ou rebuild de imagem**.
 
-WHEN uma query é cross-domain THEN o coordinator SHALL selecionar o **conjunto** de agentes cujas `capabilities`/`domains` casam (1..N), não apenas um.
+WHEN o Helm chart é deployado com `agents[]` no values.yaml THEN cada entrada SHALL gerar um Deployment + Service + ConfigMap com a config do agente.
 
-WHEN um agente precisa de ajuda fora do seu domínio THEN ele SHALL consultar o campo `delegates_to` do próprio manifesto (par `agent` + `when`) para saber a quem pedir — colaboração **dirigida por dados**, não hardcoded.
+WHEN o `agent.yaml` declara `datasources` THEN o runtime SHALL instanciar os adapters correspondentes e injetá-los no agente.
 
-WHEN uma investigação de RCA coleta evidência THEN o coordinator SHALL usar `evidence_types` de cada manifesto para saber **que tipo de evidência** cada agente contribui.
+WHEN o `prompt.md` ultrapassa 100 linhas THEN ele SHALL estar isolado em arquivo (não inline no YAML), evitando poluição.
 
-WHEN um agente é marcado `read_only: true` THEN o sistema SHALL preservar essa invariante (nunca rotear uma ação mutante para ele).
+WHEN o classifier roteia uma query THEN ele SHALL usar `name` + `description` + `capabilities` + `routing_keywords` dos manifestos (não uma lista hardcoded).
 
-WHEN dois agentes declaram o mesmo `capability` THEN o classifier SHALL desempatar por `routing_keywords`, `domain` e (se houver) `priority`.
+WHEN o `agent.yaml` é inválido (campo obrigatório ausente, datasource type desconhecido) THEN o sistema SHALL falhar no **startup** com erro acionável.
 
-WHEN um manifesto é inválido (campo obrigatório ausente, `delegates_to` aponta para agente inexistente) THEN o sistema SHALL falhar no **startup** com erro acionável.
+WHEN dois agentes declaram a mesma capability THEN o classifier SHALL desempatar por `routing_keywords` e `domain`.
+
+WHEN `read_only: true` THEN o sistema SHALL preservar essa invariante em todos os caminhos.
+
+WHEN `enabled: false` THEN o agente SHALL ser ignorado no discovery.
+
+---
 
 ## Acceptance Criteria
 
-- [ ] Schema de manifesto (Pydantic) com: `name`, `description`, `domain`, `capabilities[]`, `routing_keywords[]`, `datasources[]`, `evidence_types[]`, `delegates_to[]` (`agent`+`when`), `read_only`, `model_tier`, `required_env[]`, `endpoint`/`sidecar_url`, `enabled`.
-- [ ] Auto-descoberta de `config/agents/*.yaml` no startup (estende o `AgentRegistry` do chaitops).
-- [ ] Classifier/coordinator consomem os manifestos (lista de agentes deixa de ser hardcoded no código).
-- [ ] Seleção multi-agente por `capabilities`/`domain` (não 1-fixo) — alinha com a spec 17.
-- [ ] `delegates_to` resolvido e **validado** contra o conjunto de agentes (sem destino órfão; sem ciclo trivial A→B→A direto).
-- [ ] `evidence_types` exposto ao fluxo de RCA (spec 18) para montar a coleta de evidência.
-- [ ] `read_only` respeitado como invariante de segurança.
-- [ ] `model_tier` (`fast`/`standard`/`premium`) → mapeia para o modelo Bedrock por papel (alinha specs 11/19).
-- [ ] Roster **aberto**: adicionar/remover/desligar agente é só manifesto (sem rebuild).
-- [ ] Falha de startup com manifesto inválido ou `delegates_to` órfão.
-- [ ] `config/agents/*.example.yaml` para os especialistas atuais + ≥1 novo (demonstrar extensibilidade).
-- [ ] Testes (test-author ≠ autor, ≥90%): descoberta, seleção por capability, resolução/validação de `delegates_to`, roster aberto, falha de startup, invariante read-only.
+- [ ] 1 imagem Docker genérica que roda qualquer agente baseado em config.
+- [ ] Auto-descoberta de `AGENTS_DIR/<name>/agent.yaml` no startup.
+- [ ] Schema Pydantic para `agent.yaml` com validação estrita.
+- [ ] Registry de datasource adapters: `boto3`, `kubernetes`, `http`, `prometheus`, `athena`, `gitlab`.
+- [ ] `prompt.md` carregado do mesmo diretório do `agent.yaml`.
+- [ ] Classifier consome o registry (lista de agentes é dinâmica, não hardcoded).
+- [ ] Supervisor/coordinator descobre agentes pelo registry (não por URLs fixas).
+- [ ] Helm chart gera N deployments a partir de `agents[]` no values.
+- [ ] Exemplo funcional: 5 agentes atuais migrados para o formato config + 1 agente novo demonstrando extensibilidade.
+- [ ] Falha de startup com config inválida (schema, datasource desconhecido, env ausente).
+- [ ] `read_only` honrado como invariante de segurança.
+- [ ] Testes ≥90%: discovery, seleção por capability, falha de startup, adapter instantiation.
+
+---
 
 ## Fora de escopo
 
-- Descoberta dinâmica em runtime (hot-reload) — restart aplica o manifesto novo.
-- Aprendizado automático de `delegates_to` (LLM inferindo colaboração) — por ora é declarativo.
-- Implementar os agentes novos em si — esta spec define o **contrato/registry**; novos agentes entram sob demanda.
-- Marketplace/versionamento de manifestos — futuro.
+- Hot-reload sem restart (futuro — restart é aceitável para MVP).
+- Git-sync automático no cluster (initContainer é suficiente por ora).
+- Marketplace/versionamento de manifestos.
+- Datasource adapters além dos 6 listados (plugáveis via interface, mas não implementados agora).
+- Multi-tenant (cada tenant com agents diferentes) — futuro.
+
+---
+
+## Fonte do diretório (deploy-time, não runtime)
+
+| Fonte | Como montar | Quando usar |
+|-------|-------------|-------------|
+| Local (dev) | `docker run -v ./agents:/config/agents` | Desenvolvimento local |
+| ConfigMap | Helm gera ConfigMap por agent, monta em volume | Deploy simples, tudo no Helm |
+| Git repo | initContainer + git clone + shared volume | Produção, GitOps-native |
+| S3/bucket | initContainer baixa .tar.gz | Agents atualizáveis sem redeploy |
+
+A plataforma só sabe ler de um diretório. A **fonte** é configuração de deploy (Helm values), não de código.
