@@ -105,6 +105,16 @@ O ganho esperado é **troubleshooting/RCA**. Caminho crítico do diferencial:
 21 (learning) após 18                      ← aprendizado (Sonnet extractor → Opus enricher → KB)
 ```
 
+### Backlog (após caminho crítico)
+
+| Item | Descrição |
+|------|-----------|
+| Specialized adapters | Criar `GitLabAdapter` (`type: gitlab`) e `RAGAdapter` (`type: rag`) — o HttpAdapter genérico não replica a inteligência de query do antigo gitlab_client (search_code, search_docs, list_projects). Idem para RAG (Bedrock Knowledge Bases). |
+| Spec 07 | Readiness probes `/healthz` + `/ready` + graceful shutdown (parcialmente feito na 06) |
+| Spec 11 | Bedrock model tiering (Haiku no classifier, Sonnet nos agents) |
+| Spec 22 Phase B | Helm chart (feito) — refinar com ExternalSecret, NetworkPolicy |
+```
+
 Princípios: comunicação eficiente (async + fan-out), aprendizado com qualidade (Opus enriquece antes de persistir), config via arquivo+env, **não complexo demais** (limites de rodada como hard stop).
 
 ### Limites de rodadas por nível
