@@ -1,9 +1,10 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
 from pydantic import BaseModel
 from typing import List, Optional
 from otel_helper import setup_telemetry, get_tracer
 from src.agents.aws.agent import AWSAgent
 from src.core.logger import logger
+from src.core.auth import require_token
 import uvicorn
 
 setup_telemetry()
@@ -25,7 +26,7 @@ class ProcessRequest(BaseModel):
     chat_history: List[ChatMessage] = []
     additional_params: Optional[dict] = None
 
-@app.post("/process")
+@app.post("/process", dependencies=[Depends(require_token)])
 async def process(request: ProcessRequest):
     """Process AWS-related query with conversation history"""
     

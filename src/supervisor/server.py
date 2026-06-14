@@ -1,6 +1,7 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
 from pydantic import BaseModel
 from otel_helper import setup_telemetry
+from src.core.auth import require_token
 from src.supervisor.agent import supervisor
 import uvicorn
 
@@ -13,7 +14,7 @@ class QueryRequest(BaseModel):
     user_id: str
     session_id: str
 
-@app.post("/query")
+@app.post("/query", dependencies=[Depends(require_token)])
 async def query(request: QueryRequest):
     """Process user query with intelligent routing"""
     try:

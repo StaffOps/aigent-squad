@@ -1,4 +1,5 @@
 from typing import Dict
+import os
 import httpx
 import time
 from datetime import datetime, timezone
@@ -7,6 +8,8 @@ from src.core.classifier import classifier, ClassifierResult
 from src.core.state_store import storage, ConversationMessage
 from src.core.logger import logger, log_request, log_response, log_error
 from src.core.metrics import request_counter, error_counter, request_duration
+
+_INTERNAL_TOKEN = os.getenv("INTERNAL_API_TOKEN", "")
 
 tracer = trace.get_tracer(__name__)
 
@@ -101,6 +104,7 @@ class SupervisorAgent:
                     try:
                         response = await self.http_client.post(
                             agent_url,
+                            headers={"X-Internal-Token": _INTERNAL_TOKEN},
                             json={
                                 "input_text": user_input,
                                 "user_id": user_id,

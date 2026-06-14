@@ -10,6 +10,9 @@ WORKDIR /app
 COPY requirements.txt .
 RUN --mount=type=ssh pip install --no-cache-dir -r requirements.txt
 
+RUN useradd -r -u 10001 appuser
+USER appuser
+
 COPY src/ ./src/
 
 EXPOSE 8000

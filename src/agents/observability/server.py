@@ -1,9 +1,10 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
 from pydantic import BaseModel
 from typing import List, Optional
 from otel_helper import setup_telemetry, get_tracer
 from src.agents.observability.agent import ObservabilityAgent
 from src.core.logger import logger
+from src.core.auth import require_token
 import uvicorn
 
 setup_telemetry()
@@ -28,7 +29,7 @@ class ProcessRequest(BaseModel):
     additional_params: Optional[dict] = None
 
 
-@app.post("/process")
+@app.post("/process", dependencies=[Depends(require_token)])
 async def process(request: ProcessRequest):
     """Process Observability-related query with conversation history"""
     with tracer.start_as_current_span("observability_server.process") as span:
