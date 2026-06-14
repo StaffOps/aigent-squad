@@ -1,91 +1,77 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from pathlib import Path
-import httpx
-from src.core.cache import cache
-from src.core.bedrock import bedrock
+from typing import List, Optional
+from opentelemetry import trace
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
+from src.agents.observability.agent import ObservabilityAgent
+from src.core.logger import logger
 import uvicorn
 
+HTTPXClientInstrumentor().instrument()
+
 app = FastAPI(title="Observability Agent Service")
-
-class ObservabilityAgent:
-    def __init__(self):
-        self.prometheus_url = "http://prometheus.monitoring.svc.cluster.local:9090"
-        self.system_prompt = self._load_prompt()
-    
-    def _load_prompt(self) -> str:
-        prompt_path = Path(__file__).parent / "prompt.md"
-        return prompt_path.read_text()
-    
-    def process(self, query: str) -> str:
-        cache_key = f"query:{hash(query)}"
-        cached = cache.get(cache_key, namespace="observability")
-        if cached:
-            return cached
-        
-        metrics = self._get_metrics()
-        anomalies = self._detect_anomalies()
-        
-        context = f"Metrics:\n{metrics}\n\nAnomalies:\n{anomalies}\n\nUser Query: {query}"
-        
-        response = bedrock.invoke(
-            messages=[{"role": "user", "content": context}],
-            system_prompt=self.system_prompt,
-            use_cache=True
-        )
-        
-        cache.set(cache_key, response, ttl=60, namespace="observability")
-        return response
-    
-    def _get_metrics(self) -> str:
-        cached = cache.get("metrics", namespace="observability")
-        if cached:
-            return cached
-        
-        try:
-            query = "up"
-            response = httpx.get(
-                f"{self.prometheus_url}/api/v1/query",
-                params={"query": query},
-                timeout=5.0
-            )
-            data = response.json()
-            result = f"Active targets: {len(data.get('data', {}).get('result', []))}"
-        except Exception as e:
-            result = f"Error fetching metrics: {e}"
-        
-        cache.set("metrics", result, ttl=60, namespace="observability")
-        return result
-    
-    def _detect_anomalies(self) -> str:
-        cached = cache.get("anomalies", namespace="observability")
-        if cached:
-            return cached
-        
-        # TODO: Implement anomaly detection algorithm
-        anomalies = "No anomalies detected"
-        cache.set("anomalies", anomalies, ttl=300, namespace="observability")
-        return anomalies
-
 agent = ObservabilityAgent()
 
-class QueryRequest(BaseModel):
+FastAPIInstrumentor.instrument_app(app)
+
+tracer = trace.get_tracer(__name__)
+
+
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+    timestamp: str
+
+
+class ProcessRequest(BaseModel):
     input_text: str
     user_id: str
     session_id: str
-    chat_history: list = []
+    chat_history: List[ChatMessage] = []
+    additional_params: Optional[dict] = None
 
-class QueryResponse(BaseModel):
-    response: str
 
-@app.post("/process", response_model=QueryResponse)
-async def process(request: QueryRequest):
-    response = agent.process(request.input_text)
-    return QueryResponse(response=response)
+@app.post("/process")
+async def process(request: ProcessRequest):
+    """Process Observability-related query with conversation history"""
+    with tracer.start_as_current_span("observability_server.process") as span:
+        span.set_attribute("user_id", request.user_id)
+        span.set_attribute("session_id", request.session_id)
+        try:
+            from src.core.state_store import ConversationMessage
+            history = [
+                ConversationMessage(
+                    role=msg.role, content=msg.content,
+                    timestamp=msg.timestamp, agent_id="observability"
+                )
+                for msg in request.chat_history
+            ]
+            response = await agent.process_request(
+                input_text=request.input_text,
+                user_id=request.user_id,
+                session_id=request.session_id,
+                chat_history=history,
+                additional_params=request.additional_params,
+            )
+            return {
+                "role": response.role,
+                "content": response.content,
+                "timestamp": response.timestamp,
+                "agent_id": response.agent_id,
+            }
+        except ValueError as e:
+            logger.warning("Validation error", extra={"error": str(e)})
+            raise HTTPException(status_code=400, detail=str(e))
+        except Exception as e:
+            logger.error("Server error", extra={"error": str(e)}, exc_info=True)
+            raise HTTPException(status_code=500, detail="Internal server error")
+
 
 @app.get("/health")
 async def health():
     return {"status": "healthy", "agent": "observability"}
+
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8005)

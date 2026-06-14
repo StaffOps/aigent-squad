@@ -138,7 +138,7 @@ class SupervisorAgent:
                         }
                 
                 agent_response = response.json()
-                response_text = agent_response.get("content", agent_response.get("response", ""))
+                response_text = agent_response["content"]
                 
                 # 6. Save assistant message
                 assistant_message = ConversationMessage(

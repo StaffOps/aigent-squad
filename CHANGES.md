@@ -2,6 +2,12 @@
 
 ## [Unreleased] - 2026-06-14
 
+### Changed (Spec 02: Unify Agent Architecture)
+- Rewrote kubernetes/devops/finops/observability `server.py` — all now use their `agent.py` class (mirrors aws pattern)
+- All 5 `/process` endpoints return uniform contract `{role, content, timestamp, agent_id}`
+- Supervisor simplified: reads `agent_response["content"]` directly (removed `get("response")` fallback)
+- All 5 agents use `chat_history` via `_format_history()` for multi-turn context
+
 ### Fixed (Spec 01: Fix Blockers)
 - Created root `Dockerfile` for supervisor service (python:3.11-slim)
 - Removed duplicate class body in `src/core/gitlab_client.py` (kept 1st definition + 1 singleton)

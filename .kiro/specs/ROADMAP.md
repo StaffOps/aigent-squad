@@ -32,7 +32,7 @@ Pré-requisito para tudo. Ordem importa porque há dependências.
 | # | Spec | Severidade | Depende de | Resultado mensurável |
 |---|------|-----------|------------|----------------------|
 | 1 | `01-fix-blockers` | ✅ done | — | `docker compose build && up` verde |
-| 2 | `02-unify-agent-architecture` | 🟠 | 01 | 5 agentes no mesmo padrão, contrato único, multiturno |
+| 2 | `02-unify-agent-architecture` | ✅ done | 01 | 5 agentes no mesmo padrão, contrato único, multiturno |
 | 3 | `03-fix-cache-observability` | 🟠/🟡 | 02 | cache determinístico, logs com contexto, OTLP |
 | 4 | `04-harden-security` | 🟠 | 02 | endpoints autenticados, containers non-root |
 

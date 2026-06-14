@@ -1,82 +1,77 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from pathlib import Path
-from kubernetes import client, config
-from src.core.cache import cache
-from src.core.bedrock import bedrock
+from typing import List, Optional
+from opentelemetry import trace
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
+from src.agents.kubernetes.agent import KubernetesAgent
+from src.core.logger import logger
 import uvicorn
 
+HTTPXClientInstrumentor().instrument()
+
 app = FastAPI(title="Kubernetes Agent Service")
-
-class KubernetesAgent:
-    def __init__(self):
-        try:
-            config.load_incluster_config()  # Try in-cluster first (EKS)
-        except:
-            config.load_kube_config()  # Fallback to local kubeconfig
-        self.v1 = client.CoreV1Api()
-        self.apps_v1 = client.AppsV1Api()
-        self.system_prompt = self._load_prompt()
-    
-    def _load_prompt(self) -> str:
-        prompt_path = Path(__file__).parent / "prompt.md"
-        return prompt_path.read_text()
-    
-    def process(self, query: str) -> str:
-        cache_key = f"query:{hash(query)}"
-        cached = cache.get(cache_key, namespace="k8s")
-        if cached:
-            return cached
-        
-        cluster_state = self._get_cluster_state()
-        context = f"Cluster State:\n{cluster_state}\n\nUser Query: {query}"
-        
-        response = bedrock.invoke(
-            messages=[{"role": "user", "content": context}],
-            system_prompt=self.system_prompt,
-            use_cache=True
-        )
-        
-        cache.set(cache_key, response, ttl=60, namespace="k8s")
-        return response
-    
-    def _get_cluster_state(self) -> str:
-        cached = cache.get("cluster_state", namespace="k8s")
-        if cached:
-            return cached
-        
-        pods = self.v1.list_pod_for_all_namespaces()
-        nodes = self.v1.list_node()
-        
-        state = {
-            "nodes": len(nodes.items),
-            "pods": len(pods.items),
-            "namespaces": len(set(p.metadata.namespace for p in pods.items))
-        }
-        
-        result = str(state)
-        cache.set("cluster_state", result, ttl=60, namespace="k8s")
-        return result
-
 agent = KubernetesAgent()
 
-class QueryRequest(BaseModel):
+FastAPIInstrumentor.instrument_app(app)
+
+tracer = trace.get_tracer(__name__)
+
+
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+    timestamp: str
+
+
+class ProcessRequest(BaseModel):
     input_text: str
     user_id: str
     session_id: str
-    chat_history: list = []
+    chat_history: List[ChatMessage] = []
+    additional_params: Optional[dict] = None
 
-class QueryResponse(BaseModel):
-    response: str
 
-@app.post("/process", response_model=QueryResponse)
-async def process(request: QueryRequest):
-    response = agent.process(request.input_text)
-    return QueryResponse(response=response)
+@app.post("/process")
+async def process(request: ProcessRequest):
+    """Process Kubernetes-related query with conversation history"""
+    with tracer.start_as_current_span("kubernetes_server.process") as span:
+        span.set_attribute("user_id", request.user_id)
+        span.set_attribute("session_id", request.session_id)
+        try:
+            from src.core.state_store import ConversationMessage
+            history = [
+                ConversationMessage(
+                    role=msg.role, content=msg.content,
+                    timestamp=msg.timestamp, agent_id="kubernetes"
+                )
+                for msg in request.chat_history
+            ]
+            response = await agent.process_request(
+                input_text=request.input_text,
+                user_id=request.user_id,
+                session_id=request.session_id,
+                chat_history=history,
+                additional_params=request.additional_params,
+            )
+            return {
+                "role": response.role,
+                "content": response.content,
+                "timestamp": response.timestamp,
+                "agent_id": response.agent_id,
+            }
+        except ValueError as e:
+            logger.warning("Validation error", extra={"error": str(e)})
+            raise HTTPException(status_code=400, detail=str(e))
+        except Exception as e:
+            logger.error("Server error", extra={"error": str(e)}, exc_info=True)
+            raise HTTPException(status_code=500, detail="Internal server error")
+
 
 @app.get("/health")
 async def health():
     return {"status": "healthy", "agent": "kubernetes"}
+
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8002)
