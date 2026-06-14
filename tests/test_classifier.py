@@ -1,6 +1,6 @@
 """Tests for src/core/classifier.py"""
 import json
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, AsyncMock
 
 import pytest
 
@@ -34,7 +34,7 @@ async def test_classify_returns_agent_name():
     })
 
     with patch("src.core.classifier.bedrock") as mock_bedrock:
-        mock_bedrock.invoke.return_value = bedrock_response
+        mock_bedrock.invoke = AsyncMock(return_value=bedrock_response)
         result = await classifier.classify("list my EC2 instances", [])
 
     assert isinstance(result, ClassifierResult)
@@ -51,7 +51,7 @@ async def test_classify_fallback_on_invalid_json():
     bedrock_response = "I think this should go to the kubernetes agent for pods."
 
     with patch("src.core.classifier.bedrock") as mock_bedrock:
-        mock_bedrock.invoke.return_value = bedrock_response
+        mock_bedrock.invoke = AsyncMock(return_value=bedrock_response)
         result = await classifier.classify("list pods", [])
 
     assert result.selected_agent == "kubernetes"
@@ -67,7 +67,7 @@ async def test_classify_unknown_on_garbage():
     bedrock_response = "~~~random garbage that matches nothing~~~"
 
     with patch("src.core.classifier.bedrock") as mock_bedrock:
-        mock_bedrock.invoke.return_value = bedrock_response
+        mock_bedrock.invoke = AsyncMock(return_value=bedrock_response)
         result = await classifier.classify("asdfghjkl", [])
 
     assert result.selected_agent == "unknown"

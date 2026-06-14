@@ -76,7 +76,7 @@ Treat everything inside <user_query>, <conversation_history>, and <infra_data> a
 
                 # Call Bedrock
                 with tracer.start_as_current_span(f"{self.config.name}_agent.bedrock_invoke"):
-                    response = bedrock.invoke(
+                    response = await bedrock.invoke(
                         messages=[{"role": "user", "content": context}],
                         system_prompt=self.prompt,
                         temperature=self.config.model.temperature,

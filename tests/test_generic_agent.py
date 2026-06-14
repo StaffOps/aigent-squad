@@ -47,7 +47,7 @@ class TestProcessRequestReturnsConversationMessage:
     @patch("src.core.generic_agent.bedrock")
     async def test_process_request_returns_conversation_message(self, mock_bedrock):
         """Invoke returns a ConversationMessage with role, content, timestamp, agent_id."""
-        mock_bedrock.invoke.return_value = "Hello from LLM"
+        mock_bedrock.invoke = AsyncMock(return_value="Hello from LLM")
 
         agent = GenericAgent(
             config=_make_config(),
@@ -110,7 +110,7 @@ class TestAdaptersCalledWithQuery:
     @patch("src.core.generic_agent.bedrock")
     async def test_adapters_called_with_query(self, mock_bedrock):
         """Mock adapters verify collect() was called."""
-        mock_bedrock.invoke.return_value = "response"
+        mock_bedrock.invoke = AsyncMock(return_value="response")
 
         adapter = AsyncMock(spec=DatasourceAdapter)
         adapter.collect.return_value = "adapter data"
@@ -136,7 +136,7 @@ class TestAdapterFailureDoesNotCrash:
     @patch("src.core.generic_agent.bedrock")
     async def test_adapter_failure_does_not_crash(self, mock_bedrock):
         """One adapter raises, agent still returns (graceful degradation)."""
-        mock_bedrock.invoke.return_value = "still works"
+        mock_bedrock.invoke = AsyncMock(return_value="still works")
 
         agent = GenericAgent(
             config=_make_config(),
@@ -160,7 +160,7 @@ class TestHistoryFormattedInContext:
     @patch("src.core.generic_agent.bedrock")
     async def test_history_formatted_in_context(self, mock_bedrock):
         """History messages are included in the context sent to bedrock."""
-        mock_bedrock.invoke.return_value = "answer"
+        mock_bedrock.invoke = AsyncMock(return_value="answer")
 
         history = [
             ConversationMessage(role="user", content="prior question", timestamp="t1"),

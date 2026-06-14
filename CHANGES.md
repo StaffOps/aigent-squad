@@ -2,6 +2,17 @@
 
 ## [Unreleased] - 2026-06-14
 
+### Added (Spec 06: Resilience Patterns)
+- `src/core/circuit_breaker.py`: CircuitBreaker (closed→open→half-open) for Bedrock calls
+- Classifier keyword fallback using `routing_keywords` from agent configs when LLM unavailable
+- Graceful shutdown via FastAPI lifespan (drain + flush)
+
+### Changed (Spec 06)
+- `bedrock.invoke()` is now async (`asyncio.to_thread`) — enables real parallelism for fan-out
+- Retry with jitter + botocore adaptive retry mode
+- Redis fail-open: connection failure at startup + all ops wrapped in try/except
+- DynamoDB fail-open: fetch returns `[]`, save logs warning — never crashes
+
 ### Added (Spec 08: CI/CD Pipeline)
 - `.github/workflows/test.yml`: ruff lint + pytest --cov-fail-under=80 on push/PR
 - `.github/workflows/build.yml`: multi-arch buildx (amd64+arm64) + Trivy scan + SBOM + OIDC push to ECR

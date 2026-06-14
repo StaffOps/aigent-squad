@@ -1,7 +1,9 @@
-from typing import List, Dict, Optional
+import json
+from typing import List, Optional
 from dataclasses import dataclass
 from src.core.bedrock import bedrock
 from src.core.state_store import ConversationMessage
+from src.core.logger import logger
 
 
 @dataclass
@@ -13,7 +15,7 @@ class ClassifierResult:
 
 
 class Classifier:
-    """Intelligent intent classifier for agent routing"""
+    """Intelligent intent classifier with keyword fallback"""
 
     SYSTEM_PROMPT = """You are AgentMatcher, an intelligent assistant that analyzes user queries and routes them to the most suitable specialist agent.
 
@@ -61,8 +63,7 @@ If unable to classify, use "unknown" as selected_agent."""
         user_input: str,
         chat_history: List[ConversationMessage]
     ) -> ClassifierResult:
-        """Classify user intent and select appropriate agent"""
-
+        """Classify user intent; falls back to keyword matching on LLM failure"""
         history_text = self._format_history(chat_history)
 
         prompt = self.SYSTEM_PROMPT.format(
@@ -70,14 +71,17 @@ If unable to classify, use "unknown" as selected_agent."""
             history=history_text
         )
 
-        response = bedrock.invoke(
-            messages=[{"role": "user", "content": user_input}],
-            system_prompt=prompt,
-            temperature=0.3,
-            use_cache=True
-        )
+        try:
+            response = await bedrock.invoke(
+                messages=[{"role": "user", "content": user_input}],
+                system_prompt=prompt,
+                temperature=0.3,
+                use_cache=True
+            )
+        except Exception as e:
+            logger.warning("Classifier LLM failed, using keyword fallback", extra={"error": str(e)})
+            return self._keyword_fallback(user_input)
 
-        import json
         try:
             result = json.loads(response)
             return ClassifierResult(
@@ -93,15 +97,37 @@ If unable to classify, use "unknown" as selected_agent."""
                         confidence=0.5,
                         reasoning="Fallback parsing"
                     )
-
             return ClassifierResult(
                 selected_agent="unknown",
                 confidence=0.0,
                 reasoning="Failed to parse classifier response"
             )
 
+    def _keyword_fallback(self, user_input: str) -> ClassifierResult:
+        """Route by matching routing_keywords from agent configs"""
+        lower = user_input.lower()
+        best_agent = None
+        best_score = 0
+
+        for config in self._registry.list_agents():
+            score = sum(1 for kw in config.routing_keywords if kw in lower)
+            if score > best_score:
+                best_score = score
+                best_agent = config.name
+
+        if best_agent and best_score > 0:
+            return ClassifierResult(
+                selected_agent=best_agent,
+                confidence=0.5,
+                reasoning="keyword fallback (LLM unavailable)"
+            )
+        return ClassifierResult(
+            selected_agent="unknown",
+            confidence=0.0,
+            reasoning="keyword fallback: no match"
+        )
+
     def _format_history(self, messages: List[ConversationMessage]) -> str:
-        """Format conversation history for prompt"""
         if not messages:
             return "No previous conversation"
 
@@ -109,7 +135,6 @@ If unable to classify, use "unknown" as selected_agent."""
         for msg in messages[-10:]:
             agent_info = f" [{msg.agent_id}]" if msg.agent_id else ""
             lines.append(f"{msg.role}{agent_info}: {msg.content}")
-
         return "\n".join(lines)
 
 
