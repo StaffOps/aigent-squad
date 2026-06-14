@@ -2,6 +2,13 @@
 
 ## [Unreleased] - 2026-06-14
 
+### Added (Spec 22 Phase B: Helm Chart)
+- Helm chart at `helm-charts/charts/aigent-squad/` (deploy to K8s)
+- `agentsSource: configmap` — agents inline in values.yaml
+- `agentsSource: git` — initContainer clones agent definitions from git repo
+- 6th agent "security" (demonstrates zero-code extensibility)
+- `docs/HOW-TO-NEW-AGENT.md` — guide for creating agents (30s quick start)
+
 ### Added (Spec 22 Phase A: Config-Driven Agent Platform)
 - `src/core/agent_config.py`: AgentConfig Pydantic schema
 - `src/core/registry.py`: AgentRegistry with auto-discovery from AGENTS_DIR

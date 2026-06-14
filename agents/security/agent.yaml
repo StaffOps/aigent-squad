@@ -1,0 +1,22 @@
+name: security
+description: "Security auditor. Checks IAM policies, GuardDuty findings, SecurityHub status, and identifies misconfigurations."
+domain: security
+capabilities: [iam_audit, guardduty_findings, securityhub_status, policy_review]
+routing_keywords: [iam, security, guardduty, vulnerability, cve, policy, permission, role, access, securityhub]
+datasources:
+  - type: boto3
+    services: [iam, guardduty, securityhub]
+cache:
+  ttl: 600
+model:
+  tier: standard
+  temperature: 0.1
+read_only: true
+evidence_types: [iam_policy, security_finding]
+delegates_to:
+  - agent: aws
+    when: "finding requires resource-level detail (EC2, S3, RDS)"
+  - agent: kubernetes
+    when: "finding involves RBAC, NetworkPolicy, or pod security"
+required_env: [AWS_REGION]
+port: 8010
