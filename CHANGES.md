@@ -2,6 +2,12 @@
 
 ## [Unreleased] - 2026-06-14
 
+### Added (Observability Stack)
+- Integrated `staffops-otel-libs` Python helper (`setup_telemetry()` in all 6 servers)
+- Local observability stack: OTel Collector (contrib 0.102) → Tempo (2.4.1) + Prometheus (2.52)
+- Grafana (10.4.2) on `:3001` with auto-provisioned dashboards (API metrics, workers, traces)
+- All services emit traces/metrics via `OTEL_EXPORTER_OTLP_ENDPOINT`
+
 ### Changed (Spec 02: Unify Agent Architecture)
 - Rewrote kubernetes/devops/finops/observability `server.py` — all now use their `agent.py` class (mirrors aws pattern)
 - All 5 `/process` endpoints return uniform contract `{role, content, timestamp, agent_id}`

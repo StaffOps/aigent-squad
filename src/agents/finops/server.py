@@ -1,21 +1,17 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import List, Optional
-from opentelemetry import trace
-from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
-from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
+from otel_helper import setup_telemetry, get_tracer
 from src.agents.finops.agent import FinOpsAgent
 from src.core.logger import logger
 import uvicorn
 
-HTTPXClientInstrumentor().instrument()
+setup_telemetry()
 
 app = FastAPI(title="FinOps Agent Service")
 agent = FinOpsAgent()
 
-FastAPIInstrumentor.instrument_app(app)
-
-tracer = trace.get_tracer(__name__)
+tracer = get_tracer(__name__)
 
 
 class ChatMessage(BaseModel):

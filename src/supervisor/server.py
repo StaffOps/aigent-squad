@@ -1,7 +1,10 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
+from otel_helper import setup_telemetry
 from src.supervisor.agent import supervisor
 import uvicorn
+
+setup_telemetry()
 
 app = FastAPI(title="Supervisor Service")
 
