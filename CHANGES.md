@@ -2,6 +2,20 @@
 
 ## [Unreleased] - 2026-06-14
 
+### Added (Spec 22 Phase A: Config-Driven Agent Platform)
+- `src/core/agent_config.py`: AgentConfig Pydantic schema
+- `src/core/registry.py`: AgentRegistry with auto-discovery from AGENTS_DIR
+- `src/core/adapters.py`: DatasourceAdapter interface + Boto3/K8s/Http/Athena adapters
+- `src/core/generic_agent.py`: GenericAgent (single implementation for all agents)
+- `agents/`: 5 agent config directories (aws, kubernetes, finops, devops, observability)
+- `tests/`: 13 tests (registry: 7, generic_agent: 6) — verification-independent
+
+### Changed (Spec 22 Phase A)
+- Agents now run IN-PROCESS (no HTTP inter-service calls)
+- docker-compose: 9 app containers → 2 (supervisor + mcp-server) + infra
+- Classifier builds agent list dynamically from registry
+- Single Docker image for entire platform
+
 ### Added (Observability Stack)
 - Integrated `staffops-otel-libs` Python helper (`setup_telemetry()` in all 6 servers)
 - Local observability stack: OTel Collector (contrib 0.102) → Tempo (2.4.1) + Prometheus (2.52)

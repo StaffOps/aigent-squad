@@ -33,8 +33,8 @@ Pré-requisito para tudo. Ordem importa porque há dependências.
 |---|------|-----------|------------|----------------------|
 | 1 | `01-fix-blockers` | ✅ done | — | `docker compose build && up` verde |
 | 2 | `02-unify-agent-architecture` | ✅ done | 01 | 5 agentes no mesmo padrão, contrato único, multiturno |
-| 3 | `03-fix-cache-observability` | 🟠/🟡 | 02 | cache determinístico, logs com contexto, OTLP |
-| 4 | `04-harden-security` | 🟠 | 02 | endpoints autenticados, containers non-root |
+| 3 | `03-fix-cache-observability` | ✅ done | 02 | cache determinístico, logs com contexto, OTLP |
+| 4 | `04-harden-security` | ✅ done | 02 | endpoints autenticados, containers non-root |
 
 **Critério de saída da Fase 0**: `docker compose up` sobe tudo saudável, 1 query por agente responde com contrato correto, testes passam, endpoints exigem token. Só então faz sentido falar em "deploy".
 
