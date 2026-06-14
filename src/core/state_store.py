@@ -1,6 +1,6 @@
 import boto3
 from typing import List, Dict, Any, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from dataclasses import dataclass
 from src.core.config import settings
 
@@ -33,8 +33,8 @@ class ChatStorage:
     ):
         """Save message for specific agent"""
         pk = f"{user_id}#{session_id}"
-        sk = f"{agent_id}#{datetime.utcnow().isoformat()}"
-        ttl = int((datetime.utcnow() + timedelta(hours=24)).timestamp())
+        sk = f"{agent_id}#{datetime.now(timezone.utc).isoformat()}"
+        ttl = int((datetime.now(timezone.utc) + timedelta(hours=24)).timestamp())
         
         self.table.put_item(
             Item={

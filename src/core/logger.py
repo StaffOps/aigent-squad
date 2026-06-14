@@ -6,9 +6,11 @@ provides the logger instance and helper functions.
 import logging
 import json
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict
 from opentelemetry import trace
+
+_STANDARD_ATTRS = set(logging.makeLogRecord({}).__dict__.keys()) | {"message", "asctime"}
 
 
 class JSONFormatter(logging.Formatter):
@@ -16,7 +18,7 @@ class JSONFormatter(logging.Formatter):
 
     def format(self, record: logging.LogRecord) -> str:
         log_data: Dict[str, Any] = {
-            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "level": record.levelname,
             "logger": record.name,
             "message": record.getMessage(),
@@ -25,8 +27,9 @@ class JSONFormatter(logging.Formatter):
             "line": record.lineno,
         }
 
-        if hasattr(record, "extra"):
-            log_data.update(record.extra)
+        for k, v in record.__dict__.items():
+            if k not in _STANDARD_ATTRS and not k.startswith("_"):
+                log_data[k] = v
 
         span = trace.get_current_span()
         if span.is_recording():

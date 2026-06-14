@@ -1,11 +1,12 @@
 from typing import Dict
 import httpx
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from opentelemetry import trace
 from src.core.classifier import classifier, ClassifierResult
 from src.core.state_store import storage, ConversationMessage
 from src.core.logger import logger, log_request, log_response, log_error
+from src.core.metrics import request_counter, error_counter, request_duration
 
 tracer = trace.get_tracer(__name__)
 
@@ -73,7 +74,7 @@ class SupervisorAgent:
                 user_message = ConversationMessage(
                     role="user",
                     content=user_input,
-                    timestamp=datetime.utcnow().isoformat(),
+                    timestamp=datetime.now(timezone.utc).isoformat(),
                     agent_id=classification.selected_agent
                 )
                 await storage.save_chat_message(
@@ -118,6 +119,7 @@ class SupervisorAgent:
                             "agent_id": classification.selected_agent,
                             "timeout": 25.0
                         })
+                        error_counter.add(1, {"agent_id": classification.selected_agent, "error_type": "timeout"})
                         return {
                             "agent": classification.selected_agent,
                             "response": f"Request timeout. The {classification.selected_agent} agent took too long to respond.",
@@ -130,6 +132,7 @@ class SupervisorAgent:
                             "agent_id": classification.selected_agent,
                             "status_code": e.response.status_code
                         })
+                        error_counter.add(1, {"agent_id": classification.selected_agent, "error_type": "internal"})
                         return {
                             "agent": classification.selected_agent,
                             "response": f"Error communicating with {classification.selected_agent} agent.",
@@ -140,11 +143,16 @@ class SupervisorAgent:
                 agent_response = response.json()
                 response_text = agent_response["content"]
                 
+                # Record RED metrics
+                agent_attrs = {"agent_id": classification.selected_agent}
+                request_counter.add(1, agent_attrs)
+                request_duration.record((time.time() - start_time) * 1000, agent_attrs)
+                
                 # 6. Save assistant message
                 assistant_message = ConversationMessage(
                     role="assistant",
                     content=response_text,
-                    timestamp=datetime.utcnow().isoformat(),
+                    timestamp=datetime.now(timezone.utc).isoformat(),
                     agent_id=classification.selected_agent
                 )
                 await storage.save_chat_message(

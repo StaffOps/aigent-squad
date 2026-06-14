@@ -1,6 +1,6 @@
 from kubernetes import client, config
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 from opentelemetry import trace
 from src.core.agent_base import Agent
@@ -55,17 +55,6 @@ class KubernetesAgent(Agent):
                 if len(input_text) > 10000:
                     raise ValueError("Input text too long (max 10000 characters)")
                 
-                cache_key = f"query:{hash(input_text)}"
-                cached = cache.get(cache_key, namespace="k8s")
-                if cached:
-                    logger.info("Cache hit", extra={"agent_id": self.id, "cache_key": cache_key})
-                    return ConversationMessage(
-                        role="assistant",
-                        content=cached,
-                        timestamp=datetime.utcnow().isoformat(),
-                        agent_id=self.id
-                    )
-                
                 with tracer.start_as_current_span("kubernetes_agent.get_cluster_state"):
                     cluster_state = self._get_cluster_state()
                 
@@ -85,15 +74,13 @@ Current Query: {input_text}"""
                         use_cache=True
                     )
                 
-                cache.set(cache_key, response, ttl=60, namespace="k8s")
-                
                 duration_ms = (time.time() - start_time) * 1000
                 log_response(self.id, user_id, session_id, len(response), duration_ms)
                 
                 return ConversationMessage(
                     role="assistant",
                     content=response,
-                    timestamp=datetime.utcnow().isoformat(),
+                    timestamp=datetime.now(timezone.utc).isoformat(),
                     agent_id=self.id
                 )
                 

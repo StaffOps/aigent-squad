@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 import time
 from opentelemetry import trace
@@ -49,17 +49,6 @@ class DevOpsAgent(Agent):
                 if len(input_text) > 10000:
                     raise ValueError("Input text too long (max 10000 characters)")
                 
-                cache_key = f"query:{hash(input_text)}"
-                cached = cache.get(cache_key, namespace="devops")
-                if cached:
-                    logger.info("Cache hit", extra={"agent_id": self.id, "cache_key": cache_key})
-                    return ConversationMessage(
-                        role="assistant",
-                        content=cached,
-                        timestamp=datetime.utcnow().isoformat(),
-                        agent_id=self.id
-                    )
-                
                 # Search GitLab documentation
                 with tracer.start_as_current_span("devops_agent.search_gitlab"):
                     gitlab_context = self._search_gitlab_context(input_text)
@@ -97,15 +86,13 @@ class DevOpsAgent(Agent):
                         use_cache=True
                     )
                 
-                cache.set(cache_key, response, ttl=300, namespace="devops")
-                
                 duration_ms = (time.time() - start_time) * 1000
                 log_response(self.id, user_id, session_id, len(response), duration_ms)
                 
                 return ConversationMessage(
                     role="assistant",
                     content=response,
-                    timestamp=datetime.utcnow().isoformat(),
+                    timestamp=datetime.now(timezone.utc).isoformat(),
                     agent_id=self.id
                 )
                 

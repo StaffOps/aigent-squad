@@ -1,6 +1,6 @@
 import boto3
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 import time
 from opentelemetry import trace
@@ -52,17 +52,6 @@ class FinOpsAgent(Agent):
                 if len(input_text) > 10000:
                     raise ValueError("Input text too long (max 10000 characters)")
                 
-                cache_key = f"query:{hash(input_text)}"
-                cached = cache.get(cache_key, namespace="finops")
-                if cached:
-                    logger.info("Cache hit", extra={"agent_id": self.id, "cache_key": cache_key})
-                    return ConversationMessage(
-                        role="assistant",
-                        content=cached,
-                        timestamp=datetime.utcnow().isoformat(),
-                        agent_id=self.id
-                    )
-                
                 with tracer.start_as_current_span("finops_agent.get_costs"):
                     aws_costs = self._get_aws_costs()
                     k8s_costs = self._get_kubecost_data()
@@ -86,15 +75,13 @@ Current Query: {input_text}"""
                         use_cache=True
                     )
                 
-                cache.set(cache_key, response, ttl=3600, namespace="finops")
-                
                 duration_ms = (time.time() - start_time) * 1000
                 log_response(self.id, user_id, session_id, len(response), duration_ms)
                 
                 return ConversationMessage(
                     role="assistant",
                     content=response,
-                    timestamp=datetime.utcnow().isoformat(),
+                    timestamp=datetime.now(timezone.utc).isoformat(),
                     agent_id=self.id
                 )
                 

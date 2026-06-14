@@ -1,5 +1,6 @@
+import os
 import httpx
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 import time
 from opentelemetry import trace
@@ -20,7 +21,7 @@ class ObservabilityAgent(Agent):
             name="Observability Agent",
             description="Specializes in metrics, logs, alerts, and anomaly detection"
         )
-        self.prometheus_url = "http://prometheus.monitoring.svc.cluster.local:9090"
+        self.prometheus_url = os.getenv("PROMETHEUS_URL", "http://prometheus.monitoring.svc.cluster.local:9090")
         self.system_prompt = self._load_prompt()
     
     async def process_request(
@@ -49,17 +50,6 @@ class ObservabilityAgent(Agent):
                 if len(input_text) > 10000:
                     raise ValueError("Input text too long (max 10000 characters)")
                 
-                cache_key = f"query:{hash(input_text)}"
-                cached = cache.get(cache_key, namespace="observability")
-                if cached:
-                    logger.info("Cache hit", extra={"agent_id": self.id, "cache_key": cache_key})
-                    return ConversationMessage(
-                        role="assistant",
-                        content=cached,
-                        timestamp=datetime.utcnow().isoformat(),
-                        agent_id=self.id
-                    )
-                
                 with tracer.start_as_current_span("observability_agent.get_metrics"):
                     metrics = self._get_metrics()
                     anomalies = self._detect_anomalies()
@@ -83,15 +73,13 @@ Current Query: {input_text}"""
                         use_cache=True
                     )
                 
-                cache.set(cache_key, response, ttl=60, namespace="observability")
-                
                 duration_ms = (time.time() - start_time) * 1000
                 log_response(self.id, user_id, session_id, len(response), duration_ms)
                 
                 return ConversationMessage(
                     role="assistant",
                     content=response,
-                    timestamp=datetime.utcnow().isoformat(),
+                    timestamp=datetime.now(timezone.utc).isoformat(),
                     agent_id=self.id
                 )
                 

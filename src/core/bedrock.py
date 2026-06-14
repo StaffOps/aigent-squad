@@ -5,6 +5,7 @@ from typing import List, Dict, Any
 from botocore.exceptions import ClientError
 from src.core.config import settings
 from src.core.logger import logger
+from src.core.metrics import token_counter, estimated_cost
 
 class BedrockClient:
     """AWS Bedrock client with prompt caching and error handling"""
@@ -54,11 +55,22 @@ class BedrockClient:
                 
                 result = json.loads(response['body'].read())
                 
+                input_tokens = result.get('usage', {}).get('input_tokens', 0)
+                output_tokens = result.get('usage', {}).get('output_tokens', 0)
+                
                 logger.info("Bedrock invocation successful", extra={
                     "model_id": self.model_id,
-                    "input_tokens": result.get('usage', {}).get('input_tokens', 0),
-                    "output_tokens": result.get('usage', {}).get('output_tokens', 0)
+                    "input_tokens": input_tokens,
+                    "output_tokens": output_tokens
                 })
+                
+                # Record token and cost metrics
+                attrs = {"model": self.model_id}
+                token_counter.add(input_tokens, {**attrs, "direction": "input"})
+                token_counter.add(output_tokens, {**attrs, "direction": "output"})
+                # Approximate pricing: Sonnet $3/M input, $15/M output
+                cost = (input_tokens * 3 / 1_000_000) + (output_tokens * 15 / 1_000_000)
+                estimated_cost.add(cost, attrs)
                 
                 return result['content'][0]['text']
                 
