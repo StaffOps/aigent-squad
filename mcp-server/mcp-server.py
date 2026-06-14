@@ -14,11 +14,6 @@ app = FastAPI(title="Agent Squad MCP Server")
 # HTTP client for Supervisor
 SUPERVISOR_URL = os.getenv("SUPERVISOR_URL", "http://supervisor:8000/query")
 
-app = FastAPI(title="Agent Squad MCP Server")
-
-# HTTP client for Supervisor
-SUPERVISOR_URL = os.getenv("SUPERVISOR_URL", "http://supervisor:8000/query")
-
 class QueryRequest(BaseModel):
     question: str
     user_id: str = "kiro-user"

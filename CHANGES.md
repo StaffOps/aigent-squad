@@ -1,3 +1,22 @@
+# Changelog
+
+## [Unreleased] - 2026-06-14
+
+### Fixed (Spec 01: Fix Blockers)
+- Created root `Dockerfile` for supervisor service (python:3.11-slim)
+- Removed duplicate class body in `src/core/gitlab_client.py` (kept 1st definition + 1 singleton)
+- Removed duplicate `app`/`SUPERVISOR_URL` declarations in `mcp-server/mcp-server.py`
+- Rewrote `src/api/server.py` — removed langchain/StateStore/graph imports, uses `supervisor.process_request()`
+- Added `__init__.py` to all `src/` packages (required for `python -m` execution)
+- Fixed supervisor healthcheck: `wget --spider` → `curl -f` (GNU wget HEAD rejected by FastAPI)
+
+### Result
+- `docker compose build` passes for all 7 services
+- `docker compose up -d` starts 9 containers, all healthy
+- Imports validated: `src.core.gitlab_client`, `src.api.server` — no errors
+
+---
+
 # 🎯 Agent Squad v2.0 - AWS Labs Best Practices
 
 ## ✅ All Implemented Changes

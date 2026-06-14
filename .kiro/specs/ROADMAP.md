@@ -11,7 +11,7 @@ Este roadmap reflete o **estado real** do projeto, não o aspiracional do README
 
 | Dimensão | Status |
 |----------|--------|
-| Build (`docker compose build`) | ❌ falha (Dockerfile raiz ausente) |
+| Build (`docker compose build`) | ✅ passa (spec 01 concluída 2026-06-14) |
 | Agentes unificados | ❌ 4 de 5 com código duplicado/divergente |
 | Multiturno (history) | ⚠️ só aws/k8s usam de fato |
 | Cache | ❌ key não-determinística + vaza entre usuários |
@@ -31,7 +31,7 @@ Pré-requisito para tudo. Ordem importa porque há dependências.
 
 | # | Spec | Severidade | Depende de | Resultado mensurável |
 |---|------|-----------|------------|----------------------|
-| 1 | `01-fix-blockers` | 🔴 | — | `docker compose build && up` verde |
+| 1 | `01-fix-blockers` | ✅ done | — | `docker compose build && up` verde |
 | 2 | `02-unify-agent-architecture` | 🟠 | 01 | 5 agentes no mesmo padrão, contrato único, multiturno |
 | 3 | `03-fix-cache-observability` | 🟠/🟡 | 02 | cache determinístico, logs com contexto, OTLP |
 | 4 | `04-harden-security` | 🟠 | 02 | endpoints autenticados, containers non-root |
