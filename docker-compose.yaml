@@ -113,6 +113,7 @@ services:
 
   otel-collector:
     image: otel/opentelemetry-collector-contrib:0.102.0
+    command: ["--config=/etc/otelcol/config.yaml"]
     volumes:
       - ./infra/otel-collector.yaml:/etc/otelcol/config.yaml:ro
     ports:
