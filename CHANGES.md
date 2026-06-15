@@ -2,6 +2,15 @@
 
 ## [Unreleased] - 2026-06-14
 
+### Added (Metrics audit — covering specs 06, 17, 18, 21)
+13 new custom metrics + instrumentation in existing code:
+- Spec 06: `aigent.circuit_breaker.transitions`
+- Spec 17: `aigent.fanout.calls`, `aigent.fanout.agents_consulted`, `aigent.fanout.agents_failed`, `aigent.synthesizer.calls`
+- Spec 18: `aigent.investigation.started`, `.completed`, `.duration`, `.evidence_count`
+- Spec 21: `aigent.kb.distillation.cost`, `.items_created`, `.rag.queries`, `.rag.hits`, `.budget.exhausted`
+- Updated `docs/METRICS.md` with full reference (table per domain + label cardinality)
+- Updated `.kiro/steering/milestone-criteria.md` to make metrics a mandatory milestone gate (equal weight to tests/docs)
+
 ### Added (Spec 21: Incident Memory & Learning)
 - Postgres+pgvector container (`pgvector/pgvector:pg16`) for KB persistence
 - `infra/postgres/init.sql`: kb_items + kb_provenance schema, HNSW index, FTS fallback

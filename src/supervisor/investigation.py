@@ -2,6 +2,7 @@
 import asyncio
 import json
 import os
+import time as time_mod
 
 from otel_helper import get_tracer
 
@@ -12,6 +13,10 @@ from src.core.investigation import (
 )
 from src.core.kb.rag import inject_similar_cases
 from src.core.logger import logger, log_request, log_response
+from src.core.metrics import (
+    investigation_started, investigation_completed,
+    investigation_duration, investigation_evidence_count,
+)
 
 tracer = get_tracer(__name__)
 
@@ -57,6 +62,8 @@ async def run_investigation(
     """
     state = InvestigationState(symptom=symptom)
     log_request("investigation", user_id, session_id, symptom)
+    investigation_started.add(1)
+    t0 = time_mod.time()
 
     with tracer.start_as_current_span("investigation.run") as span:
         span.set_attribute("investigation.id", state.id)
@@ -106,6 +113,13 @@ async def run_investigation(
         rca = await _synthesize_rca(symptom, state.evidence, timeline)
 
         log_response("investigation", user_id, session_id, len(rca.hypothesis), 0.0)
+
+        # Investigation completion metrics
+        duration_ms = (time_mod.time() - t0) * 1000
+        investigation_duration.record(duration_ms, {"confidence": rca.confidence})
+        investigation_completed.add(1, {"confidence": rca.confidence})
+        investigation_evidence_count.record(len(rca.evidence))
+
         return rca
 
 

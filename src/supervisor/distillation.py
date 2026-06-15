@@ -9,6 +9,7 @@ from src.core.kb.store import kb_store
 from src.core.kb.budget import check_budget, record_cost
 from src.core.kb.redactor import redact
 from src.core.logger import logger
+from src.core.metrics import kb_distillation_cost, kb_items_created
 
 ESTIMATED_COST_PER_DISTILL = 0.27  # USD (extractor + enricher + embedding)
 
@@ -46,6 +47,7 @@ async def distill_rca(rca: RCAResult, investigation_id: str | None = None):
                     status=status,
                 )
                 await kb_store.insert(item)
+                kb_items_created.add(1, {"type": item.type, "status": item.status})
                 logger.info("KB item distilled", extra={
                     "type": item.type, "status": item.status, "title": item.title[:80],
                 })
@@ -53,5 +55,6 @@ async def distill_rca(rca: RCAResult, investigation_id: str | None = None):
                 logger.warning("KB item insert failed", extra={"error": str(e)})
 
         record_cost(ESTIMATED_COST_PER_DISTILL)
+        kb_distillation_cost.add(ESTIMATED_COST_PER_DISTILL)
     except Exception as e:
         logger.warning("Distillation pipeline failed (best-effort)", extra={"error": str(e)})

@@ -47,3 +47,91 @@ cache_misses = meter.create_counter(
     description="Cache misses",
     unit="1",
 )
+
+# === Spec 06: Resilience patterns ===
+circuit_breaker_transitions = meter.create_counter(
+    name="aigent.circuit_breaker.transitions",
+    description="Circuit breaker state transitions",
+    unit="1",
+)
+
+# === Spec 17: Multi-agent fan-out ===
+fanout_calls = meter.create_counter(
+    name="aigent.fanout.calls",
+    description="Fan-out invocations (N>=2 agents)",
+    unit="1",
+)
+
+fanout_agents_consulted = meter.create_histogram(
+    name="aigent.fanout.agents_consulted",
+    description="Number of agents consulted per fan-out",
+    unit="1",
+)
+
+fanout_agents_failed = meter.create_counter(
+    name="aigent.fanout.agents_failed",
+    description="Agents that failed during fan-out",
+    unit="1",
+)
+
+synthesizer_calls = meter.create_counter(
+    name="aigent.synthesizer.calls",
+    description="Synthesizer invocations (RCA + fan-out merge)",
+    unit="1",
+)
+
+# === Spec 18: RCA Investigation ===
+investigation_started = meter.create_counter(
+    name="aigent.investigation.started",
+    description="Investigations triggered (mode=investigate or auto-detected)",
+    unit="1",
+)
+
+investigation_completed = meter.create_counter(
+    name="aigent.investigation.completed",
+    description="Investigations completed, labeled by confidence level",
+    unit="1",
+)
+
+investigation_duration = meter.create_histogram(
+    name="aigent.investigation.duration",
+    description="End-to-end investigation duration",
+    unit="ms",
+)
+
+investigation_evidence_count = meter.create_histogram(
+    name="aigent.investigation.evidence_count",
+    description="Total evidence items collected per investigation",
+    unit="1",
+)
+
+# === Spec 21: KB / Distillation / RAG ===
+kb_distillation_cost = meter.create_counter(
+    name="aigent.kb.distillation.cost",
+    description="Estimated USD cost of distillation pipeline",
+    unit="USD",
+)
+
+kb_items_created = meter.create_counter(
+    name="aigent.kb.items_created",
+    description="KB items created, labeled by type and status",
+    unit="1",
+)
+
+kb_rag_queries = meter.create_counter(
+    name="aigent.kb.rag.queries",
+    description="RAG injection lookups against KB",
+    unit="1",
+)
+
+kb_rag_hits = meter.create_counter(
+    name="aigent.kb.rag.hits",
+    description="RAG queries that returned at least 1 similar case above threshold",
+    unit="1",
+)
+
+kb_budget_exhausted = meter.create_counter(
+    name="aigent.kb.budget.exhausted",
+    description="Times the monthly KB budget was exceeded (distillation skipped)",
+    unit="1",
+)

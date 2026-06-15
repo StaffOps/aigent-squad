@@ -1,6 +1,8 @@
 import time
 from enum import Enum
 
+from src.core.metrics import circuit_breaker_transitions
+
 
 class CircuitState(Enum):
     CLOSED = "closed"
@@ -23,12 +25,15 @@ class CircuitBreaker:
         if self.state == CircuitState.OPEN:
             if time.time() - self.last_failure_time >= self.recovery_timeout:
                 self.state = CircuitState.HALF_OPEN
+                circuit_breaker_transitions.add(1, {"name": self.name, "from": "open", "to": "half_open"})
                 return True
             return False
         # HALF_OPEN: allow one attempt
         return True
 
     def record_success(self):
+        if self.state == CircuitState.HALF_OPEN:
+            circuit_breaker_transitions.add(1, {"name": self.name, "from": "half_open", "to": "closed"})
         self.failure_count = 0
         self.state = CircuitState.CLOSED
 
@@ -37,6 +42,7 @@ class CircuitBreaker:
         self.last_failure_time = time.time()
         if self.failure_count >= self.failure_threshold:
             self.state = CircuitState.OPEN
+            circuit_breaker_transitions.add(1, {"name": self.name, "from": "closed", "to": "open"})
 
     def is_open(self) -> bool:
         return self.state == CircuitState.OPEN

@@ -2,6 +2,7 @@
 from src.core.kb.store import kb_store
 from src.core.kb.embedder import embed
 from src.core.logger import logger
+from src.core.metrics import kb_rag_queries, kb_rag_hits
 
 
 async def inject_similar_cases(
@@ -13,9 +14,11 @@ async def inject_similar_cases(
         emb = await embed(symptom)
         if emb is None:
             return ""
+        kb_rag_queries.add(1)
         items = await kb_store.search_similar(emb, top_k=top_k, threshold=threshold, service_name=service_name)
         if not items:
             return ""
+        kb_rag_hits.add(1)
         blocks = []
         for item in items:
             blocks.append(

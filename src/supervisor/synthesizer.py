@@ -2,6 +2,7 @@
 from otel_helper import get_tracer
 from src.core.bedrock import bedrock
 from src.core.logger import logger
+from src.core.metrics import synthesizer_calls
 
 tracer = get_tracer(__name__)
 
@@ -29,6 +30,8 @@ class Synthesizer:
 
             if not responses:
                 return "All agents failed to respond. Please try again."
+
+            synthesizer_calls.add(1, {"has_failures": str(bool(failed))})
 
             agent_blocks = "\n\n".join(
                 f"<agent name=\"{name}\">\n{resp}\n</agent>"

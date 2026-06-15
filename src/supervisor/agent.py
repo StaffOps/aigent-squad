@@ -6,7 +6,7 @@ from opentelemetry import trace
 from src.core.classifier import Classifier, ClassifierResult
 from src.core.state_store import storage, ConversationMessage
 from src.core.logger import logger, log_request, log_response, log_error
-from src.core.metrics import request_counter, error_counter, request_duration
+from src.core.metrics import request_counter, error_counter, request_duration, fanout_calls, fanout_agents_consulted, fanout_agents_failed
 from src.core.registry import AgentRegistry
 from src.core.generic_agent import GenericAgent
 from src.core.adapters import create_adapters
@@ -219,6 +219,12 @@ class SupervisorAgent:
                     ok.append((a.agent, r.content))
 
             final_response = await synthesizer.synthesize(user_input, ok, failed)
+
+            # Fan-out metrics
+            fanout_calls.add(1)
+            fanout_agents_consulted.record(len(agents))
+            if failed:
+                fanout_agents_failed.add(len(failed))
 
             # Record metrics for primary agent
             primary = agents[0].agent

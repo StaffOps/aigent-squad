@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 
 from src.core.cache import cache
 from src.core.logger import logger
+from src.core.metrics import kb_budget_exhausted
 
 MONTHLY_BUDGET_USD = float(os.getenv("KB_MONTHLY_BUDGET_USD", "50.0"))
 
@@ -17,7 +18,10 @@ def check_budget(estimated_cost: float) -> bool:
     """Returns True if budget allows the estimated cost. Best-effort (uses Redis)."""
     try:
         current = float(cache.get(_key(), namespace="budget") or 0.0)
-        return current + estimated_cost <= MONTHLY_BUDGET_USD
+        if current + estimated_cost <= MONTHLY_BUDGET_USD:
+            return True
+        kb_budget_exhausted.add(1)
+        return False
     except Exception as e:
         logger.warning("Budget check failed (allowing)", extra={"error": str(e)})
         return True
