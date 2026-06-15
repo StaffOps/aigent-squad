@@ -34,3 +34,12 @@ async def test_rag_returns_xml_block_with_matches(mock_embed, mock_store):
     result = await inject_similar_cases("redis crash")
     assert "<similar_cases>" in result
     assert "OOM on redis" in result
+
+
+@pytest.mark.asyncio
+@patch("src.core.kb.rag.embed", new_callable=AsyncMock)
+async def test_rag_returns_empty_on_unexpected_error(mock_embed):
+    """When embed raises an unexpected exception, RAG returns empty string."""
+    mock_embed.side_effect = RuntimeError("unexpected failure")
+    result = await inject_similar_cases("something")
+    assert result == ""

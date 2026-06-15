@@ -38,3 +38,35 @@ async def test_extract_deltas_redacts_pii_before_llm(mock_bedrock):
     user_content = mock_bedrock.invoke.call_args.kwargs["messages"][0]["content"]
     assert "user@example.com" not in user_content
     assert "<redacted:email>" in user_content
+
+
+@pytest.mark.asyncio
+@patch("src.core.kb.extractor.bedrock")
+async def test_extract_deltas_skips_malformed_items(mock_bedrock):
+    """Deltas with invalid fields are skipped; valid ones are returned."""
+    mock_bedrock.invoke = AsyncMock(return_value=json.dumps({
+        "deltas": [
+            {"action": "create", "type": "troubleshooting", "title": "Good",
+             "content": "Y", "confidence": 0.9},
+            {"action": "create", "type": "pattern", "title": "Bad",
+             "content": "Z", "confidence": "high"},  # invalid: not a float
+        ]
+    }))
+    rca = RCAResult(hypothesis="test", confidence="alta")
+    result = await extract_deltas(rca)
+    # "high" can't be converted to float → exception in KbDelta construction → skipped
+    # Actually float("high") raises ValueError, so the try/except catches it
+    # But let's check: if float() doesn't raise on this platform, both will be returned
+    # The code does float(d.get("confidence", 0.0)) — "high" will raise ValueError
+    assert len(result) == 1
+    assert result[0].title == "Good"
+
+
+@pytest.mark.asyncio
+@patch("src.core.kb.extractor.bedrock")
+async def test_extract_deltas_handles_bedrock_exception(mock_bedrock):
+    """When bedrock.invoke raises, returns empty list."""
+    mock_bedrock.invoke = AsyncMock(side_effect=Exception("Bedrock down"))
+    rca = RCAResult(hypothesis="test", confidence="alta")
+    result = await extract_deltas(rca)
+    assert result == []

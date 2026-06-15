@@ -77,3 +77,59 @@ async def test_process_request_unknown_agent_fallback():
 
     assert result["agent"] == "supervisor"
     assert "rephrase" in result["response"].lower()
+
+
+@pytest.mark.asyncio
+async def test_process_request_triggers_investigation_on_keyword():
+    """When should_investigate returns True, supervisor runs investigation."""
+    mock_registry = _make_mock_registry()
+
+    with patch("src.supervisor.agent.create_adapters", return_value=[]):
+        from src.supervisor.agent import SupervisorAgent
+        supervisor = SupervisorAgent(mock_registry)
+
+    rca_dict = {
+        "hypothesis": "Memory leak",
+        "confidence": "alta",
+        "evidence": [],
+        "timeline": [],
+        "contradicting": [],
+        "prevention": ["add alert"],
+    }
+    mock_rca = MagicMock()
+    mock_rca.hypothesis = "Memory leak"
+    mock_rca.confidence = "alta"
+    mock_rca.to_dict.return_value = rca_dict
+
+    with patch("src.supervisor.agent.should_investigate", return_value=True), \
+         patch("src.supervisor.agent.run_investigation", new_callable=AsyncMock, return_value=mock_rca), \
+         patch("src.supervisor.agent.distill_rca", new_callable=AsyncMock):
+        result = await supervisor.process_request(
+            "why is service X failing with OOM after deploy", "user1", "sess1"
+        )
+
+    assert result["agent"] == "investigation"
+    assert "rca" in result
+    assert result["rca"]["hypothesis"] == "Memory leak"
+
+
+@pytest.mark.asyncio
+async def test_process_request_handles_classifier_failure_gracefully():
+    """When classifier raises, supervisor returns error response."""
+    mock_registry = _make_mock_registry()
+
+    with patch("src.supervisor.agent.create_adapters", return_value=[]):
+        from src.supervisor.agent import SupervisorAgent
+        supervisor = SupervisorAgent(mock_registry)
+
+    supervisor.classifier.classify = AsyncMock(side_effect=RuntimeError("LLM down"))
+
+    with patch("src.supervisor.agent.storage") as mock_storage, \
+         patch("src.supervisor.agent.should_investigate", return_value=False):
+        mock_storage.fetch_all_chats = AsyncMock(return_value=[])
+
+        result = await supervisor.process_request("some query", "user1", "sess1")
+
+    assert result["agent"] == "supervisor"
+    assert "error" in result
+    assert result["confidence"] == 0.0

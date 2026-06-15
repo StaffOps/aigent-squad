@@ -25,3 +25,19 @@ def test_record_cost_updates_redis(mock_cache):
     mock_cache.set.assert_called_once()
     args = mock_cache.set.call_args
     assert args[0][1] == 12.5
+
+
+@patch("src.core.kb.budget.cache")
+def test_check_budget_returns_true_when_check_fails(mock_cache):
+    """When cache.get raises, check_budget allows (fail-open)."""
+    mock_cache.get.side_effect = Exception("Redis down")
+    assert check_budget(5.0) is True
+
+
+@patch("src.core.kb.budget.cache")
+def test_record_cost_handles_cache_failure(mock_cache):
+    """When cache.set raises, record_cost does not propagate."""
+    mock_cache.get.return_value = 10.0
+    mock_cache.set.side_effect = Exception("Redis down")
+    # Should not raise
+    record_cost(2.5)

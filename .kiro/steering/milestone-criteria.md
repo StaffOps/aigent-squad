@@ -6,7 +6,7 @@ Every milestone (spec, feature, or significant change) MUST meet ALL of these be
 
 ```
 1. Tests written by a DIFFERENT agent (verification independence)
-2. Coverage ≥ 80% (enforced via --cov-fail-under=80)
+2. Coverage ≥ 90% (enforced via --cov-fail-under=90)
 3. Tests passing (all green)
 4. NEW METRICS instrumented + documented in docs/METRICS.md
 5. Documentation updated (CHANGES.md, ROADMAP.md, spec tasks.md, relevant docs/)
@@ -22,10 +22,10 @@ Every milestone (spec, feature, or significant change) MUST meet ALL of these be
 - Use pytest + pytest-asyncio; run via Docker
 
 ### Coverage
-- Minimum: 80% line coverage
-- Configured in `.coveragerc` with `fail_under = 80`
+- Minimum: 90% line coverage
+- Configured in `.coveragerc` with `fail_under = 90`
 - Entry-point thin wrappers (server.py with only FastAPI app init) excluded from coverage
-- `pytest --cov --cov-fail-under=80` must pass
+- `pytest --cov --cov-fail-under=90` must pass
 
 ### Metrics (equal weight to docs)
 - ANY new feature/component MUST emit at least one custom metric (counter, histogram, or gauge) covering: invocations, errors, duration, or domain-specific events
@@ -54,7 +54,7 @@ Every milestone (spec, feature, or significant change) MUST meet ALL of these be
 
 ### Pre-commit checklist
 Before running `git commit`, verify:
-- [ ] Tests pass and coverage ≥ 80%
+- [ ] Tests pass and coverage ≥ 90%
 - [ ] New code emits metrics (instrumented + defined in metrics.py)
 - [ ] `docs/METRICS.md` lists the new metrics
 - [ ] **All operational docs in `docs/` reflect reality** (architecture, setup, security, etc — not just CHANGES)
@@ -66,7 +66,7 @@ Before running `git commit`, verify:
 ## Anti-patterns
 - ❌ "Commit now, tests later"
 - ❌ Same agent writes code AND tests
-- ❌ Coverage below 80% accepted as "good enough"
+- ❌ Coverage below 90% accepted as "good enough"
 - ❌ "Closes spec X" in commit message but `tasks.md` still has `[ ]` everywhere
 - ❌ New code with zero metrics ("can't measure what isn't observed")
 - ❌ New metrics without `docs/METRICS.md` entry

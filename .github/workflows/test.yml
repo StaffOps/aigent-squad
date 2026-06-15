@@ -35,7 +35,7 @@ jobs:
           pip install pytest pytest-asyncio pytest-cov ruff
 
       - name: Run tests with coverage gate
-        run: pytest tests/ --cov --cov-fail-under=80 --tb=short -q
+        run: pytest tests/ --cov --cov-fail-under=90 --tb=short -q
         env:
           REDIS_HOST: localhost
           SERVICE_NAME: test

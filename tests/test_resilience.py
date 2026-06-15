@@ -251,3 +251,30 @@ async def test_classifier_keyword_fallback_no_match():
         result = await clf.classify("hello", [])
 
         assert result.selected_agent == "unknown"
+
+
+# --- Circuit breaker state transition tests ---
+
+
+def test_circuit_breaker_records_metric_on_open():
+    """When failure_threshold is reached, state transitions CLOSED→OPEN and metric fires."""
+    from src.core.circuit_breaker import CircuitBreaker, CircuitState
+
+    with patch("src.core.circuit_breaker.circuit_breaker_transitions") as mock_metric:
+        cb = CircuitBreaker("test-open", failure_threshold=3, recovery_timeout=60.0)
+        for _ in range(3):
+            cb.record_failure()
+        assert cb.state == CircuitState.OPEN
+        mock_metric.add.assert_called_with(1, {"name": "test-open", "from": "closed", "to": "open"})
+
+
+def test_circuit_breaker_half_open_to_closed_on_success():
+    """In HALF_OPEN state, record_success transitions to CLOSED."""
+    from src.core.circuit_breaker import CircuitBreaker, CircuitState
+
+    with patch("src.core.circuit_breaker.circuit_breaker_transitions") as mock_metric:
+        cb = CircuitBreaker("test-ho", failure_threshold=3, recovery_timeout=0.0)
+        cb.state = CircuitState.HALF_OPEN
+        cb.record_success()
+        assert cb.state == CircuitState.CLOSED
+        mock_metric.add.assert_called_with(1, {"name": "test-ho", "from": "half_open", "to": "closed"})

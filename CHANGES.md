@@ -2,6 +2,14 @@
 
 ## [Unreleased] - 2026-06-14
 
+### Changed (Coverage gate raised: 80% → 90%)
+- Test suite expanded from 124 to 166 tests (+42 targeted tests)
+- Total coverage: **91.72%** (up from 84%)
+- `.coveragerc`: `fail_under = 90`
+- `.github/workflows/test.yml`: `--cov-fail-under=90`
+- `.kiro/steering/milestone-criteria.md`: minimum coverage updated to 90%
+- New tests target uncovered branches in: kb/store, state_store, cache, investigation, bedrock, kb/budget, kb/extractor, kb/embedder, kb/rag, circuit_breaker, supervisor/agent, supervisor/distillation
+
 ### Added (Spec 18 Phase 2: Alert Ingestion + Slack post-back)
 - `src/supervisor/alert_handler.py`: AlertmanagerPayload + AlertmanagerAlert (Pydantic), `alert_to_symptom()`, fingerprint dedup via Redis, `handle_alert_payload()` orchestrator
 - `src/supervisor/slack_notifier.py`: `post_rca_to_slack()` (opt-in via `SLACK_WEBHOOK_URL`)

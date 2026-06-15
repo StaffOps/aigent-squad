@@ -107,3 +107,63 @@ async def _run(agents):
         user_id="test",
         session_id="test-session",
     )
+
+
+# --- _synthesize_rca direct tests ---
+
+
+@pytest.mark.asyncio
+async def test_synthesize_rca_includes_rag_block_when_provided():
+    from src.supervisor.investigation import _synthesize_rca, Evidence
+
+    evidence = [Evidence(source_agent="obs", signal_type="metric", timestamp="2026-01-01T00:00:00Z", strength="forte", summary="CPU 95%")]
+    timeline = evidence[:]
+
+    with patch("src.supervisor.investigation.inject_similar_cases", new_callable=AsyncMock) as mock_rag, \
+         patch("src.supervisor.investigation.bedrock") as mock_bedrock:
+        mock_rag.return_value = "<similar_cases>\n<case>OOM pattern</case>\n</similar_cases>\n\nNOTE: priors."
+        mock_bedrock.invoke = AsyncMock(return_value=json.dumps({
+            "hypothesis": "CPU saturation", "prevention": []
+        }))
+
+        await _synthesize_rca("high cpu", evidence, timeline)
+
+        user_msg = mock_bedrock.invoke.call_args[1]["messages"][0]["content"]
+        assert "similar_cases" in user_msg
+
+
+@pytest.mark.asyncio
+async def test_synthesize_rca_handles_invalid_json_response():
+    from src.supervisor.investigation import _synthesize_rca, Evidence
+
+    evidence = [Evidence(source_agent="obs", signal_type="log", timestamp="", strength="media", summary="error")]
+    timeline = []
+
+    with patch("src.supervisor.investigation.inject_similar_cases", new_callable=AsyncMock, return_value=""), \
+         patch("src.supervisor.investigation.bedrock") as mock_bedrock:
+        mock_bedrock.invoke = AsyncMock(return_value="not valid json at all")
+
+        result = await _synthesize_rca("something broke", evidence, timeline)
+
+    assert isinstance(result, RCAResult)
+    # Production behavior: invalid JSON → falls back to default hypothesis
+    # (not echoing raw text). See _synthesize_rca exception handler.
+    assert result.hypothesis  # non-empty
+    assert result.confidence in ("alta", "media", "baixa")
+
+
+@pytest.mark.asyncio
+async def test_synthesize_rca_handles_no_evidence():
+    from src.supervisor.investigation import _synthesize_rca
+
+    with patch("src.supervisor.investigation.inject_similar_cases", new_callable=AsyncMock, return_value=""), \
+         patch("src.supervisor.investigation.bedrock") as mock_bedrock:
+        mock_bedrock.invoke = AsyncMock(return_value=json.dumps({
+            "hypothesis": "unknown", "prevention": []
+        }))
+
+        result = await _synthesize_rca("mystery", [], [])
+
+    user_msg = mock_bedrock.invoke.call_args[1]["messages"][0]["content"]
+    assert "(no evidence collected)" in user_msg
+    assert "(no temporal evidence)" in user_msg
