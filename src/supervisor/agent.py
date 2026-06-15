@@ -10,7 +10,9 @@ from src.core.metrics import request_counter, error_counter, request_duration
 from src.core.registry import AgentRegistry
 from src.core.generic_agent import GenericAgent
 from src.core.adapters import create_adapters
+from src.core.triage import should_investigate
 from src.supervisor.synthesizer import synthesizer
+from src.supervisor.investigation import run_investigation
 
 tracer = trace.get_tracer(__name__)
 
@@ -36,7 +38,8 @@ class SupervisorAgent:
         self,
         user_input: str,
         user_id: str,
-        session_id: str
+        session_id: str,
+        mode: str = "query",
     ) -> Dict:
         """Process user request with intelligent routing and optional fan-out"""
 
@@ -50,6 +53,25 @@ class SupervisorAgent:
             log_request("supervisor", user_id, session_id, user_input)
 
             try:
+                # 0. Check if this warrants RCA investigation
+                force_investigate = mode == "investigate"
+                if should_investigate(user_input, force=force_investigate):
+                    rca = await run_investigation(
+                        symptom=user_input,
+                        agents=self.agents,
+                        user_id=user_id,
+                        session_id=session_id,
+                    )
+                    duration_ms = (time.time() - start_time) * 1000
+                    request_counter.add(1, {"agent_id": "investigation"})
+                    request_duration.record(duration_ms, {"agent_id": "investigation"})
+                    return {
+                        "agent": "investigation",
+                        "response": rca.hypothesis,
+                        "confidence": rca.confidence,
+                        "rca": rca.to_dict(),
+                    }
+
                 # 1. Get global conversation history for classifier
                 chat_history = await storage.fetch_all_chats(user_id, session_id)
 

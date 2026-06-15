@@ -2,6 +2,15 @@
 
 ## [Unreleased] - 2026-06-14
 
+### Added (Spec 18 Phase 1: RCA Investigation Workflow)
+- `src/core/investigation.py`: Evidence, RCAResult, InvestigationState dataclasses
+- `src/core/investigation.py`: `build_timeline()` — sorts evidence by timestamp, marks causal candidates (deploy/restart/config)
+- `src/core/investigation.py`: `correlate()` — confidence rule (≥3 independent signals → alta; contradicting evidence rebaixa)
+- `src/core/triage.py`: `should_investigate()` — keyword heuristic (no Bedrock call) for trivial-vs-investigate decision
+- `src/supervisor/investigation.py`: `run_investigation()` orchestrator — fan-out evidence collection (parallel) + RCA synthesizer (single Bedrock call)
+- `mode=investigate` flag on `/query` endpoint forces investigation workflow
+- `RCA_MAX_AGENTS` env var (default 5) caps cost per investigation
+
 ### Added (Spec 17: Multi-Agent Fan-Out + Synthesizer)
 - `src/supervisor/synthesizer.py`: fuses N agent responses into 1 coherent answer
 - `src/core/agent_tools.py`: agent-as-tools helper with depth=1 guard (contextvars)

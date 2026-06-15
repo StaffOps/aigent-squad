@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+from typing import Optional
 from fastapi import FastAPI, HTTPException, Depends
 from pydantic import BaseModel
 from otel_helper import setup_telemetry
@@ -24,6 +25,7 @@ class QueryRequest(BaseModel):
     user_input: str
     user_id: str
     session_id: str
+    mode: Optional[str] = None
 
 
 @app.post("/query", dependencies=[Depends(require_token)])
@@ -33,7 +35,8 @@ async def query(request: QueryRequest):
         response = await supervisor.process_request(
             user_input=request.user_input,
             user_id=request.user_id,
-            session_id=request.session_id
+            session_id=request.session_id,
+            mode=request.mode or "query",
         )
         return response
     except Exception as e:
