@@ -10,6 +10,7 @@ from src.core.investigation import (
     Evidence, RCAResult, InvestigationState,
     build_timeline, correlate,
 )
+from src.core.kb.rag import inject_similar_cases
 from src.core.logger import logger, log_request, log_response
 
 tracer = get_tracer(__name__)
@@ -143,6 +144,8 @@ def _parse_evidence(text: str, source_agent: str) -> list[Evidence]:
 
 async def _synthesize_rca(symptom: str, evidence: list[Evidence], timeline: list[Evidence]) -> RCAResult:
     """Single Bedrock call to fuse evidence into RCAResult."""
+    rag_block = await inject_similar_cases(symptom)
+
     evidence_block = "\n".join(
         f"[{i}] {e.source_agent} | {e.signal_type} | {e.strength} | {e.timestamp} | {e.summary}"
         for i, e in enumerate(evidence)
@@ -158,7 +161,7 @@ async def _synthesize_rca(symptom: str, evidence: list[Evidence], timeline: list
 {symptom}
 </symptom>
 
-<evidence>
+{rag_block}<evidence>
 {evidence_block}
 </evidence>
 

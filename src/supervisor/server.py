@@ -4,6 +4,7 @@ from fastapi import FastAPI, HTTPException, Depends
 from pydantic import BaseModel
 from otel_helper import setup_telemetry
 from src.core.auth import require_token
+from src.core.kb.store import kb_store
 from src.supervisor.agent import supervisor
 import uvicorn
 
@@ -12,9 +13,9 @@ setup_telemetry()
 
 @asynccontextmanager
 async def lifespan(app):
-    # startup
+    await kb_store.connect()
     yield
-    # shutdown: flush OTel, close connections
+    await kb_store.close()
     await supervisor.close()
 
 
@@ -46,6 +47,28 @@ async def query(request: QueryRequest):
 @app.get("/health")
 async def health():
     return {"status": "healthy", "service": "supervisor"}
+
+
+@app.get("/kb/pending", dependencies=[Depends(require_token)])
+async def list_kb_pending():
+    items = await kb_store.list_pending_review()
+    return {"items": [{"id": i.id, "type": i.type, "title": i.title, "content": i.content, "confidence": i.confidence_score} for i in items]}
+
+
+@app.post("/kb/{item_id}/approve", dependencies=[Depends(require_token)])
+async def approve_kb_item(item_id: str):
+    ok = await kb_store.update_status(item_id, "active")
+    if not ok:
+        raise HTTPException(status_code=404, detail="Item not found or update failed")
+    return {"ok": True, "id": item_id, "status": "active"}
+
+
+@app.post("/kb/{item_id}/reject", dependencies=[Depends(require_token)])
+async def reject_kb_item(item_id: str):
+    ok = await kb_store.update_status(item_id, "rejected")
+    if not ok:
+        raise HTTPException(status_code=404, detail="Item not found or update failed")
+    return {"ok": True, "id": item_id, "status": "rejected"}
 
 
 if __name__ == "__main__":

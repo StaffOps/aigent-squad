@@ -2,6 +2,18 @@
 
 ## [Unreleased] - 2026-06-14
 
+### Added (Spec 21: Incident Memory & Learning)
+- Postgres+pgvector container (`pgvector/pgvector:pg16`) for KB persistence
+- `infra/postgres/init.sql`: kb_items + kb_provenance schema, HNSW index, FTS fallback
+- `src/core/kb/`: full KB module (models, store, redactor, extractor, enricher, validator, embedder, rag, budget)
+- `src/supervisor/distillation.py`: fire-and-forget distillation pipeline (after each RCA)
+- RAG injection wired into `run_investigation` (`<similar_cases>` block in synthesizer prompt)
+- Endpoints `/kb/pending`, `/kb/{id}/approve`, `/kb/{id}/reject`
+- PII redaction (emails, AWS keys, GitHub/GitLab PATs, Bearer tokens, OpenAI keys)
+- Monthly budget cap ($50 default, `KB_MONTHLY_BUDGET_USD` env)
+- Confidence thresholds per item type; `decision` type never auto-approves
+- `docs/KNOWLEDGE-BASE.md` with full reference
+
 ### Added (Spec 18 Phase 1: RCA Investigation Workflow)
 - `src/core/investigation.py`: Evidence, RCAResult, InvestigationState dataclasses
 - `src/core/investigation.py`: `build_timeline()` — sorts evidence by timestamp, marks causal candidates (deploy/restart/config)

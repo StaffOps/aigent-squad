@@ -20,6 +20,24 @@ services:
       - "8100:8000"
     command: "-jar DynamoDBLocal.jar -sharedDb -inMemory"
 
+  # Postgres + pgvector (knowledge base for spec 21)
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      - POSTGRES_USER=aigent
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-changeme}
+      - POSTGRES_DB=aigent_kb
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aigent -d aigent_kb"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
   # Supervisor (all agents run in-process via GenericAgent + AGENTS_DIR)
   supervisor:
     build:
@@ -43,6 +61,11 @@ services:
       - REDIS_SSL=false
       - REDIS_PASSWORD=${REDIS_PASSWORD:-changeme}
       - INTERNAL_API_TOKEN=${INTERNAL_API_TOKEN:-dev-secret-token}
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=aigent
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-changeme}
+      - POSTGRES_DB=aigent_kb
       - SLACK_BOT_TOKEN=${SLACK_BOT_TOKEN}
       - SLACK_SIGNING_SECRET=${SLACK_SIGNING_SECRET}
       - GITLAB_TOKEN=${GITLAB_TOKEN}
@@ -57,6 +80,8 @@ services:
         condition: service_healthy
       dynamodb-local:
         condition: service_started
+      postgres:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://127.0.0.1:8000/health"]
       interval: 10s
@@ -128,3 +153,4 @@ services:
 volumes:
   redis-data:
   tempo-data:
+  postgres-data:

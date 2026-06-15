@@ -13,6 +13,7 @@ from src.core.adapters import create_adapters
 from src.core.triage import should_investigate
 from src.supervisor.synthesizer import synthesizer
 from src.supervisor.investigation import run_investigation
+from src.supervisor.distillation import distill_rca
 
 tracer = trace.get_tracer(__name__)
 
@@ -62,6 +63,7 @@ class SupervisorAgent:
                         user_id=user_id,
                         session_id=session_id,
                     )
+                    asyncio.create_task(distill_rca(rca))
                     duration_ms = (time.time() - start_time) * 1000
                     request_counter.add(1, {"agent_id": "investigation"})
                     request_duration.record(duration_ms, {"agent_id": "investigation"})
