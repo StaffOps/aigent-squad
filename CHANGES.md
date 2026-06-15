@@ -2,6 +2,11 @@
 
 ## [Unreleased] - 2026-06-14
 
+### Documentation audit
+- Rewrote outdated docs to reflect current architecture: `ARCHITECTURE.md`, `OBSERVABILITY.md`, `PREREQUISITES.md`, `MCP_INTEGRATION.md`, `READ_ONLY_POLICY.md`
+- Deleted obsolete docs: `MIGRATION.md` (LangGraph era), `RAG_IMPLEMENTATION.md` (replaced by KNOWLEDGE-BASE.md), `LOCAL_DEVELOPMENT.md` (duplicated SETUP.md with old ports)
+- Tightened `.kiro/steering/milestone-criteria.md`: operational docs (ARCHITECTURE/SETUP/SECURITY/etc) now listed as mandatory milestone gate; new anti-pattern: "stale docs are worse than no docs"
+
 ### Added (Metrics audit — covering specs 06, 17, 18, 21)
 13 new custom metrics + instrumentation in existing code:
 - Spec 06: `aigent.circuit_breaker.transitions`

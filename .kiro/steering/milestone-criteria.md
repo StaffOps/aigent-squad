@@ -39,16 +39,29 @@ Every milestone (spec, feature, or significant change) MUST meet ALL of these be
 - `CHANGES.md`: entry describing what changed
 - `.kiro/specs/ROADMAP.md`: mark completed specs
 - `.kiro/specs/<spec>/tasks.md`: **mark each task `[x]` with completion date**; explicitly mark deferred tasks as `NOT IMPLEMENTED` or `deferred to Phase X`
-- `docs/`: update relevant docs if behavior/API changed (METRICS.md, SECURITY.md, KNOWLEDGE-BASE.md, etc)
+- **Operational docs** in `docs/` MUST be updated when behavior, architecture, or APIs change:
+  - `docs/ARCHITECTURE.md` — system design changes (new components, removed ones)
+  - `docs/SETUP.md` — install/run changes (new deps, ports, env vars)
+  - `docs/SECURITY.md` — auth, secrets, network changes
+  - `docs/METRICS.md` — every new metric (see "Metrics" section above)
+  - `docs/OBSERVABILITY.md` — telemetry pipeline changes
+  - `docs/HOW-TO-NEW-AGENT.md` — agent config schema changes
+  - `docs/READ_ONLY_POLICY.md` — adapter read-only invariant changes
+  - `docs/KNOWLEDGE-BASE.md` — KB / distillation / RAG changes
+  - `docs/MCP_INTEGRATION.md` — supervisor API or auth changes
+  - `docs/PREREQUISITES.md` — new external dependencies
+- DELETE outdated docs immediately — stale doc is worse than no doc.
 
 ### Pre-commit checklist
 Before running `git commit`, verify:
 - [ ] Tests pass and coverage ≥ 80%
 - [ ] New code emits metrics (instrumented + defined in metrics.py)
 - [ ] `docs/METRICS.md` lists the new metrics
+- [ ] **All operational docs in `docs/` reflect reality** (architecture, setup, security, etc — not just CHANGES)
 - [ ] Spec `tasks.md` reflects what was done vs deferred (with dates)
 - [ ] `ROADMAP.md` aligned with reality
 - [ ] `CHANGES.md` entry written
+- [ ] No stale docs left behind (delete obsolete ones)
 
 ## Anti-patterns
 - ❌ "Commit now, tests later"
@@ -59,3 +72,5 @@ Before running `git commit`, verify:
 - ❌ New metrics without `docs/METRICS.md` entry
 - ❌ High-cardinality labels (user_id, trace_id, error message text)
 - ❌ Saying a spec is "done" when only Phase 1 is done — be explicit about what's deferred
+- ❌ Updating CHANGES.md but leaving operational docs (ARCHITECTURE, SETUP, SECURITY, etc) stale
+- ❌ Keeping outdated docs around "in case" — delete or rewrite, never both

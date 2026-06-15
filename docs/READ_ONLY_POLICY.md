@@ -1,81 +1,46 @@
 # Read-Only Policy
 
-## Absolute Rule
+**All agents are 100% read-only. No exceptions.**
 
-**ALL agents are 100% READ-ONLY. No exceptions.**
+## Enforcement (4 layers)
 
-## What This Means
+### 1. System prompts
+Every `prompt.md` includes explicit read-only instructions. Agents refuse modification requests.
 
-### ? Agents NEVER:
-- Create, modify, or delete resources
-- Execute commands that change state
-- Suggest manual commands (kubectl delete, aws ec2 terminate, etc)
-- Accept "emergency" requests to modify
+### 2. DatasourceAdapter code
+Adapters are hardcoded to read-only operations:
 
-### ? Agents ONLY:
-- Analyze current state
-- Identify problems
-- Calculate ROI of optimizations
-- **Point to automation** (Terraform, ArgoCD, GitOps)
-- Provide code/YAML for PR
+| Adapter | Allowed operations |
+|---------|-------------------|
+| `Boto3Adapter` | `describe_*`, `list_*`, `get_*` only |
+| `KubernetesAdapter` | `get`, `list` verbs only |
+| `HttpAdapter` | GET requests only (configurable) |
+| `AthenaAdapter` | SELECT queries only |
 
-## Enforcement (4 Layers)
+Write operations are not implemented — there is no code path to mutate infrastructure.
 
-### 1. System Prompts
-All prompts have explicit instructions:
-```
-? YOU ARE 100% READ-ONLY
-? NEVER create, modify, or delete
-? ONLY analyze and suggest automation
-```
-
-### 2. IAM Explicit Deny
+### 3. IRSA scope (production)
+IAM role attached via IRSA has explicit Deny on all write actions:
 ```json
-{
-  "Effect": "Deny",
-  "Action": ["*:Create*", "*:Delete*", "*:Update*"],
-  "Resource": "*"
-}
-```
-Impossible to bypass.
-
-### 3. Kubernetes RBAC
-```yaml
-verbs: ["get", "list", "watch"]  # NO create, update, delete
+{"Effect": "Deny", "Action": ["*:Create*", "*:Delete*", "*:Update*", "*:Put*"], "Resource": "*"}
 ```
 
-### 4. Response Templates
-Agents know how to refuse:
-```
-"I cannot perform modifications. I'm read-only.
-However, I can help you find the Terraform code..."
-```
+### 4. Kyverno policies (production)
+K8s RBAC restricts the ServiceAccount to `get`/`list`/`watch` verbs. Kyverno validates no privilege escalation.
 
-## Examples
+## Agent behavior
 
-### ? Correct
+Agents analyze and recommend. They never execute changes. Correct response pattern:
+
 ```
 "Found 3 idle EC2 instances (CPU <5%):
 - i-abc123: $50/month
 
-To shut down via Terraform:
-File: terraform/ec2.tf
-Change: count = 0
+To terminate via Terraform:
+  File: terraform/ec2.tf
+  Change: remove resource block
 
-Savings: $150/month"
+Estimated savings: $150/month"
 ```
 
-### ? Wrong
-```
-"Run: aws ec2 terminate-instances --instance-ids i-abc123"
-```
-
-## Why Read-Only?
-
-1. **Audit Trail**: Changes via Git = complete history
-2. **Peer Review**: PRs ensure review
-3. **Rollback**: Git revert vs manual undo
-4. **Consistency**: Automation prevents drift
-5. **Security**: No accidental deletions
-
-Agents are **advisors**, not **operators**.
+Agents point to automation (Terraform, ArgoCD, GitOps PRs) — never suggest direct CLI mutations.

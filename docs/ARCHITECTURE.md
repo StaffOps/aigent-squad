@@ -1,124 +1,95 @@
-# Arquitetura
+# Architecture
 
 ## Overview
 
-```
-+-------------------------------------------------------------+
-|                         SLACK                               |
-+--------------------+----------------------------------------+
-                     ?
-+-------------------------------------------------------------+
-|                    Ingress (ALB)                            |
-+--------------------+----------------------------------------+
-                     ?
-+-------------------------------------------------------------+
-|              Supervisor (LangGraph)                         |
-|  - Analisa request                                          |
-|  - Delega for especialistas                                |
-|  - Consolida respostas                                      |
-+--------------------+----------------------------------------+
-                     ?
-         +-----------+-----------+
-         ?           ?           ?
-+------------+ +------------+ +------------+
-| AWS Agent  | | K8s Agent  | |FinOps Agent|
-| (3-15 pods)| | (2-10 pods)| | (1-5 pods) |
-+------------+ +------------+ +------------+
-         ?           ?           ?
-+------------+ +--------------------------+
-|DevOps Agent| | Observability Agent      |
-| (1-5 pods) | | (2-8 pods)               |
-+------------+ +--------------------------+
-         ?
-+-------------------------------------------------------------+
-|                    Data Layer                               |
-|  +----------------------+  +----------------------+        |
-|  | DynamoDB             |  | ElastiCache Redis    |        |
-|  | - Session state      |  | - Inventory cache    |        |
-|  | - TTL: 24h           |  | - TTL: 1-60min       |        |
-|  +----------------------+  +----------------------+        |
-+-------------------------------------------------------------+
-```
-
-## Componentes
-
-### Supervisor
-- **Function**: Orchestrates specialists
-- **Tech**: LangGraph + Bedrock (Claude 3.5 Sonnet)
-- **State**: DynamoDB
-- **Scale**: 2-10 pods (HPA)
-
-### Especialistas
-Each um roda em pod sefordo com escala independente:
-
-| Agent | Function | Scale | Cache TTL |
-|-------|--------|--------|-----------|
-| AWS | Recursos AWS | 3-15 | 5min |
-| Kubernetes | Cluster K8s | 2-10 | 1min |
-| FinOps | Custos (AWS + Kubecost) | 1-5 | 1h |
-| DevOps | CI/CD + Docs | 1-5 | 5min |
-| Observability | Metrics + Anomalias | 2-8 | 1min |
-
-### Data Layer
-
-**DynamoDB**
-- Conversational state
-- Session history
-- TTL automatic (24h)
-
-**ElastiCache Redis**
-- Cache de inventories
-- Cache de metrics
-- Namespaces isolados por agent
-
-## Fluxo de Dados
+Single-process supervisor with N agents loaded from config at startup.
 
 ```
-1. User: @Agent Squad which EC2 are running?
-   ?
-2. Slack -> Supervisor
-   ?
-3. Supervisor analisa com Bedrock
-   -> Decide: "aws" agent
-   ?
-4. Supervisor -> AWS Agent (HTTP)
-   ?
-5. AWS Agent:
-   - Check cache (hit? return)
-   - Query AWS API
-   - Cache result (5min)
-   - Return to Supervisor
-   ?
-6. Supervisor consolida resposta
-   ?
-7. Supervisor -> Slack (thread)
+                   ┌─────────────┐
+                   │  Kiro CLI   │
+                   └──────┬──────┘
+                          │ HTTP (MCP protocol)
+                          ▼
+                   ┌─────────────┐
+                   │ MCP Server  │ :8006
+                   └──────┬──────┘
+                          │ X-Internal-Token
+                          ▼
+┌──────────────────────────────────────────────────────────┐
+│                  Supervisor (:8000)                        │
+│                                                          │
+│  ┌────────────┐  ┌────────────────┐  ┌──────────────┐   │
+│  │ Classifier │  │ AgentRegistry  │  │ Fan-out/RCA  │   │
+│  │ (routing)  │  │ (auto-discover)│  │ (orchestr.)  │   │
+│  └────────────┘  └────────────────┘  └──────────────┘   │
+│                                                          │
+│  ┌─────┐ ┌─────┐ ┌───────┐ ┌───────┐ ┌─────┐ ┌─────┐  │
+│  │ AWS │ │ K8s │ │FinOps │ │DevOps │ │ Obs │ │ Sec │  │
+│  └──┬──┘ └──┬──┘ └───┬───┘ └───┬───┘ └──┬──┘ └──┬──┘  │
+│     │       │        │         │        │       │      │
+│  ┌──┴───────┴────────┴─────────┴────────┴───────┴──┐   │
+│  │           DatasourceAdapter Layer                 │   │
+│  │  Boto3 | Kubernetes | Http | Athena              │   │
+│  └──────────────────────────────────────────────────┘   │
+└──────────────────────────────────────────────────────────┘
+         │          │           │            │
+         ▼          ▼           ▼            ▼
+    ┌────────┐ ┌────────┐ ┌─────────┐ ┌──────────────┐
+    │ Redis  │ │Postgres│ │DynamoDB │ │ OTel Collect.│
+    │ cache  │ │pgvector│ │ Local   │ │  → Tempo     │
+    │        │ │  (KB)  │ │(history)│ │  → Prometheus│
+    └────────┘ └────────┘ └─────────┘ └──────────────┘
 ```
 
-## Seguranca
+## Key design decisions
 
-### Read-Only Policy (4 camadas)
-1. **System Prompts**: Instrucoes explicitas
-2. **IAM**: Explicit Deny em writes
-3. **K8s RBAC**: Apenas get/list/watch
-4. **Responif Templates**: Recusa modificacoes
+| Decision | Rationale |
+|----------|-----------|
+| Single image, in-process agents | Eliminates inter-container HTTP; simpler deploy; lower resource use |
+| Config-driven agents (`agent.yaml + prompt.md`) | Zero-code agent creation; hot-reload; git-based management |
+| DatasourceAdapter pattern | Decouples data fetching from agent logic; enforces read-only |
+| Postgres+pgvector for KB | Self-contained RAG without external managed services |
 
-### Network
-- Pods em VPC privada
-- ElastiCache em subnet privada
-- Ingress apenas HTTPS
+## Core components
 
-## Custos
+### AgentRegistry (spec 22)
+Auto-discovers agents from `agents/` directories at startup. Each agent has:
+- `agent.yaml` — config (datasources, routing keywords, model tier, cache TTL)
+- `prompt.md` — system prompt
 
-| Componente | Custo/mes |
-|------------|-----------|
-| DynamoDB | $5-15 |
-| ElastiCache | $20-40 |
-| Bedrock | $5-15 |
-| EKS (incremental) | $10-30 |
-| **Total** | **$40-100** |
+### Classifier
+Routes user queries to the best-fit agent using LLM classification + keyword fast-path.
 
-## Scalebilidade
+### Fan-out (spec 17)
+Multi-agent parallel execution when a query needs N≥2 agents. Results synthesized by LLM.
 
-- **HPA**: Auto-scale baseado em CPU/Memory
-- **Cache**: Reduz latencia e cost de APIs
-- **Microservices**: Scale independente por agent
+### RCA Investigation (spec 18 Phase 1)
+Structured investigation workflow: symptom → evidence collection (parallel) → RCA synthesis with confidence scoring.
+
+### Knowledge Base (spec 21)
+Learns from completed investigations. Distills RCA into KB items (Postgres+pgvector). Injects similar cases on new investigations via RAG.
+
+## Data stores
+
+| Store | Purpose | Persistence |
+|-------|---------|-------------|
+| Redis | Datasource cache (per-agent TTL) | Ephemeral |
+| PostgreSQL+pgvector | KB items + RAG embeddings | Persistent |
+| DynamoDB Local | Conversation history | TTL-based |
+
+## Ports
+
+| Port | Service |
+|------|---------|
+| 8000 | Supervisor API |
+| 8006 | MCP Server |
+
+All other ports are internal (no per-agent ports — agents run in-process).
+
+## Specs reference
+
+- **Spec 06** — Async resilience (circuit breaker, retry, timeout)
+- **Spec 17** — Fan-out multi-agent orchestration
+- **Spec 18** — RCA investigation workflow
+- **Spec 21** — KB + RAG learning pipeline
+- **Spec 22** — Config-driven agent loading
