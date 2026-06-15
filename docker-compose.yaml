@@ -143,7 +143,7 @@ services:
       - "9099:9090"
 
   grafana:
-    image: grafana/grafana:12.4.4
+    image: grafana/grafana:13.0.2
     ports:
       - "3001:3000"
     environment:
