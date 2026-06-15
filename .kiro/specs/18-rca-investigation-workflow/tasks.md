@@ -19,20 +19,26 @@
 ## Ordem sugerida
 T1→T2/T3; T4; T5→T6→T7; T8; T9→T10→T11.
 
-## Fase 2 — promotion triggers (NÃO implementar agora) — NOT IMPLEMENTED
+## Fase 2 — promotion triggers (parcialmente implementada)
 
 Abrir Fase 2 **somente se** algum gatilho for observado em uso real:
 
-| Gatilho | Capability da Fase 2 |
-|---------|----------------------|
-| Maioria das RCAs precisa de 2+ rodadas pra concluir | Loop investigativo iterativo (coleta dirigida pela 1ª hipótese) |
-| Hipótese única erra com frequência | Multi-hipótese + fault-tree (ranquear hipóteses concorrentes) |
-| Operadores reabrem o mesmo incidente | Integração com `21-incident-memory-learning` (recuperar similares) |
-| Volume justifica detecção proativa | CronJob que abre investigação a partir de alerta (sem usuário) |
+| Gatilho | Capability da Fase 2 | Status |
+|---------|----------------------|--------|
+| Maioria das RCAs precisa de 2+ rodadas pra concluir | Loop investigativo iterativo (coleta dirigida pela 1ª hipótese) | NOT IMPLEMENTED |
+| Hipótese única erra com frequência | Multi-hipótese + fault-tree (ranquear hipóteses concorrentes) | NOT IMPLEMENTED |
+| Operadores reabrem o mesmo incidente | Integração com `21-incident-memory-learning` (recuperar similares) | ✅ done (spec 21) |
+| Volume justifica detecção proativa | Webhook que abre investigação a partir de alerta (sem usuário) | ✅ done 2026-06-14 |
 
-**Phase 2 capabilities NOT IMPLEMENTED:**
+**Phase 2 capabilities IMPLEMENTED 2026-06-14:**
+- ✅ Alert ingestion via `POST /alerts/incoming` (Alertmanager v2)
+- ✅ Fingerprint dedup via Redis (TTL configurável `ALERT_DEDUP_TTL`)
+- ✅ Slack post-back via `SLACK_WEBHOOK_URL` (opt-in)
+- ✅ Metrics: `aigent.alerts.received`, `.deduplicated`, `.investigation_triggered`, `.postback`
+- ✅ docs/ALERTING.md
+
+**Phase 2 capabilities still NOT IMPLEMENTED:**
 - Multi-round iterative investigation
-- Alert ingestion via `/alerts/incoming` endpoint
 - Multi-hypothesis fault-tree
 
 ## Notas

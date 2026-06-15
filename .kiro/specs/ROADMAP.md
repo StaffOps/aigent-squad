@@ -87,7 +87,7 @@ A análise em [`ANALYSIS.md`](ANALYSIS.md) (8 specialists em paralelo) encontrou
 | 15 | `sli-slo-framework` | 🟡 | 10 |
 | 16 | `incident-runbooks` | 🟡 | 06, 07 |
 | 17 | `multi-agent-collaboration` (fan-out/fan-in cross-domain + síntese, agent-as-tools 1 salto) | ✅ done | 06, 09 |
-| 18 | `rca-investigation-workflow` (**diferencial**: evidência paralela → timeline → correlação → RCA, read-only) | ⚠️ Phase 1 done; Phase 2 NOT done | 17, 09, 19 |
+| 18 | `rca-investigation-workflow` (**diferencial**: evidência paralela → timeline → correlação → RCA, read-only) | ⚠️ Phase 1 done; Phase 2 partial (alert ingestion done; multi-round/fault-tree NOT done) | 17, 09, 19 |
 | 19 | `config-driven-platform` (YAML + env override, secrets fora do YAML, registry de agentes) | ❌ substituted by spec 22 | — |
 | ~~20~~ | ~~`grpc-inter-agent-mesh`~~ — **REMOVIDA** (2026-06-02): latência irrelevante vs chamadas de modelo | ❌ | — |
 | 21 | `incident-memory-learning` (memória de incidentes + recuperação de similares; aprendizado simples) | ✅ done | 18 |

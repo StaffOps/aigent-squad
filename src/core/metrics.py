@@ -135,3 +135,28 @@ kb_budget_exhausted = meter.create_counter(
     description="Times the monthly KB budget was exceeded (distillation skipped)",
     unit="1",
 )
+
+# === Spec 18 Phase 2: Alert ingestion ===
+alerts_received = meter.create_counter(
+    name="aigent.alerts.received",
+    description="Alertmanager alerts received via webhook",
+    unit="1",
+)
+
+alerts_deduplicated = meter.create_counter(
+    name="aigent.alerts.deduplicated",
+    description="Alerts skipped due to fingerprint match within dedup window",
+    unit="1",
+)
+
+alerts_investigation_triggered = meter.create_counter(
+    name="aigent.alerts.investigation_triggered",
+    description="Investigations triggered from alerts",
+    unit="1",
+)
+
+alerts_postback = meter.create_counter(
+    name="aigent.alerts.postback",
+    description="Slack post-back attempts (RCA result returned to channel)",
+    unit="1",
+)

@@ -86,10 +86,21 @@ Learns from completed investigations. Distills RCA into KB items (Postgres+pgvec
 
 All other ports are internal (no per-agent ports — agents run in-process).
 
+## Endpoints (supervisor)
+
+| Path | Method | Auth | Purpose |
+|------|:------:|:----:|---------|
+| `/health` | GET | — | Liveness probe |
+| `/query` | POST | `X-Internal-Token` | Single query (with optional `mode=investigate`) |
+| `/alerts/incoming` | POST | `X-Internal-Token` | Alertmanager v2 webhook → auto-investigation (spec 18 Phase 2) |
+| `/kb/pending` | GET | `X-Internal-Token` | List KB items awaiting review |
+| `/kb/{id}/approve` | POST | `X-Internal-Token` | Approve pending KB item |
+| `/kb/{id}/reject` | POST | `X-Internal-Token` | Reject pending KB item |
+
 ## Specs reference
 
 - **Spec 06** — Async resilience (circuit breaker, retry, timeout)
 - **Spec 17** — Fan-out multi-agent orchestration
-- **Spec 18** — RCA investigation workflow
+- **Spec 18** — RCA investigation workflow (Phase 1: query-driven; Phase 2: alert-driven)
 - **Spec 21** — KB + RAG learning pipeline
 - **Spec 22** — Config-driven agent loading

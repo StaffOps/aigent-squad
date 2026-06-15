@@ -2,6 +2,14 @@
 
 ## [Unreleased] - 2026-06-14
 
+### Added (Spec 18 Phase 2: Alert Ingestion + Slack post-back)
+- `src/supervisor/alert_handler.py`: AlertmanagerPayload + AlertmanagerAlert (Pydantic), `alert_to_symptom()`, fingerprint dedup via Redis, `handle_alert_payload()` orchestrator
+- `src/supervisor/slack_notifier.py`: `post_rca_to_slack()` (opt-in via `SLACK_WEBHOOK_URL`)
+- `POST /alerts/incoming` endpoint (auth via `X-Internal-Token`)
+- New metrics: `aigent.alerts.received`, `.deduplicated`, `.investigation_triggered`, `.postback`
+- `docs/ALERTING.md`: Alertmanager config + flow + Slack post-back + dedup behavior
+- `ALERT_DEDUP_TTL` env (default 3600s)
+
 ### Documentation audit
 - Rewrote outdated docs to reflect current architecture: `ARCHITECTURE.md`, `OBSERVABILITY.md`, `PREREQUISITES.md`, `MCP_INTEGRATION.md`, `READ_ONLY_POLICY.md`
 - Deleted obsolete docs: `MIGRATION.md` (LangGraph era), `RAG_IMPLEMENTATION.md` (replaced by KNOWLEDGE-BASE.md), `LOCAL_DEVELOPMENT.md` (duplicated SETUP.md with old ports)

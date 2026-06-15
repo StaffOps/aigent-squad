@@ -6,6 +6,8 @@ from otel_helper import setup_telemetry
 from src.core.auth import require_token
 from src.core.kb.store import kb_store
 from src.supervisor.agent import supervisor
+from src.supervisor.alert_handler import AlertmanagerPayload, handle_alert_payload
+from src.supervisor.slack_notifier import post_rca_to_slack
 import uvicorn
 
 setup_telemetry()
@@ -69,6 +71,26 @@ async def reject_kb_item(item_id: str):
     if not ok:
         raise HTTPException(status_code=404, detail="Item not found or update failed")
     return {"ok": True, "id": item_id, "status": "rejected"}
+
+
+@app.post("/alerts/incoming", dependencies=[Depends(require_token)])
+async def alerts_incoming(payload: AlertmanagerPayload):
+    """Receive Alertmanager webhook (v2). Triggers investigation per unique firing alert."""
+    async def _run_inv(symptom: str, agents=None):
+        from src.supervisor.investigation import run_investigation
+        return await run_investigation(
+            symptom=symptom,
+            agents=supervisor.agents,
+            user_id="alertmanager",
+            session_id="",
+        )
+
+    result = await handle_alert_payload(
+        payload,
+        run_investigation_fn=_run_inv,
+        slack_post_fn=post_rca_to_slack,
+    )
+    return {"ok": True, **result}
 
 
 if __name__ == "__main__":

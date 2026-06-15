@@ -66,6 +66,15 @@ All metrics emitted by AIgent-squad, collected via OTel Collector → Prometheus
 | `aigent.kb.rag.hits` | Counter | — | Queries that returned similar cases |
 | `aigent.kb.budget.exhausted` | Counter | — | Distillations skipped due to budget |
 
+## Alert Ingestion (spec 18 Phase 2)
+
+| Metric | Type | Labels | Description |
+|--------|------|--------|-------------|
+| `aigent.alerts.received` | Counter | `status` | Alertmanager alerts received via webhook |
+| `aigent.alerts.deduplicated` | Counter | — | Skipped due to fingerprint match |
+| `aigent.alerts.investigation_triggered` | Counter | — | Investigations triggered from alerts |
+| `aigent.alerts.postback` | Counter | `status` | Slack post-back attempts |
+
 ## Labels (attributes)
 
 | Label | Values | Cardinality |
