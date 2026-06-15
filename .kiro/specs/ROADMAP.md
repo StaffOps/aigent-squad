@@ -12,13 +12,19 @@ Este roadmap reflete o **estado real** do projeto, não o aspiracional do README
 | Dimensão | Status |
 |----------|--------|
 | Build (`docker compose build`) | ✅ passa (spec 01 concluída 2026-06-14) |
-| Agentes unificados | ❌ 4 de 5 com código duplicado/divergente |
-| Multiturno (history) | ⚠️ só aws/k8s usam de fato |
-| Cache | ❌ key não-determinística + vaza entre usuários |
-| Observabilidade | ⚠️ OTel presente mas mal cabeado; logs perdem contexto |
-| Segurança | ❌ endpoints abertos, containers root, redis sem auth |
-| Testes | ❌ inexistentes |
-| Docs | ⚠️ desatualizadas (LangGraph), encoding corrompido, modelo divergente |
+| Agentes unificados | ✅ config-driven GenericAgent (spec 02 + 22) |
+| Multiturno (history) | ✅ unificado via agent_base |
+| Cache | ✅ key determinística sha256 (spec 03) |
+| Observabilidade | ✅ OTel cabeado, JSONFormatter, PROMETHEUS_URL, custom metrics (spec 03) |
+| Segurança | ✅ auth, non-root, redis password, prompt delimiters (spec 04) |
+| Testes | ✅ ~85% cobertura global, CI gate 80% |
+| Docs | ✅ METRICS.md, SECURITY.md, KNOWLEDGE-BASE.md, HOW-TO |
+| Async/Resilience | ✅ full async, circuit breaker, fail-open (spec 06) |
+| Multi-agent | ✅ fan-out, synthesizer, agent-as-tools (spec 17) |
+| RCA | ⚠️ Phase 1 done (single-round); Phase 2 pending (spec 18) |
+| Incident memory | ✅ pgvector KB, extraction, RAG injection (spec 21) |
+| Platform | ✅ config-driven, Helm chart, zero-code agent add (spec 22) |
+| CI/CD | ✅ GitHub Actions, multi-arch, Trivy, OIDC (spec 08) |
 
 **Versão real sugerida**: `0.x` (pré-release). "v2.0 / Production Ready" do README é inflado (ver `version-management.md`).
 
@@ -69,9 +75,9 @@ A análise em [`ANALYSIS.md`](ANALYSIS.md) (8 specialists em paralelo) encontrou
 
 | # | Spec | Severidade | Depende de |
 |---|------|-----------|------------|
-| 06 | `resilience-patterns` (async-first, fail-open, circuit breaker, classifier fallback) | 🔴 | 02 |
+| 06 | `resilience-patterns` (async-first, fail-open, circuit breaker, classifier fallback) | ✅ done | 02 |
 | 07 | `readiness-probes` (`/healthz`+`/ready`+graceful shutdown) | 🔴 | 02 |
-| 08 | `ci-cd-pipeline` (GitHub Actions, multi-arch, scan, coverage gate) | 🔴 | 01 |
+| 08 | `ci-cd-pipeline` (GitHub Actions, multi-arch, scan, coverage gate) | ✅ done | 01 |
 | 09 | `otel-instrumentation` (7 serviços, propagação, Collector) | 🟠 | 02 |
 | 10 | `metrics-and-cost-observability` (RED + tokens/custo $) | 🟠 | 09 |
 | 11 | `bedrock-resilience-cost` (Haiku no classifier, prompt caching, tiering) | 🟠 | 06 |
@@ -80,12 +86,12 @@ A análise em [`ANALYSIS.md`](ANALYSIS.md) (8 specialists em paralelo) encontrou
 | 14 | `security-hardening` (threat model, authn/audit, NetworkPolicy/mTLS, prompt guardrails) | 🟠 | 04 |
 | 15 | `sli-slo-framework` | 🟡 | 10 |
 | 16 | `incident-runbooks` | 🟡 | 06, 07 |
-| 17 | `multi-agent-collaboration` (fan-out/fan-in cross-domain + síntese, agent-as-tools 1 salto) | 🟢 | 06, 09 |
-| 18 | `rca-investigation-workflow` (**diferencial**: evidência paralela → timeline → correlação → RCA, read-only) | 🟢 | 17, 09, 19 |
-| 19 | `config-driven-platform` (YAML + env override, secrets fora do YAML, registry de agentes) | 🟠 | — |
+| 17 | `multi-agent-collaboration` (fan-out/fan-in cross-domain + síntese, agent-as-tools 1 salto) | ✅ done | 06, 09 |
+| 18 | `rca-investigation-workflow` (**diferencial**: evidência paralela → timeline → correlação → RCA, read-only) | ⚠️ Phase 1 done; Phase 2 NOT done | 17, 09, 19 |
+| 19 | `config-driven-platform` (YAML + env override, secrets fora do YAML, registry de agentes) | ❌ substituted by spec 22 | — |
 | ~~20~~ | ~~`grpc-inter-agent-mesh`~~ — **REMOVIDA** (2026-06-02): latência irrelevante vs chamadas de modelo | ❌ | — |
-| 21 | `incident-memory-learning` (memória de incidentes + recuperação de similares; aprendizado simples) | 🟢 | 18 |
-| 22 | `agent-capability-manifest` (roster **aberto** via YAML + colaboração por metadados `capabilities`/`evidence_types`/`delegates_to`; **substitui a 19**) | 🟠 | — |
+| 21 | `incident-memory-learning` (memória de incidentes + recuperação de similares; aprendizado simples) | ✅ done | 18 |
+| 22 | `agent-capability-manifest` (roster **aberto** via YAML + colaboração por metadados `capabilities`/`evidence_types`/`delegates_to`; **substitui a 19**) | ✅ done (Phase A+B) | — |
 | 23 | `test-harness-docker` (`Dockerfile.test` + `pytest --cov-fail-under=90` com mocks; mesmo harness dev↔CI; consumido pela 08) | 🔴 | — |
 | 24 | `docs-portal-mkdocs` (portal MkDocs Material `src`→`public`; README vira índice; ADRs; consolida/deleta docs fantasma) | 🟠 | — |
 | 25 | `multi-tenant-concurrency` (distributed circuit breaker, session lock, rate limit/budget, Bedrock semaphore, load test k6) | 🟠 | 06, 17 |
@@ -206,3 +212,41 @@ Agentes propõem hipóteses, delegam entre si, iteram até convergir em RCA. Mem
 - **Promotion triggers são mensuráveis** — não "parece que precisamos", mas "em X% dos casos, Y falhou por Z".
 - **Custo é constraint real** — cada nível multiplica tokens. Medir $/investigação em cada nível.
 - **Read-only é invariante** — em todos os níveis, agentes coletam e analisam. Nunca executam fix automaticamente (sem humano aprovando).
+
+---
+
+## Audit Summary (2026-06-14)
+
+### Specs completed (tasks.md updated)
+
+| Spec | Status | Notes |
+|------|--------|-------|
+| 01-fix-blockers | ✅ done (previously marked) | — |
+| 02-unify-agent-architecture | ✅ done (previously marked) | — |
+| 03-fix-cache-observability | ✅ done | T1–T10 all complete |
+| 04-harden-security | ✅ done | T1–T10 all complete; prod items (mTLS, NetworkPolicy) documented as future |
+| 06-resilience-patterns | ✅ done | T1–T10 done; T4 N/A (files deleted in spec 22); T11 formal smoke deferred |
+| 08-ci-cd-pipeline | ✅ done | T1,T3–T6,T8,T9 done; T2 (mkdocs) blocked by spec 24; T7 (demo) deferred |
+| 17-multi-agent-collaboration | ✅ done | T1–T10 done; T11 formal smoke deferred; coverage ~85% (gate=80%) |
+| 18-rca-investigation-workflow | ⚠️ Phase 1 done | T1–T10 done; T11 deferred; **Phase 2 NOT implemented** |
+| 21-incident-memory-learning | ✅ done | All phases (1–4) + docs/tests; Opus enricher deferred (Sonnet-only) |
+| 22-agent-capability-manifest | ✅ done | Phase A + Phase B both complete |
+
+### Specs NOT done
+
+| Spec | Status |
+|------|--------|
+| 05-helm-chart | Not started (original; superseded partially by spec 22 Phase B) |
+| 07-readiness-probes | Not started |
+| 09-otel-instrumentation | Not started (partial coverage via otel-helper) |
+| 10-metrics-and-cost-observability | Not started |
+| 11-bedrock-resilience-cost | Not started |
+| 12-terraform-infra | Not started |
+| 13-iam-least-privilege | Not started |
+| 14-security-hardening | Not started |
+| 15-sli-slo-framework | Not started |
+| 16-incident-runbooks | Not started |
+| 19-config-driven-platform | ❌ Substituted by spec 22 |
+| 23-test-harness-docker | Not started |
+| 24-docs-portal-mkdocs | Not started |
+| 25-multi-tenant-concurrency | Not started |
