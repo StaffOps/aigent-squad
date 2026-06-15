@@ -1,16 +1,20 @@
+from otel_helper import setup_telemetry
+
+# CRITICAL: setup_telemetry MUST run before any project import that creates
+# tracers/meters at module load time (e.g., src.core.metrics).
+# Otherwise those modules capture ProxyTracer/ProxyMeter and never export.
+setup_telemetry()
+
 from contextlib import asynccontextmanager
 from typing import Optional
 from fastapi import FastAPI, HTTPException, Depends
 from pydantic import BaseModel
-from otel_helper import setup_telemetry
 from src.core.auth import require_token
 from src.core.kb.store import kb_store
 from src.supervisor.agent import supervisor
 from src.supervisor.alert_handler import AlertmanagerPayload, handle_alert_payload
 from src.supervisor.slack_notifier import post_rca_to_slack
 import uvicorn
-
-setup_telemetry()
 
 
 @asynccontextmanager

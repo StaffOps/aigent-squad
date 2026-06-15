@@ -18,7 +18,7 @@
       },
       "datasource": {
         "type": "prometheus",
-        "uid": "victoriametrics"
+        "uid": "prometheus"
       },
       "targets": [
         {
@@ -43,7 +43,7 @@
       },
       "datasource": {
         "type": "prometheus",
-        "uid": "victoriametrics"
+        "uid": "prometheus"
       },
       "targets": [
         {
@@ -84,7 +84,7 @@
       },
       "datasource": {
         "type": "prometheus",
-        "uid": "victoriametrics"
+        "uid": "prometheus"
       },
       "targets": [
         {
@@ -109,7 +109,7 @@
       },
       "datasource": {
         "type": "prometheus",
-        "uid": "victoriametrics"
+        "uid": "prometheus"
       },
       "targets": [
         {
@@ -150,7 +150,7 @@
       },
       "datasource": {
         "type": "prometheus",
-        "uid": "victoriametrics"
+        "uid": "prometheus"
       },
       "targets": [
         {
@@ -179,7 +179,7 @@
       },
       "datasource": {
         "type": "prometheus",
-        "uid": "victoriametrics"
+        "uid": "prometheus"
       },
       "targets": [
         {
@@ -204,7 +204,7 @@
       },
       "datasource": {
         "type": "prometheus",
-        "uid": "victoriametrics"
+        "uid": "prometheus"
       },
       "targets": [
         {
@@ -244,7 +244,7 @@
       },
       "datasource": {
         "type": "prometheus",
-        "uid": "victoriametrics"
+        "uid": "prometheus"
       },
       "targets": [
         {
@@ -269,7 +269,7 @@
       },
       "datasource": {
         "type": "prometheus",
-        "uid": "victoriametrics"
+        "uid": "prometheus"
       },
       "targets": [
         {

@@ -1,7 +1,7 @@
 services:
   # Redis for caching
   redis:
-    image: redis:7.4-alpine
+    image: redis:8.4-alpine
     ports:
       - "6379:6379"
     command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-changeme}
@@ -22,7 +22,7 @@ services:
 
   # Postgres + pgvector (knowledge base for spec 21)
   postgres:
-    image: pgvector/pgvector:pg16
+    image: pgvector/pgvector:pg17
     environment:
       - POSTGRES_USER=aigent
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-changeme}
@@ -112,7 +112,7 @@ services:
   # --- Observability Stack ---
 
   otel-collector:
-    image: otel/opentelemetry-collector-contrib:0.102.0
+    image: otel/opentelemetry-collector-contrib:0.154.0
     command: ["--config=/etc/otelcol/config.yaml"]
     volumes:
       - ./infra/otel-collector.yaml:/etc/otelcol/config.yaml:ro
@@ -123,21 +123,21 @@ services:
       - tempo
 
   tempo:
-    image: grafana/tempo:2.4.1
+    image: grafana/tempo:2.10.7
     volumes:
       - ./infra/tempo.yaml:/etc/tempo/config.yaml:ro
       - tempo-data:/var/tempo
     command: ["-config.file=/etc/tempo/config.yaml"]
 
   prometheus:
-    image: prom/prometheus:v2.52.0
+    image: prom/prometheus:v3.11.3
     volumes:
       - ./infra/prometheus.yaml:/etc/prometheus/prometheus.yml:ro
     ports:
       - "9099:9090"
 
   grafana:
-    image: grafana/grafana:10.4.2
+    image: grafana/grafana:12.4.4
     ports:
       - "3001:3000"
     environment:
