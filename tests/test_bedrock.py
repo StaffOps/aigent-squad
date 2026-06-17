@@ -1,4 +1,5 @@
 """Tests for BedrockClient.invoke()"""
+import json
 import pytest
 from unittest.mock import patch, MagicMock
 
@@ -157,3 +158,41 @@ async def test_invoke_circuit_breaker_blocks_after_failures(mock_boto3_client):
     # Next call should be blocked by circuit breaker
     with pytest.raises(Exception, match="circuit breaker"):
         await client.invoke(messages=[{"role": "user", "content": "x"}], system_prompt="s")
+
+
+@pytest.mark.asyncio
+async def test_invoke_injects_language_directive_by_default(mock_boto3_client):
+    """By default, the system prompt carries the language-matching directive."""
+    mock_boto3_client.invoke_model.return_value = {
+        "body": MagicMock(read=MagicMock(return_value=b'{"content":[{"text":"ok"}],"usage":{"input_tokens":1,"output_tokens":1}}'))
+    }
+    from src.core.bedrock import BedrockClient
+    client = BedrockClient()
+    client.client = mock_boto3_client
+
+    await client.invoke(messages=[{"role": "user", "content": "oi"}], system_prompt="BASE")
+
+    body = json.loads(mock_boto3_client.invoke_model.call_args.kwargs["body"])
+    sys_text = body["system"][0]["text"]
+    assert "BASE" in sys_text
+    assert "SAME language" in sys_text
+
+
+@pytest.mark.asyncio
+async def test_invoke_can_opt_out_of_language_directive(mock_boto3_client):
+    """match_user_language=False keeps the system prompt clean (e.g. classifier JSON)."""
+    mock_boto3_client.invoke_model.return_value = {
+        "body": MagicMock(read=MagicMock(return_value=b'{"content":[{"text":"ok"}],"usage":{"input_tokens":1,"output_tokens":1}}'))
+    }
+    from src.core.bedrock import BedrockClient
+    client = BedrockClient()
+    client.client = mock_boto3_client
+
+    await client.invoke(
+        messages=[{"role": "user", "content": "x"}],
+        system_prompt="BASE",
+        match_user_language=False,
+    )
+
+    body = json.loads(mock_boto3_client.invoke_model.call_args.kwargs["body"])
+    assert body["system"][0]["text"] == "BASE"

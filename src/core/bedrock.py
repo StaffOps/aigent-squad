@@ -12,6 +12,17 @@ from src.core.metrics import token_counter, estimated_cost
 from src.core.circuit_breaker import CircuitBreaker
 
 
+# Applied to every user-facing generation (specialists, synthesizer, RCA).
+# The system prompts are in English by convention; this keeps the *reply* in
+# the user's language. Opt out (match_user_language=False) for structured
+# output like the classifier (JSON).
+_LANGUAGE_DIRECTIVE = (
+    "IMPORTANT: Respond in the SAME language as the user's question "
+    "(e.g. a Portuguese question gets a Portuguese answer, English gets English). "
+    "These instructions are in English only by convention — they do not set your reply language."
+)
+
+
 class BedrockClient:
     """AWS Bedrock client with async invoke, circuit breaker, and retry with jitter"""
 
@@ -34,8 +45,11 @@ class BedrockClient:
         temperature: float = 0.7,
         use_cache: bool = True,
         agent_id: str = "unknown",
+        match_user_language: bool = True,
     ) -> str:
         """Synchronous Bedrock invocation with retry + jitter"""
+        if match_user_language:
+            system_prompt = f"{system_prompt}\n\n{_LANGUAGE_DIRECTIVE}"
         system_blocks = [{"type": "text", "text": system_prompt}]
 
         body = {
@@ -118,6 +132,7 @@ class BedrockClient:
         temperature: float = 0.7,
         use_cache: bool = True,
         agent_id: str = "unknown",
+        match_user_language: bool = True,
     ) -> str:
         """Async Bedrock invocation with circuit breaker"""
         if not self.circuit_breaker.can_execute():
@@ -125,7 +140,7 @@ class BedrockClient:
 
         try:
             result = await asyncio.to_thread(
-                self._invoke_sync, messages, system_prompt, max_tokens, temperature, use_cache, agent_id
+                self._invoke_sync, messages, system_prompt, max_tokens, temperature, use_cache, agent_id, match_user_language
             )
             self.circuit_breaker.record_success()
             return result
