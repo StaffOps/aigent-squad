@@ -32,7 +32,8 @@ class BedrockClient:
         system_prompt: str,
         max_tokens: int = 4096,
         temperature: float = 0.7,
-        use_cache: bool = True
+        use_cache: bool = True,
+        agent_id: str = "unknown",
     ) -> str:
         """Synchronous Bedrock invocation with retry + jitter"""
         system_blocks = [{"type": "text", "text": system_prompt}]
@@ -70,7 +71,7 @@ class BedrockClient:
                     "output_tokens": output_tokens
                 })
 
-                attrs = {"model": self.model_id}
+                attrs = {"model": self.model_id, "agent_id": agent_id}
                 token_counter.add(input_tokens, {**attrs, "direction": "input"})
                 token_counter.add(output_tokens, {**attrs, "direction": "output"})
                 cost = (input_tokens * 3 / 1_000_000) + (output_tokens * 15 / 1_000_000)
@@ -115,7 +116,8 @@ class BedrockClient:
         system_prompt: str,
         max_tokens: int = 4096,
         temperature: float = 0.7,
-        use_cache: bool = True
+        use_cache: bool = True,
+        agent_id: str = "unknown",
     ) -> str:
         """Async Bedrock invocation with circuit breaker"""
         if not self.circuit_breaker.can_execute():
@@ -123,7 +125,7 @@ class BedrockClient:
 
         try:
             result = await asyncio.to_thread(
-                self._invoke_sync, messages, system_prompt, max_tokens, temperature, use_cache
+                self._invoke_sync, messages, system_prompt, max_tokens, temperature, use_cache, agent_id
             )
             self.circuit_breaker.record_success()
             return result

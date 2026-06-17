@@ -64,6 +64,50 @@ async def test_invoke_records_metrics(mock_boto3_client):
 
 
 @pytest.mark.asyncio
+async def test_invoke_labels_metrics_with_agent_id(mock_boto3_client):
+    """agent_id is propagated into token + cost metric labels (spec 27)."""
+    mock_boto3_client.invoke_model.return_value = {
+        "body": MagicMock(read=MagicMock(return_value=b'{"content":[{"text":"ok"}],"usage":{"input_tokens":100,"output_tokens":50}}'))
+    }
+    from src.core.bedrock import BedrockClient
+    client = BedrockClient()
+    client.client = mock_boto3_client
+
+    with patch("src.core.bedrock.token_counter") as mock_counter, \
+         patch("src.core.bedrock.estimated_cost") as mock_cost:
+        await client.invoke(
+            messages=[{"role": "user", "content": "test"}],
+            system_prompt="sys",
+            agent_id="kubernetes",
+        )
+
+    # both token_counter.add calls carry agent_id
+    for call in mock_counter.add.call_args_list:
+        labels = call.args[1]
+        assert labels["agent_id"] == "kubernetes"
+    # cost metric also carries agent_id
+    cost_labels = mock_cost.add.call_args.args[1]
+    assert cost_labels["agent_id"] == "kubernetes"
+
+
+@pytest.mark.asyncio
+async def test_invoke_defaults_agent_id_to_unknown(mock_boto3_client):
+    """When no agent_id is passed, metrics are labeled 'unknown' (no crash)."""
+    mock_boto3_client.invoke_model.return_value = {
+        "body": MagicMock(read=MagicMock(return_value=b'{"content":[{"text":"ok"}],"usage":{"input_tokens":1,"output_tokens":1}}'))
+    }
+    from src.core.bedrock import BedrockClient
+    client = BedrockClient()
+    client.client = mock_boto3_client
+
+    with patch("src.core.bedrock.token_counter") as mock_counter, \
+         patch("src.core.bedrock.estimated_cost"):
+        await client.invoke(messages=[{"role": "user", "content": "t"}], system_prompt="s")
+
+    assert mock_counter.add.call_args_list[0].args[1]["agent_id"] == "unknown"
+
+
+@pytest.mark.asyncio
 async def test_invoke_retries_on_throttling(mock_boto3_client):
     """Bedrock retries on ThrottlingException then succeeds."""
     from botocore.exceptions import ClientError

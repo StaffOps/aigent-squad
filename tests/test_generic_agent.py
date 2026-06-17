@@ -183,3 +183,71 @@ class TestHistoryFormattedInContext:
 
         assert "prior question" in context_text
         assert "prior answer" in context_text
+
+
+@pytest.mark.asyncio
+class TestSkillInjection:
+    """Lazy skill injection into the system prompt (spec 26)."""
+
+    @patch("src.core.generic_agent.bedrock")
+    async def test_matching_skill_injected_into_system_prompt(self, mock_bedrock):
+        mock_bedrock.invoke = AsyncMock(return_value="ok")
+
+        from src.core.skills import Skill
+
+        class FakeRegistry:
+            def select(self, allowed, query):
+                return [Skill(name="oomkill", body="Check memory limits.")]
+
+            def render(self, skills):
+                from src.core.skills import SkillRegistry
+                return SkillRegistry.render(skills)
+
+        cfg = _make_config()
+        cfg.skills = ["oomkill"]
+        agent = GenericAgent(config=cfg, prompt="BASE PROMPT", adapters=[], skill_registry=FakeRegistry())
+
+        await agent.process_request(
+            input_text="pod oomkilled?", user_id="u", session_id="s", chat_history=[]
+        )
+
+        call = mock_bedrock.invoke.call_args
+        system_prompt = call.kwargs.get("system_prompt")
+        assert "BASE PROMPT" in system_prompt
+        assert "<skills>" in system_prompt
+        assert "Check memory limits." in system_prompt
+
+    @patch("src.core.generic_agent.bedrock")
+    async def test_no_matching_skill_keeps_plain_prompt(self, mock_bedrock):
+        mock_bedrock.invoke = AsyncMock(return_value="ok")
+
+        class EmptyRegistry:
+            def select(self, allowed, query):
+                return []
+
+            def render(self, skills):
+                return ""
+
+        cfg = _make_config()
+        cfg.skills = ["oomkill"]
+        agent = GenericAgent(config=cfg, prompt="BASE PROMPT", adapters=[], skill_registry=EmptyRegistry())
+
+        await agent.process_request(
+            input_text="unrelated", user_id="u", session_id="s", chat_history=[]
+        )
+
+        system_prompt = mock_bedrock.invoke.call_args.kwargs.get("system_prompt")
+        assert system_prompt == "BASE PROMPT"
+        assert "<skills>" not in system_prompt
+
+    @patch("src.core.generic_agent.bedrock")
+    async def test_no_registry_keeps_plain_prompt(self, mock_bedrock):
+        mock_bedrock.invoke = AsyncMock(return_value="ok")
+
+        agent = GenericAgent(config=_make_config(), prompt="BASE PROMPT", adapters=[])
+        await agent.process_request(
+            input_text="anything", user_id="u", session_id="s", chat_history=[]
+        )
+
+        system_prompt = mock_bedrock.invoke.call_args.kwargs.get("system_prompt")
+        assert system_prompt == "BASE PROMPT"

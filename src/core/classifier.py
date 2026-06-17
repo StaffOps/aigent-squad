@@ -95,7 +95,8 @@ If unable to classify, return an empty agents list."""
                 messages=[{"role": "user", "content": user_input}],
                 system_prompt=prompt,
                 temperature=0.3,
-                use_cache=True
+                use_cache=True,
+                agent_id="classifier",
             )
         except Exception as e:
             logger.warning("Classifier LLM failed, using keyword fallback", extra={"error": str(e)})

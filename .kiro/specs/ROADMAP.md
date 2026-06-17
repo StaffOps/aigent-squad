@@ -95,6 +95,14 @@ A análise em [`ANALYSIS.md`](ANALYSIS.md) (8 specialists em paralelo) encontrou
 | 23 | `test-harness-docker` (`Dockerfile.test` + `pytest --cov-fail-under=90` com mocks; mesmo harness dev↔CI; consumido pela 08) | 🔴 | — |
 | 24 | `docs-portal-mkdocs` (portal MkDocs Material `src`→`public`; README vira índice; ADRs; consolida/deleta docs fantasma) | 🟠 | — |
 | 25 | `multi-tenant-concurrency` (distributed circuit breaker, session lock, rate limit/budget, Bedrock semaphore, load test k6) | 🟠 | 06, 17 |
+| 26 | `agent-skills` (conhecimento markdown lazy-loaded, global, allowlist por agente, keyword match) | ✅ done | 02 |
+| 27 | `bedrock-cost-attribution` (AIP por modelo + tags FinOps; rateio por agente via métrica de tokens labelada) | ✅ done (infra+app; deploy pendente) | — |
+
+> **ADR-001** ([`ADR-001-bedrock-direto-vs-strands.md`](ADR-001-bedrock-direto-vs-strands.md)): decisão de manter Bedrock direto (não adotar Strands). Signal de reabertura: agentes deixarem de ser consultivos read-only.
+
+> **Infra (Terraform)** — não estava como spec numerada; entregue em `terraform/` (cobre a spec 12 `terraform-infra` + parte da 13 `iam-least-privilege`): módulos `iam/` (IRSA + policies read-only), `dynamodb/` (sessions), `bedrock/` (VPC endpoints), `bedrock-aip/` (cost attribution). Tags centralizadas em `provider.default_tags`.
+
+> **Fix relevante (2026-06-16)**: `BEDROCK_MODEL_ID` corrigido para usar inference profile (`us.anthropic.claude-sonnet-4-5-...`). O model id puro falha com `on-demand throughput isn't supported` — Sonnet 4.5 exige inference profile. Afetou config.py, .env.example, compose, e `allowed_model_arns` do Terraform.
 
 > Ver [`ECOSYSTEM.md`](ECOSYSTEM.md): **decisão (2026-06-02) = manter SEPARADO**. Specs 14/17/19/21 existem mais maduras no `staffops-chaitops` → reusar **por cópia** (não dependência). gRPC (20) removida. Docs em inglês. Diferencial real = especialistas leves com acesso direto a dados (não comunicação).
 

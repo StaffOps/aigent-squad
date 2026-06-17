@@ -16,10 +16,12 @@ Agent Squad is a multi-agent system with 1 supervisor + 5 specialist agents for 
 - 🤖 Intelligent classifier-based routing
 - 💬 Conversation history with context switching
 - 🔍 RAG (Retrieval-Augmented Generation) support
+- 📚 Agent skills (lazy-loaded markdown knowledge, shared across agents)
 - 📊 OpenTelemetry distributed tracing
 - 🔒 100% read-only operations
 - 🚀 Kubernetes-native deployment
-- 🔌 MCP (Model Context Protocol) integration
+- 🔌 MCP integration (squad as server for Kiro + agents as MCP clients)
+- 💲 Per-agent Bedrock cost attribution (Application Inference Profiles + token metrics)
 
 ---
 
@@ -324,6 +326,9 @@ curl http://localhost:8000/health
 - [`.kiro/specs/03-fix-cache-observability/`](.kiro/specs/03-fix-cache-observability/) - Cache determinístico + OTel
 - [`.kiro/specs/04-harden-security/`](.kiro/specs/04-harden-security/) - Auth, non-root, prompt injection
 - [`.kiro/specs/05-helm-chart/`](.kiro/specs/05-helm-chart/) - Helm chart para EKS (Fase 2 — deploy)
+- [`.kiro/specs/26-agent-skills/`](.kiro/specs/26-agent-skills/) - Skills: conhecimento markdown lazy-loaded por agente
+- [`.kiro/specs/27-bedrock-cost-attribution/`](.kiro/specs/27-bedrock-cost-attribution/) - Atribuição de custo Bedrock (AIP por modelo + rateio por agente)
+- [`.kiro/specs/ADR-001-bedrock-direto-vs-strands.md`](.kiro/specs/ADR-001-bedrock-direto-vs-strands.md) - Decisão: Bedrock direto vs. framework Strands
 - [`.kiro/steering/project.md`](.kiro/steering/project.md) - Regras e invariantes do projeto
 
 ### Getting Started
@@ -333,20 +338,24 @@ curl http://localhost:8000/health
 - [CHANGES.md](CHANGES.md) - v2.0 summary
 
 ### Technical Docs
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) - Architecture v2.0
-- [docs/MCP_INTEGRATION.md](docs/MCP_INTEGRATION.md) - Kiro CLI integration
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) - Architecture
+- [docs/MCP_INTEGRATION.md](docs/MCP_INTEGRATION.md) - MCP: squad como server (Kiro) + agentes como clients (`type: mcp`)
+- [docs/HOW-TO-NEW-AGENT.md](docs/HOW-TO-NEW-AGENT.md) - Criar agente (datasources, skills, MCP)
+- [docs/KNOWLEDGE-BASE.md](docs/KNOWLEDGE-BASE.md) - KB / RAG (pgvector)
 - [docs/OBSERVABILITY.md](docs/OBSERVABILITY.md) - Logging & tracing
-- [docs/RAG_IMPLEMENTATION.md](docs/RAG_IMPLEMENTATION.md) - RAG setup
-- [docs/LOCAL_DEVELOPMENT.md](docs/LOCAL_DEVELOPMENT.md) - Local dev guide
+- [docs/METRICS.md](docs/METRICS.md) - Custom metrics catalog
+- [docs/ALERTING.md](docs/ALERTING.md) - Alertmanager ingestion + Slack post-back
+- [docs/READ_ONLY_POLICY.md](docs/READ_ONLY_POLICY.md) - Read-only policy (4 layers)
+- [docs/SECURITY.md](docs/SECURITY.md) - Security model
+- [docs/SETUP.md](docs/SETUP.md) - Local setup
 - [docs/PREREQUISITES.md](docs/PREREQUISITES.md) - Infrastructure requirements
 
-### Agent READMEs
-- [src/supervisor/README.md](src/supervisor/README.md)
-- [src/agents/aws/README.md](src/agents/aws/README.md)
-- [src/agents/kubernetes/README.md](src/agents/kubernetes/README.md)
-- [src/agents/finops/README.md](src/agents/finops/README.md)
-- [src/agents/devops/README.md](src/agents/devops/README.md)
-- [src/agents/observability/README.md](src/agents/observability/README.md)
+### Infrastructure (Terraform)
+- [terraform/README.md](terraform/README.md) - Módulos AWS (IAM/IRSA, DynamoDB, Bedrock endpoints, AIP de custo)
+- [terraform/bedrock-aip/README.md](terraform/bedrock-aip/README.md) - Application Inference Profiles + atribuição de custo
+
+### Agents
+Agents are config-driven (`agent.yaml` + `prompt.md`) under [`agents/`](agents/) — see [docs/HOW-TO-NEW-AGENT.md](docs/HOW-TO-NEW-AGENT.md). Supervisor internals: [src/supervisor/README.md](src/supervisor/README.md).
 
 ---
 
@@ -433,7 +442,7 @@ curl -X POST http://localhost:8001/process \
 - **Cache**: Redis
 - **Observability**: OpenTelemetry + JSON logging
 - **Deployment**: Docker + Kubernetes (EKS)
-- **CI/CD**: GitLab CI
+- **CI/CD**: GitHub Actions (`.github/workflows/`)
 
 ---
 
@@ -449,8 +458,8 @@ curl -X POST http://localhost:8001/process \
 - Enable RAG in all agents
 
 ### Phase 3: Production Deploy (3-5 days)
-- Terraform infrastructure
-- GitLab CI/CD pipeline
+- Terraform infrastructure — ✅ módulos prontos (IAM/IRSA, DynamoDB, Bedrock endpoints, AIP de custo); ver [terraform/](terraform/)
+- CI/CD pipeline (GitHub Actions)
 - EKS deployment
 
 ### Phase 4: Slack Integration (2-3 days)

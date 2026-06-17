@@ -51,6 +51,7 @@ The agent is now live and the classifier will route relevant queries to it.
 | `domain` | ✅ | Grouping (e.g., cloud, security, observability) |
 | `capabilities` | ✅ | List of things it can do |
 | `datasources` | ✅ | Data sources it queries (can be `[]` for prompt-only) |
+| `skills` | ❌ | Global skill names this agent may use (lazy-loaded — see below) |
 | `routing_keywords` | ❌ | Fast-path keywords (skip LLM classification) |
 | `cache.ttl` | ❌ | Cache duration in seconds (default: 300) |
 | `model.tier` | ❌ | fast/standard/premium (default: standard) |
@@ -77,6 +78,48 @@ The system prompt sent to the LLM. Can be as long as needed. Tips:
 | `kubernetes` | K8s cluster state | (no extra fields needed) |
 | `http` | Any HTTP API | `name`, `url` (supports `${ENV_VAR}`), `headers` |
 | `athena` | AWS Athena queries | `database`, `table`, `workgroup` |
+| `mcp` | External MCP server (read-only) | `name`, `url` (SSE, supports `${ENV_VAR}`), `tools` (allowlist), `tool_arguments` |
+
+## Skills (lazy-loaded knowledge)
+
+A **skill** is reusable markdown knowledge (a `SKILL.md`) — *not* a tool/action
+(that's a datasource). Skills live in a global `skills/` directory and are
+referenced per-agent. Selection is **lazy**: a skill is injected into the
+prompt only when the query matches its keywords (token economy).
+
+```
+skills/
+└── oomkill-investigation/
+    └── SKILL.md
+```
+
+```markdown
+---
+name: oomkill-investigation
+description: How to investigate OOMKilled pods
+keywords: [oomkill, oom, "out of memory", "exit code 137"]
+---
+
+# Investigating OOMKilled Pods
+... knowledge ...
+```
+
+Reference it from any agent's `agent.yaml` (allowlist):
+
+```yaml
+skills:
+  - oomkill-investigation
+```
+
+When a user query contains a matching keyword (e.g. "pod was OOMKilled"), the
+skill body is injected into that agent's system prompt for that request only.
+A single skill can be shared by multiple agents (e.g. kubernetes + observability).
+
+- **Single-word keywords** match on word boundaries (`oom` won't match `room`).
+- **Multi-word keywords** (`"out of memory"`) match as a substring.
+- Skill content is treated as **reference knowledge**, never executable
+  instructions (read-only is law). Missing/invalid skills fail open.
+- See spec `.kiro/specs/26-agent-skills/` for the design + rationale.
 
 ## Examples
 

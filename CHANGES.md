@@ -1,5 +1,39 @@
 # Changelog
 
+## [Unreleased] - 2026-06-16
+
+### Added (Terraform infrastructure — `terraform/`)
+- `iam/`: single IRSA role + scoped policies (Bedrock invoke, DynamoDB sessions = only write, read-only inventory ec2/rds/s3/ce/iam, optional Athena/CUR FinOps)
+- `dynamodb/`: sessions table (`pk`/`sk`, TTL, PITR, on-demand, SSE)
+- `bedrock/`: VPC endpoints (`bedrock-runtime` + `bedrock`) + optional invocation logging
+- `bedrock-aip/`: Application Inference Profiles (1 per model, configurable map) for FinOps cost attribution
+- `example/`: reference composition wiring all modules; cost/governance tags centralized in `provider.default_tags` (single source of truth)
+- All modules validated via `terraform validate` (Docker)
+
+### Added (Spec 26: Agent Skills)
+- `src/core/skills.py`: `Skill` + `SkillRegistry` — lazy-loaded markdown knowledge from global `skills/`, allowlist per agent (`agent.yaml` `skills:`), keyword match
+- Injected into the system prompt only when the query matches (token economy); fail-open
+- Example skill `skills/oomkill-investigation/`; wired into the kubernetes agent
+- `tests/test_skills.py` (19 tests, 100% coverage on skills.py)
+
+### Added (Spec 27: Bedrock cost attribution)
+- AIP-per-model (Terraform) carries FinOps tags → authoritative per-model spend in Cost Explorer
+- `BedrockClient.invoke` now labels token/cost metrics with `agent_id` (callers: GenericAgent, Classifier) → per-agent showback via token-share ratio
+- `tests/test_bedrock.py`: +2 tests (agent_id label propagation)
+
+### Added (MCP outbound — agents as MCP clients)
+- `McpAdapter` (`type: mcp` datasource): read-only tool allowlist (fail-closed), SSE transport, `inject_query_as` opt-in
+- Wired the kubernetes agent to the cluster's `devops-mcp-kube` server (read-only tools only; mutating tools excluded by allowlist)
+- `tests/test_adapters.py`: +7 MCP tests; validated end-to-end against the real cluster MCP server
+- `docs/MCP_INTEGRATION.md`: documented both directions (inbound server / outbound client)
+
+### Fixed (Bedrock model id requires inference profile)
+- `BEDROCK_MODEL_ID` corrected to the `us.` inference profile (`us.anthropic.claude-sonnet-4-5-20250929-v1:0`); the bare model id fails with `on-demand throughput isn't supported`
+- Updated `config.py`, `.env.example`, `docker-compose.yaml`, `src/supervisor/README.md`, and Terraform `allowed_model_arns`
+
+### Added (ADR)
+- `.kiro/specs/ADR-001-bedrock-direto-vs-strands.md`: decision to keep Bedrock-direct over the Strands SDK (with reopen signals)
+
 ## [Unreleased] - 2026-06-14
 
 ### Changed (Coverage gate raised: 80% → 90%)

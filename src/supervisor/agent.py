@@ -10,6 +10,7 @@ from src.core.metrics import request_counter, error_counter, request_duration, f
 from src.core.registry import AgentRegistry
 from src.core.generic_agent import GenericAgent
 from src.core.adapters import create_adapters
+from src.core.skills import SkillRegistry
 from src.core.triage import should_investigate
 from src.supervisor.synthesizer import synthesizer
 from src.supervisor.investigation import run_investigation
@@ -26,12 +27,16 @@ class SupervisorAgent:
         self.classifier = Classifier(registry)
         self.max_agents = 3
 
+        # Load global skills once (lazy-selected per query — spec 26)
+        self.skill_registry = SkillRegistry()
+        self.skill_registry.discover()
+
         # Create in-process agent instances
         self.agents: dict[str, GenericAgent] = {}
         for config in registry.list_agents():
             adapters = create_adapters(config.datasources)
             prompt = registry.get_prompt(config.name)
-            self.agents[config.name] = GenericAgent(config, prompt, adapters)
+            self.agents[config.name] = GenericAgent(config, prompt, adapters, skill_registry=self.skill_registry)
 
         logger.info(f"Supervisor initialized with {len(self.agents)} agents: {list(self.agents.keys())}")
 

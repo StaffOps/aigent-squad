@@ -53,7 +53,7 @@ services:
       - ENVIRONMENT=LOCAL
       - AGENTS_DIR=/app/agents
       - AWS_REGION=${AWS_REGION:-us-east-1}
-      - BEDROCK_MODEL_ID=${BEDROCK_MODEL_ID:-anthropic.claude-sonnet-4-5-20250929-v1:0}
+      - BEDROCK_MODEL_ID=${BEDROCK_MODEL_ID:-us.anthropic.claude-sonnet-4-5-20250929-v1:0}
       - DYNAMODB_SESSIONS_TABLE=${DYNAMODB_SESSIONS_TABLE:-agent-sessions}
       - DYNAMODB_ENDPOINT=http://dynamodb-local:8000
       - REDIS_HOST=redis

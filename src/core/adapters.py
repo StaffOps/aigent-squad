@@ -154,6 +154,80 @@ class AthenaAdapter(DatasourceAdapter):
             return f"[athena:{self.table}] error: {e}"
 
 
+class McpAdapter(DatasourceAdapter):
+    """Collects read-only context from an MCP server (SSE transport).
+
+    Security: tools are fail-closed. Only tools explicitly listed in the
+    YAML allowlist (`tools`) may be invoked. An empty allowlist collects
+    nothing. This keeps the adapter consistent with "read-only is law":
+    the operator curates which (read-only) tools an agent may call, and the
+    model never picks tools autonomously.
+    """
+
+    def __init__(
+        self,
+        name: str,
+        url: str,
+        tools: list[str],
+        headers: dict[str, str] | None = None,
+        tool_arguments: dict[str, str] | None = None,
+        inject_query_as: str = "",
+    ):
+        self.name = name or "mcp"
+        self.url = HttpAdapter._interpolate_env(url)
+        self.tools = tools or []
+        self.headers = headers or {}
+        self.tool_arguments = tool_arguments or {}
+        self.inject_query_as = inject_query_as
+
+    async def collect(self, query: str) -> str:
+        if not self.tools:
+            # Fail-closed: no allowlisted tools => nothing callable.
+            return f"[mcp:{self.name}] no tools allowlisted (skipped)"
+        results: list[str] = []
+        try:
+            # Imported lazily so the rest of the adapters work even if the
+            # mcp client extras are unavailable in a given environment.
+            from mcp import ClientSession
+            from mcp.client.sse import sse_client
+
+            async with sse_client(self.url, headers=self.headers) as (read, write):
+                async with ClientSession(read, write) as session:
+                    await session.initialize()
+
+                    available = {t.name for t in (await session.list_tools()).tools}
+                    for tool_name in self.tools:
+                        if tool_name not in available:
+                            results.append(f"[mcp:{self.name}:{tool_name}] not exposed by server")
+                            continue
+                        args = dict(self.tool_arguments)
+                        if self.inject_query_as:
+                            args[self.inject_query_as] = query
+                        try:
+                            res = await session.call_tool(tool_name, args)
+                            results.append(f"[mcp:{self.name}:{tool_name}] {self._render(res)}")
+                        except Exception as e:  # one tool failing must not kill the rest
+                            results.append(f"[mcp:{self.name}:{tool_name}] error: {e}")
+        except Exception as e:
+            # The SSE transport (mcp 1.0.0 + anyio) can raise an exception
+            # group during stream teardown *after* tools ran successfully.
+            # Don't discard data we already collected — only surface the
+            # error when nothing was gathered.
+            if not results:
+                return f"[mcp:{self.name}] error: {e}"
+        return "\n".join(results)
+
+    @staticmethod
+    def _render(result) -> str:
+        """Flatten an MCP CallToolResult into text (text content blocks only)."""
+        parts: list[str] = []
+        for block in getattr(result, "content", []) or []:
+            text = getattr(block, "text", None)
+            if text is not None:
+                parts.append(text)
+        return ("\n".join(parts))[:4000] if parts else "(no text content)"
+
+
 def create_adapters(datasource_configs: list[DatasourceConfig]) -> list[DatasourceAdapter]:
     """Instantiate adapters from config."""
     adapters: list[DatasourceAdapter] = []
@@ -166,4 +240,13 @@ def create_adapters(datasource_configs: list[DatasourceConfig]) -> list[Datasour
             adapters.append(HttpAdapter(name=cfg.name, url=cfg.url, headers=cfg.headers))
         elif cfg.type == "athena":
             adapters.append(AthenaAdapter(database=cfg.database, table=cfg.table, workgroup=cfg.workgroup))
+        elif cfg.type == "mcp":
+            adapters.append(McpAdapter(
+                name=cfg.name,
+                url=cfg.url,
+                tools=cfg.tools,
+                headers=cfg.headers,
+                tool_arguments=cfg.tool_arguments,
+                inject_query_as=cfg.inject_query_as,
+            ))
     return adapters
