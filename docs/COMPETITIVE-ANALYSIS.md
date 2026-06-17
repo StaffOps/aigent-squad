@@ -3,8 +3,9 @@
 **Última atualização**: 2026-06-16
 **Método**: leitura de READMEs, configs e estrutura de 6 projetos open-source em
 `example-sres/` + produtos comerciais (Datadog Bits, incident.io, PagerDuty,
-Azure SRE Agent) via material público. **Não** é leitura profunda do código de
-cada repo (READMEs + estrutura). HolmesGPT pendente de análise.
+Azure SRE Agent) via material público. Para a maioria, baseado em READMEs + estrutura;
+**HolmesGPT teve deep dive de código** (peer de referência). Aurora/OpenSRE: deep
+code read ainda pendente.
 
 > Escopo: posicionamento e direção de produto. Para decisões de arquitetura ver
 > `.kiro/specs/ADR-001` e `.kiro/specs/14-security-hardening/`.
@@ -30,6 +31,7 @@ cada repo (READMEs + estrutura). HolmesGPT pendente de análise.
 |---------|-----------|-------|------------------|--------------|------------------------|------------|
 | **AIgent-squad** (nós) | AI SRE / RCA consultivo | Python, **Bedrock direto** | **Read-only hoje** (execução = futuro com HITL) | supervisor + classifier + fan-out + synthesizer | spec 14 (Bedrock Guardrails, fail-closed, multi-idioma) — **escrita, não impl** | pré-1.0, não deployado |
 | **Aurora** (Arvo-AI) | Incident investigation/RCA | Python, Flask, Celery, **LangGraph**, Next.js | **Age**: roda CLI em pods sandboxed, sugere PRs | LangGraph multi-agente, 30+ tools | **NeMo input rail (anti-injection) + 37 regras SigmaHQ + allow/denylist por org** | Apache-2, ativo (Discord, demos) |
+| **HolmesGPT** (Robusta/MS, **CNCF**) | AI SRE / RCA + operator 24/7 | Python, FastAPI, Pydantic, **litellm** (multi-LLM incl. Bedrock) | **Read-only por design, respeita RBAC, "safe in prod"** (mas tem `ApprovalRequirement` p/ HITL e operator pode abrir PRs via GitHub) | agentic loop single + `max_steps`; toolsets YAML | sanitização de params (`shlex.quote`), **safeguards anti-loop**, RBAC; sem guardrail anti-injection dedicado | **CNCF sandbox**, muito ativo, ~46 toolsets builtin |
 | **OpenDerisk** (derisk-ai) | DeepResearch RCA | Python (deriva do DB-GPT), monorepo `uv` | Investiga; **Code-Agent gera código** dinâmico | **5 agentes**: SRE, Code, Report, Vis, Data | não evidente no README | MIT, V0.2, dataset OpenRCA (microsoft) |
 | **OpenSRE** (Tracer-Cloud) | Framework + **RL env / benchmark** p/ AI SRE | Python, `uv`, ruff/mypy | **Sugere e, opcionalmente, executa remediação** | framework p/ você montar, 60+ tools | tem SECURITY + trust center | Apache-2, **pre-alpha**, trending |
 | **SmythOS / sre** | **Runtime/SDK de agentes** (não é SRE-específico) | **TypeScript**, pnpm monorepo | plataforma genérica de agentes | orquestração genérica | "security built-in", abstrações de recurso | MIT, maduro, SDK+CLI |
@@ -73,6 +75,11 @@ cada repo (READMEs + estrutura). HolmesGPT pendente de análise.
 
 | Origem | Ideia | Por que pra nós | Encaixa em |
 |--------|-------|-----------------|------------|
+| **HolmesGPT** | **Context-window management**: server-side filtering + spill de resultado grande p/ disco + transformer `llm_summarize` p/ output de tool | Resolve direto a dor que vimos (MCP trouxe 165KB de eventos → input tokens). Reduz custo e evita OOM | spec nova / adapters + spec 27 |
+| **HolmesGPT** | **`ApprovalRequirement`** por-tool (`needs_approval` + `reason` + `prefixes_to_save`) | Modelo pronto de human-in-the-loop p/ QUANDO formos executar — granular por tool/comando | execução futura + spec 14 |
+| **HolmesGPT** | **`safeguards.prevent_overly_repeated_tool_call`** (anti-loop barato) | Conté custo/loop sem ML; complementa nosso max_rounds | spec 17/18 + spec 14 (abuso) |
+| **HolmesGPT** | **Toolsets YAML** com `prerequisites`, `transformers`, `expose_remotely` (cross-cluster via MCP) | Mais rico que nossos adapters; `prerequisites` (checa `kubectl version` antes) e jq-query paginado evitam overflow | adapters / agent.yaml |
+| **HolmesGPT** | **litellm** como camada multi-provider | Trocaríamos lock-in do boto3-bedrock por abstração multi-LLM (OpenAI/Anthropic/Bedrock/Gemini) sem reescrever | reavaliar vs ADR-001 |
 | **OpenSRE** | Suíte sintética **scored** de RCA (accuracy, evidência, red herrings) | Resolve "como sei se a RCA é boa?"; casa com nosso gate de testes ≥90% | spec nova / 18-rca |
 | **Aurora** | **NeMo Guardrails** input rail + regras **SigmaHQ** p/ comandos | Complementa/alternativa ao Bedrock Guardrails; Sigma é ouro p/ quando formos executar | spec 14 |
 | **versus-incident** | Modos **training / shadow / detect** | Introduzir detecção/ação SEM risco (shadow = "would have alerted") | roadmap agentes proativos / execução futura |
@@ -108,7 +115,35 @@ cada repo (READMEs + estrutura). HolmesGPT pendente de análise.
 
 ## Pendências de análise
 
-- **HolmesGPT** (robusta-dev) — não analisado (clone só com `.git`). É um dos
-  players open-source mais relevantes; analisar e adicionar à matriz.
+- ✅ **HolmesGPT** (Robusta/MS, CNCF sandbox) — analisado (deep dive de código,
+  2026-06-16). É o peer mais maduro e mais alinhado conosco (read-only por
+  design, respeita RBAC, multi-LLM via litellm incl. Bedrock). Achados-chave já
+  incorporados na matriz e na tabela de ideias acima: context-window management
+  (spill-to-disk + llm_summarize), `ApprovalRequirement` (HITL por-tool),
+  `safeguards` anti-loop, toolsets YAML com prerequisites/transformers.
+  **Notável**: nem o HolmesGPT tem guardrail anti-injection dedicado (só
+  sanitização de params) — reforça que nossa spec 14 seria um diferencial real.
 - Leitura **profunda de código** (não só README) de Aurora e OpenSRE — os dois
-  mais próximos — para extrair padrões concretos de implementação.
+  próximos restantes — para extrair padrões concretos de implementação.
+
+## HolmesGPT — deep dive (o peer de referência)
+
+Por ser CNCF, mantido por Robusta + Microsoft, e o mais alinhado (read-only),
+vale destacar o que aprendemos lendo o código (`holmes/core/`):
+
+- **Stack**: FastAPI + Pydantic + **litellm** (abstração multi-LLM — OpenAI/
+  Anthropic/Azure/**Bedrock**/Gemini). `ToolCallingLLM` com `max_steps` é o
+  agentic loop.
+- **Read-only por design + RBAC** — mesma tese nossa, mas com um **modelo de
+  HITL pronto** (`ApprovalRequirement`) para quando precisarem de ação (ex:
+  operator mode abrindo PRs via GitHub). É o caminho que descrevemos para nossa
+  execução futura — eles já têm a estrutura.
+- **Context management é diferencial deles** (e nossa dor atual): `tool_context_
+  window_limiter` derrama resultado grande para disco, `llm_summarize`
+  transformer resume output de tool com modelo rápido, jq-query paginado (batches
+  de 500) evita overflow. Diretamente aplicável ao nosso MCP/adapters.
+- **Segurança**: sanitização de params (`shlex.quote`), `safeguards` anti-loop,
+  RBAC — mas **sem** detector de prompt-injection dedicado. Lacuna do líder =
+  oportunidade nossa (spec 14).
+- **Operator mode**: roda 24/7, detecta proativamente, avisa no Slack — é o
+  "agentes proativos" do nosso roadmap, já maduro. Referência de UX.
