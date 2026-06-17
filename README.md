@@ -358,6 +358,13 @@ curl http://localhost:8000/health
 ### Agents
 Agents are config-driven (`agent.yaml` + `prompt.md`) under [`agents/`](agents/) — see [docs/HOW-TO-NEW-AGENT.md](docs/HOW-TO-NEW-AGENT.md). Supervisor internals: [src/supervisor/README.md](src/supervisor/README.md).
 
+### AI tooling (Kiro CLI + Claude Code)
+The project is spec-driven with `.kiro/` as the single source of truth. It also
+works with **Claude Code**: [`CLAUDE.md`](CLAUDE.md) is the entrypoint and the
+[`.claude/`](.claude/) directory mirrors `.kiro/` (rules/skills via symlink, agents
+converted). Regenerate with `./scripts/sync-claude.sh` after changing steering,
+skills, or agent definitions. See [`.claude/README.md`](.claude/README.md).
+
 ---
 
 ## 🧪 Testing
