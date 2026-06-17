@@ -113,6 +113,7 @@ closed** (Redis/DynamoDB with no error handling), and is **blind/indefensible**
 | 26 | `agent-skills` (lazy-loaded markdown knowledge, global, per-agent allowlist, keyword match) | ✅ done | 02 |
 | 27 | `bedrock-cost-attribution` (AIP per model + FinOps tags; per-agent attribution via labeled token metric) | ✅ done (infra+app; deploy pending) | — |
 | 28 | `llm-provider-abstraction` (multi-provider layer: `LLMProvider` Protocol + common `LLMService`; litellm candidate; preserves cost-attribution; clean-room) | 📝 design only | reopens ADR-001 |
+| 29 | `openai-compat-bridge` (OpenAI `/v1` API on the supervisor → LibreChat plugs in directly; auto + per-agent models; pseudo-streaming until spec 06) | ✅ implemented | enables LibreChat (Option A) |
 
 > **ADR-001** ([`ADR-001-bedrock-direct-vs-strands.md`](ADR-001-bedrock-direct-vs-strands.md)): decision to keep Bedrock-direct (not adopt Strands). Reopen signal: agents stop being consultative read-only.
 
@@ -318,3 +319,4 @@ without waiting for a human). Convergence by voting/confidence, not a fixed roun
 | 24-docs-portal-mkdocs | Not started |
 | 25-multi-tenant-concurrency | Not started |
 | 28-llm-provider-abstraction | Design only |
+| 29-openai-compat-bridge | Implemented |

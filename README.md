@@ -21,6 +21,7 @@ Agent Squad is a multi-agent system with 1 supervisor + 5 specialist agents for 
 - 🔒 Read-only by default (current posture; execution is an open roadmap item, gated by guardrails + human-in-the-loop)
 - 🚀 Kubernetes-native deployment
 - 🔌 MCP integration (squad as server for Kiro + agents as MCP clients)
+- 🤖 OpenAI-compatible API (`/v1`) — plugs into LibreChat or any OpenAI client ([docs](docs/LIBRECHAT.md))
 - 💲 Per-agent Bedrock cost attribution (Application Inference Profiles + token metrics)
 
 ---
@@ -340,6 +341,7 @@ curl http://localhost:8000/health
 ### Technical Docs
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) - Architecture
 - [docs/MCP_INTEGRATION.md](docs/MCP_INTEGRATION.md) - MCP: squad as server (Kiro) + agents as clients (`type: mcp`)
+- [docs/LIBRECHAT.md](docs/LIBRECHAT.md) - LibreChat integration via the OpenAI-compatible bridge (`/v1`)
 - [docs/HOW-TO-NEW-AGENT.md](docs/HOW-TO-NEW-AGENT.md) - Create an agent (datasources, skills, MCP)
 - [docs/KNOWLEDGE-BASE.md](docs/KNOWLEDGE-BASE.md) - KB / RAG (pgvector)
 - [docs/OBSERVABILITY.md](docs/OBSERVABILITY.md) - Logging & tracing

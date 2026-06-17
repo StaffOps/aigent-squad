@@ -7,13 +7,23 @@ setup_telemetry()
 
 from contextlib import asynccontextmanager
 from typing import Optional
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, Header
 from pydantic import BaseModel
 from src.core.auth import require_token
 from src.core.kb.store import kb_store
 from src.supervisor.agent import supervisor
 from src.supervisor.alert_handler import AlertmanagerPayload, handle_alert_payload
 from src.supervisor.slack_notifier import post_rca_to_slack
+from src.supervisor.openai_compat import (
+    ChatCompletionRequest,
+    UnknownModelError,
+    build_completion,
+    list_models,
+    messages_to_user_input,
+    resolve_target,
+    sse_stream,
+)
+from fastapi.responses import JSONResponse, StreamingResponse
 import uvicorn
 
 
@@ -95,6 +105,49 @@ async def alerts_incoming(payload: AlertmanagerPayload):
         slack_post_fn=post_rca_to_slack,
     )
     return {"ok": True, **result}
+
+
+# ─── OpenAI-compatible bridge (/v1/*) — spec 29 ─────────────────────
+# Lets LibreChat (or any OpenAI client) consume the squad directly.
+
+
+@app.get("/v1/models", dependencies=[Depends(require_token)])
+async def openai_list_models():
+    return list_models(supervisor.registry.agent_names()).model_dump()
+
+
+@app.post("/v1/chat/completions", dependencies=[Depends(require_token)])
+async def openai_chat_completions(
+    request: ChatCompletionRequest,
+    x_session_id: str = Header(default=""),
+):
+    """OpenAI Chat Completions → supervisor. Auto-routes or forces an agent."""
+    try:
+        force_agent = resolve_target(request.model, supervisor.registry.agent_names())
+    except UnknownModelError as e:
+        return JSONResponse(
+            status_code=404,
+            content={"error": {"type": "invalid_request_error", "message": str(e)}},
+        )
+
+    user_input = messages_to_user_input(request.messages)
+    user_id = request.user or "librechat"
+    session_id = x_session_id or f"openai-{user_id}"
+
+    result = await supervisor.process_request(
+        user_input=user_input,
+        user_id=user_id,
+        session_id=session_id,
+        force_agent=force_agent,
+    )
+
+    if request.stream:
+        return StreamingResponse(
+            sse_stream(result, request.model),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        )
+    return build_completion(result, request.model).model_dump()
 
 
 if __name__ == "__main__":
