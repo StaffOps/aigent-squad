@@ -11,8 +11,8 @@
 
 ```bash
 # 1. Clone
-git clone git@github.com:karlipegomes/AIgent-squad.git
-cd AIgent-squad
+git clone git@github.com:karlipegomes/staffops-aigent-squad.git
+cd staffops-aigent-squad
 
 # 2. Ensure ssh-agent is running (for private dep install during build)
 eval $(ssh-agent -s)
