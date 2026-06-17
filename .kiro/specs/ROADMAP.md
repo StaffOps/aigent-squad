@@ -83,7 +83,7 @@ A análise em [`ANALYSIS.md`](ANALYSIS.md) (8 specialists em paralelo) encontrou
 | 11 | `bedrock-resilience-cost` (Haiku no classifier, prompt caching, tiering) | 🟠 | 06 |
 | 12 | `terraform-infra` (DynamoDB/ElastiCache/ECR/IRSA/Secrets) | 🟠 | — |
 | 13 | `iam-least-privilege` (read-only por agente + deny explícito) | 🟠 | 12 |
-| 14 | `security-hardening` (threat model, authn/audit, NetworkPolicy/mTLS, prompt guardrails) | 🟠 | 04 |
+| 14 | `security-hardening` (defense-in-depth anti-prompt-injection: Bedrock Guardrails multi-idioma, fail-closed, canary/output-filter, rate/budget; read-only como invariante de segurança = diferencial competitivo) | 📝 spec written, impl pending | 04 |
 | 15 | `sli-slo-framework` | 🟡 | 10 |
 | 16 | `incident-runbooks` | 🟡 | 06, 07 |
 | 17 | `multi-agent-collaboration` (fan-out/fan-in cross-domain + síntese, agent-as-tools 1 salto) | ✅ done | 06, 09 |
