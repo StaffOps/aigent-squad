@@ -1,23 +1,25 @@
 # Roadmap — AIgent-squad
 
-**Branch de trabalho**: `dev`
-**Base**: auditoria em `AUDIT.md` (2026-05-30)
+**Work branch**: `dev`
+**Base**: audit in `AUDIT.md` (2026-05-30)
 
-Este roadmap reflete o **estado real** do projeto, não o aspiracional do README antigo. A premissa: o sistema **não builda/roda hoje** (Dockerfile raiz ausente, módulos quebrados). Antes de qualquer feature nova, estabilizar.
+This roadmap reflects the **real state** of the project, not the aspirational one
+of the old README. The premise: the system **didn't build/run** at the time
+(missing root Dockerfile, broken modules). Before any new feature, stabilize.
 
 ---
 
-## Estado atual (honesto)
+## Current state (honest)
 
-| Dimensão | Status |
-|----------|--------|
-| Build (`docker compose build`) | ✅ passa (spec 01 concluída 2026-06-14) |
-| Agentes unificados | ✅ config-driven GenericAgent (spec 02 + 22) |
-| Multiturno (history) | ✅ unificado via agent_base |
-| Cache | ✅ key determinística sha256 (spec 03) |
-| Observabilidade | ✅ OTel cabeado, JSONFormatter, PROMETHEUS_URL, custom metrics (spec 03) |
-| Segurança | ✅ auth, non-root, redis password, prompt delimiters (spec 04) |
-| Testes | ✅ ~85% cobertura global, CI gate 80% |
+| Dimension | Status |
+|-----------|--------|
+| Build (`docker compose build`) | ✅ passes (spec 01 completed 2026-06-14) |
+| Unified agents | ✅ config-driven GenericAgent (spec 02 + 22) |
+| Multi-turn (history) | ✅ unified via agent_base |
+| Cache | ✅ deterministic sha256 key (spec 03) |
+| Observability | ✅ OTel wired, JSONFormatter, PROMETHEUS_URL, custom metrics (spec 03) |
+| Security | ✅ auth, non-root, redis password, prompt delimiters (spec 04) |
+| Tests | ✅ ~85% global coverage, CI gate 80% |
 | Docs | ✅ METRICS.md, SECURITY.md, KNOWLEDGE-BASE.md, HOW-TO |
 | Async/Resilience | ✅ full async, circuit breaker, fail-open (spec 06) |
 | Multi-agent | ✅ fan-out, synthesizer, agent-as-tools (spec 17) |
@@ -26,201 +28,257 @@ Este roadmap reflete o **estado real** do projeto, não o aspiracional do README
 | Platform | ✅ config-driven, Helm chart, zero-code agent add (spec 22) |
 | CI/CD | ✅ GitHub Actions, multi-arch, Trivy, OIDC (spec 08) |
 
-**Versão real sugerida**: `0.x` (pré-release). "v2.0 / Production Ready" do README é inflado (ver `version-management.md`).
+**Suggested real version**: `0.x` (pre-release). The README's "v2.0 / Production
+Ready" is inflated (see `version-management.md`).
 
 ---
 
-## Fases (ordem de execução)
+## Phases (execution order)
 
-### Fase 0 — Estabilização (specs 01 → 02 → 03 → 04)
-Pré-requisito para tudo. Ordem importa porque há dependências.
+### Phase 0 — Stabilization (specs 01 → 02 → 03 → 04)
+Prerequisite for everything. Order matters because of dependencies.
 
-| # | Spec | Severidade | Depende de | Resultado mensurável |
-|---|------|-----------|------------|----------------------|
-| 1 | `01-fix-blockers` | ✅ done | — | `docker compose build && up` verde |
-| 2 | `02-unify-agent-architecture` | ✅ done | 01 | 5 agentes no mesmo padrão, contrato único, multiturno |
-| 3 | `03-fix-cache-observability` | ✅ done | 02 | cache determinístico, logs com contexto, OTLP |
-| 4 | `04-harden-security` | ✅ done | 02 | endpoints autenticados, containers non-root |
+| # | Spec | Severity | Depends on | Measurable result |
+|---|------|----------|------------|--------------------|
+| 1 | `01-fix-blockers` | ✅ done | — | `docker compose build && up` green |
+| 2 | `02-unify-agent-architecture` | ✅ done | 01 | 5 agents on the same pattern, single contract, multi-turn |
+| 3 | `03-fix-cache-observability` | ✅ done | 02 | deterministic cache, logs with context, OTLP |
+| 4 | `04-harden-security` | ✅ done | 02 | authenticated endpoints, non-root containers |
 
-**Critério de saída da Fase 0**: `docker compose up` sobe tudo saudável, 1 query por agente responde com contrato correto, testes passam, endpoints exigem token. Só então faz sentido falar em "deploy".
+**Phase 0 exit criterion**: `docker compose up` brings everything up healthy, 1
+query per agent responds with the correct contract, tests pass, endpoints require
+a token. Only then does it make sense to talk about "deploy".
 
-### Fase 1 — Qualidade & Docs (paralelizável após Fase 0)
-- Alinhar modelo Bedrock (fonte única) — D1.
-- Corrigir encoding dos docs e `ARCHITECTURE.md` (remover LangGraph) — D3, D4.
-- Atualizar README com status real — D2.
-- `.dockerignore`, separar `requirements.txt` por agente, mover hardcodes de `gitlab_client` para config — H1–H5.
-- Suíte de testes mínima com CI (GitLab CI já tem doc inicial).
+### Phase 1 — Quality & Docs (parallelizable after Phase 0)
+- Align the Bedrock model (single source) — D1.
+- Fix doc encoding and `ARCHITECTURE.md` (remove LangGraph) — D3, D4.
+- Update the README with the real status — D2.
+- `.dockerignore`, split `requirements.txt` per agent, move `gitlab_client`
+  hardcodes to config — H1–H5.
+- Minimal test suite with CI (GitLab CI already has an initial doc).
 
-### Fase 2 — Deploy real (só após Fase 0+1 validadas)
-- Terraform da infra (DynamoDB, ElastiCache, IAM/IRSA, ECR).
-- **Helm chart da aplicação** — spec [`05-helm-chart`](05-helm-chart/): 7 serviços parametrizados, IRSA, External Secrets, KEDA, Argo Rollouts, NetworkPolicy, securityContext, labels obrigatórios.
-- Manifests/values por ambiente (DEV/HML/PRD/BTC) com probes, `resources.requests`, labels obrigatórios (`k8s-best-practices`).
-- Pipeline CI/CD (build multi-arch, scan, push Harbor/ECR).
-- Validar read-only via IAM deny + RBAC reais.
+### Phase 2 — Real deploy (only after Phase 0+1 validated)
+- Infra Terraform (DynamoDB, ElastiCache, IAM/IRSA, ECR).
+- **Application Helm chart** — spec [`05-helm-chart`](05-helm-chart/): 7
+  parameterized services, IRSA, External Secrets, KEDA, Argo Rollouts,
+  NetworkPolicy, securityContext, mandatory labels.
+- Per-environment manifests/values (DEV/HML/PRD/BTC) with probes,
+  `resources.requests`, mandatory labels (`k8s-best-practices`).
+- CI/CD pipeline (multi-arch build, scan, push Harbor/ECR).
+- Validate read-only via real IAM deny + RBAC.
 
-> Pré-requisito de código da spec 05: adicionar endpoints `/healthz` e `/ready` (hoje só há `/health`).
+> Code prerequisite for spec 05: add `/healthz` and `/ready` endpoints (today
+> there's only `/health`).
 
-### Fase 3 — Features (roadmap original, revalidado)
-Só após o sistema rodar de verdade. Reaproveita o roadmap do README, mas sem inflar versão antes de uso real:
-- RAG/Knowledge Bases (custo alto — avaliar ROI; ver estimativas no README).
-- Slack integration (depende de `api/server.py` reescrito na spec 01).
-- Agentes proativos (CronJobs).
-- Demais fases 6–13 do `IMPLEMENTATION_HISTORY.md` conforme demanda.
+### Phase 3 — Features (original roadmap, revalidated)
+Only after the system really runs. Reuses the README roadmap, but without
+inflating the version before real usage:
+- RAG/Knowledge Bases (high cost — evaluate ROI; see estimates in the README).
+- Slack integration (depends on `api/server.py` rewritten in spec 01).
+- Proactive agents (CronJobs).
+- Remaining phases 6–13 of `IMPLEMENTATION_HISTORY.md` as needed.
 
 ---
 
-## Análise cross-domain (2026-06-02) — novas specs propostas
+## Cross-domain analysis (2026-06-02) — proposed new specs
 
-A análise em [`ANALYSIS.md`](ANALYSIS.md) (8 specialists em paralelo) encontrou problemas estruturais **além** do AUDIT. Resumo: mesmo depois de buildar, o sistema **não tem concorrência** (I/O síncrono em handlers async), **falha fechada** (Redis/DynamoDB sem tratamento de erro), e é **cego/indefensável** (telemetria quebrada, read-only só no prompt). Novas specs propostas:
+The analysis in [`ANALYSIS.md`](ANALYSIS.md) (8 specialists in parallel) found
+structural problems **beyond** the AUDIT. Summary: even after building, the
+system **has no concurrency** (synchronous I/O in async handlers), **fails
+closed** (Redis/DynamoDB with no error handling), and is **blind/indefensible**
+(broken telemetry, read-only only in the prompt). Proposed new specs:
 
-| # | Spec | Severidade | Depende de |
-|---|------|-----------|------------|
+| # | Spec | Severity | Depends on |
+|---|------|----------|------------|
 | 06 | `resilience-patterns` (async-first, fail-open, circuit breaker, classifier fallback) | ✅ done | 02 |
 | 07 | `readiness-probes` (`/healthz`+`/ready`+graceful shutdown) | 🔴 | 02 |
 | 08 | `ci-cd-pipeline` (GitHub Actions, multi-arch, scan, coverage gate) | ✅ done | 01 |
-| 09 | `otel-instrumentation` (7 serviços, propagação, Collector) | 🟠 | 02 |
-| 10 | `metrics-and-cost-observability` (RED + tokens/custo $) | 🟠 | 09 |
-| 11 | `bedrock-resilience-cost` (Haiku no classifier, prompt caching, tiering) | 🟠 | 06 |
+| 09 | `otel-instrumentation` (7 services, propagation, Collector) | 🟠 | 02 |
+| 10 | `metrics-and-cost-observability` (RED + tokens/cost $) | 🟠 | 09 |
+| 11 | `bedrock-resilience-cost` (Haiku in the classifier, prompt caching, tiering) | 🟠 | 06 |
 | 12 | `terraform-infra` (DynamoDB/ElastiCache/ECR/IRSA/Secrets) | 🟠 | — |
-| 13 | `iam-least-privilege` (read-only por agente + deny explícito) | 🟠 | 12 |
-| 14 | `security-hardening` (defense-in-depth anti-prompt-injection: Bedrock Guardrails multi-idioma, fail-closed, canary/output-filter, rate/budget; read-only como invariante de segurança = diferencial competitivo) | 📝 spec written, impl pending | 04 |
+| 13 | `iam-least-privilege` (read-only per agent + explicit deny) | 🟠 | 12 |
+| 14 | `security-hardening` (defense-in-depth anti-prompt-injection: multi-language Bedrock Guardrails, fail-closed, canary/output-filter, rate/budget; read-only as a security posture = competitive differentiator) | 📝 spec written, impl pending | 04 |
 | 15 | `sli-slo-framework` | 🟡 | 10 |
 | 16 | `incident-runbooks` | 🟡 | 06, 07 |
-| 17 | `multi-agent-collaboration` (fan-out/fan-in cross-domain + síntese, agent-as-tools 1 salto) | ✅ done | 06, 09 |
-| 18 | `rca-investigation-workflow` (**diferencial**: evidência paralela → timeline → correlação → RCA, read-only) | ⚠️ Phase 1 done; Phase 2 partial (alert ingestion done; multi-round/fault-tree NOT done) | 17, 09, 19 |
-| 19 | `config-driven-platform` (YAML + env override, secrets fora do YAML, registry de agentes) | ❌ substituted by spec 22 | — |
-| ~~20~~ | ~~`grpc-inter-agent-mesh`~~ — **REMOVIDA** (2026-06-02): latência irrelevante vs chamadas de modelo | ❌ | — |
-| 21 | `incident-memory-learning` (memória de incidentes + recuperação de similares; aprendizado simples) | ✅ done | 18 |
-| 22 | `agent-capability-manifest` (roster **aberto** via YAML + colaboração por metadados `capabilities`/`evidence_types`/`delegates_to`; **substitui a 19**) | ✅ done (Phase A+B) | — |
-| 23 | `test-harness-docker` (`Dockerfile.test` + `pytest --cov-fail-under=90` com mocks; mesmo harness dev↔CI; consumido pela 08) | 🔴 | — |
-| 24 | `docs-portal-mkdocs` (portal MkDocs Material `src`→`public`; README vira índice; ADRs; consolida/deleta docs fantasma) | 🟠 | — |
-| 25 | `multi-tenant-concurrency` (distributed circuit breaker, session lock, rate limit/budget, Bedrock semaphore, load test k6) | 🟠 | 06, 17 |
-| 26 | `agent-skills` (conhecimento markdown lazy-loaded, global, allowlist por agente, keyword match) | ✅ done | 02 |
-| 27 | `bedrock-cost-attribution` (AIP por modelo + tags FinOps; rateio por agente via métrica de tokens labelada) | ✅ done (infra+app; deploy pendente) | — |
-| 28 | `llm-provider-abstraction` (camada multi-provider: `LLMProvider` Protocol + `LLMService` comum; litellm candidato; preserva cost-attribution; clean-room) | 📝 design only | reabre ADR-001 |
+| 17 | `multi-agent-collaboration` (cross-domain fan-out/fan-in + synthesis, agent-as-tools 1 hop) | ✅ done | 06, 09 |
+| 18 | `rca-investigation-workflow` (**differentiator**: parallel evidence → timeline → correlation → RCA, read-only) | ⚠️ Phase 1 done; Phase 2 partial (alert ingestion done; multi-round/fault-tree NOT done) | 17, 09, 19 |
+| 19 | `config-driven-platform` (YAML + env override, secrets outside the YAML, agent registry) | ❌ substituted by spec 22 | — |
+| ~~20~~ | ~~`grpc-inter-agent-mesh`~~ — **REMOVED** (2026-06-02): latency irrelevant vs model calls | ❌ | — |
+| 21 | `incident-memory-learning` (incident memory + similar-case retrieval; simple learning) | ✅ done | 18 |
+| 22 | `agent-capability-manifest` (**open** roster via YAML + collaboration via `capabilities`/`evidence_types`/`delegates_to` metadata; **replaces 19**) | ✅ done (Phase A+B) | — |
+| 23 | `test-harness-docker` (`Dockerfile.test` + `pytest --cov-fail-under=90` with mocks; same harness dev↔CI; consumed by 08) | 🔴 | — |
+| 24 | `docs-portal-mkdocs` (MkDocs Material portal `src`→`public`; README becomes an index; ADRs; consolidates/deletes ghost docs) | 🟠 | — |
+| 25 | `multi-tenant-concurrency` (distributed circuit breaker, session lock, rate limit/budget, Bedrock semaphore, k6 load test) | 🟠 | 06, 17 |
+| 26 | `agent-skills` (lazy-loaded markdown knowledge, global, per-agent allowlist, keyword match) | ✅ done | 02 |
+| 27 | `bedrock-cost-attribution` (AIP per model + FinOps tags; per-agent attribution via labeled token metric) | ✅ done (infra+app; deploy pending) | — |
+| 28 | `llm-provider-abstraction` (multi-provider layer: `LLMProvider` Protocol + common `LLMService`; litellm candidate; preserves cost-attribution; clean-room) | 📝 design only | reopens ADR-001 |
 
-> **ADR-001** ([`ADR-001-bedrock-direto-vs-strands.md`](ADR-001-bedrock-direto-vs-strands.md)): decisão de manter Bedrock direto (não adotar Strands). Signal de reabertura: agentes deixarem de ser consultivos read-only.
+> **ADR-001** ([`ADR-001-bedrock-direct-vs-strands.md`](ADR-001-bedrock-direct-vs-strands.md)): decision to keep Bedrock-direct (not adopt Strands). Reopen signal: agents stop being consultative read-only.
 
-> **Infra (Terraform)** — não estava como spec numerada; entregue em `terraform/` (cobre a spec 12 `terraform-infra` + parte da 13 `iam-least-privilege`): módulos `iam/` (IRSA + policies read-only), `dynamodb/` (sessions), `bedrock/` (VPC endpoints), `bedrock-aip/` (cost attribution). Tags centralizadas em `provider.default_tags`.
+> **Infra (Terraform)** — was not a numbered spec; delivered in `terraform/`
+> (covers spec 12 `terraform-infra` + part of 13 `iam-least-privilege`): modules
+> `iam/` (IRSA + read-only policies), `dynamodb/` (sessions), `bedrock/` (VPC
+> endpoints), `bedrock-aip/` (cost attribution). Tags centralized in
+> `provider.default_tags`.
 
-> **Fix relevante (2026-06-16)**: `BEDROCK_MODEL_ID` corrigido para usar inference profile (`us.anthropic.claude-sonnet-4-5-...`). O model id puro falha com `on-demand throughput isn't supported` — Sonnet 4.5 exige inference profile. Afetou config.py, .env.example, compose, e `allowed_model_arns` do Terraform.
+> **Relevant fix (2026-06-16)**: `BEDROCK_MODEL_ID` corrected to use an inference
+> profile (`us.anthropic.claude-sonnet-4-5-...`). The raw model id fails with
+> `on-demand throughput isn't supported` — Sonnet 4.5 requires an inference
+> profile. Affected config.py, .env.example, compose, and the Terraform
+> `allowed_model_arns`.
 
-> Ver [`ECOSYSTEM.md`](ECOSYSTEM.md): **decisão (2026-06-02) = manter SEPARADO**. Specs 14/17/19/21 existem mais maduras no `staffops-chaitops` → reusar **por cópia** (não dependência). gRPC (20) removida. Docs em inglês. Diferencial real = especialistas leves com acesso direto a dados (não comunicação).
+> See [`ECOSYSTEM.md`](ECOSYSTEM.md): **decision (2026-06-02) = keep SEPARATE**.
+> Specs 14/17/19/21 exist more mature in `staffops-chaitops` → reuse **by copy**
+> (not dependency). gRPC (20) removed. Docs in English. Real differentiator =
+> lightweight specialists with direct data access (not communication).
 
-> Ver [`EVIDENCE-MODEL.md`](EVIDENCE-MODEL.md): catálogo de sinais cross-domain + regra de correlação por camadas causais + teste de independência (deliberação observability+sre+troubleshoot, 2026-06-02). Substitui o "≥3 sinais" ingênuo. Alimenta a spec 18 (modelo de evidência) e as specs 09/10 (catálogo de métricas).
+> See [`EVIDENCE-MODEL.md`](EVIDENCE-MODEL.md): catalog of cross-domain signals +
+> correlation rule by causal layers + independence test (observability+sre+
+> troubleshoot deliberation, 2026-06-02). Replaces the naive "≥3 signals". Feeds
+> spec 18 (evidence model) and specs 09/10 (metrics catalog).
 
-> A spec 08 (CI/CD) substitui a referência a "GitLab CI" — o repo está no **GitHub**, não há pipeline configurado. A spec 07 cobre o pré-requisito de `/healthz`+`/ready` que a 05-helm-chart assume.
+> Spec 08 (CI/CD) supersedes the "GitLab CI" reference — the repo is on
+> **GitHub**, no pipeline configured. Spec 07 covers the `/healthz`+`/ready`
+> prerequisite that 05-helm-chart assumes.
 
-### Direção de produto (RCA-first)
+### Product direction (RCA-first)
 
-O ganho esperado é **troubleshooting/RCA**. Caminho crítico do diferencial:
+The expected gain is **troubleshooting/RCA**. Critical path of the differentiator:
 
 ```
-06 (async) → 17 (fan-out) → 18 (RCA)      ← núcleo do produto
-19 (config) cedo, em paralelo              ← destrava produtização (config file + env)
-21 (learning) após 18                      ← aprendizado (Sonnet extractor → Opus enricher → KB)
+06 (async) → 17 (fan-out) → 18 (RCA)      ← product core
+19 (config) early, in parallel             ← unblocks productization (config file + env)
+21 (learning) after 18                     ← learning (Sonnet extractor → Opus enricher → KB)
 ```
 
-### Backlog (após caminho crítico)
+### Backlog (after the critical path)
 
-| Item | Descrição |
-|------|-----------|
-| Specialized adapters | Criar `GitLabAdapter` (`type: gitlab`) e `RAGAdapter` (`type: rag`) — o HttpAdapter genérico não replica a inteligência de query do antigo gitlab_client (search_code, search_docs, list_projects). Idem para RAG (Bedrock Knowledge Bases). |
-| Spec 07 | Readiness probes `/healthz` + `/ready` + graceful shutdown (parcialmente feito na 06) |
-| Spec 11 | Bedrock model tiering (Haiku no classifier, Sonnet nos agents) |
-| Spec 22 Phase B | Helm chart (feito) — refinar com ExternalSecret, NetworkPolicy |
+| Item | Description |
+|------|-------------|
+| Specialized adapters | Create `GitLabAdapter` (`type: gitlab`) and `RAGAdapter` (`type: rag`) — the generic HttpAdapter doesn't replicate the old gitlab_client's query intelligence (search_code, search_docs, list_projects). Same for RAG (Bedrock Knowledge Bases). |
+| Spec 07 | Readiness probes `/healthz` + `/ready` + graceful shutdown (partially done in 06) |
+| Spec 11 | Bedrock model tiering (Haiku in the classifier, Sonnet in the agents) |
+| Spec 22 Phase B | Helm chart (done) — refine with ExternalSecret, NetworkPolicy |
 ```
 
-Princípios: comunicação eficiente (async + fan-out), aprendizado com qualidade (Opus enriquece antes de persistir), config via arquivo+env, **não complexo demais** (limites de rodada como hard stop).
+Principles: efficient communication (async + fan-out), quality learning (Opus
+enriches before persisting), config via file+env, **not overly complex** (round
+limits as a hard stop).
 
-### Limites de rodadas por nível
+### Round limits per level
 
-| Nível | max_rounds | Modelo synthesizer | Custo/RCA (5 agentes) |
-|-------|------------|-------------------|------------------------|
+| Level | max_rounds | Synthesizer model | Cost/RCA (5 agents) |
+|-------|------------|-------------------|----------------------|
 | 1 (MVP) | 1 | Sonnet | ~$0.17 |
-| 2 (iterativo) | 5 | Sonnet | ~$0.80 |
-| 3 (contexto compartilhado) | 10 | Opus | ~$1.65 |
-| 4 (autônomo) | 25 | Opus | ~$4.20 |
+| 2 (iterative) | 5 | Sonnet | ~$0.80 |
+| 3 (shared context) | 10 | Opus | ~$1.65 |
+| 4 (autonomous) | 25 | Opus | ~$4.20 |
 
-### Checklist de milestone (obrigatório a cada entrega)
+### Milestone checklist (mandatory at every delivery)
 
-Per `documentation-sync.md` — ao fechar qualquer fase/milestone:
+Per `documentation-sync.md` — when closing any phase/milestone:
 
-- [ ] Specs tocadas refletem o que foi **implementado** (não o planejado — corrigir divergências)
-- [ ] ROADMAP atualizado (status, datas, items concluídos)
-- [ ] README atualizado se mudou algo visível ao usuário
-- [ ] CHANGELOG entry (se bump de versão)
-- [ ] Testes passando (≥90% cobertura)
-- [ ] Custos reais medidos vs estimativas (ajustar tabela no ANALYSIS.md se divergir >30%)
+- [ ] Touched specs reflect what was **implemented** (not what was planned — fix divergences)
+- [ ] ROADMAP updated (status, dates, completed items)
+- [ ] README updated if anything user-visible changed
+- [ ] CHANGELOG entry (if version bump)
+- [ ] Tests passing (≥90% coverage)
+- [ ] Real costs measured vs estimates (adjust the table in ANALYSIS.md if diverging >30%)
 
 ---
 
-## Princípios de versionamento (deste ponto em diante)
+## Versioning principles (from this point on)
 
 Per `version-management.md`:
-- Bump só com **resultado mensurável** em ambiente alvo, não por feature implementada.
-- Não voltar a "Production Ready" antes de deploy estável + testes + validação por operador.
-- CHANGELOG consolidado a cada milestone, não a cada commit.
+- Bump only with a **measurable result** in the target environment, not per
+  implemented feature.
+- Don't go back to "Production Ready" before a stable deploy + tests + operator
+  validation.
+- Consolidated CHANGELOG per milestone, not per commit.
 
 ---
 
-## Mapa specs ↔ achados
+## Specs ↔ findings map
 
-| Spec | Achados (AUDIT.md) |
-|------|--------------------|
+| Spec | Findings (AUDIT.md) |
+|------|---------------------|
 | 01-fix-blockers | B1, B2, B3, B4 |
 | 02-unify-agent-architecture | A1, A2, A3, H1 |
 | 03-fix-cache-observability | C1, C2, O1, O2, O3, O4, D5 |
 | 04-harden-security | S1, S2, S3, S4, S5 |
-| Fase 1 (docs/higiene) | D1, D2, D3, D4, H2, H3, H4, H5, testes |
+| Phase 1 (docs/hygiene) | D1, D2, D3, D4, H2, H3, H4, H5, tests |
 
 ---
 
 ## Long-term Vision: Autonomous Multi-Agent System
 
-**Norte**: sistema de agentes autônomos com memória compartilhada e raciocínio multi-step.
-**Abordagem**: evolução incremental — cada nível só se justifica quando o anterior prova limitação mensurável.
+**North star**: an autonomous agent system with shared memory and multi-step reasoning.
+**Approach**: incremental evolution — each level is only justified when the
+previous one proves a measurable limitation.
 
-### Nível 1 — Hub-and-spoke com fan-out (specs atuais)
+### Level 1 — Hub-and-spoke with fan-out (current specs)
 
-O supervisor orquestra; agentes coletam evidência independentemente; synthesizer correlaciona.
+The supervisor orchestrates; agents collect evidence independently; the
+synthesizer correlates.
 
-- **Entrega**: RCA em ~5s com evidência cruzada de N agentes em paralelo.
-- **Limitação esperada**: coleta cega — cada agente não sabe o que os outros encontraram.
-- **Promotion trigger para Nível 2**: RCA de 1 rodada é insuficiente em >30% dos casos (evidência incompleta, gaps não cobertos).
+- **Delivers**: RCA in ~5s with cross-evidence from N agents in parallel.
+- **Expected limitation**: blind collection — each agent doesn't know what the
+  others found.
+- **Promotion trigger to Level 2**: 1-round RCA is insufficient in >30% of cases
+  (incomplete evidence, uncovered gaps).
 
-### Nível 2 — Investigação iterativa
+### Level 2 — Iterative investigation
 
-Synthesizer detecta gaps na evidência → dispara 2ª rodada direcionada (agentes específicos, perguntas refinadas).
+The synthesizer detects evidence gaps → triggers a targeted 2nd round (specific
+agents, refined questions).
 
-- **Entrega**: investigação adaptativa que aprofunda onde a 1ª rodada foi fraca.
-- **Limitação esperada**: agentes ainda operam isolados — refinam sem saber o que outros acharam.
-- **Promotion trigger para Nível 3**: contexto de outros agentes melhoraria a coleta em >20% dos casos (ex: observability sabendo que devops encontrou deploy recente mudaria a query de métricas).
+- **Delivers**: adaptive investigation that digs deeper where the 1st round was weak.
+- **Expected limitation**: agents still operate in isolation — they refine
+  without knowing what others found.
+- **Promotion trigger to Level 3**: context from other agents would improve
+  collection in >20% of cases (e.g. observability knowing devops found a recent
+  deploy would change the metrics query).
 
-### Nível 3 — Memória compartilhada + contexto cruzado
+### Level 3 — Shared memory + cross context
 
-Agentes recebem resumo do que os outros coletaram (blackboard/scratchpad compartilhado). Cada agente pode refinar sua coleta com base nas descobertas alheias. Não é conversa P2P — é 1 broadcast de contexto → coleta informada.
+Agents receive a summary of what others collected (shared blackboard/scratchpad).
+Each agent can refine its collection based on others' findings. It's not P2P
+chat — it's 1 context broadcast → informed collection.
 
-- **Entrega**: evidência que se reforça (agente A encontra deploy → agente B foca métricas pós-deploy → correlação mais precisa).
-- **Limitação esperada**: fluxo ainda orquestrado pelo supervisor; agentes não tomam decisão de "preciso investigar X que ninguém pediu".
-- **Promotion trigger para Nível 4**: o sistema precisa de autonomia real — decisão sem humano no loop, auto-trigger, hipóteses emergentes que nenhum agente individual proporia.
-- **Custo**: cada rodada com contexto = mais tokens (N resumos × M agentes). Validar ROI antes de avançar.
+- **Delivers**: self-reinforcing evidence (agent A finds a deploy → agent B
+  focuses on post-deploy metrics → more precise correlation).
+- **Expected limitation**: the flow is still orchestrated by the supervisor;
+  agents don't decide "I need to investigate X that no one asked for".
+- **Promotion trigger to Level 4**: the system needs real autonomy — decisions
+  without a human in the loop, auto-trigger, emergent hypotheses no individual
+  agent would propose.
+- **Cost**: each round with context = more tokens (N summaries × M agents).
+  Validate ROI before advancing.
 
-### Nível 4 — Agentes autônomos com raciocínio multi-step
+### Level 4 — Autonomous agents with multi-step reasoning
 
-Agentes propõem hipóteses, delegam entre si, iteram até convergir em RCA. Memória de longo prazo compartilhada. Auto-trigger (detecta sintoma → investiga sem esperar humano). Convergência por votação/confiança, não por rodada fixa.
+Agents propose hypotheses, delegate to each other, iterate until converging on an
+RCA. Shared long-term memory. Auto-trigger (detects symptom → investigates
+without waiting for a human). Convergence by voting/confidence, not a fixed round.
 
-- **Entrega**: sistema que resolve problemas emergentes que nenhum nível anterior resolveria.
-- **Riscos**: custo de tokens explosivo, loops infinitos, decisões incorretas sem supervisão.
-- **Guardrails obrigatórios**: budget cap por investigação, max iterations, human-in-the-loop para ações (read-only para coleta), kill switch.
-- **Pré-requisitos**: Níveis 1–3 validados + métricas de qualidade de RCA + custo controlado.
+- **Delivers**: a system that solves emergent problems no previous level would.
+- **Risks**: explosive token cost, infinite loops, incorrect decisions without supervision.
+- **Mandatory guardrails**: per-investigation budget cap, max iterations,
+  human-in-the-loop for actions (read-only for collection), kill switch.
+- **Prerequisites**: Levels 1–3 validated + RCA quality metrics + controlled cost.
 
-### Princípios da evolução
+### Evolution principles
 
-- **Cada nível prova valor antes de avançar** — não construir Nível 3 sem evidência de que Nível 2 é insuficiente.
-- **Promotion triggers são mensuráveis** — não "parece que precisamos", mas "em X% dos casos, Y falhou por Z".
-- **Custo é constraint real** — cada nível multiplica tokens. Medir $/investigação em cada nível.
-- **Read-only é invariante** — em todos os níveis, agentes coletam e analisam. Nunca executam fix automaticamente (sem humano aprovando).
+- **Each level proves value before advancing** — don't build Level 3 without
+  evidence that Level 2 is insufficient.
+- **Promotion triggers are measurable** — not "seems like we need it", but "in
+  X% of cases, Y failed due to Z".
+- **Cost is a real constraint** — each level multiplies tokens. Measure
+  $/investigation at each level.
+- **Read-only is the posture** — at all levels, agents collect and analyze. They
+  never execute a fix automatically (without a human approving). (Note: read-only
+  is the current posture, not eternal — see `docs/READ_ONLY_POLICY.md`.)
 
 ---
 
@@ -250,12 +308,13 @@ Agentes propõem hipóteses, delegam entre si, iteram até convergir em RCA. Mem
 | 09-otel-instrumentation | Not started (partial coverage via otel-helper) |
 | 10-metrics-and-cost-observability | Not started |
 | 11-bedrock-resilience-cost | Not started |
-| 12-terraform-infra | Not started |
-| 13-iam-least-privilege | Not started |
-| 14-security-hardening | Not started |
+| 12-terraform-infra | Delivered outside the numbered spec (see `terraform/`) |
+| 13-iam-least-privilege | Partially delivered in `terraform/iam/` |
+| 14-security-hardening | Spec written; not implemented |
 | 15-sli-slo-framework | Not started |
 | 16-incident-runbooks | Not started |
 | 19-config-driven-platform | ❌ Substituted by spec 22 |
 | 23-test-harness-docker | Not started |
 | 24-docs-portal-mkdocs | Not started |
 | 25-multi-tenant-concurrency | Not started |
+| 28-llm-provider-abstraction | Design only |

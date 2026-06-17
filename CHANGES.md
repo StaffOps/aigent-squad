@@ -32,7 +32,7 @@
 - Updated `config.py`, `.env.example`, `docker-compose.yaml`, `src/supervisor/README.md`, and Terraform `allowed_model_arns`
 
 ### Added (ADR)
-- `.kiro/specs/ADR-001-bedrock-direto-vs-strands.md`: decision to keep Bedrock-direct over the Strands SDK (with reopen signals)
+- `.kiro/specs/ADR-001-bedrock-direct-vs-strands.md`: decision to keep Bedrock-direct over the Strands SDK (with reopen signals)
 
 ## [Unreleased] - 2026-06-14
 

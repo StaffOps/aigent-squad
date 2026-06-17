@@ -99,3 +99,27 @@ Priorizados por impacto:
 - **Deploy real**: nada foi aplicado na AWS nem deployado. Todo o Terraform é
   `validate`-only. O salto "spec/código → rodando em prod" é o maior trabalho
   ainda não começado.
+
+---
+
+## i18n — translate project to English (in progress, 2026-06-17)
+
+Decision: all project files/docs in English; agents reply in the **user's
+language** (centralized directive in `bedrock.invoke`, classifier opted out).
+
+**Done:**
+- ✅ Language directive centralized in code (`bedrock.py` `_LANGUAGE_DIRECTIVE`,
+  `match_user_language` flag; classifier=False). +2 tests. Lint clean.
+- ✅ Steering (project, efficiency-cost, licensing-clean-room) → EN
+- ✅ Agent prompts (aws, devops, finops, kubernetes, observability) → EN
+- ✅ README → EN
+- ✅ ADR-001 renamed (direto→direct) + translated → EN
+
+**Done:** language directive in code; steering (3); agent prompts (5); README;
+ADR-001 (renamed direto→direct); all active specs (14/26/27/28); ROADMAP;
+COMPETITIVE-ANALYSIS; supervisor/README. **All of `docs/` and `src/` is English.**
+
+**Remaining (PT → EN) — historical record, low/optional priority (~52 files):**
+- `.kiro/specs/{AUDIT,ANALYSIS,ECOSYSTEM}.md` — dated analysis (2026-05-30 / 06-02), frozen.
+- Historical specs 01-25 (~49 files) — completed specs; arguably fine to leave as-is.
+- Detect PT: `grep -rliE "\b(não|você|está|são|também|porque)\b" --include=*.md . | grep -v .git/`

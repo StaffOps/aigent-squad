@@ -1,9 +1,9 @@
 # Design: Security Hardening — Anti-Prompt-Injection Defense-in-Depth
 
-## Arquitetura (defense-in-depth)
+## Architecture (defense-in-depth)
 
-Cada requisição atravessa camadas independentes. Uma camada comprometida não
-compromete as outras (princípio: nenhuma camada confia na anterior).
+Each request crosses independent layers. A compromised layer does not compromise
+the others (principle: no layer trusts the previous one).
 
 ```
                  untrusted input (query / adapter / mcp / history / skill)
@@ -38,136 +38,136 @@ compromete as outras (princípio: nenhuma camada confia na anterior).
 
 ## STRIDE threat model
 
-| STRIDE | Ameaça | Mitigação nesta spec |
-|--------|--------|----------------------|
-| **S**poofing | Requisição se passa por usuário/serviço legítimo | Auth `X-Internal-Token` (spec 04) + rate limit por identidade (L6) |
-| **T**ampering | Injection altera comportamento do agente | Guardrail (L1) + pre-scan (L2) + context isolation (L3) |
-| **R**epudiation | Ataque sem rastro | Audit log estruturado de toda detecção/recusa |
-| **I**nfo disclosure | Exfiltração de infra/PII via resposta | Output filter (L4) + canary (L5) + Guardrail output (L1) |
-| **D**oS / abuso | Token burn, loops caros | Rate limit + budget cap (L6) + max rounds (existente) |
-| **E**levation | Agente é levado a "agir" | **Read-only (fase atual)** (4 camadas) — bloqueia na raiz HOJE; se execução for habilitada, vira a ameaça dominante e exige human-in-the-loop |
+| STRIDE | Threat | Mitigation in this spec |
+|--------|--------|-------------------------|
+| **S**poofing | Request impersonates a legitimate user/service | Auth `X-Internal-Token` (spec 04) + per-identity rate limit (L6) |
+| **T**ampering | Injection alters the agent's behavior | Guardrail (L1) + pre-scan (L2) + context isolation (L3) |
+| **R**epudiation | Attack without a trace | Structured audit log of every detection/refusal |
+| **I**nfo disclosure | Exfiltration of infra/PII via the response | Output filter (L4) + canary (L5) + Guardrail output (L1) |
+| **D**oS / abuse | Token burn, expensive loops | Rate limit + budget cap (L6) + max rounds (existing) |
+| **E**levation | Agent is led to "act" | **Read-only (current phase)** (4 layers) — blocks at the root TODAY; if execution is enabled, it becomes the dominant threat and requires human-in-the-loop |
 
-> O "E" (elevation) — a ameaça mais grave nos concorrentes que agem — é
-> neutralizado pela arquitetura read-only, não por esta spec. Esta spec foca
-> em T/I/D, que é onde o read-only NÃO ajuda.
+> "E" (elevation) — the most severe threat in competitors that act — is
+> neutralized by the read-only architecture, not by this spec. This spec focuses
+> on T/I/D, which is where read-only does NOT help.
 
-## Componentes (camadas)
+## Components (layers)
 
-| # | Componente | Onde | Responsabilidade |
-|---|-----------|------|------------------|
-| L1 | `GuardrailClient` (Bedrock) | wrapper no `bedrock.invoke` | Avaliação input+output independente do modelo |
-| L2 | `InputScanner` | antes de montar contexto | Normalização + heurísticas baratas |
-| L3 | Context isolation | `generic_agent` (existe, reforçar) | Delimitação `<untrusted>` + system reinforcement |
-| L4 | `OutputFilter` | após invoke | PII/segredo/canary na resposta |
-| L5 | `CanaryGuard` | injeção no `infra_data` + checagem na saída | Detecção de exfiltração |
-| L6 | `RateLimiter`/`BudgetGuard` | supervisor entrypoint | Anti-abuso (Redis) |
+| # | Component | Where | Responsibility |
+|---|-----------|-------|----------------|
+| L1 | `GuardrailClient` (Bedrock) | wrapper in `bedrock.invoke` | Model-independent input+output evaluation |
+| L2 | `InputScanner` | before building context | Normalization + cheap heuristics |
+| L3 | Context isolation | `generic_agent` (exists, reinforce) | `<untrusted>` delimitation + system reinforcement |
+| L4 | `OutputFilter` | after invoke | PII/secret/canary in the response |
+| L5 | `CanaryGuard` | inject into `infra_data` + check the output | Exfiltration detection |
+| L6 | `RateLimiter`/`BudgetGuard` | supervisor entrypoint | Anti-abuse (Redis) |
 
-## Rationale (decisões)
+## Rationale (decisions)
 
-### Decisão 1: Bedrock Guardrails como camada primária (não regex próprio)
+### Decision 1: Bedrock Guardrails as the primary layer (not our own regex)
 
-**Escolha**: usar AWS Bedrock Guardrails como detector primário de
-prompt-attack, em vez de construir detecção própria.
+**Choice**: use AWS Bedrock Guardrails as the primary prompt-attack detector,
+instead of building our own detection.
 
-**Justificativa, em ordem de força**:
-1. **Independência do modelo**: o Guardrail avalia separadamente do invoke do
-   agente. Um injection que engana o LLM **não** engana o Guardrail (avaliações
-   distintas). Isso é defense-in-depth de verdade, não a mesma camada duas vezes.
-2. **Multi-idioma nativo**: detecção de prompt-attack do Bedrock cobre múltiplos
-   idiomas — atende ao requisito "qualquer idioma" sem nós treinarmos nada.
-   Diferencial direto: o Azure SRE Agent **só suporta inglês**.
-3. **Gerenciado + evolutivo**: AWS atualiza os detectores; não viramos donos de
-   um classificador de jailbreak (que envelhece rápido).
-4. Já estamos no Bedrock (mesmo plano de IAM/rede) — custo de integração baixo.
+**Justification, in order of strength**:
+1. **Model independence**: the Guardrail evaluates separately from the agent's
+   invoke. An injection that fools the LLM does **not** fool the Guardrail
+   (distinct evaluations). That is real defense-in-depth, not the same layer twice.
+2. **Native multi-language**: Bedrock's prompt-attack detection covers multiple
+   languages — meets the "any language" requirement without us training anything.
+   Direct differentiator: Azure SRE Agent **only supports English**.
+3. **Managed + evolving**: AWS updates the detectors; we don't become owners of a
+   jailbreak classifier (which ages fast).
+4. We are already on Bedrock (same IAM/network plane) — low integration cost.
 
-**Trade-offs aceitos**:
-| Custo | Realidade |
-|-------|-----------|
-| Custo por avaliação (input+output) por request | Segurança é o produto — usuário aceitou |
-| Latência extra por request | Aceito; mitigável com pre-scan barrando lixo antes (L2) |
-| Dependência de serviço AWS | Alinhado à stack; fail-closed cobre indisponibilidade |
+**Accepted trade-offs**:
+| Cost | Reality |
+|------|---------|
+| Cost per evaluation (input+output) per request | Security is the product — the user accepted |
+| Extra latency per request | Accepted; mitigable with pre-scan blocking junk first (L2) |
+| Dependency on an AWS service | Aligned with the stack; fail-closed covers unavailability |
 
-**Quando estaria errada**: se o Guardrail tiver taxa de falso-positivo alta a
-ponto de inviabilizar uso legítimo, ou se um requisito on-prem/multi-cloud
-proibir dependência AWS. Aí: detector próprio ou OSS (ex: Llama Guard) como L1.
+**When it would be wrong**: if the Guardrail has a false-positive rate high
+enough to block legitimate use, or if an on-prem/multi-cloud requirement
+prohibits an AWS dependency. Then: our own detector or OSS (e.g. Llama Guard) as L1.
 
-**Alternativas descartadas**:
-- Regex/heurística como camada primária — frágil, contornável, não multi-idioma
-  (rebaixado para L2, barato, complementar).
-- Llama Guard self-hosted — mais operação, sem ganho claro vs. gerenciado agora.
+**Discarded alternatives**:
+- Regex/heuristics as the primary layer — fragile, bypassable, not multi-language
+  (demoted to L2, cheap, complementary).
+- Self-hosted Llama Guard — more operations, no clear gain vs. managed now.
 
-### Decisão 2: Fail-closed (segurança > disponibilidade)
+### Decision 2: Fail-closed (security > availability)
 
-**Escolha**: se o Guardrail/serviço de segurança não responde, **recusar** a
-query (403), não fazer bypass.
+**Choice**: if the Guardrail/security service does not respond, **refuse** the
+query (403), don't bypass.
 
-**Justificativa**:
-1. O produto inteiro se vende como "seguro e confiável". Um bypass sob falha
-   destrói a garantia — pior que ficar indisponível.
-2. Read-only já limita o dano de um bypass, mas exfiltração/manipulação ainda
-   ocorreriam. Não vale o risco.
-3. **Contraste competitivo**: os concorrentes priorizam disponibilidade (um SRE
-   tool que cai durante incidente é inútil). Nós aceitamos a tensão e
-   escolhemos segurança — porque NÃO somos o caminho crítico de remediação
-   (somos consultivos); se cairmos, o operador ainda tem suas ferramentas.
+**Justification**:
+1. The whole product sells itself as "secure and trustworthy". A bypass under
+   failure destroys the guarantee — worse than being unavailable.
+2. Read-only already limits the damage of a bypass, but exfiltration/manipulation
+   would still occur. Not worth the risk.
+3. **Competitive contrast**: competitors prioritize availability (an SRE tool
+   that goes down during an incident is useless). We accept the tension and
+   choose security — because we are NOT the critical remediation path (we are
+   consultative); if we go down, the operator still has their tools.
 
-**Trade-offs aceitos**:
-| Custo | Realidade |
-|-------|-----------|
-| Indisponibilidade sob falha do guardrail | Aceito; somos consultivos, não o executor |
-| Tensão com "resiliência" pedida | Resolvida a favor de segurança NESTE ponto; resiliência (circuit breaker, fail-open) permanece para dependências NÃO-críticas de segurança (DynamoDB, cache) |
+**Accepted trade-offs**:
+| Cost | Reality |
+|------|---------|
+| Unavailability under guardrail failure | Accepted; we are consultative, not the executor |
+| Tension with the requested "resilience" | Resolved in favor of security AT THIS POINT; resilience (circuit breaker, fail-open) remains for NON-security-critical dependencies (DynamoDB, cache) |
 
-**Quando estaria errada**: se o produto evoluir para caminho crítico de
-operação (improvável dado o read-only).
+**When it would be wrong**: if the product evolves into a critical operations
+path (unlikely given read-only).
 
-### Decisão 3: read-only NÃO é desta spec — é pré-requisito da fase atual
+### Decision 3: read-only is NOT this spec — it's a current-phase prerequisite
 
-**Escolha**: esta spec **não** adiciona enforcement de read-only; ela depende
-do read-only existente (4 camadas) como dado.
+**Choice**: this spec does **not** add read-only enforcement; it depends on the
+existing read-only (4 layers) as a given.
 
-**Justificativa**: read-only é o que torna o threat model tratável (elimina
-elevation/mutação). Misturar as duas diluiria ambas. Esta spec assume read-only
-e ataca o que sobra (exfiltração/manipulação/custo).
+**Justification**: read-only is what makes the threat model tractable (eliminates
+elevation/mutation). Mixing the two would dilute both. This spec assumes
+read-only and attacks what's left (exfiltration/manipulation/cost).
 
-**Signal de reabertura**: se algum dia o read-only for relaxado (agente passa a
-agir), esta spec precisa ser **reescrita** — o threat model muda completamente
-(elevation volta a ser a ameaça dominante, human-in-the-loop vira obrigatório).
+**Reopen signal**: if read-only is ever relaxed (the agent starts to act), this
+spec needs to be **rewritten** — the threat model changes completely (elevation
+becomes the dominant threat again, human-in-the-loop becomes mandatory).
 
-## Posicionamento competitivo (justifica o design)
+## Competitive positioning (justifies the design)
 
-| Dimensão | Datadog Bits / incident.io / PagerDuty / Azure SRE | AIgent-squad |
-|----------|---------------------------------------------------|--------------|
-| Autonomia | Agem (rollback/scale/restart) | **Read-only hoje** (execução é futuro em aberto, com guardrails) |
-| Mitiga injection→mutação via | Human-in-the-loop (muleta) | **Arquitetura** hoje (sem code path de mutação); HITL obrigatório se/quando executar |
-| Blast radius de injection | Alto (pode executar) | **Baixo hoje** (só leitura) |
-| Multi-idioma anti-injection | Limitado (Azure: só inglês) | **Sim** (Bedrock Guardrails) |
-| Postura sob falha de segurança | Disponibilidade-first | **Fail-closed** (segurança-first) |
-| Pitch | "automatiza remediação" | **"read-only por padrão; quando agir, com guardrails que os outros não têm desde o início"** |
+| Dimension | Datadog Bits / incident.io / PagerDuty / Azure SRE | AIgent-squad |
+|-----------|---------------------------------------------------|--------------|
+| Autonomy | Act (rollback/scale/restart) | **Read-only today** (execution is open future, with guardrails) |
+| Mitigates injection→mutation via | Human-in-the-loop (crutch) | **Architecture** today (no mutation code path); HITL mandatory if/when executing |
+| Injection blast radius | High (can execute) | **Low today** (read only) |
+| Multi-language anti-injection | Limited (Azure: English only) | **Yes** (Bedrock Guardrails) |
+| Posture under security failure | Availability-first | **Fail-closed** (security-first) |
+| Pitch | "automates remediation" | **"read-only by default; when it acts, with guardrails the others didn't have from the start"** |
 
-> Hoje não competimos em autonomia — competimos em **confiança verificável**.
-> Quando a execução entrar, esta spec é o que permite agir *com* a garantia que
-> os concorrentes só adicionaram depois. É a materialização técnica do pitch.
+> Today we don't compete on autonomy — we compete on **verifiable trust**. When
+> execution arrives, this spec is what lets us act *with* the guarantee the
+> competitors only added later. It's the technical materialization of the pitch.
 
-## Invariantes
+## Invariants
 
-- Nenhuma camada confia na anterior (defense-in-depth real).
-- Fail-closed em qualquer falha de componente de segurança (L1, L2, L4).
-- Audit log nunca registra o payload malicioso em claro (evita log injection /
-  re-exposição).
-- `agent_id`/`user_id`/`session_id` em todo evento de auditoria (rastreio).
-- Read-only é a postura da fase atual (esta spec não o toca, nem o torna eterno).
+- No layer trusts the previous one (real defense-in-depth).
+- Fail-closed on any security-component failure (L1, L2, L4).
+- The audit log never records the malicious payload in clear text (avoids log
+  injection / re-exposure).
+- `agent_id`/`user_id`/`session_id` in every audit event (traceability).
+- Read-only is the current-phase posture (this spec doesn't touch it, nor make it eternal).
 
-## Dependências externas
+## External dependencies
 
-| Serviço | Propósito |
-|---------|-----------|
-| AWS Bedrock Guardrails | Detecção primária input/output (L1) |
+| Service | Purpose |
+|---------|---------|
+| AWS Bedrock Guardrails | Primary input/output detection (L1) |
 | Redis | Rate limit + budget counters (L6) |
-| OTel/audit sink | Log estruturado de detecções |
+| OTel/audit sink | Structured detection log |
 
-## Fases (não-big-bang)
+## Phases (not big-bang)
 
-A implementação é incremental (ver tasks.md). Ordem por valor/risco:
-L1 (Guardrail) + fail-closed primeiro (maior ganho), depois L4/L5 (exfil),
-depois L2 (otimização de custo), L6 (abuso), por fim a suíte multi-idioma como
-gate de regressão.
+Implementation is incremental (see tasks.md). Order by value/risk:
+L1 (Guardrail) + fail-closed first (biggest gain), then L4/L5 (exfil), then L2
+(cost optimization), L6 (abuse), and finally the multi-language suite as a
+regression gate.

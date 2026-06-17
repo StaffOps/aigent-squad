@@ -97,6 +97,7 @@ If unable to classify, return an empty agents list."""
                 temperature=0.3,
                 use_cache=True,
                 agent_id="classifier",
+                match_user_language=False,  # classifier returns JSON, not prose
             )
         except Exception as e:
             logger.warning("Classifier LLM failed, using keyword fallback", extra={"error": str(e)})

@@ -1,31 +1,31 @@
 # Design: LLM Provider Abstraction
 
-## Arquitetura
+## Architecture
 
 ```
         GenericAgent / Classifier
                   │  invoke(messages, system_prompt, ..., agent_id)
                   ▼
         ┌─────────────────────────────┐
-        │  LLMService (camada comum)   │  ← circuit breaker, retry/backoff,
-        │                             │     métricas token/custo {model,agent_id},
+        │  LLMService (common layer)   │  ← circuit breaker, retry/backoff,
+        │                             │     token/cost metrics {model,agent_id},
         │                             │     prompt-caching policy (spec 11)
         └──────────────┬──────────────┘
-                       │  delega transporte para
+                       │  delegates transport to
             ┌──────────▼───────────┐
             │   LLMProvider (Protocol) │
             └──────────┬───────────┘
         ┌──────────────┼───────────────┐
         ▼              ▼               ▼
- BedrockProvider   (futuro)        (futuro)
- (boto3, hoje)     LiteLLMProvider  AnthropicProvider
+ BedrockProvider   (future)        (future)
+ (boto3, today)    LiteLLMProvider  AnthropicProvider
 ```
 
-**Princípio**: o que é **transversal** (resiliência, métricas, custo) fica na
-`LLMService` — UMA vez, vale para todos os providers. O `LLMProvider` só faz o
-**transporte** (montar request, chamar, parsear resposta → texto + usage).
+**Principle**: what is **cross-cutting** (resilience, metrics, cost) lives in
+`LLMService` — ONCE, for all providers. The `LLMProvider` only does the
+**transport** (build request, call, parse response → text + usage).
 
-## Interface (rascunho)
+## Interface (draft)
 
 ```python
 class LLMProvider(Protocol):
@@ -35,76 +35,76 @@ class LLMProvider(Protocol):
         system_prompt: str,
         max_tokens: int,
         temperature: float,
-        model: str,            # model id OU ARN do AIP (Bedrock)
-    ) -> LLMResult: ...        # texto + usage(input/output tokens) + model real
+        model: str,            # model id OR the AIP ARN (Bedrock)
+    ) -> LLMResult: ...        # text + usage(input/output tokens) + actual model
 ```
 
-`LLMResult` carrega `input_tokens`/`output_tokens`/`model` para a `LLMService`
-emitir as métricas (preserva spec 27). O `agent_id` é label aplicado pela
-`LLMService`, não responsabilidade do provider.
+`LLMResult` carries `input_tokens`/`output_tokens`/`model` so `LLMService` can
+emit the metrics (preserves spec 27). `agent_id` is a label applied by
+`LLMService`, not the provider's responsibility.
 
-## Rationale (decisões)
+## Rationale (decisions)
 
-### Decisão 1: abstração própria com providers plugáveis (não litellm no core)
+### Decision 1: our own abstraction with pluggable providers (not litellm in the core)
 
-**Escolha**: introduzir `LLMProvider` (Protocol) nossa; `litellm`, se adotado,
-é UMA implementação por baixo — não o substituto do `BedrockClient`.
+**Choice**: introduce our `LLMProvider` (Protocol); `litellm`, if adopted, is
+ONE implementation underneath — not the replacement for `BedrockClient`.
 
-**Justificativa, em ordem de força**:
-1. **Preserva o que construímos**: circuit breaker, retry, e — crítico —
-   métricas de custo por `agent_id` (spec 27) e cost-attribution via AIP. Se o
-   litellm virasse o core, teríamos que re-cabear isso nos callbacks dele
-   (sistema de cost-tracking próprio, diferente do nosso).
-2. **Desacopla sem comprometer com uma lib**: a interface vale mesmo se nunca
-   adotarmos litellm (poderíamos escrever `AnthropicProvider` à mão).
-3. **Refactor seguro**: `BedrockProvider` = código atual movido, comportamento
-   idêntico, mesmos testes.
+**Justification, in order of strength**:
+1. **Preserves what we built**: circuit breaker, retry, and — critically —
+   per-`agent_id` cost metrics (spec 27) and AIP cost-attribution. If litellm
+   became the core, we'd have to re-wire that into its callbacks (it has its own
+   cost-tracking system, different from ours).
+2. **Decouples without committing to a lib**: the interface holds even if we
+   never adopt litellm (we could write `AnthropicProvider` by hand).
+3. **Safe refactor**: `BedrockProvider` = current code moved, identical
+   behavior, same tests.
 
-**Trade-offs aceitos**:
-| Custo | Realidade |
-|-------|-----------|
-| Mais uma camada (LLMService + Provider) | Pequena; isola transporte de política |
-| Não "ganhamos litellm de graça" no core | De propósito — o core é nosso |
+**Accepted trade-offs**:
+| Cost | Reality |
+|------|---------|
+| One more layer (LLMService + Provider) | Small; isolates transport from policy |
+| We don't "get litellm for free" in the core | On purpose — the core is ours |
 
-**Quando estaria errada**: se a manutenção de múltiplos providers à mão crescer
-muito, litellm-no-core passa a valer (mas aí re-cabeando métricas
-conscientemente).
+**When it would be wrong**: if maintaining multiple hand-written providers grows
+a lot, litellm-in-the-core starts to pay off (but then re-wiring metrics
+consciously).
 
-### Decisão 2: litellm é candidato, não pré-requisito
+### Decision 2: litellm is a candidate, not a prerequisite
 
-**Escolha**: a abstração vem primeiro (Decisão 1). litellm vs cliente à mão é
-decisão da SEGUNDA implementação, separada.
+**Choice**: the abstraction comes first (Decision 1). litellm vs a hand-written
+client is the SECOND implementation's decision, separate.
 
-**Justificativa**: o passo 1 (extrair interface) já entrega desacoplamento e é
-risco baixo. Escolher a 2ª implementação sem pressa permite avaliar litellm de
-verdade (licença MIT — dependência OK; maturidade; overhead).
+**Justification**: step 1 (extract the interface) already delivers decoupling and
+is low risk. Choosing the 2nd implementation without rush allows a real
+evaluation of litellm (MIT license — dependency OK; maturity; overhead).
 
-### Decisão 3: cost-attribution é invariante a preservar (não regredir)
+### Decision 3: cost-attribution is an invariant to preserve (do not regress)
 
-**Escolha**: qualquer provider DEVE permitir que `LLMService` emita
-`tokens{model,agent_id,direction}` e `cost{model,agent_id}`.
+**Choice**: any provider MUST allow `LLMService` to emit
+`tokens{model,agent_id,direction}` and `cost{model,agent_id}`.
 
-**Justificativa**: spec 27 é a base do FinOps do produto. Trocar transporte não
-pode cegar o custo. **Armadilha conhecida**: litellm tem cost-tracking próprio;
-se delegássemos a ele, perderíamos o label `agent_id`. Por isso métrica fica na
-`LLMService`, alimentada pelo `usage` que o provider retorna.
+**Justification**: spec 27 is the product's FinOps foundation. Switching
+transport cannot blind cost. **Known trap**: litellm has its own cost-tracking;
+if we delegated to it, we'd lose the `agent_id` label. That's why the metric
+stays in `LLMService`, fed by the `usage` the provider returns.
 
-## Invariantes
+## Invariants
 
-- Métricas de custo por `agent_id`+`model` NUNCA regridem (spec 27).
-- Cost-attribution via AIP (Bedrock) continua: ARN do AIP entra como `model`.
-- `BedrockProvider` mantém comportamento idêntico ao `BedrockClient` atual.
-- Resiliência (circuit breaker/retry) é da `LLMService`, não duplicada.
+- Per-`agent_id`+`model` cost metrics NEVER regress (spec 27).
+- AIP cost-attribution (Bedrock) continues: the AIP ARN goes in as `model`.
+- `BedrockProvider` keeps behavior identical to the current `BedrockClient`.
+- Resilience (circuit breaker/retry) belongs to `LLMService`, not duplicated.
 
-## Licenciamento (clean-room)
+## Licensing (clean-room)
 
-- Implementação **do zero**; nenhuma cópia de código de HolmesGPT/Aurora/etc.
-- litellm (se adotado) = dependência declarada (MIT), não cópia de source.
-- Inspiração conceitual (ex: "provider plugável") é livre; expressão não se copia.
+- Implementation **from scratch**; no code copied from HolmesGPT/Aurora/etc.
+- litellm (if adopted) = declared dependency (MIT), not a source copy.
+- Conceptual inspiration (e.g. "pluggable provider") is free; expression is not copied.
 
-## Dependências externas (potenciais)
+## External dependencies (potential)
 
-| Serviço/lib | Propósito | Licença |
-|-------------|-----------|---------|
-| boto3 | Bedrock (atual) | Apache-2.0 (já em uso) |
-| litellm (candidato) | multi-provider transport | MIT (verificar na adoção) |
+| Service/lib | Purpose | License |
+|-------------|---------|---------|
+| boto3 | Bedrock (current) | Apache-2.0 (already in use) |
+| litellm (candidate) | multi-provider transport | MIT (verify on adoption) |

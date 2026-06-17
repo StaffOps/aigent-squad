@@ -1,111 +1,113 @@
 # Feature: Security Hardening — Anti-Prompt-Injection Defense-in-Depth
 
 **Spec**: `14-security-hardening`
-**Severidade**: 🔴 Critical (posicionamento de produto, não só feature)
-**Depende de**: `04-harden-security` (auth, non-root, delimitação básica — done)
-**Relacionado**: `ADR-001` (read-only), `docs/READ_ONLY_POLICY.md`, ROADMAP spec 14
+**Severity**: 🔴 Critical (product positioning, not just a feature)
+**Depends on**: `04-harden-security` (auth, non-root, basic delimitation — done)
+**Related**: `ADR-001` (read-only), `docs/READ_ONLY_POLICY.md`, ROADMAP spec 14
 
 ---
 
-## Tese (por que isto é o produto, não um detalhe)
+## Thesis (why this is the product, not a detail)
 
-O AIgent-squad compete na mesma categoria que Datadog Bits AI SRE, incident.io,
-PagerDuty AI SRE e Azure SRE Agent. **A diferença deliberada (hoje)**: esses
-produtos **agem** (rollback, scale, restart — com human-in-the-loop como muleta
-de segurança). O AIgent-squad é **read-only na fase atual** — hoje não executa.
+AIgent-squad competes in the same category as Datadog Bits AI SRE, incident.io,
+PagerDuty AI SRE, and Azure SRE Agent. **The deliberate difference (today)**:
+those products **act** (rollback, scale, restart — with human-in-the-loop as a
+safety crutch). AIgent-squad is **read-only in the current phase** — it doesn't
+execute today.
 
-> **Read-only não é permanente.** Executar ações é uma possibilidade futura em
-> aberto no roadmap (não está descartada). Mas a postura de segurança DEPENDE
-> de qual modo está ativo, e esta spec é **pré-requisito bloqueante** para
-> habilitar execução:
-> - **Enquanto read-only** (hoje): o pior caso de um injection é exfiltração/
->   manipulação/custo — nunca mutação. Esta spec endurece essa superfície.
-> - **Se/quando executar** (futuro): o "Elevation" do STRIDE volta a ser a
->   ameaça dominante; injection poderia disparar ação destrutiva. Então
->   execução é condicionada a (a) esta spec implementada E (b)
->   **human-in-the-loop obrigatório** para qualquer ação mutante.
+> **Read-only is not permanent.** Executing actions is an open future possibility
+> on the roadmap (not ruled out). But the security posture DEPENDS on which mode
+> is active, and this spec is a **blocking prerequisite** to enable execution:
+> - **While read-only** (today): the worst case of an injection is exfiltration/
+>   manipulation/cost — never mutation. This spec hardens that surface.
+> - **If/when executing** (future): STRIDE's "Elevation" becomes the dominant
+>   threat again; an injection could trigger a destructive action. So execution
+>   is conditional on (a) this spec implemented AND (b) **mandatory
+>   human-in-the-loop** for any mutating action.
 
-Isso inverte a relação com prompt injection:
-- Num agente que **age**, um injection bem-sucedido = incidente de produção
-  (ex: "role back the prod database" executado).
-- Num agente **read-only**, o pior caso de um injection = exfiltração de dado
-  coletado, manipulação da recomendação, ou abuso de custo. **Nunca mutação.**
+This inverts the relationship with prompt injection:
+- In an agent that **acts**, a successful injection = production incident (e.g.
+  "roll back the prod database" executed).
+- In a **read-only** agent, the worst case of an injection = exfiltration of
+  collected data, manipulation of the recommendation, or cost abuse. **Never
+  mutation.**
 
-Portanto o posicionamento atual é: **"o AI SRE em que você confia — read-only
-por padrão, e quando agir, agirá com guardrails que os outros não têm desde o
-início"**. Guardrails fortíssimos + anti-injection multi-idioma **são o
-diferencial competitivo** (e o que torna a execução futura segura), não um
-nice-to-have. Esta spec eleva a defesa de injection de 1 camada (delimitação
-textual) para defense-in-depth real.
+So the current positioning is: **"the AI SRE you trust — read-only by default,
+and when it acts, it will act with guardrails the others didn't have from the
+start"**. Strong guardrails + multi-language anti-injection **are the
+competitive differentiator** (and what makes future execution safe), not a
+nice-to-have. This spec raises injection defense from 1 layer (textual
+delimitation) to real defense-in-depth.
 
-## Threat model (resumo — STRIDE completo no design)
+## Threat model (summary — full STRIDE in the design)
 
-Na fase read-only atual, a classe "mutação" está eliminada, então o foco é
-exfiltração/manipulação/custo. **Quando execução for habilitada, este threat
-model precisa ser estendido** (elevation/mutação voltam — ver design.md):
+In the current read-only phase, the "mutation" class is eliminated, so the focus
+is exfiltration/manipulation/cost. **When execution is enabled, this threat model
+must be extended** (elevation/mutation return — see design.md):
 
-| Ameaça | Vetor | Impacto |
-|--------|-------|---------|
-| **Exfiltração** | Injection faz o agente vazar inventário/configs coletados | Vazamento de dados de infra |
-| **Manipulação de resposta** | Injection faz o agente recomendar algo malicioso ao operador | Operador age errado com base em conselho envenenado |
-| **Abuso de custo** | Injection força invocações caras / loops | Token burn, custo |
-| **Jailbreak multi-idioma** | Ataque em PT/ES/zh/etc. ou ofuscado (base64, leetspeak, unicode) | Burla delimitação textual |
-| **Cross-tenant leak** | Dados de uma sessão/usuário vazam pra outra | Quebra isolamento |
+| Threat | Vector | Impact |
+|--------|--------|--------|
+| **Exfiltration** | Injection makes the agent leak collected inventory/configs | Infra data leak |
+| **Response manipulation** | Injection makes the agent recommend something malicious to the operator | Operator acts wrongly on poisoned advice |
+| **Cost abuse** | Injection forces expensive invocations / loops | Token burn, cost |
+| **Multi-language jailbreak** | Attack in PT/ES/zh/etc. or obfuscated (base64, leetspeak, unicode) | Bypasses textual delimitation |
+| **Cross-tenant leak** | Data from one session/user leaks into another | Breaks isolation |
 
 ## User Stories
 
-WHEN qualquer input não-confiável (query do usuário, saída de adapter/MCP,
-histórico, skill) entra no fluxo THEN o sistema SHALL avaliá-lo contra um
-guardrail independente do prompt do agente, **em qualquer idioma**.
+WHEN any untrusted input (user query, adapter/MCP output, history, skill) enters
+the flow THEN the system SHALL evaluate it against a guardrail independent of the
+agent's prompt, **in any language**.
 
-WHEN o guardrail detecta prompt attack/jailbreak THEN o sistema SHALL recusar
-a requisição (fail-closed) e registrar o evento — não tentar "limpar" e seguir.
+WHEN the guardrail detects a prompt attack/jailbreak THEN the system SHALL refuse
+the request (fail-closed) and log the event — not try to "clean" it and proceed.
 
-WHEN o guardrail/serviço de segurança está indisponível THEN o sistema SHALL
-**recusar** (fail-closed), priorizando segurança sobre disponibilidade.
+WHEN the guardrail/security service is unavailable THEN the system SHALL
+**refuse** (fail-closed), prioritizing security over availability.
 
-WHEN a resposta do agente é gerada THEN ela SHALL passar por filtro de saída
-(PII, segredos, canary tokens) ANTES de retornar ao usuário.
+WHEN the agent's response is generated THEN it SHALL pass through an output
+filter (PII, secrets, canary tokens) BEFORE returning to the user.
 
-WHEN dados de infra são injetados no contexto THEN eles SHALL conter canary
-tokens que, se aparecerem na saída, sinalizam exfiltração.
+WHEN infra data is injected into the context THEN it SHALL contain canary tokens
+that, if they appear in the output, signal exfiltration.
 
-WHEN o sistema processa requisições THEN ele SHALL impor rate limit + budget
-cap por usuário/sessão para conter abuso de custo via injection.
+WHEN the system processes requests THEN it SHALL enforce a rate limit + budget
+cap per user/session to contain cost abuse via injection.
 
 ## Acceptance Criteria
 
-- [ ] **Camada 1 — Bedrock Guardrails** ativo em todo invoke (input + output),
-      com prompt-attack detection, denied topics, PII, multi-idioma.
-- [ ] **Camada 2 — Input pre-scan**: normalização (unicode/base64/homoglyph) +
-      heurísticas antes do LLM; detecções óbvias barram sem custo de invoke.
-- [ ] **Camada 3 — Context isolation**: dados não-confiáveis em blocos
-      delimitados + instrução de sistema reforçada (mantém o que já existe).
-- [ ] **Camada 4 — Output filter**: PII/segredos/canary scan na resposta.
-- [ ] **Camada 5 — Canary tokens**: injetados no contexto de infra; leak →
-      alerta + bloqueio.
-- [ ] **Camada 6 — Rate limit + budget cap** por usuário/sessão (anti-abuso).
-- [ ] **Fail-closed**: indisponibilidade do guardrail → 403, não bypass.
-- [ ] **Multi-idioma comprovado**: suíte de testes com ataques em ≥5 idiomas +
-      ofuscações (base64, leetspeak, zero-width, unicode confusables).
-- [ ] **Audit log** estruturado de toda detecção/recusa (sem vazar o payload
-      malicioso em claro nos logs).
-- [ ] **Read-only mantido na fase atual** (não regredir acidentalmente); habilitar execução é decisão explícita e fora desta spec.
-- [ ] Cobertura de testes ≥90% no código novo.
+- [ ] **Layer 1 — Bedrock Guardrails** active on every invoke (input + output),
+      with prompt-attack detection, denied topics, PII, multi-language.
+- [ ] **Layer 2 — Input pre-scan**: normalization (unicode/base64/homoglyph) +
+      heuristics before the LLM; obvious detections blocked without invoke cost.
+- [ ] **Layer 3 — Context isolation**: untrusted data in delimited blocks +
+      reinforced system instruction (keeps what already exists).
+- [ ] **Layer 4 — Output filter**: PII/secrets/canary scan on the response.
+- [ ] **Layer 5 — Canary tokens**: injected into the infra context; leak →
+      alert + block.
+- [ ] **Layer 6 — Rate limit + budget cap** per user/session (anti-abuse).
+- [ ] **Fail-closed**: guardrail unavailability → 403, not bypass.
+- [ ] **Multi-language proven**: a test suite with attacks in ≥5 languages +
+      obfuscations (base64, leetspeak, zero-width, unicode confusables).
+- [ ] **Audit log** structured for every detection/refusal (without leaking the
+      malicious payload in clear text in the logs).
+- [ ] **Read-only kept in the current phase** (don't regress accidentally);
+      enabling execution is an explicit decision outside this spec.
+- [ ] ≥90% test coverage on new code.
 
-## Fora de escopo
+## Out of scope
 
-- Habilitar o agente a agir/executar — **trabalho futuro em aberto**, fora
-  desta spec. Quando endereçado, exige estender o threat model (elevation) +
-  human-in-the-loop + esta spec implementada como pré-requisito.
-- WAF de rede / DDoS (camada de infra, não de aplicação — outra spec).
-- Treinar modelo próprio de detecção (usa Bedrock Guardrails gerenciado).
+- Enabling the agent to act/execute — **open future work**, outside this spec.
+  When addressed, it requires extending the threat model (elevation) +
+  human-in-the-loop + this spec implemented as a prerequisite.
+- Network WAF / DDoS (infra layer, not application — another spec).
+- Training our own detection model (uses managed Bedrock Guardrails).
 
-## Trade-offs declarados (decididos pelo usuário)
+## Declared trade-offs (decided by the user)
 
-- **Custo**: cada invoke ganha custo de avaliação do Guardrail (input+output).
-  Aceito — segurança é o produto.
-- **Latência**: +avaliação por request. Aceito.
-- **Disponibilidade**: fail-closed reduz disponibilidade sob falha do guardrail.
-  Aceito — segurança > uptime para este produto (diferente dos concorrentes,
-  que priorizam disponibilidade).
+- **Cost**: every invoke gains a Guardrail evaluation cost (input+output).
+  Accepted — security is the product.
+- **Latency**: +evaluation per request. Accepted.
+- **Availability**: fail-closed reduces availability under guardrail failure.
+  Accepted — security > uptime for this product (unlike competitors, who
+  prioritize availability).

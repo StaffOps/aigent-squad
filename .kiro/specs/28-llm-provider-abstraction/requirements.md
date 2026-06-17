@@ -1,67 +1,66 @@
 # Feature: LLM Provider Abstraction (multi-provider layer)
 
 **Spec**: `28-llm-provider-abstraction`
-**Status**: 📝 design only — não implementar sem decisão explícita
-**Depende de**: `ADR-001` (reabre a decisão "Bedrock direto, sem framework")
-**Relacionado**: `27-bedrock-cost-attribution`, `11-bedrock-resilience-cost`,
+**Status**: 📝 design only — do not implement without an explicit decision
+**Depends on**: `ADR-001` (reopens the "Bedrock-direct, no framework" decision)
+**Related**: `27-bedrock-cost-attribution`, `11-bedrock-resilience-cost`,
 `steering/efficiency-cost.md`
 
 ---
 
-## Objetivo
+## Objective
 
-Permitir que o AIgent-squad use **múltiplos provedores de LLM** (Bedrock hoje;
-Anthropic direto, OpenAI, Gemini no futuro) atrás de uma interface única, sem
-reescrever os agentes nem perder o que já construímos (circuit breaker, retry,
-métricas de custo por agente, cost-attribution via AIP).
+Allow AIgent-squad to use **multiple LLM providers** (Bedrock today; Anthropic
+direct, OpenAI, Gemini in the future) behind a single interface, without
+rewriting the agents or losing what we already built (circuit breaker, retry,
+per-agent cost metrics, AIP cost-attribution).
 
-Hoje o `src/core/bedrock.py::BedrockClient` é a única implementação, acoplada ao
-boto3 + formato Anthropic-on-Bedrock. Os callers (GenericAgent, Classifier)
-chamam `bedrock.invoke(...)` diretamente.
+Today `src/core/bedrock.py::BedrockClient` is the only implementation, coupled to
+boto3 + the Anthropic-on-Bedrock format. Callers (GenericAgent, Classifier) call
+`bedrock.invoke(...)` directly.
 
-## ⚠️ Licenciamento (clean-room — MANDATÓRIO)
+## ⚠️ Licensing (clean-room — MANDATORY)
 
-Esta abstração pode ser inspirada em padrões de projetos open-source estudados
-(HolmesGPT usa `litellm`), MAS:
-- **NÃO copiar código** de nenhum repo de terceiro (Apache-2.0/MIT/etc.).
-  Copyright protege a expressão, não a ideia. Implementação é **do zero**.
-- Se adotar `litellm`, é **dependência declarada** (via package manager,
-  licença respeitada no nível de dependência) — não cópia de source.
-- Qualquer dependência nova tem a licença verificada e declarada antes de adotar.
+This abstraction may be inspired by patterns from studied open-source projects
+(HolmesGPT uses `litellm`), BUT:
+- **DO NOT copy code** from any third-party repo (Apache-2.0/MIT/etc.).
+  Copyright protects expression, not the idea. Implementation is **from scratch**.
+- If `litellm` is adopted, it is a **declared dependency** (via package manager,
+  license respected at the dependency level) — not a source copy.
+- Any new dependency has its license verified and declared before adoption.
 
 ## User Stories
 
-WHEN um agente invoca o LLM THEN ele SHALL usar uma interface `LLMProvider`
-única, agnóstica de provedor, com a mesma assinatura de hoje
+WHEN an agent invokes the LLM THEN it SHALL use a single, provider-agnostic
+`LLMProvider` interface, with the same signature as today
 (`messages`, `system_prompt`, `max_tokens`, `temperature`, `agent_id`).
 
-WHEN o provedor é trocado (via config/env) THEN os agentes NÃO SHALL precisar
-de alteração de código.
+WHEN the provider is switched (via config/env) THEN the agents SHALL NOT require
+code changes.
 
-WHEN qualquer provedor é usado THEN circuit breaker, retry, e **métricas de
-token/custo labeladas por `agent_id` + `model`** SHALL continuar funcionando
-(preservar spec 27).
+WHEN any provider is used THEN the circuit breaker, retry, and **token/cost
+metrics labeled by `agent_id` + `model`** SHALL keep working (preserve spec 27).
 
-WHEN o provedor é Bedrock com Application Inference Profile THEN a
-cost-attribution via AIP SHALL continuar funcionando (o ARN do AIP passa como
-identificador de modelo).
+WHEN the provider is Bedrock with an Application Inference Profile THEN
+cost-attribution via AIP SHALL keep working (the AIP ARN is passed as the model
+identifier).
 
 ## Acceptance Criteria
 
-- [ ] Interface `LLMProvider` (Protocol) com `invoke(...)` — assinatura atual.
-- [ ] `BedrockProvider` = refactor do `BedrockClient` atual, **comportamento
-      idêntico** (mesmos testes passam sem mudança de expectativa).
-- [ ] Circuit breaker, retry e métricas vivem na **camada comum** (acima do
-      provider), não duplicados por implementação.
-- [ ] Seleção de provider por env var (`LLM_PROVIDER=bedrock|...`).
-- [ ] Segundo provider é decisão separada (litellm vs cliente à mão — ver design).
-- [ ] Cost-attribution (spec 27) validada com o provider selecionado.
-- [ ] Cobertura ≥90% no código novo; testes do `BedrockProvider` = os atuais.
-- [ ] ADR-001 atualizada (ou ADR nova) registrando a mudança e o trade-off.
+- [ ] `LLMProvider` interface (Protocol) with `invoke(...)` — current signature.
+- [ ] `BedrockProvider` = refactor of the current `BedrockClient`, **identical
+      behavior** (same tests pass with no change in expectations).
+- [ ] Circuit breaker, retry, and metrics live in the **common layer** (above the
+      provider), not duplicated per implementation.
+- [ ] Provider selection via env var (`LLM_PROVIDER=bedrock|...`).
+- [ ] The second provider is a separate decision (litellm vs hand-written — see design).
+- [ ] Cost-attribution (spec 27) validated with the selected provider.
+- [ ] ≥90% coverage on new code; `BedrockProvider` tests = the current ones.
+- [ ] ADR-001 updated (or a new ADR) recording the change and the trade-off.
 
-## Fora de escopo
+## Out of scope
 
-- Implementar N providers de uma vez — começar pela abstração + Bedrock; o
-  segundo provider é entrega separada.
-- Orquestração de agentes por framework (LangGraph/Strands) — segue rejeitado
-  pela ADR-001; esta spec é só **transporte de LLM**, não orquestração.
+- Implementing N providers at once — start with the abstraction + Bedrock; the
+  second provider is a separate delivery.
+- Agent orchestration via a framework (LangGraph/Strands) — still rejected by
+  ADR-001; this spec is only **LLM transport**, not orchestration.
