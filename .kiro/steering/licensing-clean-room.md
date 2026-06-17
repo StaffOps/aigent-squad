@@ -1,63 +1,64 @@
 # Licensing & Clean-Room — MANDATORY
 
-Regra **mandatória** e inegociável: **nunca copiar código de repositórios de
-terceiros** para o nosso source. Aprender com eles é livre; copiar a expressão
-deles não é.
+A **mandatory**, non-negotiable rule: **never copy code from third-party
+repositories** into our source. Learning from them is free; copying their
+expression is not.
 
-Esta regra existe porque o projeto estuda ativamente outros projetos open-source
-(ver `docs/COMPETITIVE-ANALYSIS.md`) com licenças variadas e **incompatíveis
-entre si para mistura** (Apache-2.0, MIT, SigmaHQ/DRL, etc.). Copiar contaminaria
-o repo com obrigações de atribuição/licença que não queremos carregar.
+This rule exists because the project actively studies other open-source projects
+(see `docs/COMPETITIVE-ANALYSIS.md`) with varied licenses that are **mutually
+incompatible for mixing** (Apache-2.0, MIT, SigmaHQ/DRL, etc.). Copying would
+contaminate the repo with attribution/license obligations we don't want to carry.
 
 ---
 
-## CRITICAL: a linha que não se cruza
+## CRITICAL: the line you do not cross
 
-**Copyright protege a EXPRESSÃO (o código literal), não a IDEIA.**
+**Copyright protects the EXPRESSION (the literal code), not the IDEA.**
 
-| Permitido (livre) | Proibido (mandatório não fazer) |
-|-------------------|----------------------------------|
-| Ler e entender como um projeto faz algo | Copiar/colar arquivo ou trecho de código de terceiro |
-| Descrever o padrão/conceito com atribuição | Traduzir o código deles linha-a-linha pro nosso estilo |
-| **Implementar do zero** a partir do entendimento | Copiar estrutura literal de arquivo (mesma ordem, mesmos nomes, mesma lógica copiada) |
-| Citar o projeto como inspiração numa spec/ADR | Copiar configs/regras/datasets sob licença própria |
+| Allowed (free) | Forbidden (mandatory not to do) |
+|----------------|----------------------------------|
+| Read and understand how a project does something | Copy/paste a third-party file or code snippet |
+| Describe the pattern/concept with attribution | Translate their code line-by-line into our style |
+| **Implement from scratch** from the understanding | Copy a file's literal structure (same order, same names, same copied logic) |
+| Cite the project as inspiration in a spec/ADR | Copy configs/rules/datasets under their own license |
 
-Inspiração conceitual ("usar context-spill-to-disk", "provider plugável",
-"HITL por-tool") é **livre** — são ideias. A implementação é **nossa, do zero**.
+Conceptual inspiration ("use context-spill-to-disk", "pluggable provider",
+"per-tool HITL") is **free** — those are ideas. The implementation is **ours,
+from scratch**.
 
-## Dependências de terceiros (o caminho limpo para reúso)
+## Third-party dependencies (the clean path to reuse)
 
-Quando reusar código de terceiro for genuinamente a melhor opção, fazer via
-**dependência declarada** (package manager), NUNCA colando source:
+When reusing third-party code is genuinely the best option, do it via a
+**declared dependency** (package manager), NEVER by pasting source:
 
-- Adicionar como dependência pinada (`requirements.txt`/`pyproject.toml`).
-- **Verificar e declarar a licença ANTES de adotar.** Flagar explicitamente ao
-  usuário (ex: "litellm é MIT — OK adicionar?").
-- Preferir licenças permissivas (MIT, Apache-2.0, BSD). Sinalizar copyleft
-  (GPL/AGPL) como decisão consciente — pode contaminar.
-- Nomes incomuns / possível typosquatting → flagar (ver `code-quality`/segurança).
+- Add it as a pinned dependency (`requirements.txt`/`pyproject.toml`).
+- **Verify and declare the license BEFORE adopting.** Flag it explicitly to the
+  user (e.g. "litellm is MIT — OK to add?").
+- Prefer permissive licenses (MIT, Apache-2.0, BSD). Flag copyleft (GPL/AGPL) as
+  a conscious decision — it can contaminate.
+- Unusual names / possible typosquatting → flag (see `code-quality`/security).
 
-## Datasets, regras e conteúdo (não só código)
+## Datasets, rules, and content (not just code)
 
-A regra vale além de `.py`: regras SigmaHQ, datasets de benchmark, prompts,
-templates, configs sob licença própria — mesma disciplina. Reusar só com a
-licença respeitada e declarada; preferir reimplementar/recriar do zero.
+The rule goes beyond `.py`: SigmaHQ rules, benchmark datasets, prompts,
+templates, configs under their own license — same discipline. Reuse only with
+the license respected and declared; prefer reimplementing/recreating from scratch.
 
-## Atribuição quando inspirado
+## Attribution when inspired
 
-Ao implementar algo inspirado num projeto estudado, **citar a fonte** na spec/
-ADR/comentário ("padrão inspirado em X") — honestidade intelectual, e deixa
-claro que é reimplementação, não cópia.
+When implementing something inspired by a studied project, **cite the source** in
+the spec/ADR/comment ("pattern inspired by X") — intellectual honesty, and it
+makes clear it is a reimplementation, not a copy.
 
 ## Anti-patterns
 
-- ❌ Copiar trecho "só pra começar, depois eu mudo"
-- ❌ Traduzir arquivo de terceiro pro nosso estilo e tratar como nosso
-- ❌ Adotar dependência sem verificar/declarar a licença
-- ❌ Copiar regras/datasets/prompts sob licença sem respeitar os termos
-- ❌ Misturar código de licenças incompatíveis no mesmo repo
+- ❌ Copying a snippet "just to start, I'll change it later"
+- ❌ Translating a third-party file into our style and treating it as ours
+- ❌ Adopting a dependency without verifying/declaring the license
+- ❌ Copying rules/datasets/prompts under a license without respecting the terms
+- ❌ Mixing code from incompatible licenses in the same repo
 
-## Em caso de dúvida
+## When in doubt
 
-Se não está claro se algo é "ideia" (livre) ou "expressão" (protegida):
-**parar e perguntar ao usuário**. Nunca assumir que pode copiar.
+If it is not clear whether something is an "idea" (free) or "expression"
+(protected): **stop and ask the user**. Never assume you can copy.

@@ -1,88 +1,88 @@
 # Efficiency & Cost — Project Principle
 
-Eficiência é um **pilar de primeira classe** do AIgent-squad, no mesmo nível de
-segurança e correção. Não significa só velocidade/latência — significa
-**custo por resultado**: tokens, chamadas de LLM, e recursos gastos para
-entregar uma RCA/resposta útil.
+Efficiency is a **first-class pillar** of AIgent-squad, at the same level as
+security and correctness. It does not mean just speed/latency — it means
+**cost per result**: tokens, LLM calls, and resources spent to deliver a useful
+RCA/response.
 
-> Regra de ouro: **o resultado mais barato que ainda é correto e seguro vence.**
-> Latência baixa que queima tokens à toa NÃO é eficiente.
-
----
-
-## Por que isto importa (não é opcional)
-
-O Bedrock cobra **por token** (input + output, output ~5x mais caro). Cada
-token de contexto desnecessário, cada rodada de LLM evitável, cada retry cego é
-**dinheiro**. Num sistema multi-agente com fan-out + RCA multi-round, o custo
-escala rápido. Eficiência de custo é requisito de produto, não afinação tardia.
-
-## CRITICAL: pensar em custo ANTES de implementar
-
-Antes de adicionar qualquer caminho que invoque LLM ou monte contexto, perguntar:
-1. **Esse contexto todo precisa ir pro prompt?** (input tokens = custo recorrente)
-2. **Dá pra resolver com modelo mais barato?** (classifier/triagem ≠ síntese)
-3. **Dá pra cachear / curto-circuitar antes do LLM?**
-4. **Quantas rodadas de LLM isso dispara no pior caso?** (cap obrigatório)
+> Golden rule: **the cheapest result that is still correct and secure wins.**
+> Low latency that burns tokens needlessly is NOT efficient.
 
 ---
 
-## Práticas obrigatórias
+## Why this matters (not optional)
 
-### Contexto (input tokens)
-- **Truncar/sumarizar output de tool/adapter/MCP antes do prompt.** Dados de
-  infra grandes (ex: listas de eventos, logs) explodem input tokens. Padrão
-  HolmesGPT: server-side filtering + spill-to-disk + transformer de resumo com
-  modelo rápido. O `McpAdapter` já trunca por tool (4000 chars) — estender essa
-  disciplina a todos os adapters.
-- **Lazy injection.** Skills só entram no prompt quando a query casa (já feito —
-  spec 26). Mesma regra para qualquer conhecimento/contexto opcional.
-- **Histórico limitado.** Injetar só as N mensagens relevantes, não a sessão toda.
+Bedrock charges **per token** (input + output, output ~5x more expensive). Every
+unnecessary context token, every avoidable LLM round, every blind retry is
+**money**. In a multi-agent system with fan-out + multi-round RCA, cost scales
+fast. Cost efficiency is a product requirement, not late tuning.
 
-### Modelo (tiering)
-- **Modelo barato para tarefas baratas.** Classifier/triagem/roteamento devem
-  usar um modelo rápido/barato (ex: Haiku); síntese/RCA usam o caro (Sonnet/
-  Opus). Não usar o modelo premium para decidir roteamento. (Ver spec 11.)
-- **Não sobre-dimensionar `max_tokens`** de saída — limita custo do output.
+## CRITICAL: think about cost BEFORE implementing
 
-### Rodadas e retries
-- **Cap de rodadas obrigatório** em todo fluxo multi-round (RCA, fan-out). Sem
-  cap = custo ilimitado sob falha. (Ver limites por nível no ROADMAP.)
-- **Retry com backoff, não cego.** Retry que reinvoca o LLM multiplica custo —
-  só em erros transitórios, com teto.
-- **Anti-loop**: barrar tool-call repetida idêntica (padrão HolmesGPT
+Before adding any path that invokes the LLM or builds context, ask:
+1. **Does all this context need to go into the prompt?** (input tokens = recurring cost)
+2. **Can a cheaper model solve it?** (classifier/triage ≠ synthesis)
+3. **Can it be cached / short-circuited before the LLM?**
+4. **How many LLM rounds does this trigger in the worst case?** (cap required)
+
+---
+
+## Mandatory practices
+
+### Context (input tokens)
+- **Truncate/summarize tool/adapter/MCP output before the prompt.** Large infra
+  data (e.g. event lists, logs) explodes input tokens. HolmesGPT pattern:
+  server-side filtering + spill-to-disk + summary transformer with a fast model.
+  The `McpAdapter` already truncates per tool (4000 chars) — extend that
+  discipline to all adapters.
+- **Lazy injection.** Skills only enter the prompt when the query matches (done —
+  spec 26). Same rule for any optional knowledge/context.
+- **Bounded history.** Inject only the N relevant messages, not the whole session.
+
+### Model (tiering)
+- **Cheap model for cheap tasks.** Classifier/triage/routing should use a fast/
+  cheap model (e.g. Haiku); synthesis/RCA use the expensive one (Sonnet/Opus).
+  Do not use the premium model to decide routing. (See spec 11.)
+- **Do not oversize output `max_tokens`** — caps output cost.
+
+### Rounds and retries
+- **Mandatory round cap** in every multi-round flow (RCA, fan-out). No cap =
+  unbounded cost under failure. (See per-level limits in the ROADMAP.)
+- **Retry with backoff, not blind.** A retry that re-invokes the LLM multiplies
+  cost — only on transient errors, with a ceiling.
+- **Anti-loop**: block identical repeated tool calls (HolmesGPT pattern
   `prevent_overly_repeated_tool_call`).
 
 ### Cache
-- **Cachear dados de infra** (determinístico, TTL) — não a resposta do LLM
-  (vaza entre usuários, quebra multiturno — ver project.md).
-- Avaliar **prompt caching do Bedrock** para system prompt + skills repetidos
-  (desconto grande em tokens cacheados). (Ver spec 11.)
+- **Cache infra data** (deterministic, TTL) — not the LLM response (leaks across
+  users, breaks multi-turn — see project.md).
+- Evaluate **Bedrock prompt caching** for repeated system prompt + skills (large
+  discount on cached tokens). (See spec 11.)
 
-### Medição (não dá pra otimizar o que não se mede)
-- **Custo/tokens por agente** já instrumentado (`aigent.tokens.total`,
-  `aigent.cost.estimated` labelados por `agent_id` — spec 27). Toda feature que
-  muda padrão de uso de LLM deve observar o impacto nessas métricas.
-- **Budget cap por usuário/sessão** (spec 14) protege contra abuso E custo.
+### Measurement (you can't optimize what you don't measure)
+- **Cost/tokens per agent** already instrumented (`aigent.tokens.total`,
+  `aigent.cost.estimated` labeled by `agent_id` — spec 27). Every feature that
+  changes LLM usage patterns must observe the impact on these metrics.
+- **Per user/session budget cap** (spec 14) protects against abuse AND cost.
 
 ---
 
-## Trade-off com as outras dimensões
+## Trade-off with the other dimensions
 
-Eficiência **não** atropela segurança nem correção:
-- Segurança fail-closed (spec 14) tem custo de latência/avaliação — **aceito**.
-- Uma RCA correta com 1 rodada extra > uma RCA barata e errada.
-- A ordem de prioridade: **correto > seguro > eficiente > rápido**. Eficiência
-  vem antes de velocidade pura, mas depois de correção e segurança.
+Efficiency does **not** override security or correctness:
+- Fail-closed security (spec 14) has a latency/evaluation cost — **accepted**.
+- A correct RCA with 1 extra round > a cheap, wrong RCA.
+- Priority order: **correct > secure > efficient > fast**. Efficiency comes
+  before raw speed, but after correctness and security.
 
 ---
 
 ## Anti-patterns
 
-- ❌ Injetar dump bruto de adapter/MCP no prompt sem truncar/sumarizar
-- ❌ Usar modelo premium para classificação/roteamento
-- ❌ Fluxo multi-round sem cap de rodadas
-- ❌ Retry cego que reinvoca LLM sem teto
-- ❌ Cachear resposta de LLM por query (vaza + incorreto)
-- ❌ Otimizar latência queimando tokens (não é eficiência)
-- ❌ Adicionar feature que muda uso de LLM sem olhar `aigent.cost.estimated`
+- ❌ Injecting a raw adapter/MCP dump into the prompt without truncating/summarizing
+- ❌ Using the premium model for classification/routing
+- ❌ Multi-round flow without a round cap
+- ❌ Blind retry that re-invokes the LLM without a ceiling
+- ❌ Caching the LLM response per query (leaks + incorrect)
+- ❌ Optimizing latency by burning tokens (that is not efficiency)
+- ❌ Adding a feature that changes LLM usage without looking at `aigent.cost.estimated`
