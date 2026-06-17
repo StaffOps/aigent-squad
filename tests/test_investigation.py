@@ -1,5 +1,4 @@
 """Tests for src.core.investigation — Evidence, RCAResult, build_timeline, correlate."""
-import pytest
 
 from src.core.investigation import Evidence, RCAResult, build_timeline, correlate
 

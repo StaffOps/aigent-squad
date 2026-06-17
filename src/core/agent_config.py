@@ -1,6 +1,5 @@
 """Agent configuration schema — defines what an agent IS via YAML."""
 from pydantic import BaseModel, Field
-from typing import Optional
 
 
 class DatasourceConfig(BaseModel):

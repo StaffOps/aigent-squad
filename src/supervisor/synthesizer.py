@@ -1,7 +1,6 @@
 """Synthesizer: fuses N agent responses into a single coherent answer."""
 from otel_helper import get_tracer
 from src.core.bedrock import bedrock
-from src.core.logger import logger
 from src.core.metrics import synthesizer_calls
 
 tracer = get_tracer(__name__)

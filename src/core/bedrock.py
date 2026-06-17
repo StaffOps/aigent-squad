@@ -129,7 +129,7 @@ class BedrockClient:
             )
             self.circuit_breaker.record_success()
             return result
-        except Exception as e:
+        except Exception:
             self.circuit_breaker.record_failure()
             raise
 

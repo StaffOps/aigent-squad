@@ -242,10 +242,14 @@ async def test_mcp_adapter_inject_query_as_opt_in():
     """When inject_query_as is set, the user query is passed under that key."""
     from src.core.adapters import McpAdapter
 
-    exposed = MagicMock(); exposed.name = "search"
-    tools_result = MagicMock(); tools_result.tools = [exposed]
-    block = MagicMock(); block.text = "hit"
-    call_result = MagicMock(); call_result.content = [block]
+    exposed = MagicMock()
+    exposed.name = "search"
+    tools_result = MagicMock()
+    tools_result.tools = [exposed]
+    block = MagicMock()
+    block.text = "hit"
+    call_result = MagicMock()
+    call_result.content = [block]
 
     session = AsyncMock()
     session.initialize = AsyncMock()
@@ -271,12 +275,17 @@ async def test_mcp_adapter_tool_error_does_not_abort_others():
     """A single tool raising must be captured per-tool (fail-open per tool)."""
     from src.core.adapters import McpAdapter
 
-    t1 = MagicMock(); t1.name = "a"
-    t2 = MagicMock(); t2.name = "b"
-    tools_result = MagicMock(); tools_result.tools = [t1, t2]
+    t1 = MagicMock()
+    t1.name = "a"
+    t2 = MagicMock()
+    t2.name = "b"
+    tools_result = MagicMock()
+    tools_result.tools = [t1, t2]
 
-    ok_block = MagicMock(); ok_block.text = "b-ok"
-    ok_result = MagicMock(); ok_result.content = [ok_block]
+    ok_block = MagicMock()
+    ok_block.text = "b-ok"
+    ok_result = MagicMock()
+    ok_result.content = [ok_block]
 
     session = AsyncMock()
     session.initialize = AsyncMock()

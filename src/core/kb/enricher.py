@@ -1,6 +1,5 @@
 """Enrich KbDelta drafts using Opus (or fallback to Sonnet)."""
 import json
-import os
 
 from src.core.bedrock import bedrock
 from src.core.kb.models import KbDelta

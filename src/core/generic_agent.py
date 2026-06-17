@@ -9,9 +9,7 @@ from otel_helper import get_tracer
 from src.core.adapters import DatasourceAdapter
 from src.core.agent_config import AgentConfig
 from src.core.bedrock import bedrock
-from src.core.cache import cache
-from src.core.logger import logger, log_request, log_response, log_error
-from src.core.metrics import cache_hits, cache_misses
+from src.core.logger import log_request, log_response, log_error
 from src.core.state_store import ConversationMessage
 
 tracer = get_tracer(__name__)

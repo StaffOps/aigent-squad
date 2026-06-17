@@ -5,7 +5,6 @@ and keyword fallback without depending on implementation details.
 """
 import asyncio
 import inspect
-import time
 
 import pytest
 from unittest.mock import patch, MagicMock, AsyncMock

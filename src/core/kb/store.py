@@ -5,7 +5,7 @@ from typing import Optional
 
 import asyncpg
 
-from src.core.kb.models import KbItem, KbStatus
+from src.core.kb.models import KbItem
 from src.core.logger import logger
 
 

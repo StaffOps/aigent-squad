@@ -5,7 +5,7 @@ from unittest.mock import patch, MagicMock, AsyncMock
 import pytest
 
 from src.core.agent_config import AgentConfig
-from src.core.classifier import Classifier, ClassifierResult, AgentMatch
+from src.core.classifier import Classifier, ClassifierResult
 
 
 def _make_registry():

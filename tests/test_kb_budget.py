@@ -1,5 +1,5 @@
 """Tests for src.core.kb.budget — monthly budget cap logic."""
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 from src.core.kb.budget import check_budget, record_cost
 

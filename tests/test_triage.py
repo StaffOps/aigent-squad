@@ -1,5 +1,4 @@
 """Tests for src.core.triage — should_investigate heuristic."""
-import pytest
 
 from src.core.triage import should_investigate
 

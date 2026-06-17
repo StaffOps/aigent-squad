@@ -1,5 +1,4 @@
 """Tests for src/core/skills.py (spec 26)."""
-import pytest
 
 from src.core.skills import Skill, SkillRegistry, parse_skill
 

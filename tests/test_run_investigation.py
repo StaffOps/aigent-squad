@@ -162,7 +162,7 @@ async def test_synthesize_rca_handles_no_evidence():
             "hypothesis": "unknown", "prevention": []
         }))
 
-        result = await _synthesize_rca("mystery", [], [])
+        await _synthesize_rca("mystery", [], [])
 
     user_msg = mock_bedrock.invoke.call_args[1]["messages"][0]["content"]
     assert "(no evidence collected)" in user_msg

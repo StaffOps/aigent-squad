@@ -1,6 +1,6 @@
 """Tests for BedrockClient.invoke()"""
 import pytest
-from unittest.mock import patch, MagicMock, AsyncMock
+from unittest.mock import patch, MagicMock
 
 
 @pytest.fixture
@@ -54,7 +54,7 @@ async def test_invoke_records_metrics(mock_boto3_client):
     client.client = mock_boto3_client
 
     with patch("src.core.bedrock.token_counter") as mock_counter, \
-         patch("src.core.bedrock.estimated_cost") as mock_cost:
+         patch("src.core.bedrock.estimated_cost"):
         result = await client.invoke(
             messages=[{"role": "user", "content": "test"}],
             system_prompt="sys",
