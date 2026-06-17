@@ -1,5 +1,29 @@
 # Changelog
 
+## [Unreleased] - 2026-06-17
+
+### Added (Spec 29: OpenAI-compatible bridge — LibreChat)
+- `src/supervisor/openai_compat.py`: OpenAI Chat Completions surface on the supervisor — `GET /v1/models` + `POST /v1/chat/completions` (behind `require_token`)
+- Models exposed: `aigent-squad` (classifier auto-routes) + `aigent-squad-<agent>` (force a specialist)
+- `SupervisorAgent.process_request(force_agent=...)`: per-agent fast-path that bypasses the classifier (preserves history + metrics)
+- Streaming is pseudo-streaming (full answer as one SSE chunk) until spec 06 token streaming; `usage` returns zeros (spec 10/27)
+- `docs/LIBRECHAT.md` + `infra/librechat/librechat.yaml` (wire the squad as a LibreChat custom endpoint)
+- `tests/test_openai_compat.py` (100% coverage on the module) + `force_agent` supervisor tests
+
+### Added (Claude Code compatibility)
+- `CLAUDE.md`: entrypoint with build/test commands, architecture invariants, read-only posture, and `@imports` of `.kiro/steering/*.md` (single source of truth)
+- `.claude/`: `rules` + `skills` symlinked to `.kiro/steering` + `skills`; 6 subagents converted from `agents/<name>/`; `settings.json` (read-only permissions); `README.md`
+- `scripts/sync-claude.sh`: idempotent regenerator (`.kiro/` + `agents/` → `.claude/`)
+
+### Added (Helm chart — repo `helm-charts`, chart `aigent-squad` 0.4.0)
+- Own generic chart (no vendor conventions): `services` map → Deployment | StatefulSet, autoscaling none | HPA | KEDA, routing none | Ingress | Gateway API
+- Two topologies: `inProcess` (default) and `distributed` (`values-distributed.yaml`)
+- Opt-in NetworkPolicy, ExternalSecret, read-only RBAC, in-cluster Redis (DEV)
+- Note: chart probes target `/healthz` + `/ready` (spec 07, not yet implemented in code) and reference images not yet built (spec 08)
+
+### Fixed (README accuracy)
+- Residual Portuguese, stale `Claude 3.5` → `Claude Sonnet 4.5`, KB clarified as PostgreSQL+pgvector, `Last Updated` date, roadmap pointer; added LibreChat + Claude Code references
+
 ## [Unreleased] - 2026-06-16
 
 ### Added (Terraform infrastructure — `terraform/`)

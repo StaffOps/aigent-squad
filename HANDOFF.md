@@ -1,4 +1,4 @@
-# Handoff — sessão 2026-06-16
+# Handoff — sessions 2026-06-16 / 2026-06-17
 
 Estado para retomar amanhã. O que foi feito, o que ficou pendente, e próximos
 passos priorizados.
@@ -124,3 +124,73 @@ ECOSYSTEM, EVIDENCE-MODEL, COMPETITIVE-ANALYSIS, supervisor/README → English.
   frozen historical record. Lowest priority; arguably fine to leave as-is.
   (Active specs 14/26/27/28 are already English.)
 - Detect: `grep -rliE "\b(não|você|está|são)\b" --include=*.md .kiro/specs/[0-2]*`
+
+
+---
+
+## Session 2026-06-17 (cont.) — chart, Claude Code, LibreChat bridge
+
+### Done (committed + pushed)
+
+**Helm chart** (`helm-charts/charts/aigent-squad`, repo `helm-charts` branch
+`main`, chart `0.4.0`):
+- Own generic chart — **no BDC conventions, native Kubernetes only**.
+- Two topologies via a `services` map: `inProcess` (one supervisor runs all
+  agents) and `distributed` (supervisor + 5 agents + mcp-server, see
+  `values-distributed.yaml`).
+- **Workload**: `workload.kind: Deployment | StatefulSet` (StatefulSet gets a
+  headless Service + `volumeClaimTemplates`). **No Argo Rollout.**
+- **Autoscaling**: `scaling.autoscaling.kind: none | hpa | keda`
+  (`autoscaling/v2` HPA or KEDA `ScaledObject`).
+- **Routing**: `routing.type: none | ingress | gatewayapi` (provider-agnostic).
+- Opt-in (off by default): NetworkPolicy, ExternalSecret (ESO→AWS SM), read-only
+  RBAC, in-cluster Redis (DEV). Validated: lint + template (both topologies),
+  all workload/autoscaling/routing combos, distributed = 45 valid docs.
+
+**Claude Code compatibility** (`staffops-aigent-squad`, branch `dev`):
+- `CLAUDE.md` entrypoint with build/test commands, architecture invariants,
+  read-only posture, and `@imports` of `.kiro/steering/*.md` (single source of
+  truth, no drift).
+- `.claude/` mirror: `rules` + `skills` symlinked to `.kiro/steering` + `skills`;
+  6 subagents converted from `agents/<name>/`; `settings.json` (read-only
+  permission posture); `README.md`.
+- `scripts/sync-claude.sh` — idempotent regenerator.
+
+**OpenAI-compatible bridge — LibreChat (Option A), spec 29** (`dev`):
+- `src/supervisor/openai_compat.py` + `/v1/models` + `/v1/chat/completions` on
+  the supervisor (behind `require_token`). Models: `aigent-squad` (classifier
+  auto-routes) + `aigent-squad-<agent>` (force a specialist via new
+  `process_request(force_agent=...)`).
+- `docs/LIBRECHAT.md` + `infra/librechat/librechat.yaml` example.
+- Tests: `openai_compat.py` 100% cov, `agent.py` 95%, lint clean.
+
+**README/ROADMAP**: README fixed (residual PT, stale model id → Sonnet 4.5,
+pgvector KB, dates, roadmap pointer) + LibreChat/Claude Code references; ROADMAP
+gained spec 29 (implemented).
+
+### Pendencies left from this session
+
+- **Spec 07 (readiness-probes) NOT implemented**: the chart's probes point at
+  `/healthz` + `/ready`, but the code only exposes `/health`. A real deploy
+  needs spec 07 first or the probes fail.
+- **Spec 08 (CI/CD) NOT implemented**: the chart references images
+  (`aigent-squad/supervisor:0.1.0` …) that nothing builds yet.
+- **Chart not `ct install`-ed on a real cluster** — only lint + template + YAML
+  parse verified locally (CI `lint-test` covers kind install on PR).
+- **Bridge streaming is pseudo-streaming** (full answer as one SSE chunk) until
+  spec 06 token streaming; `usage` = zeros (spec 10/27); identity self-declared
+  (SEC-D12). **Not tested end-to-end with a live LibreChat** — contract verified
+  by unit tests only.
+- **Claude Code not validated at runtime** — conformance to the documented
+  format, not an actual Claude Code session.
+- **≥90% full suite gate** still only confirmed in CI (private `otel-helper`
+  git+ssh dep blocks the full local run; this session used a stub to verify the
+  touched modules).
+- **Historical specs 01-25 remain in PT** (frozen record, low priority).
+
+### Highest-value next steps to unblock real deploy
+
+1. Implement **spec 07** (`/healthz` + `/ready` + graceful shutdown).
+2. Implement **spec 08** (GitHub Actions: build/push images, coverage gate).
+3. Then the chart can actually deploy and the LibreChat bridge can be
+   exercised end-to-end.
