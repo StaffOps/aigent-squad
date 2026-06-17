@@ -1,37 +1,37 @@
 # Tasks: Security Hardening (anti-prompt-injection defense-in-depth)
 
-Ordem por valor/risco. Cada camada é entregável independente — não big-bang.
+Order by value/risk. Each layer is an independent deliverable — not big-bang.
 
-## Phase 1 — Primary guardrail + fail-closed (maior ganho)
-- [ ] Task 1: Terraform — provisionar Bedrock Guardrail (prompt-attack, denied topics, PII, multi-language) + output do guardrail id/version
-- [ ] Task 2: `GuardrailClient` — aplicar guardrail no `bedrock.invoke` (input + output), via `guardrailIdentifier`/`guardrailVersion`
-- [ ] Task 3: Fail-closed — guardrail bloqueia ou indisponível → 403 + audit log (NÃO bypass)
-- [ ] Task 4: Audit log estruturado (detecção/recusa; sem payload em claro; com agent_id/user_id/session_id)
+## Phase 1 — Primary guardrail + fail-closed (biggest gain)
+- [ ] Task 1: Terraform — provision a Bedrock Guardrail (prompt-attack, denied topics, PII, multi-language) + output the guardrail id/version
+- [ ] Task 2: `GuardrailClient` — apply the guardrail in `bedrock.invoke` (input + output), via `guardrailIdentifier`/`guardrailVersion`
+- [ ] Task 3: Fail-closed — guardrail blocks or is unavailable → 403 + audit log (NOT bypass)
+- [ ] Task 4: Structured audit log (detection/refusal; no payload in clear text; with agent_id/user_id/session_id)
 - [ ] Task 5: Tests ≥90% (block path, fail-closed path, allow path)
 
 ## Phase 2 — Exfiltration defense
-- [ ] Task 6: `CanaryGuard` — injetar canary tokens no `infra_data`; detectar na saída
-- [ ] Task 7: `OutputFilter` — scan de PII/segredos/canary na resposta antes de retornar
+- [ ] Task 6: `CanaryGuard` — inject canary tokens into `infra_data`; detect on output
+- [ ] Task 7: `OutputFilter` — scan for PII/secrets/canary in the response before returning
 - [ ] Task 8: Tests ≥90% (canary leak → block; PII redaction)
 
 ## Phase 3 — Cost/abuse + input optimization
-- [ ] Task 9: `RateLimiter` + `BudgetGuard` por usuário/sessão (Redis), fail-closed no budget
-- [ ] Task 10: `InputScanner` — normalização (unicode/base64/homoglyph/zero-width) + heurísticas baratas pré-LLM (corta lixo antes do custo de invoke)
+- [ ] Task 9: `RateLimiter` + `BudgetGuard` per user/session (Redis), fail-closed on budget
+- [ ] Task 10: `InputScanner` — normalization (unicode/base64/homoglyph/zero-width) + cheap pre-LLM heuristics (cut junk before the invoke cost)
 - [ ] Task 11: Tests ≥90%
 
 ## Phase 4 — Multi-language regression gate
-- [ ] Task 12: Suíte de ataques em ≥5 idiomas (PT/EN/ES/zh/ar) + ofuscações (base64, leetspeak, zero-width, unicode confusables) — vira gate de CI
-- [ ] Task 13: Reforçar context isolation (L3) com base no que a suíte revelar
+- [ ] Task 12: Attack suite in ≥5 languages (PT/EN/ES/zh/ar) + obfuscations (base64, leetspeak, zero-width, unicode confusables) — becomes a CI gate
+- [ ] Task 13: Reinforce context isolation (L3) based on what the suite reveals
 
 ## Phase 5 — Docs
-- [ ] Task 14: `docs/SECURITY.md` — modelo de ameaça, camadas, fail-closed, postura competitiva; atualizar `READ_ONLY_POLICY.md` cruzando com esta spec
+- [ ] Task 14: `docs/SECURITY.md` — threat model, layers, fail-closed, competitive posture; update `READ_ONLY_POLICY.md` cross-referencing this spec
 
-## Phase 1 status table (atualizar ao implementar)
-| Task | Estado | Nota |
-|------|--------|------|
-| 1–14 | ❌ not started | spec escrita; implementação pendente |
+## Phase 1 status table (update when implementing)
+| Task | State | Note |
+|------|-------|------|
+| 1–14 | ❌ not started | spec written; implementation pending |
 
-## Promotion triggers (quando reabrir / endurecer)
-- Falso-positivo do Guardrail inviabiliza uso → adicionar detector próprio como fallback L1.
-- Requisito on-prem/multi-cloud → trocar Bedrock Guardrail por Llama Guard self-hosted.
-- Read-only relaxado (agente passa a agir) → **reescrever a spec inteira** (elevation volta ao threat model; human-in-the-loop obrigatório).
+## Promotion triggers (when to reopen / harden)
+- Guardrail false-positives block legitimate use → add our own detector as an L1 fallback.
+- On-prem/multi-cloud requirement → swap Bedrock Guardrail for self-hosted Llama Guard.
+- Read-only relaxed (the agent starts to act) → **rewrite the whole spec** (elevation returns to the threat model; human-in-the-loop mandatory).
