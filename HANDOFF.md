@@ -99,3 +99,26 @@ Priorizados por impacto:
 - **Deploy real**: nada foi aplicado na AWS nem deployado. Todo o Terraform é
   `validate`-only. O salto "spec/código → rodando em prod" é o maior trabalho
   ainda não começado.
+
+---
+
+## i18n — translate project to English (in progress, 2026-06-17)
+
+Decision: all project files/docs in English; agents reply in the **user's
+language** (centralized directive in `bedrock.invoke`, classifier opted out).
+
+**Done:**
+- ✅ Language directive centralized in code (`bedrock.py` `_LANGUAGE_DIRECTIVE`,
+  `match_user_language` flag; classifier=False). +2 tests. Lint clean.
+- ✅ Steering (project, efficiency-cost, licensing-clean-room) → EN
+- ✅ Agent prompts (aws, devops, finops, kubernetes, observability) → EN
+- ✅ README → EN
+- ✅ ADR-001 renamed (direto→direct) + translated → EN
+
+**Remaining (PT → EN):**
+- docs/COMPETITIVE-ANALYSIS.md, HANDOFF.md, src/supervisor/README.md
+- Active specs: 14, 26, 27, 28 (+ AUDIT.md, ANALYSIS.md, ECOSYSTEM.md, ROADMAP.md)
+- ROADMAP.md line ~102 + CHANGES.md line ~35 still reference the OLD ADR filename
+  `ADR-001-bedrock-direto-vs-strands.md` → fix to `-direct-` when translating
+- Historical specs 01-25 (~50 files) — low priority, registro histórico
+- Find PT: `grep -rliE "\b(não|você|está|são|também|porque)\b" --include=*.md .`
