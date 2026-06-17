@@ -349,6 +349,7 @@ curl http://localhost:8000/health
 - [docs/SECURITY.md](docs/SECURITY.md) - Security model
 - [docs/SETUP.md](docs/SETUP.md) - Local setup
 - [docs/PREREQUISITES.md](docs/PREREQUISITES.md) - Infrastructure requirements
+- [docs/COMPETITIVE-ANALYSIS.md](docs/COMPETITIVE-ANALYSIS.md) - Comparação vs. AI SRE agents (Aurora, OpenSRE, etc.) + posicionamento
 
 ### Infrastructure (Terraform)
 - [terraform/README.md](terraform/README.md) - Módulos AWS (IAM/IRSA, DynamoDB, Bedrock endpoints, AIP de custo)
