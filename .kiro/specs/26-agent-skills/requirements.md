@@ -1,49 +1,49 @@
 # Feature: Agent Skills (lazy-loaded knowledge)
 
-## Contexto
+## Context
 
-Hoje, conhecimento especializado de um agente vive **inline no `prompt.md`**
-(o do kubernetes já tem ~8KB). Isso não escala e não permite **reuso entre
-agentes** (um guia de "investigar OOMKill" serve kubernetes E observability).
+Today, an agent's specialized knowledge lives **inline in `prompt.md`** (the
+kubernetes one is already ~8KB). That doesn't scale and doesn't allow **reuse
+across agents** (an "investigate OOMKill" guide serves kubernetes AND observability).
 
-"Skill" aqui = **conhecimento on-demand em markdown** (sentido do
-`staffops_agent_definition` SKILL.md), NÃO uma ação/ferramenta (isso já são
-os `datasources`/adapters) nem RAG dinâmico (isso é o módulo `kb/`).
+"Skill" here = **on-demand markdown knowledge** (the `staffops_agent_definition`
+SKILL.md sense), NOT an action/tool (those are the `datasources`/adapters) nor
+dynamic RAG (that's the `kb/` module).
 
 ## User Stories
 
-WHEN um agente processa uma query cujo tema casa com uma skill disponível
-THEN o sistema SHALL injetar o conteúdo daquela skill no system prompt antes
-de chamar o Bedrock.
+WHEN an agent processes a query whose topic matches an available skill
+THEN the system SHALL inject that skill's content into the system prompt before
+calling Bedrock.
 
-WHEN nenhuma skill casa com a query
-THEN o sistema SHALL NÃO injetar skill alguma (lazy — economiza tokens).
+WHEN no skill matches the query
+THEN the system SHALL NOT inject any skill (lazy — saves tokens).
 
-WHEN uma skill é referenciada por múltiplos agentes
-THEN ela SHALL viver em um diretório global compartilhado (`skills/`), não
-duplicada por agente.
+WHEN a skill is referenced by multiple agents
+THEN it SHALL live in a shared global directory (`skills/`), not duplicated per
+agent.
 
-WHEN um arquivo de skill referenciado não existe ou está corrompido
-THEN o carregamento SHALL degradar graciosamente (fail-open: ignora a skill,
-loga warning, não derruba o agente).
+WHEN a referenced skill file does not exist or is corrupted
+THEN loading SHALL degrade gracefully (fail-open: ignore the skill, log a
+warning, don't take the agent down).
 
 ## Acceptance Criteria
 
-- [ ] Diretório global `skills/<name>/SKILL.md` com frontmatter YAML
+- [ ] Global directory `skills/<name>/SKILL.md` with YAML frontmatter
       (`name`, `description`, `keywords`).
-- [ ] Campo `skills: [<name>, ...]` no `agent.yaml` declara quais skills o
-      agente PODE usar (allowlist por agente).
-- [ ] Seleção **lazy**: a skill só entra no prompt quando a query casa seus
-      `keywords` (ou descrição). Sem match ⇒ não injeta.
-- [ ] Skills injetadas num bloco `<skills>` do system prompt, tratado como
-      conhecimento (não instrução executável — mantém defesa de prompt
-      injection já existente).
-- [ ] Fail-open: skill ausente/inválida não quebra o agente.
-- [ ] Cobertura de testes ≥90% no código novo.
+- [ ] `skills: [<name>, ...]` field in `agent.yaml` declares which skills the
+      agent MAY use (per-agent allowlist).
+- [ ] **Lazy** selection: a skill only enters the prompt when the query matches
+      its `keywords` (or description). No match ⇒ no injection.
+- [ ] Skills injected in a `<skills>` block of the system prompt, treated as
+      knowledge (not executable instruction — preserves the existing prompt
+      injection defense).
+- [ ] Fail-open: a missing/invalid skill does not break the agent.
+- [ ] ≥90% test coverage on new code.
 
-## Fora de escopo
+## Out of scope
 
-- Tool-loop / skill que executa código (isso é datasource/adapter — ver ADR-001).
-- RAG dinâmico (já coberto por `src/core/kb/`).
-- Skill com embeddings/semantic match (Fase 2 — começar com keyword match).
-- UI de gerenciamento de skills.
+- Tool-loop / a skill that executes code (that's datasource/adapter — see ADR-001).
+- Dynamic RAG (already covered by `src/core/kb/`).
+- Skill with embeddings/semantic match (Phase 2 — start with keyword match).
+- A skill-management UI.
