@@ -18,7 +18,7 @@ Agent Squad is a multi-agent system with 1 supervisor + 5 specialist agents for 
 - 🔍 RAG (Retrieval-Augmented Generation) support
 - 📚 Agent skills (lazy-loaded markdown knowledge, shared across agents)
 - 📊 OpenTelemetry distributed tracing
-- 🔒 100% read-only operations
+- 🔒 Read-only by default (current posture; execution is an open roadmap item, gated by guardrails + human-in-the-loop)
 - 🚀 Kubernetes-native deployment
 - 🔌 MCP integration (squad as server for Kiro + agents as MCP clients)
 - 💲 Per-agent Bedrock cost attribution (Application Inference Profiles + token metrics)
@@ -289,8 +289,8 @@ User Query: "How many EC2 instances are running?"
 
 ```bash
 # 1. Clone repository
-git clone <your-repo-url>
-cd AIgent-squad
+git clone git@github.com:karlipegomes/staffops-aigent-squad.git
+cd staffops-aigent-squad
 
 # 2. Configure environment
 cp .env.example .env
@@ -389,7 +389,12 @@ curl -X POST http://localhost:8001/process \
 
 ## 🔒 Security
 
-### Read-Only Policy (4 Layers)
+### Read-Only Policy (4 Layers) — current posture
+
+Read-only is today's operating mode (not a permanent lock — executing actions is
+an open roadmap item, conditional on the spec 14 guardrails + human-in-the-loop).
+See [docs/READ_ONLY_POLICY.md](docs/READ_ONLY_POLICY.md) and
+[.kiro/specs/14-security-hardening/](.kiro/specs/14-security-hardening/).
 
 1. **System Prompts**: Explicit read-only instructions
 2. **IAM Policies**: Explicit deny on write operations
@@ -493,7 +498,7 @@ This is a reference implementation based on AWS Labs Agent Squad best practices.
 - Classifier-based routing (not manual)
 - Sorted conversation contexts (global + isolated)
 - Standardized agent interface
-- Read-only by design
+- Read-only by default (execution = future, gated)
 - Production-grade observability
 
 ---

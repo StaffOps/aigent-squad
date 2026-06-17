@@ -69,13 +69,33 @@ Structured investigation workflow: symptom → evidence collection (parallel) �
 ### Knowledge Base (spec 21)
 Learns from completed investigations. Distills RCA into KB items (Postgres+pgvector). Injects similar cases on new investigations via RAG.
 
+### Datasources & MCP (adapters)
+Agents collect read-only context via adapters: `boto3`, `kubernetes`, `http`,
+`athena`, and `mcp`. The `mcp` adapter makes agents **MCP clients** of external
+servers (e.g. the cluster's kubernetes-mcp-server), with a fail-closed
+read-only tool allowlist. See [MCP_INTEGRATION.md](MCP_INTEGRATION.md).
+
+### Skills (spec 26)
+Reusable markdown knowledge (`skills/<name>/SKILL.md`), allowlisted per agent,
+**lazy-injected** into the prompt only when the query matches keywords (token
+economy). See [HOW-TO-NEW-AGENT.md](HOW-TO-NEW-AGENT.md).
+
+### Bedrock cost attribution (spec 27)
+Application Inference Profiles (1 per model, FinOps tags) give authoritative
+per-model spend; token/cost metrics labeled by `agent_id` give per-agent
+showback. See [terraform/bedrock-aip/](../terraform/bedrock-aip/).
+
+### Security: defense-in-depth (spec 14 — designed, not yet implemented)
+Anti-prompt-injection layers (Bedrock Guardrails, fail-closed, multi-language,
+canary/output filter). Read-only is the current posture, not permanent.
+
 ## Data stores
 
 | Store | Purpose | Persistence |
 |-------|---------|-------------|
 | Redis | Datasource cache (per-agent TTL) | Ephemeral |
 | PostgreSQL+pgvector | KB items + RAG embeddings | Persistent |
-| DynamoDB Local | Conversation history | TTL-based |
+| DynamoDB | Conversation history (DynamoDB Local em dev) | TTL-based |
 
 ## Ports
 
