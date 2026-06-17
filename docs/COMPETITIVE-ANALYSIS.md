@@ -1,232 +1,233 @@
 # Competitive Analysis — AI SRE / Incident-RCA Agents
 
-**Última atualização**: 2026-06-16
-**Método**: leitura de READMEs, configs e estrutura de 6 projetos open-source em
-`example-sres/` + produtos comerciais (Datadog Bits, incident.io, PagerDuty,
-Azure SRE Agent) via material público. Para a maioria, baseado em READMEs + estrutura;
-**HolmesGPT teve deep dive de código** (peer de referência). Aurora/OpenSRE: deep
-code read ainda pendente.
+**Last updated**: 2026-06-16
+**Method**: reading READMEs, configs and structure of 6 open-source projects in
+`example-sres/` + commercial products (Datadog Bits, incident.io, PagerDuty,
+Azure SRE Agent) via public material. For most, based on READMEs + structure;
+**HolmesGPT had a code deep dive** (reference peer). Aurora/OpenSRE: deep code
+read still pending.
 
-> Escopo: posicionamento e direção de produto. Para decisões de arquitetura ver
-> `.kiro/specs/ADR-001` e `.kiro/specs/14-security-hardening/`.
+> Scope: positioning and product direction. For architecture decisions see
+> `.kiro/specs/ADR-001` and `.kiro/specs/14-security-hardening/`.
 
 ---
 
 ## TL;DR
 
-- O espaço "AI SRE que investiga e faz RCA" está **lotado e amadurecendo rápido**.
-  Os mais próximos/maduros do nosso: **Aurora** (Arvo) e **OpenSRE** (Tracer).
-- O eixo onde estamos quase sozinhos: **read-only por padrão + segurança
-  defense-in-depth desde o início**. A maioria corre para autonomia (agir);
-  nós começamos pela disciplina de segurança e habilitamos execução depois.
-- **Read-only é a postura atual, não permanente** (ver `READ_ONLY_POLICY.md`).
-  A vantagem: construímos o guardrail ANTES de agir; concorrentes que já agem
-  tiveram que adicionar guardrail depois (Aurora adicionou NeMo + Sigma).
+- The "AI SRE that investigates and does RCA" space is **crowded and maturing
+  fast**. The closest/most mature to ours: **Aurora** (Arvo) and **OpenSRE** (Tracer).
+- The axis where we are nearly alone: **read-only by default + defense-in-depth
+  security from the start**. Most race toward autonomy (acting); we start with
+  security discipline and enable execution later.
+- **Read-only is the current posture, not permanent** (see `READ_ONLY_POLICY.md`).
+  The advantage: we build the guardrail BEFORE acting; competitors that already
+  act had to add a guardrail afterward (Aurora added NeMo + Sigma).
 
 ---
 
-## Matriz comparativa
+## Comparison matrix
 
-| Projeto | Categoria | Stack | Autonomia (age?) | Multi-agente | Guardrails / segurança | Maturidade |
-|---------|-----------|-------|------------------|--------------|------------------------|------------|
-| **AIgent-squad** (nós) | AI SRE / RCA consultivo | Python, **Bedrock direto** | **Read-only hoje** (execução = futuro com HITL) | supervisor + classifier + fan-out + synthesizer | spec 14 (Bedrock Guardrails, fail-closed, multi-idioma) — **escrita, não impl** | pré-1.0, não deployado |
-| **Aurora** (Arvo-AI) | Incident investigation/RCA | Python, Flask, Celery, **LangGraph**, Next.js | **Age**: roda CLI em pods sandboxed, sugere PRs | LangGraph multi-agente, 30+ tools | **NeMo input rail (anti-injection) + 37 regras SigmaHQ + allow/denylist por org** | Apache-2, ativo (Discord, demos) |
-| **HolmesGPT** (Robusta/MS, **CNCF**) | AI SRE / RCA + operator 24/7 | Python, FastAPI, Pydantic, **litellm** (multi-LLM incl. Bedrock) | **Read-only por design, respeita RBAC, "safe in prod"** (mas tem `ApprovalRequirement` p/ HITL e operator pode abrir PRs via GitHub) | agentic loop single + `max_steps`; toolsets YAML | sanitização de params (`shlex.quote`), **safeguards anti-loop**, RBAC; sem guardrail anti-injection dedicado | **CNCF sandbox**, muito ativo, ~46 toolsets builtin |
-| **OpenDerisk** (derisk-ai) | DeepResearch RCA | Python (deriva do DB-GPT), monorepo `uv` | Investiga; **Code-Agent gera código** dinâmico | **5 agentes**: SRE, Code, Report, Vis, Data | não evidente no README | MIT, V0.2, dataset OpenRCA (microsoft) |
-| **OpenSRE** (Tracer-Cloud) | Framework + **RL env / benchmark** p/ AI SRE | Python, `uv`, ruff/mypy | **Sugere e, opcionalmente, executa remediação** | framework p/ você montar, 60+ tools | tem SECURITY + trust center | Apache-2, **pre-alpha**, trending |
-| **SmythOS / sre** | **Runtime/SDK de agentes** (não é SRE-específico) | **TypeScript**, pnpm monorepo | plataforma genérica de agentes | orquestração genérica | "security built-in", abstrações de recurso | MIT, maduro, SDK+CLI |
-| **sre-agent** | AI SRE diagnóstico | Python 3.13, **Anthropic direto** | **Read-only** (diagnostica, sugere fix, posta no Slack) | single-agent + **MCP** | bandit no CI | pip-installável, simples/focado |
-| **versus-incident** | Incident routing + AI detect | **Go**, Helm | Detecta anomalia em log; **roteia** (não remedia) | motor regras + AI agent | — | MIT, AI agent beta, on-call integrations |
-
----
-
-## Onde estamos À FRENTE
-
-1. **Read-only por design + caminho de execução seguro pré-construído.** Quando
-   formos agir, a defesa (spec 14) já existe. Aurora/OpenSRE agem e tiveram que
-   correr atrás do guardrail. Ordem importa: guardrail antes de agir > depois.
-2. **Defesa anti-prompt-injection multi-idioma planejada como camada própria**
-   (Bedrock Guardrails, independente do modelo). Poucos têm isso de verdade
-   (Aurora é a exceção). Azure SRE Agent **só suporta inglês** — gap nosso a
-   explorar.
-3. **Bedrock direto, sem framework** (ADR-001) — menos lock-in e superfície que
-   Aurora (LangGraph) ou os que dependem de runtime próprio.
-4. **Atribuição de custo por agente** (spec 27, AIP + métrica) — maturidade
-   FinOps que nenhum dos exemplos destaca.
-
-## Onde estamos ATRÁS (lacunas honestas)
-
-1. **Segurança ainda é spec, não código.** Aurora **já roda** NeMo + Sigma em
-   produção. Nosso diferencial de segurança só é real quando a spec 14 for
-   implementada. → **prioridade**.
-2. **Sem benchmark/medição de qualidade de RCA.** OpenSRE tem suíte sintética
-   *scored* (root-cause accuracy, evidência exigida, red herrings adversariais).
-   Não sabemos medir se nossa RCA é boa. → **maior gap de produto**.
-3. **Maturidade/deploy.** Todos têm releases/stars/comunidade; nós não
-   deployamos ainda.
-4. **Visualização da cadeia de evidência.** OpenDerisk renderiza o evidence
-   chain (protocolo Vis). Temos o synthesizer, falta a visualização.
-5. **Catálogo de tools/integrações.** Aurora 30+, OpenSRE 60+. Temos boto3/k8s/
-   http/athena/mcp — bom começo, mas catálogo menor.
+| Project | Category | Stack | Autonomy (acts?) | Multi-agent | Guardrails / security | Maturity |
+|---------|----------|-------|------------------|-------------|-----------------------|----------|
+| **AIgent-squad** (us) | Consultative AI SRE / RCA | Python, **Bedrock-direct** | **Read-only today** (execution = future with HITL) | supervisor + classifier + fan-out + synthesizer | spec 14 (Bedrock Guardrails, fail-closed, multi-language) — **written, not impl** | pre-1.0, not deployed |
+| **Aurora** (Arvo-AI) | Incident investigation/RCA | Python, Flask, Celery, **LangGraph**, Next.js | **Acts**: runs CLI in sandboxed pods, suggests PRs | LangGraph multi-agent, 30+ tools | **NeMo input rail (anti-injection) + 37 SigmaHQ rules + per-org allow/denylist** | Apache-2, active (Discord, demos) |
+| **HolmesGPT** (Robusta/MS, **CNCF**) | AI SRE / RCA + 24/7 operator | Python, FastAPI, Pydantic, **litellm** (multi-LLM incl. Bedrock) | **Read-only by design, respects RBAC, "safe in prod"** (but has `ApprovalRequirement` for HITL and the operator can open PRs via GitHub) | single agentic loop + `max_steps`; YAML toolsets | param sanitization (`shlex.quote`), **anti-loop safeguards**, RBAC; no dedicated anti-injection guardrail | **CNCF sandbox**, very active, ~46 builtin toolsets |
+| **OpenDerisk** (derisk-ai) | DeepResearch RCA | Python (derived from DB-GPT), `uv` monorepo | Investigates; **Code-Agent generates code** dynamically | **5 agents**: SRE, Code, Report, Vis, Data | not evident in the README | MIT, V0.2, OpenRCA dataset (microsoft) |
+| **OpenSRE** (Tracer-Cloud) | Framework + **RL env / benchmark** for AI SRE | Python, `uv`, ruff/mypy | **Suggests and, optionally, executes remediation** | framework for you to assemble, 60+ tools | has SECURITY + trust center | Apache-2, **pre-alpha**, trending |
+| **SmythOS / sre** | **Agent runtime/SDK** (not SRE-specific) | **TypeScript**, pnpm monorepo | generic agent platform | generic orchestration | "security built-in", resource abstractions | MIT, mature, SDK+CLI |
+| **sre-agent** | AI SRE diagnostics | Python 3.13, **Anthropic-direct** | **Read-only** (diagnoses, suggests fix, posts to Slack) | single-agent + **MCP** | bandit in CI | pip-installable, simple/focused |
+| **versus-incident** | Incident routing + AI detect | **Go**, Helm | Detects log anomaly; **routes** (doesn't remediate) | rules engine + AI agent | — | MIT, AI agent beta, on-call integrations |
 
 ---
 
-## Ideias dignas de "roubar" (priorizadas)
+## Where we are AHEAD
 
-| Origem | Ideia | Por que pra nós | Encaixa em |
-|--------|-------|-----------------|------------|
-| **HolmesGPT** | **Context-window management**: server-side filtering + spill de resultado grande p/ disco + transformer `llm_summarize` p/ output de tool | Resolve direto a dor que vimos (MCP trouxe 165KB de eventos → input tokens). Reduz custo e evita OOM | spec nova / adapters + spec 27 |
-| **HolmesGPT** | **`ApprovalRequirement`** por-tool (`needs_approval` + `reason` + `prefixes_to_save`) | Modelo pronto de human-in-the-loop p/ QUANDO formos executar — granular por tool/comando | execução futura + spec 14 |
-| **HolmesGPT** | **`safeguards.prevent_overly_repeated_tool_call`** (anti-loop barato) | Conté custo/loop sem ML; complementa nosso max_rounds | spec 17/18 + spec 14 (abuso) |
-| **HolmesGPT** | **Toolsets YAML** com `prerequisites`, `transformers`, `expose_remotely` (cross-cluster via MCP) | Mais rico que nossos adapters; `prerequisites` (checa `kubectl version` antes) e jq-query paginado evitam overflow | adapters / agent.yaml |
-| **HolmesGPT** | **litellm** como camada multi-provider | Trocaríamos lock-in do boto3-bedrock por abstração multi-LLM (OpenAI/Anthropic/Bedrock/Gemini) sem reescrever | reavaliar vs ADR-001 |
-| **OpenSRE** | Suíte sintética **scored** de RCA (accuracy, evidência, red herrings) | Resolve "como sei se a RCA é boa?"; casa com nosso gate de testes ≥90% | spec nova / 18-rca |
-| **Aurora** | **NeMo Guardrails** input rail + regras **SigmaHQ** p/ comandos | Complementa/alternativa ao Bedrock Guardrails; Sigma é ouro p/ quando formos executar | spec 14 |
-| **versus-incident** | Modos **training / shadow / detect** | Introduzir detecção/ação SEM risco (shadow = "would have alerted") | roadmap agentes proativos / execução futura |
-| **OpenDerisk** | **Visualização do evidence chain** + multiagente por papel (Report/Vis/Data) | Torna a RCA audível/explicável ao operador | spec 18 / UI |
-| **Aurora** | **Allow/denylist de comandos por org** | Pré-requisito de governança QUANDO formos executar | execução futura + spec 14 |
-| **sre-agent** | Setup wizard CLI + simplicidade de onboarding | Reduz atrito de adoção | DX / docs |
-| **OpenSRE / Aurora** | Dependency graph traversal na investigação | Correlação mais rica que fan-out cego | spec 17/18 |
+1. **Read-only by design + a pre-built safe execution path.** When we act, the
+   defense (spec 14) already exists. Aurora/OpenSRE act and had to chase the
+   guardrail afterward. Order matters: guardrail-before-acting > after.
+2. **Multi-language anti-prompt-injection defense planned as its own layer**
+   (Bedrock Guardrails, model-independent). Few have this for real (Aurora is
+   the exception). Azure SRE Agent **only supports English** — a gap for us to
+   exploit.
+3. **Bedrock-direct, no framework** (ADR-001) — less lock-in and surface than
+   Aurora (LangGraph) or those depending on their own runtime.
+4. **Per-agent cost attribution** (spec 27, AIP + metric) — FinOps maturity that
+   none of the examples highlights.
+
+## Where we are BEHIND (honest gaps)
+
+1. **Security is still spec, not code.** Aurora **already runs** NeMo + Sigma in
+   production. Our security differentiator is only real once spec 14 is
+   implemented. → **priority**.
+2. **No benchmark/measurement of RCA quality.** OpenSRE has a *scored* synthetic
+   suite (root-cause accuracy, required evidence, adversarial red herrings). We
+   can't measure whether our RCA is good. → **biggest product gap**.
+3. **Maturity/deploy.** Everyone has releases/stars/community; we haven't
+   deployed yet.
+4. **Evidence-chain visualization.** OpenDerisk renders the evidence chain (Vis
+   protocol). We have the synthesizer, but lack the visualization.
+5. **Tool/integration catalog.** Aurora 30+, OpenSRE 60+. We have boto3/k8s/
+   http/athena/mcp — a good start, but a smaller catalog.
 
 ---
 
-## Posicionamento (como nos vendemos)
+## Ideas worth "stealing" (prioritized)
 
-> **"O AI SRE read-only por padrão — que investiga com rigor e, quando for agir,
-> agirá com guardrails que os outros só adicionaram depois de já estarem agindo."**
+| Source | Idea | Why for us | Fits in |
+|--------|------|------------|---------|
+| **HolmesGPT** | **Context-window management**: server-side filtering + spill large result to disk + `llm_summarize` transformer for tool output | Directly solves the pain we saw (MCP brought 165KB of events → input tokens). Cuts cost and avoids OOM | new spec / adapters + spec 27 |
+| **HolmesGPT** | **`ApprovalRequirement`** per-tool (`needs_approval` + `reason` + `prefixes_to_save`) | Ready human-in-the-loop model for WHEN we execute — granular per tool/command | future execution + spec 14 |
+| **HolmesGPT** | **`safeguards.prevent_overly_repeated_tool_call`** (cheap anti-loop) | Contains cost/loops without ML; complements our max_rounds | spec 17/18 + spec 14 (abuse) |
+| **HolmesGPT** | **YAML toolsets** with `prerequisites`, `transformers`, `expose_remotely` (cross-cluster via MCP) | Richer than our adapters; `prerequisites` (checks `kubectl version` first) and paginated jq-query avoid overflow | adapters / agent.yaml |
+| **HolmesGPT** | **litellm** as a multi-provider layer | We'd trade boto3-bedrock lock-in for a multi-LLM abstraction (OpenAI/Anthropic/Bedrock/Gemini) without rewriting | reevaluate vs ADR-001 |
+| **OpenSRE** | **Scored** synthetic RCA suite (accuracy, evidence, red herrings) | Solves "how do I know the RCA is good?"; fits our ≥90% test gate | new spec / 18-rca |
+| **Aurora** | **NeMo Guardrails** input rail + **SigmaHQ** rules for commands | Complements/alternative to Bedrock Guardrails; Sigma is gold for when we execute | spec 14 |
+| **versus-incident** | **training / shadow / detect** modes | Introduce detection/action with NO risk (shadow = "would have alerted") | proactive agents roadmap / future execution |
+| **OpenDerisk** | **Evidence-chain visualization** + per-role multi-agent (Report/Vis/Data) | Makes the RCA auditable/explainable to the operator | spec 18 / UI |
+| **Aurora** | **Per-org command allow/denylist** | Governance prerequisite WHEN we execute | future execution + spec 14 |
+| **sre-agent** | CLI setup wizard + onboarding simplicity | Reduces adoption friction | DX / docs |
+| **OpenSRE / Aurora** | Dependency graph traversal in investigation | Richer correlation than blind fan-out | spec 17/18 |
 
-- **Não competimos (hoje) em autonomia** — competimos em **confiança
-  verificável** e **rigor de RCA**.
-- O mercado se divide em dois: "automatiza remediação" (Datadog/incident.io/
-  PagerDuty/Azure/Aurora) e "framework/benchmark" (OpenSRE/SmythOS). Nós somos
-  **consultivo-com-rigor-de-segurança**, com porta aberta para execução
-  controlada.
-- **Quando a execução entrar** (roadmap, em aberto): herdamos o pitch dos que
-  agem, MAS com a defesa já madura e human-in-the-loop por design — não como
-  remendo.
+---
 
-## Sinais para revisitar este documento
+## Positioning (how we sell ourselves)
 
-- Implementar a spec 14 → atualizar "lacuna #1" (segurança vira força real).
-- Adotar benchmark de RCA → atualizar "lacuna #2".
-- Decidir habilitar execução → revisar todo o posicionamento (deixa de ser
-  "não age") e estender threat model (ver spec 14 / READ_ONLY_POLICY).
-- Re-analisar concorrentes a cada ~trimestre (espaço evolui rápido).
+> **"The read-only-by-default AI SRE — that investigates rigorously and, when it
+> acts, will act with guardrails the others only added after they were already
+> acting."**
 
-## Pendências de análise
+- **We don't compete (today) on autonomy** — we compete on **verifiable trust**
+  and **RCA rigor**.
+- The market splits in two: "automate remediation" (Datadog/incident.io/
+  PagerDuty/Azure/Aurora) and "framework/benchmark" (OpenSRE/SmythOS). We are
+  **consultative-with-security-rigor**, with a door open to controlled execution.
+- **When execution arrives** (roadmap, open): we inherit the pitch of those that
+  act, BUT with the defense already mature and human-in-the-loop by design — not
+  as a patch.
 
-- ✅ **HolmesGPT** (Robusta/MS, CNCF sandbox) — analisado (deep dive de código,
-  2026-06-16). É o peer mais maduro e mais alinhado conosco (read-only por
-  design, respeita RBAC, multi-LLM via litellm incl. Bedrock). Achados-chave já
-  incorporados na matriz e na tabela de ideias acima: context-window management
-  (spill-to-disk + llm_summarize), `ApprovalRequirement` (HITL por-tool),
-  `safeguards` anti-loop, toolsets YAML com prerequisites/transformers.
-  **Notável**: nem o HolmesGPT tem guardrail anti-injection dedicado (só
-  sanitização de params) — reforça que nossa spec 14 seria um diferencial real.
-- Leitura **profunda de código** (não só README) de Aurora e OpenSRE — os dois
-  próximos restantes — para extrair padrões concretos de implementação.
+## Signals to revisit this document
 
-## HolmesGPT — deep dive (o peer de referência)
+- Implement spec 14 → update "gap #1" (security becomes a real strength).
+- Adopt an RCA benchmark → update "gap #2".
+- Decide to enable execution → revise the whole positioning (no longer "doesn't
+  act") and extend the threat model (see spec 14 / READ_ONLY_POLICY).
+- Re-analyze competitors roughly every quarter (the space evolves fast).
 
-Por ser CNCF, mantido por Robusta + Microsoft, e o mais alinhado (read-only),
-vale destacar o que aprendemos lendo o código (`holmes/core/`):
+## Analysis backlog
 
-- **Stack**: FastAPI + Pydantic + **litellm** (abstração multi-LLM — OpenAI/
-  Anthropic/Azure/**Bedrock**/Gemini). `ToolCallingLLM` com `max_steps` é o
+- ✅ **HolmesGPT** (Robusta/MS, CNCF sandbox) — analyzed (code deep dive,
+  2026-06-16). It's the most mature and most aligned peer (read-only by design,
+  respects RBAC, multi-LLM via litellm incl. Bedrock). Key findings already
+  incorporated into the matrix and the ideas table above: context-window
+  management (spill-to-disk + llm_summarize), `ApprovalRequirement` (per-tool
+  HITL), anti-loop `safeguards`, YAML toolsets with prerequisites/transformers.
+  **Notable**: not even HolmesGPT has a dedicated anti-injection guardrail (only
+  param sanitization) — reinforces that our spec 14 would be a real differentiator.
+- **Deep code read** (not just README) of Aurora and OpenSRE — the two closest
+  remaining — to extract concrete implementation patterns.
+
+## HolmesGPT — deep dive (the reference peer)
+
+Being CNCF, maintained by Robusta + Microsoft, and the most aligned (read-only),
+it's worth highlighting what we learned reading the code (`holmes/core/`):
+
+- **Stack**: FastAPI + Pydantic + **litellm** (multi-LLM abstraction — OpenAI/
+  Anthropic/Azure/**Bedrock**/Gemini). `ToolCallingLLM` with `max_steps` is the
   agentic loop.
-- **Read-only por design + RBAC** — mesma tese nossa, mas com um **modelo de
-  HITL pronto** (`ApprovalRequirement`) para quando precisarem de ação (ex:
-  operator mode abrindo PRs via GitHub). É o caminho que descrevemos para nossa
-  execução futura — eles já têm a estrutura.
-- **Context management é diferencial deles** (e nossa dor atual): `tool_context_
-  window_limiter` derrama resultado grande para disco, `llm_summarize`
-  transformer resume output de tool com modelo rápido, jq-query paginado (batches
-  de 500) evita overflow. Diretamente aplicável ao nosso MCP/adapters.
-- **Segurança**: sanitização de params (`shlex.quote`), `safeguards` anti-loop,
-  RBAC — mas **sem** detector de prompt-injection dedicado. Lacuna do líder =
-  oportunidade nossa (spec 14).
-- **Operator mode**: roda 24/7, detecta proativamente, avisa no Slack — é o
-  "agentes proativos" do nosso roadmap, já maduro. Referência de UX.
+- **Read-only by design + RBAC** — same thesis as ours, but with a **ready HITL
+  model** (`ApprovalRequirement`) for when they need action (e.g. operator mode
+  opening PRs via GitHub). It's the path we described for our future execution —
+  they already have the structure.
+- **Context management is their differentiator** (and our current pain):
+  `tool_context_window_limiter` spills large results to disk, the `llm_summarize`
+  transformer summarizes tool output with a fast model, paginated jq-query
+  (batches of 500) avoids overflow. Directly applicable to our MCP/adapters.
+- **Security**: param sanitization (`shlex.quote`), anti-loop `safeguards`, RBAC
+  — but **no** dedicated prompt-injection detector. The leader's gap = our
+  opportunity (spec 14).
+- **Operator mode**: runs 24/7, detects proactively, notifies Slack — it's the
+  "proactive agents" of our roadmap, already mature. UX reference.
 
 ---
 
-## Deep-dive: padrões de engenharia para adotar (2026-06-16)
+## Deep-dive: engineering patterns to adopt (2026-06-16)
 
-Achados de **leitura de código** (HolmesGPT, Aurora, OpenSRE) que são melhoria
-concreta para nós. Ordenados por valor.
+Findings from **code reading** (HolmesGPT, Aurora, OpenSRE) that are concrete
+improvements for us. Ordered by value.
 
-### 🔴 Alto valor — atacam nossos maiores gaps
+### 🔴 High value — attack our biggest gaps
 
-1. **Benchmark scored de RCA — OpenSRE `tests/benchmarks/_framework/`** (o gap #2).
-   Não é "um teste" — é um framework de avaliação científica de qualidade de RCA:
-   - **CloudOpsBench**: corpus de **452 cenários** (HF dataset), não commitado no
-     repo — baixado em runtime; mirror em S3 revision-pinned para runs em Fargate.
-   - `cost.py`: **accounting de custo input/output separado por modelo + hard-cap
-     budget** (`CostBudgetExceeded` halta o run e publica relatório parcial — não
-     estoura silenciosamente). Casa 100% com nossa steering de eficiência.
-   - `overfit.py`: **guards anti-overfitting** (uniformidade por sistema/categoria,
-     held-out 80/20, A/A consistency de 2 seeds) — garante que uma "melhoria" não
-     é só sorte concentrada num cluster de casos.
-   - `provenance.py` + `integrity.py`: cada run grava code SHA, config, env,
-     versões de modelo → reprodutível e auditável.
-   - **Por que roubar**: hoje não medimos se a RCA é boa. Isso é o método. Vira
-     candidato a **spec própria** (ex: `28-rca-benchmark`).
+1. **Scored RCA benchmark — OpenSRE `tests/benchmarks/_framework/`** (gap #2).
+   Not "a test" — it's a scientific RCA-quality evaluation framework:
+   - **CloudOpsBench**: a corpus of **452 scenarios** (HF dataset), not committed
+     to the repo — pulled at runtime; revision-pinned S3 mirror for Fargate runs.
+   - `cost.py`: **per-model input/output cost accounting + hard-cap budget**
+     (`CostBudgetExceeded` halts the run and publishes a partial report — no
+     silent overrun). Matches our efficiency steering 100%.
+   - `overfit.py`: **anti-overfitting guards** (per-system/category uniformity,
+     held-out 80/20, A/A consistency of 2 seeds) — ensures a "win" isn't just
+     luck concentrated in a cluster of cases.
+   - `provenance.py` + `integrity.py`: each run records code SHA, config, env,
+     model versions → reproducible and auditable.
+   - **Why steal it**: today we don't measure whether the RCA is good. This is
+     the method. Becomes a candidate for its **own spec** (e.g. `28-rca-benchmark`).
 
-2. **Defesa anti-injection em camadas reais — Aurora `server/guardrails/`** (gap #1, alimenta spec 14).
-   - `input_rail.py`: **NeMo Guardrails como pre-flight** ANTES do agente planejar
-     — "compromised inputs never reach tool selection". Usa a variável estruturada
-     `triggered_input_rail` (não string-match de recusa — imune a wording do modelo).
-     **Fail-closed**: qualquer erro bloqueia. É exatamente o desenho da nossa spec 14,
-     já implementado — referência direta.
-   - `sigma_loader.py`: **transpila regras SigmaHQ → regex** para detectar comandos
-     maliciosos (clear syslog, crypto mining, curl|wget exec /tmp, etc.). Subset
-     curado (linux/process_creation, high/critical). **Camada L2 da nossa spec 14**,
-     pronta para quando formos executar comandos.
-   - `test_sigma_canary.py`: teste de **canary** garantindo que a defesa não regrediu.
-   - **Por que roubar**: valida a spec 14 e dá implementação de referência. NeMo é
-     alternativa/complemento ao Bedrock Guardrails (multi-provider via LangChain factory).
+2. **Real layered anti-injection defense — Aurora `server/guardrails/`** (gap #1, feeds spec 14).
+   - `input_rail.py`: **NeMo Guardrails as a pre-flight** BEFORE the agent plans —
+     "compromised inputs never reach tool selection". Uses the structured
+     `triggered_input_rail` variable (not refusal string-match — immune to
+     model-specific wording). **Fail-closed**: any error blocks. It's exactly our
+     spec 14 design, already implemented — a direct reference.
+   - `sigma_loader.py`: **transpiles SigmaHQ rules → regex** to detect malicious
+     commands (clear syslog, crypto mining, curl|wget exec /tmp, etc.). Curated
+     subset (linux/process_creation, high/critical). **Our spec 14's L2**, ready
+     for when we execute commands.
+   - `test_sigma_canary.py`: a **canary** test ensuring the defense didn't regress.
+   - **Why steal it**: validates spec 14 and gives a reference implementation.
+     NeMo is an alternative/complement to Bedrock Guardrails (multi-provider via
+     a LangChain factory).
 
-### 🟠 Médio valor — eficiência e robustez
+### 🟠 Medium value — efficiency and robustness
 
-3. **Context-window management — HolmesGPT `core/tools_utils/`** (alimenta steering de eficiência).
-   - `tool_context_window_limiter.py`: **spill de resultado grande para disco**;
-     só um resumo entra no contexto. `get_pct_token_count` dimensiona por % da
-     janela do modelo.
-   - `llm_summarize` transformer: resume output de tool com **modelo rápido** antes
-     de injetar (tiering aplicado a output, não só a roteamento).
-   - jq-query **paginado** (batches de 500) na toolset k8s — evita overflow na origem.
-   - **Por que roubar**: é a solução direta para a dor que medimos (MCP trouxe 165KB).
-     Ataca custo na raiz.
+3. **Context-window management — HolmesGPT `core/tools_utils/`** (feeds the efficiency steering).
+   - `tool_context_window_limiter.py`: **spill large results to disk**; only a
+     summary enters the context. `get_pct_token_count` sizes by % of the model's window.
+   - `llm_summarize` transformer: summarizes tool output with a **fast model**
+     before injecting (tiering applied to output, not just routing).
+   - **paginated** jq-query (batches of 500) in the k8s toolset — avoids overflow at the source.
+   - **Why steal it**: it's the direct solution to the pain we measured (MCP
+     brought 165KB). Attacks cost at the root.
 
-4. **`ApprovalRequirement` por-tool — HolmesGPT `core/tools.py`** (execução futura).
-   Modelo `needs_approval` + `reason` + `prefixes_to_save` (aprovação de prefixo de
-   comando bash reutilizável). É o human-in-the-loop granular que vamos precisar.
+4. **Per-tool `ApprovalRequirement` — HolmesGPT `core/tools.py`** (future execution).
+   `needs_approval` + `reason` + `prefixes_to_save` model (approval of a reusable
+   bash command prefix). It's the granular human-in-the-loop we'll need.
 
-5. **`safeguards.prevent_overly_repeated_tool_call` — HolmesGPT** (eficiência + anti-abuso).
-   Barra tool-call idêntica repetida — conté loop/custo sem ML. Trivial de portar.
+5. **`safeguards.prevent_overly_repeated_tool_call` — HolmesGPT** (efficiency + anti-abuse).
+   Blocks identical repeated tool calls — contains loops/cost without ML. Trivial to port.
 
-### 🟢 Muito interessante (pertinente, não urgente)
+### 🟢 Very interesting (relevant, not urgent)
 
-6. **Toolsets YAML declarativos com `prerequisites` — HolmesGPT**. Um toolset
-   declara o que precisa (`kubectl version --client`) e só ativa se o pré-requisito
-   passa. Mais robusto que nossos adapters assumirem que a dependência existe.
-   `expose_remotely: true` permite chamar toolset cluster-local via MCP cross-cluster.
+6. **Declarative YAML toolsets with `prerequisites` — HolmesGPT**. A toolset
+   declares what it needs (`kubectl version --client`) and only activates if the
+   prerequisite passes. More robust than our adapters assuming the dependency
+   exists. `expose_remotely: true` allows calling a cluster-local toolset via
+   cross-cluster MCP.
 
-7. **`litellm` como camada multi-LLM — HolmesGPT**. Um wrapper, N providers
+7. **`litellm` as a multi-LLM layer — HolmesGPT**. One wrapper, N providers
    (OpenAI/Anthropic/Azure/Bedrock/Gemini) + prompt caching + content_filter
-   finish_reason já tratado. Reavaliar vs. nosso boto3-bedrock direto (ADR-001) —
-   trade-off: menos lock-in vs. mais uma dependência.
+   finish_reason already handled. Reevaluate vs. our direct boto3-bedrock
+   (ADR-001) — trade-off: less lock-in vs. one more dependency.
 
-8. **Operator mode 24/7 — HolmesGPT**. Roda em background, detecta proativamente,
-   avisa no Slack, abre PR (GitHub integration). É o "agentes proativos" do nosso
-   roadmap, maduro — referência de UX/arquitetura.
+8. **24/7 operator mode — HolmesGPT**. Runs in the background, detects
+   proactively, notifies Slack, opens PRs (GitHub integration). It's the
+   "proactive agents" of our roadmap, mature — UX/architecture reference.
 
-9. **Modos training/shadow/detect — versus-incident**. Introduzir
-   detecção/ação sem risco: `shadow` loga "would have alerted" sem alertar.
-   Padrão de rollout seguro para quando formos agir.
+9. **training/shadow/detect modes — versus-incident**. Introduce
+   detection/action without risk: `shadow` logs "would have alerted" without
+   alerting. A safe rollout pattern for when we act.
 
-### Candidatos a spec (derivados destes achados)
-- `28-rca-benchmark` — suíte scored de qualidade de RCA (de OpenSRE; alto valor).
-- Reforço da `14-security-hardening` com NeMo input rail + Sigma rules (de Aurora).
-- Spec/feature de **context budgeting** universal nos adapters (de HolmesGPT;
-  alimenta steering de eficiência).
+### Candidate specs (derived from these findings)
+- `28-rca-benchmark` — scored RCA-quality suite (from OpenSRE; high value).
+- Reinforce `14-security-hardening` with NeMo input rail + Sigma rules (from Aurora).
+- A **context budgeting** spec/feature across the adapters (from HolmesGPT;
+  feeds the efficiency steering).
