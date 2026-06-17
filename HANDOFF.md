@@ -115,11 +115,12 @@ language** (centralized directive in `bedrock.invoke`, classifier opted out).
 - ✅ README → EN
 - ✅ ADR-001 renamed (direto→direct) + translated → EN
 
-**Done:** language directive in code; steering (3); agent prompts (5); README;
-ADR-001 (renamed direto→direct); all active specs (14/26/27/28); ROADMAP;
-COMPETITIVE-ANALYSIS; supervisor/README. **All of `docs/` and `src/` is English.**
+**Done:** language directive in code; ALL of `docs/`, `src/`, agent prompts,
+steering, README, ADR-001, active specs (14/26/27/28), ROADMAP, AUDIT, ANALYSIS,
+ECOSYSTEM, EVIDENCE-MODEL, COMPETITIVE-ANALYSIS, supervisor/README → English.
 
-**Remaining (PT → EN) — historical record, low/optional priority (~52 files):**
-- `.kiro/specs/{AUDIT,ANALYSIS,ECOSYSTEM}.md` — dated analysis (2026-05-30 / 06-02), frozen.
-- Historical specs 01-25 (~49 files) — completed specs; arguably fine to leave as-is.
-- Detect PT: `grep -rliE "\b(não|você|está|são|também|porque)\b" --include=*.md . | grep -v .git/`
+**Remaining (PT → EN) — historical record only (~47 files):**
+- Historical specs **01-25** (requirements/design/tasks/bugfix) — completed specs,
+  frozen historical record. Lowest priority; arguably fine to leave as-is.
+  (Active specs 14/26/27/28 are already English.)
+- Detect: `grep -rliE "\b(não|você|está|são)\b" --include=*.md .kiro/specs/[0-2]*`
