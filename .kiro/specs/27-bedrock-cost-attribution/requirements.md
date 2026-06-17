@@ -1,63 +1,63 @@
-# Feature: Bedrock Cost Attribution (AIP por modelo + rateio por agente)
+# Feature: Bedrock Cost Attribution (AIP per model + per-agent showback)
 
-## Objetivo
+## Objective
 
-Saber **quanto cada agente custou em Bedrock**, com custo total autoritativo
-(que bate com a fatura AWS) e rateio por agente vindo da telemetria.
+Know **how much each agent cost in Bedrock**, with an authoritative total cost
+(matching the AWS bill) and per-agent attribution coming from telemetry.
 
-## Abordagem (showback)
+## Approach (showback)
 
 ```
-AWS (autoritativo)   : Application Inference Profile por MODELO + cost
-                       allocation tags → Cost Explorer/CUR dá $ por modelo
-App (chave de rateio): métrica de tokens labelada por {model, agent_id}
-                       → proporção de consumo de cada agente
+AWS (authoritative)   : Application Inference Profile per MODEL + cost
+                        allocation tags → Cost Explorer/CUR gives $ per model
+App (attribution key) : token metric labeled by {model, agent_id}
+                        → each agent's consumption proportion
 ─────────────────────────────────────────────────────────────────────
-custo(agente, modelo) = (tokens do agente no modelo / total do modelo)
-                        × ($ do modelo na AWS)
+cost(agent, model) = (agent's tokens on the model / model total)
+                     × ($ of the model on AWS)
 ```
 
 ## User Stories
 
-WHEN um agente invoca o Bedrock
-THEN a chamada SHALL usar o ARN do Application Inference Profile do modelo
-(não o model ID puro), para que o custo carregue as cost allocation tags.
+WHEN an agent invokes Bedrock
+THEN the call SHALL use the model's Application Inference Profile ARN (not the
+raw model ID), so the cost carries the cost allocation tags.
 
-WHEN a métrica de tokens é emitida
-THEN ela SHALL ser labelada com `agent_id` E `model`, para permitir rateio
-por agente via query.
+WHEN the token metric is emitted
+THEN it SHALL be labeled with `agent_id` AND `model`, to allow per-agent
+attribution via query.
 
-WHEN o operador consulta custo no Cost Explorer
-THEN o custo de Bedrock SHALL ser filtrável pelas tags `CostProject`,
-`CostScope`, `Environment`, `CostCenter`.
+WHEN the operator queries cost in Cost Explorer
+THEN Bedrock cost SHALL be filterable by the `CostProject`, `CostScope`,
+`Environment`, `CostCenter` tags.
 
 ## Acceptance Criteria
 
-- [ ] Módulo Terraform cria 1 AIP por modelo, com as 4 tags FinOps.
-- [ ] AIP usa `model_source.copy_from` apontando para o **system inference
-      profile** (`us.`) — necessário para cross-region.
-- [ ] Output: mapa `{model_key: aip_arn}` consumível pela app/Helm.
-- [ ] Policy IAM permite `bedrock:InvokeModel` no ARN
-      `application-inference-profile/*` da conta.
-- [ ] Métrica `aigent.tokens.total` e `aigent.cost.estimated` labeladas com
-      `agent_id` (além de `model`, `direction`).
-- [ ] Cobertura de testes ≥90% na mudança da app.
-- [ ] Doc: pré-requisito manual (ativar cost allocation tags no Billing) +
-      query MetricsQL de rateio.
+- [ ] Terraform module creates 1 AIP per model, with the 4 FinOps tags.
+- [ ] AIP uses `model_source.copy_from` pointing to the **system inference
+      profile** (`us.`) — required for cross-region.
+- [ ] Output: `{model_key: aip_arn}` map consumable by the app/Helm.
+- [ ] IAM policy allows `bedrock:InvokeModel` on the account's
+      `application-inference-profile/*` ARN.
+- [ ] `aigent.tokens.total` and `aigent.cost.estimated` metrics labeled with
+      `agent_id` (besides `model`, `direction`).
+- [ ] ≥90% test coverage on the app change.
+- [ ] Doc: manual prerequisite (activate cost allocation tags in Billing) +
+      MetricsQL attribution query.
 
-## Tags (confirmadas pelo usuário)
+## Tags (confirmed by the user)
 
-| Tag | Valor |
+| Tag | Value |
 |-----|-------|
 | `CostProject` | `aigent-squad` |
 | `CostScope` | `MONITORING` |
 | `Environment` | `PRD` |
-| `CostCenter` | **variável (sem default)** — obrigatória, passada no apply |
+| `CostCenter` | **variable (no default)** — mandatory, passed at apply time |
 
-## Fora de escopo
+## Out of scope
 
-- AIP por agente×modelo (matriz) — desnecessário; rateio por agente vem da
-  métrica, não de infra dedicada (ver Rationale no design).
-- Atribuição por usuário/sessão (cardinalidade — via traces/logs, não métrica).
-- Tiering de modelo real (Haiku no classifier) — isso é a spec 11; este
-  módulo só fica preparado para múltiplos modelos.
+- AIP per agent×model (matrix) — unnecessary; per-agent attribution comes from
+  the metric, not dedicated infra (see Rationale in the design).
+- Per user/session attribution (cardinality — via traces/logs, not metrics).
+- Real model tiering (Haiku in the classifier) — that's spec 11; this module
+  is only made ready for multiple models.

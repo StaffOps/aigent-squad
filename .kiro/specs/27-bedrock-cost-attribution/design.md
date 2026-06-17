@@ -1,108 +1,108 @@
 # Design: Bedrock Cost Attribution
 
-## Arquitetura
+## Architecture
 
 ```
                   ┌─────────────────────────────┐
-                  │  AWS Billing / Cost Explorer │  $ autoritativo POR MODELO
+                  │  AWS Billing / Cost Explorer │  authoritative $ PER MODEL
                   └──────────────▲──────────────┘
                                  │ cost allocation tags
                   ┌──────────────┴──────────────┐
-                  │ Application Inference Profile │  (1 por modelo)
+                  │ Application Inference Profile │  (1 per model)
                   │  tags: CostProject/Scope/...  │
                   └──────────────▲──────────────┘
                                  │ modelId = AIP ARN
    agent ──invoke(model=aip)──▶ BedrockClient ──emit──▶ aigent.tokens.total
                                                          {model, agent_id, direction}
                                                               │
-                              rateio = tokens(agente,modelo) / tokens(modelo)
+                              attribution = tokens(agent,model) / tokens(model)
 ```
 
-## Componentes
+## Components
 
-| Componente | Responsabilidade |
-|-----------|-----------------|
-| `bedrock-aip/` (Terraform) | Cria AIP por modelo + tags; output mapa modelo→ARN |
-| `iam/` (Terraform) | Permite invoke em `application-inference-profile/*` |
-| `BedrockClient.invoke` | Aceita `agent_id`; labela métricas de token/custo |
-| `GenericAgent` / `Classifier` | Passam seu `agent_id` ao invocar |
+| Component | Responsibility |
+|-----------|----------------|
+| `bedrock-aip/` (Terraform) | Creates AIP per model + tags; outputs model→ARN map |
+| `iam/` (Terraform) | Allows invoke on `application-inference-profile/*` |
+| `BedrockClient.invoke` | Accepts `agent_id`; labels token/cost metrics |
+| `GenericAgent` / `Classifier` | Pass their `agent_id` when invoking |
 
-## Rationale (decisões)
+## Rationale (decisions)
 
-### Decisão 1: AIP por MODELO, não por agente×modelo
+### Decision 1: AIP per MODEL, not per agent×model
 
-**Escolha**: 1 Application Inference Profile por modelo; rateio por agente vem
-da métrica de tokens (`agent_id` label), não de um AIP dedicado por agente.
+**Choice**: 1 Application Inference Profile per model; per-agent attribution
+comes from the token metric (`agent_id` label), not a dedicated per-agent AIP.
 
-**Justificativa, em ordem de força**:
-1. **Custo por agente é problema de rateio (showback), não de infra.** A AWS
-   dá o $ autoritativo por modelo (tag); a proporção por agente sai da
-   telemetria que já temos. Não precisa de N×M recursos pra isso.
-2. **Evita recurso morto.** Hoje há 1 modelo e cada agente usa o mesmo. AIP
-   por agente×modelo criaria 6+ perfis que cobram a mesma coisa — complexidade
-   sem ganho.
-3. **Flexibilidade de refatiar.** Rateio por métrica permite cortar por agente
-   HOJE e por sessão/tenant DEPOIS, sem tocar em infra.
+**Justification, in order of strength**:
+1. **Per-agent cost is an attribution (showback) problem, not an infra one.**
+   AWS gives authoritative $ per model (tag); the per-agent proportion comes
+   from telemetry we already have. No need for N×M resources.
+2. **Avoids dead resources.** Today there is 1 model and every agent uses the
+   same one. AIP per agent×model would create 6+ profiles that bill the same
+   thing — complexity without gain.
+3. **Flexibility to re-slice.** Metric-based attribution allows slicing by agent
+   TODAY and by session/tenant LATER, without touching infra.
 
-**Trade-offs aceitos**:
-| Custo | Realidade |
-|-------|-----------|
-| Custo por agente é *estimado* (rateio), não cobrado diretamente | O total bate com a fatura; o rateio é proporcional ao consumo real de tokens — preciso o suficiente para showback |
-| Depende da telemetria estar funcionando | Métrica já existe; só falta o label `agent_id` |
+**Accepted trade-offs**:
+| Cost | Reality |
+|------|---------|
+| Per-agent cost is *estimated* (attribution), not billed directly | The total matches the bill; attribution is proportional to real token consumption — accurate enough for showback |
+| Depends on telemetry working | The metric already exists; only the `agent_id` label was missing |
 
-**Quando estaria errada** (signal): se for preciso **cobrança contratual**
-(chargeback real, não showback) por agente/tenant — aí AIP dedicado por
-dimensão cobrável passa a valer. Para showback interno, rateio basta.
+**When it would be wrong** (signal): if **contractual chargeback** (real, not
+showback) per agent/tenant is needed — then a dedicated AIP per billable
+dimension starts to pay off. For internal showback, attribution is enough.
 
-### Decisão 2: `copy_from` aponta para o system inference profile (`us.`)
+### Decision 2: `copy_from` points to the system inference profile (`us.`)
 
-**Escolha**: `model_source.copy_from = arn:...:inference-profile/us.<model>`,
-não o `foundation-model/<model>`.
+**Choice**: `model_source.copy_from = arn:...:inference-profile/us.<model>`,
+not `foundation-model/<model>`.
 
-**Justificativa**:
-1. O modelo (Claude Sonnet 4.5) **exige** inference profile (não suporta
-   on-demand no foundation-model ARN — confirmado empiricamente:
+**Justification**:
+1. The model (Claude Sonnet 4.5) **requires** an inference profile (no on-demand
+   on the foundation-model ARN — confirmed empirically:
    `ValidationException: on-demand throughput isn't supported`).
-2. O profile `us.` dá cross-region (us-east-1/2, us-west-2) — resiliência.
+2. The `us.` profile gives cross-region (us-east-1/2, us-west-2) — resilience.
 
-**Trade-off**: o AIP herda o roteamento cross-region do profile-fonte (ok).
+**Trade-off**: the AIP inherits cross-region routing from the source profile (ok).
 
-### Decisão 3: Rateio por proporção de tokens (não por contagem de chamadas)
+### Decision 3: Attribution by token proportion (not by call count)
 
-**Escolha**: rateio = tokens do agente / tokens totais do modelo.
+**Choice**: attribution = agent's tokens / model's total tokens.
 
-**Justificativa**: o Bedrock cobra por token, não por chamada. Uma chamada de
-RCA com 165KB de contexto custa muito mais que um "oi". Ratear por nº de
-chamadas distorceria; por tokens espelha o billing real.
+**Justification**: Bedrock charges per token, not per call. An RCA call with
+165KB of context costs much more than a "hi". Attributing by number of calls
+would distort; by tokens it mirrors the real billing.
 
-**Refinamento**: input e output têm preços diferentes (~$3 vs $15/milhão). O
-rateio mais fiel pondera input/output pelos respectivos preços. A métrica
-`aigent.cost.estimated` (já calculada com esses pesos) labelada por `agent_id`
-resolve isso diretamente — é a melhor chave de rateio.
+**Refinement**: input and output have different prices (~$3 vs $15/million). The
+most faithful attribution weighs input/output by their respective prices. The
+`aigent.cost.estimated` metric (already computed with those weights) labeled by
+`agent_id` solves this directly — it's the best attribution key.
 
-## Invariantes
+## Invariants
 
-- O total ratereado por agente SHALL somar ao custo do modelo na AWS.
-- `agent_id` em métrica é bounded (nº de agentes ~6) — seguro como label
-  (não viola cardinalidade, ao contrário de `user_id`).
+- The per-agent attributed total SHALL sum to the model's cost on AWS.
+- `agent_id` in a metric is bounded (~6 agents) — safe as a label (does not
+  violate cardinality, unlike `user_id`).
 
-## Fórmula de rateio (operacional)
+## Attribution formula (operational)
 
 ```
-# Proporção de custo estimado por agente, por modelo (MetricsQL)
+# Estimated cost proportion per agent, per model (MetricsQL)
 sum by (agent_id) (aigent_cost_estimated{model="<aip_arn>"})
   / ignoring(agent_id) group_left
 sum (aigent_cost_estimated{model="<aip_arn>"})
 
-# Aplicar à fatura real do Cost Explorer:
-# custo_real_agente = proporcao_acima × custo_modelo_no_cost_explorer
+# Apply to the real Cost Explorer bill:
+# real_agent_cost = proportion_above × model_cost_in_cost_explorer
 ```
 
-## Dependências externas
+## External dependencies
 
-| Serviço | Propósito |
-|---------|-----------|
-| AWS Bedrock (AIP) | Tag de custo no billing record |
-| Cost Explorer / CUR | $ autoritativo por tag |
-| VictoriaMetrics | Métrica de tokens/custo por agent_id (rateio) |
-| AWS Billing console | Ativar cost allocation tags (manual, 1x) |
+| Service | Purpose |
+|---------|---------|
+| AWS Bedrock (AIP) | Cost tag on the billing record |
+| Cost Explorer / CUR | Authoritative $ per tag |
+| VictoriaMetrics | Per-agent_id token/cost metric (attribution) |
+| AWS Billing console | Activate cost allocation tags (manual, 1x) |
