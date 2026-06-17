@@ -1,244 +1,375 @@
-# Análise Cross-Domain — AIgent-squad
+# Cross-Domain Analysis — AIgent-squad
 
-**Data**: 2026-06-02
+**Date**: 2026-06-02
 **Branch**: `dev`
-**Método**: 8 specialists (dev, security, observability, aws, finops, gitops, sre, documentation) leram o projeto em paralelo, cada um pela sua lente.
-**Escopo**: achados **além** do `AUDIT.md` (B1–B4, A1–A3, S1–S5, C1–C2, O1–O4, D1–D5, H1–H5). Nada aqui repete o AUDIT — só aprofunda ou descobre o que ele não viu.
+**Method**: 8 specialists (dev, security, observability, aws, finops, gitops, sre,
+documentation) read the project in parallel, each through their own lens.
+**Scope**: findings **beyond** `AUDIT.md` (B1–B4, A1–A3, S1–S5, C1–C2, O1–O4,
+D1–D5, H1–H5). Nothing here repeats the AUDIT — it only deepens or discovers what
+it didn't see.
 
-> Achados marcados ✅ foram verificados diretamente no código. Os demais vêm dos specialists com `file:line` citado e devem ser confirmados na implementação.
-
----
-
-## TL;DR — O que o AUDIT não viu
-
-O AUDIT focou em *"não builda / não roda"*. Esta análise mostra que **mesmo depois de buildar, o sistema tem problemas estruturais graves** em 3 eixos:
-
-1. **Não tem concorrência** — todo I/O (boto3, requests, httpx.Client) é síncrono dentro de handlers `async`. Um request bloqueia todos os outros. Athena chega a bloquear o event loop por 30s.
-2. **Falha fechada** — Redis e DynamoDB sem tratamento de erro. Qualquer outage de backing service = outage total. O correto é falhar **aberto** (cache miss / histórico vazio, mas o sistema responde).
-3. **É invisível e indefensável** — telemetria quebrada (6/7 serviços sem instrumentação, propagação de trace quebrada, zero métricas), e read-only é só prompt — não há IAM deny nem RBAC real por trás.
-
-Esses três pontos não estão em nenhuma spec atual. Eles são pré-requisito para "deploy real" tanto quanto os blockers do AUDIT.
+> Findings marked ✅ were verified directly in the code. The others come from the
+> specialists with `file:line` cited and should be confirmed during implementation.
 
 ---
 
-## 🔴 Achados convergentes (≥2 specialists, alta severidade)
+## TL;DR — What the AUDIT didn't see
 
-### CONV-1 — I/O síncrono dentro de handlers async → zero concorrência ✅
-**Flagueado por**: dev (F1–F12), sre (R4), aws (F7), observability (F9)
-**Evidência verificada**:
-- `src/core/bedrock.py:50` — `self.client.invoke_model()` síncrono; `:78` — `time.sleep(delay)` no retry (bloqueia event loop por até 1+2+4=7s).
-- `src/core/cache.py` — `redis.Redis` síncrono.
-- `src/core/gitlab_client.py` — biblioteca `requests` (síncrona) em todo o arquivo.
-- `src/core/docs_portal.py:12` — `httpx.Client` (síncrono), nunca fechado.
-- `src/agents/observability/agent.py:109` + `server.py:47` — `httpx.get()` síncrono.
-- `src/agents/finops/agent.py` — polling de Athena com `time.sleep(1)` × até 30 iterações = **30s de event loop travado**.
-- `src/core/state_store.py` — `put_item`/`query` síncronos declarados como `async def` (mascaram bloqueio).
+The AUDIT focused on *"doesn't build / doesn't run"*. This analysis shows that
+**even after building, the system has serious structural problems** across 3 axes:
 
-**Impacto**: com uvicorn single-worker, o sistema **serializa todos os requests**. É o maior bug de performance do projeto — pior que o cache quebrado.
-**Fix**: `aioboto3` para Bedrock/DynamoDB, `httpx.AsyncClient` no gitlab/docs, `asyncio.to_thread()` para o kubernetes-client, `asyncio.sleep()` no lugar de `time.sleep()`.
+1. **No concurrency** — all I/O (boto3, requests, httpx.Client) is synchronous
+   inside `async` handlers. One request blocks all others. Athena even blocks the
+   event loop for 30s.
+2. **Fails closed** — Redis and DynamoDB without error handling. Any backing-
+   service outage = total outage. The correct way is to fail **open** (cache
+   miss / empty history, but the system responds).
+3. **Invisible and indefensible** — broken telemetry (6/7 services without
+   instrumentation, broken trace propagation, zero metrics), and read-only is
+   prompt-only — there's no real IAM deny nor RBAC behind it.
 
-### CONV-2 — Dependências falham fechadas (Redis + DynamoDB) ✅
-**Flagueado por**: sre (R2, R3), dev (F6)
-**Evidência verificada**: `src/core/cache.py` e `src/core/state_store.py` **não têm nenhum try/except**. `CacheStore.get/set/exists` e `ChatStorage.save/fetch_*` propagam `ConnectionError`/`ClientError` direto pro handler.
-**Impacto**: Redis fora → todo request de agente falha (cache é dependência **não-crítica**). DynamoDB fora → o supervisor (`agent.py:50` faz `fetch_all_chats`) falha 100% das queries.
-**Fix**: fail-open. Redis down = cache miss + log. DynamoDB down = histórico vazio (classifier e agentes seguem funcionando, só sem contexto).
-
-### CONV-3 — Classifier é SPOF + caro (modelo errado) ✅
-**Flagueado por**: sre (R1), finops (F1), aws (F11)
-**Evidência verificada**: `src/core/classifier.py` chama `bedrock.invoke()` com o **mesmo** `settings.bedrock_model_id` (Sonnet 4.5) usado nas respostas. Toda query faz **2 invocações Bedrock**.
-**Impacto duplo**:
-- **Confiabilidade**: se o Bedrock estiver throttled, 100% das queries falham antes de chegar em qualquer agente. Sem fallback (regra por keyword, "último agente da sessão", ou perguntar ao usuário).
-- **Custo**: Sonnet 4.5 para roteamento é ~10–13× mais caro que Haiku. ~$24/mês desperdiçados só no classifier @ 200 queries/dia.
-**Fix**: `classifier_model_id` separado (Haiku 3.5) + fallback rule-based quando o Bedrock falha.
-
-### CONV-4 — Health endpoints mentem ✅
-**Flagueado por**: sre (R6), dev (F4)
-**Evidência verificada**: todos os `server.py` têm `/health` retornando `{"status": "healthy"}` incondicional — nunca checa Redis, DynamoDB ou Bedrock.
-**Impacto**: probes do K8s nunca detectam pod quebrado. Pod com Redis morto fica no Service endpoints e falha todo request. A spec `05-helm-chart` já assume `/healthz` + `/ready` que **não existem**.
-**Fix**: `/healthz` (liveness, sempre 200 se o processo responde) + `/ready` (readiness, checa deps com timeout 2s + cache de 5s).
-
-### CONV-5 — Bedrock blocking + retry sem jitter
-**Flagueado por**: aws (F2), dev (F1), sre (R4)
-**Evidência**: `bedrock.py` — retry hand-rolled sem jitter (thundering herd) e empilha **em cima** do retry default do botocore (até 9 chamadas reais por invocação lógica). `botocore` adaptive retry não está configurado.
-**Fix**: `Config(retries={"mode": "adaptive", "max_attempts": 3})` + jitter no fallback de app + diferenciar erros transitórios de permanentes.
+These three points are in no current spec. They are a prerequisite for "real
+deploy" just as much as the AUDIT blockers.
 
 ---
 
-## Por domínio — achados NOVOS (não no AUDIT)
+## 🔴 Convergent findings (≥2 specialists, high severity)
+
+### CONV-1 — Synchronous I/O inside async handlers → zero concurrency ✅
+**Flagged by**: dev (F1–F12), sre (R4), aws (F7), observability (F9)
+**Verified evidence**:
+- `src/core/bedrock.py:50` — `self.client.invoke_model()` synchronous; `:78` —
+  `time.sleep(delay)` in retry (blocks the event loop for up to 1+2+4=7s).
+- `src/core/cache.py` — synchronous `redis.Redis`.
+- `src/core/gitlab_client.py` — `requests` library (synchronous) throughout.
+- `src/core/docs_portal.py:12` — `httpx.Client` (synchronous), never closed.
+- `src/agents/observability/agent.py:109` + `server.py:47` — synchronous `httpx.get()`.
+- `src/agents/finops/agent.py` — Athena polling with `time.sleep(1)` × up to 30
+  iterations = **30s of frozen event loop**.
+- `src/core/state_store.py` — synchronous `put_item`/`query` declared as
+  `async def` (masking the blocking).
+
+**Impact**: with uvicorn single-worker, the system **serializes all requests**.
+It's the project's biggest performance bug — worse than the broken cache.
+**Fix**: `aioboto3` for Bedrock/DynamoDB, `httpx.AsyncClient` in gitlab/docs,
+`asyncio.to_thread()` for the kubernetes-client, `asyncio.sleep()` instead of
+`time.sleep()`.
+
+### CONV-2 — Dependencies fail closed (Redis + DynamoDB) ✅
+**Flagged by**: sre (R2, R3), dev (F6)
+**Verified evidence**: `src/core/cache.py` and `src/core/state_store.py` **have no
+try/except**. `CacheStore.get/set/exists` and `ChatStorage.save/fetch_*`
+propagate `ConnectionError`/`ClientError` straight to the handler.
+**Impact**: Redis down → every agent request fails (cache is a **non-critical**
+dependency). DynamoDB down → the supervisor (`agent.py:50` does
+`fetch_all_chats`) fails 100% of queries.
+**Fix**: fail-open. Redis down = cache miss + log. DynamoDB down = empty history
+(classifier and agents keep working, just without context).
+
+### CONV-3 — Classifier is a SPOF + expensive (wrong model) ✅
+**Flagged by**: sre (R1), finops (F1), aws (F11)
+**Verified evidence**: `src/core/classifier.py` calls `bedrock.invoke()` with the
+**same** `settings.bedrock_model_id` (Sonnet 4.5) used for responses. Every query
+makes **2 Bedrock invocations**.
+**Double impact**:
+- **Reliability**: if Bedrock is throttled, 100% of queries fail before reaching
+  any agent. No fallback (keyword rule, "last agent of the session", or asking
+  the user).
+- **Cost**: Sonnet 4.5 for routing is ~10–13× more expensive than Haiku. ~$24/mo
+  wasted in the classifier alone @ 200 queries/day.
+**Fix**: separate `classifier_model_id` (Haiku 3.5) + rule-based fallback when
+Bedrock fails.
+
+### CONV-4 — Health endpoints lie ✅
+**Flagged by**: sre (R6), dev (F4)
+**Verified evidence**: all `server.py` have `/health` returning
+`{"status": "healthy"}` unconditionally — never checks Redis, DynamoDB or Bedrock.
+**Impact**: K8s probes never detect a broken pod. A pod with dead Redis stays in
+the Service endpoints and fails every request. The `05-helm-chart` spec already
+assumes `/healthz` + `/ready` that **don't exist**.
+**Fix**: `/healthz` (liveness, always 200 if the process responds) + `/ready`
+(readiness, checks deps with a 2s timeout + 5s cache).
+
+### CONV-5 — Bedrock blocking + retry without jitter
+**Flagged by**: aws (F2), dev (F1), sre (R4)
+**Evidence**: `bedrock.py` — hand-rolled retry without jitter (thundering herd)
+and stacked **on top** of botocore's default retry (up to 9 real calls per logical
+invocation). `botocore` adaptive retry is not configured.
+**Fix**: `Config(retries={"mode": "adaptive", "max_attempts": 3})` + jitter in the
+app fallback + distinguish transient from permanent errors.
+
+---
+
+## By domain — NEW findings (not in the AUDIT)
 
 ### DEV
-- **F14 — `_load_prompt()` quebrado** ✅: `agent_base.py:18` resolve `Path(__file__).parent / "prompt.md"` = `src/core/prompt.md` (não existe). Todo agente que usa o método da **classe base** recebe o texto **fallback**, não o prompt real. Só funcionam os que reimplementam `_load_prompt()` local.
-- **F5 — parsing frágil do classifier**: não trata JSON em markdown (` ```json `), JSON truncado por `max_tokens`, `confidence` como string, ou `selected_agent` fora do conjunto conhecido (→ `KeyError` no `AGENT_URLS[...]`).
-- **F13 — sem `__init__.py`** em `src/` e subpacotes (depende de `PYTHONPATH=.` nos Dockerfiles).
-- **F15 — bare `except:`** em `kubernetes/agent.py:25` (engole SystemExit/KeyboardInterrupt).
-- **F4 — `@app.on_event` deprecado** (FastAPI 0.109+) → usar `lifespan`.
+- **F14 — broken `_load_prompt()`** ✅: `agent_base.py:18` resolves
+  `Path(__file__).parent / "prompt.md"` = `src/core/prompt.md` (doesn't exist).
+  Every agent using the **base class** method gets the **fallback** text, not the
+  real prompt. Only those that reimplement a local `_load_prompt()` work.
+- **F5 — fragile classifier parsing**: doesn't handle JSON in markdown
+  (` ```json `), JSON truncated by `max_tokens`, `confidence` as a string, or
+  `selected_agent` outside the known set (→ `KeyError` in `AGENT_URLS[...]`).
+- **F13 — no `__init__.py`** in `src/` and subpackages (depends on `PYTHONPATH=.`
+  in the Dockerfiles).
+- **F15 — bare `except:`** in `kubernetes/agent.py:25` (swallows
+  SystemExit/KeyboardInterrupt).
+- **F4 — deprecated `@app.on_event`** (FastAPI 0.109+) → use `lifespan`.
 
 ### SECURITY
-- **SEC-D4 — read-only é PROMPT-ONLY** (HIGH): `docs/READ_ONLY_POLICY.md` promete 4 camadas, mas só a camada 1 (prompt) existe. O mount `~/.aws` dá ao agente as permissões **completas** do dev. `finops/agent.py` tem `boto3.client('athena')` que pode DROP database. Não há IAM deny nem RBAC K8s real.
-- **SEC-D1/D2 — SSRF / exfiltração** (HIGH): `devops/agent.py` passa a query do usuário direto pro `gitlab_client.search_in_company()` sobre a **org inteira** ("Company"); resultados (código interno) entram no prompt do Bedrock. `docs_portal`/`PROMETHEUS_URL` configuráveis sem allowlist (risco de apontar pra `169.254.169.254`).
-- **SEC-D3 — prompt injection mais fundo que S4**: o **próprio inventário é controlável pelo atacante** (nome de instância EC2 = payload). XML tags do S4 não bastam — precisa encoding de dados não-confiáveis + output filtering + usar a API `messages` corretamente (dados como documento, não instrução).
-- **SEC-D12 — `user_id` auto-declarado** (MEDIUM): qualquer cliente reivindica qualquer `user_id`/`session_id` → acessa histórico de outros usuários no DynamoDB. Sem authn não há como validar.
-- **SEC-D8 — MCP server gateway aberto**: porta 8006 sem auth, `user_id` hardcoded `"kiro-user"`, todas as queries MCP compartilham uma sessão DynamoDB.
-- **SEC-D5/D6/D7** — secrets como env var inline (viola 12-factor), `python:3.12-alpine` não-pinado (devia ser `3.11-slim`), deps sem hash.
+- **SEC-D4 — read-only is PROMPT-ONLY** (HIGH): `docs/READ_ONLY_POLICY.md`
+  promises 4 layers, but only layer 1 (prompt) exists. The `~/.aws` mount gives
+  the agent the dev's **full** permissions. `finops/agent.py` has
+  `boto3.client('athena')` that can DROP a database. There's no real IAM deny nor
+  K8s RBAC.
+- **SEC-D1/D2 — SSRF / exfiltration** (HIGH): `devops/agent.py` passes the user
+  query straight to `gitlab_client.search_in_company()` over the **whole org**
+  ("Company"); results (internal code) enter the Bedrock prompt.
+  `docs_portal`/`PROMETHEUS_URL` configurable without an allowlist (risk of
+  pointing at `169.254.169.254`).
+- **SEC-D3 — prompt injection deeper than S4**: the **inventory itself is
+  attacker-controllable** (EC2 instance name = payload). S4's XML tags aren't
+  enough — needs encoding of untrusted data + output filtering + using the
+  `messages` API correctly (data as a document, not an instruction).
+- **SEC-D12 — self-declared `user_id`** (MEDIUM): any client claims any
+  `user_id`/`session_id` → accesses other users' history in DynamoDB. Without
+  authn there's no way to validate.
+- **SEC-D8 — open MCP server gateway**: port 8006 without auth, `user_id`
+  hardcoded `"kiro-user"`, all MCP queries share one DynamoDB session.
+- **SEC-D5/D6/D7** — secrets as inline env var (violates 12-factor), unpinned
+  `python:3.12-alpine` (should be `3.11-slim`), deps without hashes.
 
 ### OBSERVABILITY
-- **F1 — 6/7 serviços sem instrumentação**: só `aws/server.py` chama `FastAPIInstrumentor`/`HTTPXClientInstrumentor`. Supervisor e os outros 4 agentes não.
-- **F2 — propagação de trace quebrada**: `supervisor/agent.py` cria `httpx.AsyncClient` mas nunca instrumenta → não injeta `traceparent`. Cada agente inicia um trace **novo e desconexo**. O fan-out fica invisível no Tempo.
-- **F4 — zero métricas de aplicação**: nenhum `MeterProvider`. `prometheus-client` no requirements nunca é importado. Sem RED, sem tokens/custo, sem cache hit ratio, sem confiança do classifier.
-- **F5 — violação de cardinalidade**: `user_id`/`session_id` como span attributes (proibido por `observability-principles`).
-- **F6 — `JSONFormatter` perde os `extra`** (confirma O2 do AUDIT com a causa exata: `hasattr(record, 'extra')` é sempre False no logging padrão).
-- **F10 — sem OTel Collector no stack** (App → Collector → Backend é o único fluxo permitido).
+- **F1 — 6/7 services without instrumentation**: only `aws/server.py` calls
+  `FastAPIInstrumentor`/`HTTPXClientInstrumentor`. The supervisor and the other 4
+  agents don't.
+- **F2 — broken trace propagation**: `supervisor/agent.py` creates an
+  `httpx.AsyncClient` but never instruments it → doesn't inject `traceparent`.
+  Each agent starts a **new, disconnected** trace. The fan-out is invisible in Tempo.
+- **F4 — zero application metrics**: no `MeterProvider`. `prometheus-client` in
+  requirements is never imported. No RED, no tokens/cost, no cache hit ratio, no
+  classifier confidence.
+- **F5 — cardinality violation**: `user_id`/`session_id` as span attributes
+  (prohibited by `observability-principles`).
+- **F6 — `JSONFormatter` loses the `extra`** (confirms AUDIT's O2 with the exact
+  cause: `hasattr(record, 'extra')` is always False in standard logging).
+- **F10 — no OTel Collector in the stack** (App → Collector → Backend is the only
+  allowed flow).
 
 ### AWS
-- **F3 — race no DynamoDB**: `put_item` sem `ConditionExpression`; SK = `agent#timestamp` → 2 mensagens no mesmo microssegundo se sobrescrevem.
-- **F5 — query sem paginação**: `fetch_chat`/`fetch_all_chats` leem 1 página; resposta LLM grande pode estourar 1MB e perder mensagens silenciosamente.
-- **F6 — `ec2.describe_instances()` sem paginação** + bloqueia event loop.
-- **F4 — TTL 24h hardcoded** (curto demais, não configurável).
-- **F1 — sem `boto3.Session` compartilhada**: 8 clients independentes, refresh de token IRSA redundante.
-- **F9/F12 — sem validação de boot**: nem do acesso ao modelo Bedrock, nem da existência da tabela DynamoDB → falha no primeiro request, não no boot.
-- **F10 — client `ce` morto** no aws-agent (amplia escopo IAM à toa).
+- **F3 — DynamoDB race**: `put_item` without a `ConditionExpression`; SK =
+  `agent#timestamp` → 2 messages in the same microsecond overwrite each other.
+- **F5 — query without pagination**: `fetch_chat`/`fetch_all_chats` read 1 page; a
+  large LLM response can exceed 1MB and silently lose messages.
+- **F6 — `ec2.describe_instances()` without pagination** + blocks the event loop.
+- **F4 — hardcoded 24h TTL** (too short, not configurable).
+- **F1 — no shared `boto3.Session`**: 8 independent clients, redundant IRSA token
+  refresh.
+- **F9/F12 — no boot validation**: neither of Bedrock model access nor of the
+  DynamoDB table's existence → fails on the first request, not at boot.
+- **F10 — dead `ce` client** in the aws-agent (widens IAM scope needlessly).
 
 ### FINOPS
-- **F2 — prompt caching desligado** ✅: `bedrock.py:28-29` comentado. System prompt (~6400 tokens) reenviado a cada chamada. **~$103/mês desperdiçados** @ 200 queries/dia (caching dá 90% de desconto no input cacheado).
-- **Custo por query**: ~$0.026–0.052 (Sonnet). Modelo de custo otimizado: **$207→$99/mês** (Haiku no classifier + caching + scale-to-zero).
-- **F7 — RAG tem ROI negativo no volume atual**: README estima +$1327–5595/mês. A $0.22/query de overhead de infra. Adiar até >2000 queries/dia; usar injeção de contexto estático (~$0.005/query) antes disso.
-- **F5 — 13 pods always-on** para um ChatOps de baixo tráfego → KEDA scale-to-zero economiza ~$28/mês.
+- **F2 — prompt caching off** ✅: `bedrock.py:28-29` commented out. The system
+  prompt (~6400 tokens) re-sent on every call. **~$103/mo wasted** @ 200
+  queries/day (caching gives a 90% discount on cached input).
+- **Cost per query**: ~$0.026–0.052 (Sonnet). Optimized cost model: **$207→$99/mo**
+  (Haiku in the classifier + caching + scale-to-zero).
+- **F7 — RAG has negative ROI at the current volume**: README estimates
+  +$1327–5595/mo. At $0.22/query of infra overhead. Defer until >2000 queries/day;
+  use static context injection (~$0.005/query) before that.
+- **F5 — 13 always-on pods** for a low-traffic ChatOps → KEDA scale-to-zero saves
+  ~$28/mo.
 
 ### GITOPS
-- **F8 — ZERO CI/CD** (HIGH): docs referenciam GitLab CI, mas o repo é **GitHub** (`github.com:karlipegomes/AIgent-squad`). Não existe `.gitlab-ci.yml` nem `.github/workflows/`. **Nada builda as imagens que a spec `05-helm-chart` assume existir.** É o elo perdido entre código e deploy.
-- **F4 — Dockerfiles**: single-stage, `python:3.12-alpine` (devia ser `3.11-slim`), sem multi-arch (BDC roda Graviton/arm64), sem `USER`.
-- **F3 — cada imagem contém `src/` inteiro** (todos os 5 agentes) — superfície + tamanho.
-- **F5 — `.gitignore` ignora `.dockerignore`** (lógica invertida) → build context manda o repo todo.
-- **F9 — `requirements.txt` monolítico** → cada imagem ~400MB+ (k8s+slack+mcp em todas), cold-start lento pro KEDA.
-- **F2 — `dynamodb-local` sem healthcheck** → supervisor sobe antes do DynamoDB estar pronto.
+- **F8 — ZERO CI/CD** (HIGH): docs reference GitLab CI, but the repo is **GitHub**
+  (`github.com:karlipegomes/AIgent-squad`). There's no `.gitlab-ci.yml` nor
+  `.github/workflows/`. **Nothing builds the images the `05-helm-chart` spec
+  assumes exist.** It's the missing link between code and deploy.
+- **F4 — Dockerfiles**: single-stage, `python:3.12-alpine` (should be
+  `3.11-slim`), no multi-arch (BDC runs Graviton/arm64), no `USER`.
+- **F3 — each image contains the whole `src/`** (all 5 agents) — surface + size.
+- **F5 — `.gitignore` ignores `.dockerignore`** (inverted logic) → the build
+  context ships the whole repo.
+- **F9 — monolithic `requirements.txt`** → each image ~400MB+ (k8s+slack+mcp in
+  all), slow cold-start for KEDA.
+- **F2 — `dynamodb-local` without a healthcheck** → the supervisor comes up before
+  DynamoDB is ready.
 
 ### SRE
-- **R5 — sem graceful shutdown nos agentes**: só o supervisor tem hook. SIGTERM nos 5 especialistas aborta Bedrock no meio, vaza conexões → connection reset a cada rollout no EKS.
-- **R7 — sem circuit breaker**: agente morto → toda query classificada pra ele espera 25s de timeout. Com pool de 100 conexões, 100 queries concorrentes esgotam o pool e travam até as chamadas saudáveis.
-- **R8 — supervisor não verifica disponibilidade dos agentes no boot** (URLs hardcoded, sem probe).
-- **R9 — sem correlation ID** propagado supervisor→agente.
+- **R5 — no graceful shutdown in the agents**: only the supervisor has a hook.
+  SIGTERM on the 5 specialists aborts Bedrock mid-flight, leaks connections →
+  connection reset on every EKS rollout.
+- **R7 — no circuit breaker**: a dead agent → every query classified to it waits
+  25s for a timeout. With a 100-connection pool, 100 concurrent queries exhaust
+  the pool and stall even the healthy calls.
+- **R8 — the supervisor doesn't verify agent availability at boot** (hardcoded
+  URLs, no probe).
+- **R9 — no correlation ID** propagated supervisor→agent.
 
 ### DOCUMENTATION
-- **D6/D10 — docs fantasma** ✅: `CHANGES.md` e `docs/MIGRATION.md` mandam rodar `server_new.py` (5 arquivos) e `cd terraform/` — **nada disso existe** (o `IMPLEMENTATION_HISTORY.md` até diz que removeu os `server_new.py`).
-- **D7 — "v2.0" em 10 arquivos** vs "0.x pre-release" do README (23 matches de `v2.0`). Dissonância: o projeto é simultaneamente pre-release e "Production Ready" dependendo do arquivo.
-- **D8 — encoding corrompido em 7 arquivos** (AUDIT D4 só viu 2): "docker-compoif", "Responif", "sefordo" — find/replace quebrado (`se`→`if`, `re`→`this`).
-- **D9 — colisão de porta**: `docs/LOCAL_DEVELOPMENT.md` lista DynamoDB Local na 8001 (devia ser 8100).
-- **D11 — sem `CHANGELOG.md`** (Keep a Changelog) apesar do ROADMAP exigir.
-- **D13 — `docs/PREREQUISITES.md` descreve schema DynamoDB errado** (`session_id` em vez de `pk`+`sk`).
+- **D6/D10 — ghost docs** ✅: `CHANGES.md` and `docs/MIGRATION.md` tell you to run
+  `server_new.py` (5 files) and `cd terraform/` — **none of which exist** (the
+  `IMPLEMENTATION_HISTORY.md` even says it removed the `server_new.py`).
+- **D7 — "v2.0" in 10 files** vs the README's "0.x pre-release" (23 matches of
+  `v2.0`). Dissonance: the project is simultaneously pre-release and "Production
+  Ready" depending on the file.
+- **D8 — corrupted encoding in 7 files** (AUDIT D4 only saw 2): "docker-compoif",
+  "Responif", "sefordo" — broken find/replace (`se`→`if`, `re`→`this`).
+- **D9 — port collision**: `docs/LOCAL_DEVELOPMENT.md` lists DynamoDB Local on
+  8001 (should be 8100).
+- **D11 — no `CHANGELOG.md`** (Keep a Changelog) despite the ROADMAP requiring it.
+- **D13 — `docs/PREREQUISITES.md` describes the wrong DynamoDB schema**
+  (`session_id` instead of `pk`+`sk`).
 
 ---
 
-## Novas specs propostas
+## Proposed new specs
 
-Ordenadas por dependência. As 4 specs do AUDIT (01–04) continuam sendo o pré-requisito; estas **estendem** o roadmap.
+Ordered by dependency. The 4 AUDIT specs (01–04) remain the prerequisite; these
+**extend** the roadmap.
 
-| # | Spec proposta | Origem | Severidade | Depende de |
-|---|---------------|--------|-----------|------------|
-| **06** | `resilience-patterns` — timeouts, retries c/ jitter, circuit breaker, fail-open Redis/DynamoDB, **async-first refactor** (`aioboto3`/`httpx.AsyncClient`/`asyncio.to_thread`), classifier fallback | CONV-1, CONV-2, CONV-3, CONV-5, sre R1–R9, dev F1–F12 | 🔴 | 02 |
-| **07** | `readiness-probes` — `/healthz` (liveness) + `/ready` (checa deps) + graceful shutdown (`lifespan`, flush OTel, drain) | CONV-4, sre R5/R6, dev F4 | 🔴 | 02 (pré-req de 05) |
-| **08** | `ci-cd-pipeline` — GitHub Actions (test→build-dev→demo→release), multi-arch amd64+arm64, Trivy, cosign, SBOM, coverage gate 90%, push ECR/Harbor | gitops F8, AUDIT "sem testes" | 🔴 | 01 |
-| **09** | `otel-instrumentation` — `setup_telemetry(service_name)`, instrumentar 7 serviços, propagação de trace, OTel Collector no stack, sampler explícito | obs F1–F12 | 🟠 | 02 |
-| **10** | `metrics-and-cost-observability` — catálogo RED + LLM (tokens, **custo $**, confiança do classifier, cache hit), emitido via OTel; dashboards Grafana | obs (metrics-catalog), finops F-cost-obs | 🟠 | 09 |
-| **11** | `bedrock-resilience-cost` — Haiku no classifier, **prompt caching** (re-ligar), model tiering, cross-region failover, token budget por sessão | CONV-3, finops F1/F2, aws F2/F11 Prop3 | 🟠 | 06 |
-| **12** | `terraform-infra` — DynamoDB (PITR, TTL habilitado, GSIs), ElastiCache, 7 ECR repos, IRSA, Secrets Manager, S3 Athena | aws Prop1/Prop4, ROADMAP Fase 2 | 🟠 | — |
-| **13** | `iam-least-privilege` — política read-only por agente + **deny explícito** (terminate/delete/iam:*), só 3/7 serviços precisam de AWS além de Bedrock | SEC-D4, aws Prop2 | 🟠 | 12 |
+| # | Proposed spec | Origin | Severity | Depends on |
+|---|---------------|--------|----------|------------|
+| **06** | `resilience-patterns` — timeouts, retries w/ jitter, circuit breaker, fail-open Redis/DynamoDB, **async-first refactor** (`aioboto3`/`httpx.AsyncClient`/`asyncio.to_thread`), classifier fallback | CONV-1, CONV-2, CONV-3, CONV-5, sre R1–R9, dev F1–F12 | 🔴 | 02 |
+| **07** | `readiness-probes` — `/healthz` (liveness) + `/ready` (checks deps) + graceful shutdown (`lifespan`, flush OTel, drain) | CONV-4, sre R5/R6, dev F4 | 🔴 | 02 (prereq of 05) |
+| **08** | `ci-cd-pipeline` — GitHub Actions (test→build-dev→demo→release), multi-arch amd64+arm64, Trivy, cosign, SBOM, 90% coverage gate, push ECR/Harbor | gitops F8, AUDIT "no tests" | 🔴 | 01 |
+| **09** | `otel-instrumentation` — `setup_telemetry(service_name)`, instrument 7 services, trace propagation, OTel Collector in the stack, explicit sampler | obs F1–F12 | 🟠 | 02 |
+| **10** | `metrics-and-cost-observability` — RED + LLM catalog (tokens, **cost $**, classifier confidence, cache hit), emitted via OTel; Grafana dashboards | obs (metrics-catalog), finops F-cost-obs | 🟠 | 09 |
+| **11** | `bedrock-resilience-cost` — Haiku in the classifier, **prompt caching** (re-enable), model tiering, cross-region failover, per-session token budget | CONV-3, finops F1/F2, aws F2/F11 Prop3 | 🟠 | 06 |
+| **12** | `terraform-infra` — DynamoDB (PITR, TTL enabled, GSIs), ElastiCache, 7 ECR repos, IRSA, Secrets Manager, S3 Athena | aws Prop1/Prop4, ROADMAP Phase 2 | 🟠 | — |
+| **13** | `iam-least-privilege` — per-agent read-only policy + **explicit deny** (terminate/delete/iam:*), only 3/7 services need AWS beyond Bedrock | SEC-D4, aws Prop2 | 🟠 | 12 |
 | **14** | `security-hardening` — threat model (STRIDE), authn/authz + audit log, NetworkPolicy + Istio mTLS, **prompt-injection guardrails** (input scan + context isolation + output filter + canary) | SEC-D1/D2/D3/D8/D12, sec Prop1–4 | 🟠 | 04 |
-| **15** | `sli-slo-framework` — SLIs (disponibilidade, latência p95, taxa de sucesso do classifier/agente), SLOs Tier-3, error budget, burn-rate alerts | sre Prop2, obs Prop3 | 🟡 | 10 |
-| **16** | `incident-runbooks` — playbooks (agente down, Bedrock throttled, Redis/DynamoDB down, alta latência, outage total) | sre Prop4 | 🟡 | 06, 07 |
-| **17** | `multi-agent-collaboration` — classifier multi-agente, **fan-out/fan-in paralelo** p/ queries cross-domain + síntese, **agent-as-tools** (1 salto) | ANALYSIS "comportamentos novos" | 🟢 | 06, 09 |
-| **18** | `rca-investigation-workflow` — **o diferencial**: sintoma → fan-out de evidência → timeline → correlação cross-signal → RCA (confiança + evidência + prevenção). Read-only | ganho esperado (RCA), `investigation-protocol` | 🟢 | 17, 09, 19 |
-| **19** | `config-driven-platform` — config file (YAML) + env override + secrets fora do YAML; registry de agentes/datasources/limites/modelos por papel. **Pré-req de produto** | requisito do usuário, hardcodes | 🟠 | — |
-| ~~**20**~~ | ~~`grpc-inter-agent-mesh`~~ — **REMOVIDA** (decisão 2026-06-02): ganho de latência irrelevante (~3ms sobre chamadas de modelo de ~5s). gRPC não se justifica por velocidade de RCA | — | ❌ | — |
-| **21** | `incident-memory-learning` — persiste investigações `{assinatura, evidência, root cause, fix}` + recupera incidentes similares. Loop de aprendizado **simples** (sem Knowledge Base cara) | ganho esperado (aprendizado) | 🟢 | 18 |
-| **22** | `agent-capability-manifest` — roster **aberto** de especialistas via manifesto YAML; colaboração dirigida por metadados (`capabilities`, `evidence_types`, `delegates_to`). **Substitui a 19** | requisito do usuário (roster aberto + colaboração via metadados) | 🟠 | — |
-| **23** | `test-harness-docker` — `Dockerfile.test` + comando único: `pytest --cov-fail-under=90` com mocks (fakeredis/moto/respx), sem serviços reais; mesmo harness dev↔CI | requisito do usuário (testes via Dockerfile), `dev-environment` | 🔴 | — |
-| **24** | `docs-portal-mkdocs` — consolidar docs espalhadas num portal MkDocs Material (`src`→`public`, estilo portal DevOps); README vira índice; ADRs; mata docs fantasma/encoding | requisito do usuário (organizar docs open-source), D6–D15 | 🟠 | — |
+| **15** | `sli-slo-framework` — SLIs (availability, p95 latency, classifier/agent success rate), Tier-3 SLOs, error budget, burn-rate alerts | sre Prop2, obs Prop3 | 🟡 | 10 |
+| **16** | `incident-runbooks` — playbooks (agent down, Bedrock throttled, Redis/DynamoDB down, high latency, total outage) | sre Prop4 | 🟡 | 06, 07 |
+| **17** | `multi-agent-collaboration` — multi-agent classifier, **parallel fan-out/fan-in** for cross-domain queries + synthesis, **agent-as-tools** (1 hop) | ANALYSIS "new behaviors" | 🟢 | 06, 09 |
+| **18** | `rca-investigation-workflow` — **the differentiator**: symptom → evidence fan-out → timeline → cross-signal correlation → RCA (confidence + evidence + prevention). Read-only | expected gain (RCA), `investigation-protocol` | 🟢 | 17, 09, 19 |
+| **19** | `config-driven-platform` — config file (YAML) + env override + secrets outside the YAML; registry of agents/datasources/limits/models per role. **Product prereq** | user requirement, hardcodes | 🟠 | — |
+| ~~**20**~~ | ~~`grpc-inter-agent-mesh`~~ — **REMOVED** (decision 2026-06-02): irrelevant latency gain (~3ms over ~5s model calls). gRPC is not justified by RCA speed | — | ❌ | — |
+| **21** | `incident-memory-learning` — persists investigations `{signature, evidence, root cause, fix}` + retrieves similar incidents. **Simple** learning loop (no expensive Knowledge Base) | expected gain (learning) | 🟢 | 18 |
+| **22** | `agent-capability-manifest` — **open** roster of specialists via YAML manifest; metadata-driven collaboration (`capabilities`, `evidence_types`, `delegates_to`). **Replaces 19** | user requirement (open roster + metadata collaboration) | 🟠 | — |
+| **23** | `test-harness-docker` — `Dockerfile.test` + single command: `pytest --cov-fail-under=90` with mocks (fakeredis/moto/respx), no real services; same harness dev↔CI | user requirement (tests via Dockerfile), `dev-environment` | 🔴 | — |
+| **24** | `docs-portal-mkdocs` — consolidate scattered docs into an MkDocs Material portal (`src`→`public`, DevOps-portal style); README becomes an index; ADRs; kills ghost/encoding docs | user requirement (organize open-source docs), D6–D15 | 🟠 | — |
 
-> **Ver [`ECOSYSTEM.md`](ECOSYSTEM.md)**: decisão tomada (2026-06-02) = **manter o AIgent-squad SEPARADO** (não merge, não virar coletor do chaitops). Specs como 14/17/19/21 existem mais maduras no `staffops-chaitops` e devem ser **reusadas por cópia** (AgentRegistry, BudgetGuard, KbDelta, contrato de payload do anomaly-detection), não por dependência. gRPC (20) removida. Docs em inglês.
+> **See [`ECOSYSTEM.md`](ECOSYSTEM.md)**: decision made (2026-06-02) = **keep
+> AIgent-squad SEPARATE** (no merge, not becoming a chaitops collector). Specs
+> like 14/17/19/21 exist more mature in `staffops-chaitops` and should be
+> **reused by copy** (AgentRegistry, BudgetGuard, KbDelta, the anomaly-detection
+> payload contract), not by dependency. gRPC (20) removed. Docs in English.
 
-### Testes & verificação (transversal — afeta toda spec com código)
+### Tests & verification (cross-cutting — affects every spec with code)
 
-Estado atual ✅ verificado: **zero** testes, sem `pytest`/`tox`, sem CI (`.github`/`.gitlab-ci.yml`), sem deps de teste no `requirements.txt`. Isso é o pré-requisito de verificação do steering global — bloqueia declarar qualquer coisa "done". O **harness dockerizado** que operacionaliza tudo isso é a spec **`23-test-harness-docker`**.
+Current state ✅ verified: **zero** tests, no `pytest`/`tox`, no CI
+(`.github`/`.gitlab-ci.yml`), no test deps in `requirements.txt`. This is the
+global steering's verification prerequisite — it blocks declaring anything
+"done". The **dockerized harness** that operationalizes all this is spec
+**`23-test-harness-docker`**.
 
-Regras a aplicar em **todas** as specs 06–22 que tocam código:
-- **Cobertura ≥90%** medida via Docker (`pytest --cov=<pkg> --cov-fail-under=90`, `python:3.11-slim`) — gate de build, não meta aspiracional (steering `dev-environment.md`).
-- **Autor do código ≠ autor dos testes** — implementação e testes em sessões/agents diferentes; testes escritos contra o contrato/spec, não contra a implementação (steering global `verification-independence.md`).
-- **Review independente obrigatório** via subagent `code-review` — não basta "o teste passou".
-- A spec **08-ci-cd-pipeline** materializa o gate (coverage gate no GitHub Actions); o pipeline de 3 stages (`implement` → `write-tests` → `review`) é o operacional do dia-a-dia.
+Rules to apply across **all** specs 06–22 that touch code:
+- **Coverage ≥90%** measured via Docker (`pytest --cov=<pkg> --cov-fail-under=90`,
+  `python:3.11-slim`) — a build gate, not an aspirational goal (steering
+  `dev-environment.md`).
+- **Code author ≠ test author** — implementation and tests in different
+  sessions/agents; tests written against the contract/spec, not the
+  implementation (global steering `verification-independence.md`).
+- **Mandatory independent review** via the `code-review` subagent — "the test
+  passed" is not enough.
+- Spec **08-ci-cd-pipeline** materializes the gate (coverage gate in GitHub
+  Actions); the 3-stage pipeline (`implement` → `write-tests` → `review`) is the
+  day-to-day operational form.
 
-Suíte mínima de maior valor (prioridade por branch/error-path): parsing do classifier (JSON em markdown, truncado, agente desconhecido), determinismo da cache key (sha256), contrato de resposta (`{role,content,timestamp,agent_id}`), roteamento do supervisor (timeout/500/fallback), retry do Bedrock, fail-open de Redis/DynamoDB.
+Highest-value minimal suite (priority by branch/error-path): classifier parsing
+(JSON in markdown, truncated, unknown agent), cache key determinism (sha256),
+response contract (`{role,content,timestamp,agent_id}`), supervisor routing
+(timeout/500/fallback), Bedrock retry, Redis/DynamoDB fail-open.
 
-### Comportamentos novos (não-spec, embutir nas specs acima)
-- **Async-first** é a mudança de comportamento mais impactante — pertence à 06, mas atravessa todo o código.
-- **Fail-open** em todas as dependências não-críticas (Redis, histórico) — invariante a adicionar no `steering/project.md`.
-- **Model tiering** (Haiku roteia, Sonnet responde) — muda o contrato do `bedrock.invoke()`.
-- **Streaming de respostas** (já há `AsyncIterable` no `agent_base`, nunca implementado) — UX e percepção de latência.
-- **Agent-as-tools + colaboração cross-domain** — agora especificado em **`17-multi-agent-collaboration`** (fan-out/fan-in paralelo + síntese; agent-as-tools com 1 salto). Depende de 06 (async) e 09 (trace).
+### New behaviors (non-spec, embed in the specs above)
+- **Async-first** is the most impactful behavior change — belongs to 06, but
+  cuts across all the code.
+- **Fail-open** on all non-critical dependencies (Redis, history) — an invariant
+  to add to `steering/project.md`.
+- **Model tiering** (Haiku routes, Sonnet responds) — changes the
+  `bedrock.invoke()` contract.
+- **Response streaming** (there's already `AsyncIterable` in `agent_base`, never
+  implemented) — UX and latency perception.
+- **Agent-as-tools + cross-domain collaboration** — now specified in
+  **`17-multi-agent-collaboration`** (parallel fan-out/fan-in + synthesis;
+  agent-as-tools with 1 hop). Depends on 06 (async) and 09 (trace).
 
-### Documentação (transversal)
-- **Restruturar docs** (Diátaxis): 11 docs sobrepostos → ~8 focados. Deletar `CHANGES.md`, `VERSIONS.md`, `GENERIC_VERSION.md`, `MIGRATION.md` (fantasma).
-- **ADR log**: 001-remoção-LangGraph, 002-Bedrock-direto, 003-design-read-only, 004-classifier-vs-tool-use, 005-HTTP-per-agent-vs-in-process.
-- **`CHANGELOG.md`** Keep a Changelog + reset honesto para `0.1.0`.
-- **Audit de Rationale (Nível 3)** nas specs 01–04 antes de implementar.
+### Documentation (cross-cutting)
+- **Restructure docs** (Diátaxis): 11 overlapping docs → ~8 focused. Delete
+  `CHANGES.md`, `VERSIONS.md`, `GENERIC_VERSION.md`, `MIGRATION.md` (ghost).
+- **ADR log**: 001-langgraph-removal, 002-bedrock-direct, 003-read-only-design,
+  004-classifier-vs-tool-use, 005-HTTP-per-agent-vs-in-process.
+- **`CHANGELOG.md`** Keep a Changelog + an honest reset to `0.1.0`.
+- **Rationale audit (Level 3)** on specs 01–04 before implementing.
 
 ---
 
-## Recomendação de priorização
+## Prioritization recommendation
 
-1. **AUDIT 01** (blockers) — sem isso nada builda. *Imutável.*
-2. **Spec 06 (resilience/async)** + **02 (unify)** juntas — o async-first refactor é mais barato de fazer durante a unificação dos agentes do que depois.
-3. **Spec 07 (probes)** — pré-requisito de código que a `05-helm-chart` já assume.
-4. **Spec 08 (CI/CD)** — em paralelo; é o elo perdido entre código e deploy, e traz o coverage gate que cobre a lacuna "zero testes".
-5. **09/11** (telemetria + Bedrock cost) — antes do deploy real, senão sobe cego e caro.
-6. **12/13/14** (infra + IAM + security) — Fase 2, junto com 05-helm-chart.
-7. **15/16** (SLO + runbooks) — quando houver tráfego real pra medir.
+1. **AUDIT 01** (blockers) — without it nothing builds. *Immutable.*
+2. **Spec 06 (resilience/async)** + **02 (unify)** together — the async-first
+   refactor is cheaper to do during the agent unification than afterward.
+3. **Spec 07 (probes)** — a code prerequisite that `05-helm-chart` already assumes.
+4. **Spec 08 (CI/CD)** — in parallel; it's the missing link between code and
+   deploy, and brings the coverage gate that covers the "zero tests" gap.
+5. **09/11** (telemetry + Bedrock cost) — before the real deploy, otherwise it
+   goes up blind and expensive.
+6. **12/13/14** (infra + IAM + security) — Phase 2, together with 05-helm-chart.
+7. **15/16** (SLO + runbooks) — when there's real traffic to measure.
 
-> O AUDIT respondeu *"por que não roda"*. Esta análise responde *"por que, mesmo rodando, não está pronto pra produção"*: sem concorrência, falha fechada, cego e indefensável. As specs 06–14 fecham essa distância.
+> The AUDIT answered *"why it doesn't run"*. This analysis answers *"why, even
+> running, it isn't production-ready"*: no concurrency, fails closed, blind and
+> indefensible. Specs 06–14 close that distance.
 
 ---
 
-## Cost Estimates — Investigação RCA (referência 2026-06)
+## Cost Estimates — RCA Investigation (reference 2026-06)
 
-Preços Bedrock (Claude): Haiku $0.25/$1.25 | Sonnet $3/$15 | Opus $15/$75 (input/output por 1M tokens).
+Bedrock prices (Claude): Haiku $0.25/$1.25 | Sonnet $3/$15 | Opus $15/$75
+(input/output per 1M tokens).
 
-### Por chamada (média estimada)
+### Per call (estimated average)
 
-| Papel | Modelo | Tokens (in/out) | Custo |
-|-------|--------|-----------------|-------|
-| Classifier (roteamento) | Haiku | ~1K / ~0.2K | ~$0.001 |
-| Agente coletor (evidência) | Sonnet | ~2K / ~1K | ~$0.02 |
-| Synthesizer (correlação) | Sonnet (Nível 1–2) | ~8K / ~2K | ~$0.05 |
-| Synthesizer (correlação) | Opus (Nível 3–4) | ~8K / ~2K | ~$0.50 |
-| Destilação extractor (draft KB) | Sonnet | ~4K / ~1K | ~$0.03 |
-| Destilação enricher (refine KB) | Opus | ~6K / ~2K | ~$0.24 |
+| Role | Model | Tokens (in/out) | Cost |
+|------|-------|-----------------|------|
+| Classifier (routing) | Haiku | ~1K / ~0.2K | ~$0.001 |
+| Collector agent (evidence) | Sonnet | ~2K / ~1K | ~$0.02 |
+| Synthesizer (correlation) | Sonnet (Level 1–2) | ~8K / ~2K | ~$0.05 |
+| Synthesizer (correlation) | Opus (Level 3–4) | ~8K / ~2K | ~$0.50 |
+| Distillation extractor (draft KB) | Sonnet | ~4K / ~1K | ~$0.03 |
+| Distillation enricher (refine KB) | Opus | ~6K / ~2K | ~$0.24 |
 
-### Por investigação RCA (5 agentes, problema de conectividade)
+### Per RCA investigation (5 agents, connectivity problem)
 
-| Nível | Max rodadas | Chamadas Bedrock | Tokens (in/out) | Custo/RCA | Tempo estimado |
-|-------|-------------|-----------------|------------------|-----------|----------------|
+| Level | Max rounds | Bedrock calls | Tokens (in/out) | Cost/RCA | Estimated time |
+|-------|------------|---------------|-----------------|----------|----------------|
 | **1** Hub-and-spoke | 1 | ~7 | ~22K / ~7K | **~$0.17** | ~6s |
-| **2** Iterativo | 5 | ~31 | ~90K / ~35K | **~$0.80** | ~25s |
-| **3** Contexto compartilhado | 10 | ~62 | ~200K / ~70K | **~$1.65** | ~50s |
-| **4** Autônomo | 25 | ~150+ | ~500K / ~180K | **~$4.20** | ~2min |
+| **2** Iterative | 5 | ~31 | ~90K / ~35K | **~$0.80** | ~25s |
+| **3** Shared context | 10 | ~62 | ~200K / ~70K | **~$1.65** | ~50s |
+| **4** Autonomous | 25 | ~150+ | ~500K / ~180K | **~$4.20** | ~2min |
 
-+ Destilação (1× por investigação): ~$0.27 (Sonnet draft + Opus enricher)
++ Distillation (1× per investigation): ~$0.27 (Sonnet draft + Opus enricher)
 
-### Comparativo custo/valor
+### Cost/value comparison
 
-| Abordagem | Custo | Tempo |
-|-----------|-------|-------|
-| Engenheiro senior investigando manualmente | ~$50–100 | 30–60min |
-| AIgent-squad Nível 1 | $0.17 | 6s |
-| AIgent-squad Nível 4 (máximo) | $4.20 + $0.27 destilação | ~2min |
+| Approach | Cost | Time |
+|----------|------|------|
+| Senior engineer investigating manually | ~$50–100 | 30–60min |
+| AIgent-squad Level 1 | $0.17 | 6s |
+| AIgent-squad Level 4 (max) | $4.20 + $0.27 distillation | ~2min |
 
-**Conclusão**: mesmo no cenário mais caro (Nível 4), o custo é ~10–25× menor que investigação humana.
+**Conclusion**: even in the most expensive scenario (Level 4), the cost is ~10–25×
+lower than human investigation.
 
-### Projeção mensal (por volume de incidentes)
+### Monthly projection (by incident volume)
 
-| Incidentes/mês | Nível 1 | Nível 2 | Nível 4 |
-|----------------|---------|---------|---------|
+| Incidents/mo | Level 1 | Level 2 | Level 4 |
+|--------------|---------|---------|---------|
 | 10 | $1.70 | $8.00 | $42.00 |
 | 50 | $8.50 | $40.00 | $210.00 |
 | 200 | $34.00 | $160.00 | $840.00 |
 
-Nota: na prática, nem toda investigação precisa de todas as rodadas. O max_rounds é teto, não uso médio.
+Note: in practice, not every investigation needs all the rounds. max_rounds is a
+ceiling, not the average use.
