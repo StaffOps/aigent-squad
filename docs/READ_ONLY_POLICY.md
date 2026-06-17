@@ -1,6 +1,17 @@
 # Read-Only Policy
 
-**All agents are 100% read-only. No exceptions.**
+**Today, all agents are 100% read-only.** This is the current operating posture
+of the product, enforced in depth (4 layers below).
+
+> **Not a permanent lock.** Executing actions (remediation/rollback/etc.) is an
+> open future possibility on the roadmap — it is **not ruled out**. But it is
+> deliberately gated: read-only is the default until an explicit decision to
+> enable execution is made. When/if that happens, it is **conditional on**:
+> (a) the defense-in-depth of `.kiro/specs/14-security-hardening/` being
+> implemented, and (b) **human-in-the-loop approval** for any mutating action.
+> Rationale: a read-only agent's worst-case under prompt injection is data
+> exfiltration; an *executing* agent's worst-case is a destructive action — so
+> execution may not ship without those guardrails. See `ADR-001`.
 
 ## Enforcement (4 layers)
 

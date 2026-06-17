@@ -10,9 +10,20 @@
 ## Tese (por que isto é o produto, não um detalhe)
 
 O AIgent-squad compete na mesma categoria que Datadog Bits AI SRE, incident.io,
-PagerDuty AI SRE e Azure SRE Agent. **A diferença deliberada**: esses produtos
-**agem** (rollback, scale, restart — com human-in-the-loop como muleta de
-segurança). O AIgent-squad é **read-only invariante** — nunca executa.
+PagerDuty AI SRE e Azure SRE Agent. **A diferença deliberada (hoje)**: esses
+produtos **agem** (rollback, scale, restart — com human-in-the-loop como muleta
+de segurança). O AIgent-squad é **read-only na fase atual** — hoje não executa.
+
+> **Read-only não é permanente.** Executar ações é uma possibilidade futura em
+> aberto no roadmap (não está descartada). Mas a postura de segurança DEPENDE
+> de qual modo está ativo, e esta spec é **pré-requisito bloqueante** para
+> habilitar execução:
+> - **Enquanto read-only** (hoje): o pior caso de um injection é exfiltração/
+>   manipulação/custo — nunca mutação. Esta spec endurece essa superfície.
+> - **Se/quando executar** (futuro): o "Elevation" do STRIDE volta a ser a
+>   ameaça dominante; injection poderia disparar ação destrutiva. Então
+>   execução é condicionada a (a) esta spec implementada E (b)
+>   **human-in-the-loop obrigatório** para qualquer ação mutante.
 
 Isso inverte a relação com prompt injection:
 - Num agente que **age**, um injection bem-sucedido = incidente de produção
@@ -20,15 +31,18 @@ Isso inverte a relação com prompt injection:
 - Num agente **read-only**, o pior caso de um injection = exfiltração de dado
   coletado, manipulação da recomendação, ou abuso de custo. **Nunca mutação.**
 
-Portanto o posicionamento é: **"o AI SRE em que você confia porque ele não pode
-quebrar nada nem ser sequestrado para agir"**. Guardrails fortíssimos +
-read-only + anti-injection multi-idioma **são o diferencial competitivo**, não
-um nice-to-have. Esta spec eleva a defesa de injection de 1 camada (delimitação
+Portanto o posicionamento atual é: **"o AI SRE em que você confia — read-only
+por padrão, e quando agir, agirá com guardrails que os outros não têm desde o
+início"**. Guardrails fortíssimos + anti-injection multi-idioma **são o
+diferencial competitivo** (e o que torna a execução futura segura), não um
+nice-to-have. Esta spec eleva a defesa de injection de 1 camada (delimitação
 textual) para defense-in-depth real.
 
 ## Threat model (resumo — STRIDE completo no design)
 
-Como read-only já elimina a classe "mutação", o foco é:
+Na fase read-only atual, a classe "mutação" está eliminada, então o foco é
+exfiltração/manipulação/custo. **Quando execução for habilitada, este threat
+model precisa ser estendido** (elevation/mutação voltam — ver design.md):
 
 | Ameaça | Vetor | Impacto |
 |--------|-------|---------|
@@ -76,12 +90,14 @@ cap por usuário/sessão para conter abuso de custo via injection.
       ofuscações (base64, leetspeak, zero-width, unicode confusables).
 - [ ] **Audit log** estruturado de toda detecção/recusa (sem vazar o payload
       malicioso em claro nos logs).
-- [ ] **Read-only reafirmado** como invariante de segurança (não regredir).
+- [ ] **Read-only mantido na fase atual** (não regredir acidentalmente); habilitar execução é decisão explícita e fora desta spec.
 - [ ] Cobertura de testes ≥90% no código novo.
 
 ## Fora de escopo
 
-- Tornar o agente capaz de agir (contradiz a tese — é a anti-feature).
+- Habilitar o agente a agir/executar — **trabalho futuro em aberto**, fora
+  desta spec. Quando endereçado, exige estender o threat model (elevation) +
+  human-in-the-loop + esta spec implementada como pré-requisito.
 - WAF de rede / DDoS (camada de infra, não de aplicação — outra spec).
 - Treinar modelo próprio de detecção (usa Bedrock Guardrails gerenciado).
 

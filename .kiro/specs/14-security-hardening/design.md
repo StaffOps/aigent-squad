@@ -45,7 +45,7 @@ compromete as outras (princípio: nenhuma camada confia na anterior).
 | **R**epudiation | Ataque sem rastro | Audit log estruturado de toda detecção/recusa |
 | **I**nfo disclosure | Exfiltração de infra/PII via resposta | Output filter (L4) + canary (L5) + Guardrail output (L1) |
 | **D**oS / abuso | Token burn, loops caros | Rate limit + budget cap (L6) + max rounds (existente) |
-| **E**levation | Agente é levado a "agir" | **Read-only invariante** (4 camadas pré-existentes) — bloqueia na raiz |
+| **E**levation | Agente é levado a "agir" | **Read-only (fase atual)** (4 camadas) — bloqueia na raiz HOJE; se execução for habilitada, vira a ameaça dominante e exige human-in-the-loop |
 
 > O "E" (elevation) — a ameaça mais grave nos concorrentes que agem — é
 > neutralizado pela arquitetura read-only, não por esta spec. Esta spec foca
@@ -120,7 +120,7 @@ query (403), não fazer bypass.
 **Quando estaria errada**: se o produto evoluir para caminho crítico de
 operação (improvável dado o read-only).
 
-### Decisão 3: read-only NÃO é desta spec — é pré-requisito invariante
+### Decisão 3: read-only NÃO é desta spec — é pré-requisito da fase atual
 
 **Escolha**: esta spec **não** adiciona enforcement de read-only; ela depende
 do read-only existente (4 camadas) como dado.
@@ -137,15 +137,16 @@ agir), esta spec precisa ser **reescrita** — o threat model muda completamente
 
 | Dimensão | Datadog Bits / incident.io / PagerDuty / Azure SRE | AIgent-squad |
 |----------|---------------------------------------------------|--------------|
-| Autonomia | Agem (rollback/scale/restart) | **Read-only invariante** |
-| Mitiga injection→mutação via | Human-in-the-loop (muleta) | **Arquitetura** (sem code path de mutação) |
-| Blast radius de injection | Alto (pode executar) | **Baixo** (só leitura) |
+| Autonomia | Agem (rollback/scale/restart) | **Read-only hoje** (execução é futuro em aberto, com guardrails) |
+| Mitiga injection→mutação via | Human-in-the-loop (muleta) | **Arquitetura** hoje (sem code path de mutação); HITL obrigatório se/quando executar |
+| Blast radius de injection | Alto (pode executar) | **Baixo hoje** (só leitura) |
 | Multi-idioma anti-injection | Limitado (Azure: só inglês) | **Sim** (Bedrock Guardrails) |
 | Postura sob falha de segurança | Disponibilidade-first | **Fail-closed** (segurança-first) |
-| Pitch | "automatiza remediação" | **"AI SRE que não pode ser sequestrado"** |
+| Pitch | "automatiza remediação" | **"read-only por padrão; quando agir, com guardrails que os outros não têm desde o início"** |
 
-> Não competimos em autonomia — competimos em **confiança verificável**. Esta
-> spec é a materialização técnica desse pitch.
+> Hoje não competimos em autonomia — competimos em **confiança verificável**.
+> Quando a execução entrar, esta spec é o que permite agir *com* a garantia que
+> os concorrentes só adicionaram depois. É a materialização técnica do pitch.
 
 ## Invariantes
 
@@ -154,7 +155,7 @@ agir), esta spec precisa ser **reescrita** — o threat model muda completamente
 - Audit log nunca registra o payload malicioso em claro (evita log injection /
   re-exposição).
 - `agent_id`/`user_id`/`session_id` em todo evento de auditoria (rastreio).
-- Read-only permanece invariante (esta spec não o toca).
+- Read-only é a postura da fase atual (esta spec não o toca, nem o torna eterno).
 
 ## Dependências externas
 
