@@ -97,6 +97,7 @@ A análise em [`ANALYSIS.md`](ANALYSIS.md) (8 specialists em paralelo) encontrou
 | 25 | `multi-tenant-concurrency` (distributed circuit breaker, session lock, rate limit/budget, Bedrock semaphore, load test k6) | 🟠 | 06, 17 |
 | 26 | `agent-skills` (conhecimento markdown lazy-loaded, global, allowlist por agente, keyword match) | ✅ done | 02 |
 | 27 | `bedrock-cost-attribution` (AIP por modelo + tags FinOps; rateio por agente via métrica de tokens labelada) | ✅ done (infra+app; deploy pendente) | — |
+| 28 | `llm-provider-abstraction` (camada multi-provider: `LLMProvider` Protocol + `LLMService` comum; litellm candidato; preserva cost-attribution; clean-room) | 📝 design only | reabre ADR-001 |
 
 > **ADR-001** ([`ADR-001-bedrock-direto-vs-strands.md`](ADR-001-bedrock-direto-vs-strands.md)): decisão de manter Bedrock direto (não adotar Strands). Signal de reabertura: agentes deixarem de ser consultivos read-only.
 

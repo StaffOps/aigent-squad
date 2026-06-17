@@ -80,6 +80,9 @@ Priorizados por impacto:
 3. **Context budgeting universal** nos adapters (de HolmesGPT) — trunca/sumariza
    output antes do prompt. Ataca o maior dreno de tokens. Alimenta steering de
    eficiência. Pode virar parte de uma spec de adapters ou da 27.
+4. **`28-llm-provider-abstraction`** (design only) — camada multi-provider
+   (litellm candidato). Reabre ADR-001. Preservar cost-attribution (spec 27) é
+   o ponto crítico. Implementar só com decisão explícita.
 
 ---
 
