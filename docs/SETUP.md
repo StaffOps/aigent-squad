@@ -64,13 +64,19 @@ See [HOW-TO-NEW-AGENT.md](HOW-TO-NEW-AGENT.md).
 helm install aigent-squad oci://your-registry/charts/aigent-squad \
   --set image.tag=v0.1.0 \
   --set agentsSource.type=git \
-  --set agentsSource.repo=https://github.com/your-org/agent-definitions.git \
+  --set agentsSource.repo=https://github.com/karlipegomes/staffops-agent-config.git \
   --set agentsSource.tokenSecret=git-token \
   --set env.AWS_REGION=us-east-1 \
   --set env.INTERNAL_API_TOKEN=your-prod-token
 ```
 
 See the Helm chart at `helm-charts/charts/aigent-squad/` for full values reference.
+
+> **Agent/skill source**: the `agentsSource` git repo above is
+> [`staffops-agent-config`](https://github.com/karlipegomes/staffops-agent-config)
+> — the canonical roster (agents in `agent.yaml`+`prompt.md`, skills in
+> `SKILL.md`) used to validate the project. Locally, mount `./agents` and
+> `./skills` instead (see `docker-compose.yaml`).
 
 ### CI/CD
 
