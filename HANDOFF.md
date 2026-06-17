@@ -115,15 +115,11 @@ language** (centralized directive in `bedrock.invoke`, classifier opted out).
 - ✅ README → EN
 - ✅ ADR-001 renamed (direto→direct) + translated → EN
 
-**Done (continued):** README, ADR-001 (renamed direto→direct), and ALL active
-specs — 14, 26, 27, 28 — translated to English.
+**Done:** language directive in code; steering (3); agent prompts (5); README;
+ADR-001 (renamed direto→direct); all active specs (14/26/27/28); ROADMAP;
+COMPETITIVE-ANALYSIS; supervisor/README. **All of `docs/` and `src/` is English.**
 
-**Remaining (PT → EN) — low priority:**
-- Large docs: docs/COMPETITIVE-ANALYSIS.md, src/supervisor/README.md, HANDOFF.md,
-  .kiro/specs/{ROADMAP,AUDIT,ANALYSIS,ECOSYSTEM}.md
-- Historical specs 01-25 (~50 files) — completed specs, historical record, no edits
-  expected. Lowest priority; arguably fine to leave as-is.
-- ROADMAP.md ~line 102 + CHANGES.md ~line 35 still reference the OLD ADR filename
-  `ADR-001-bedrock-direto-vs-strands.md` → fix to `-direct-` when translating those.
+**Remaining (PT → EN) — historical record, low/optional priority (~52 files):**
+- `.kiro/specs/{AUDIT,ANALYSIS,ECOSYSTEM}.md` — dated analysis (2026-05-30 / 06-02), frozen.
+- Historical specs 01-25 (~49 files) — completed specs; arguably fine to leave as-is.
 - Detect PT: `grep -rliE "\b(não|você|está|são|também|porque)\b" --include=*.md . | grep -v .git/`
-- (~55 files remain; all low-value translation.)
