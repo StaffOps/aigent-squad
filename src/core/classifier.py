@@ -1,40 +1,54 @@
-from typing import List, Dict, Optional
-from dataclasses import dataclass
+import json
+from typing import List, Optional
+from dataclasses import dataclass, field
 from src.core.bedrock import bedrock
 from src.core.state_store import ConversationMessage
+from src.core.logger import logger
+
+
+@dataclass
+class AgentMatch:
+    agent: str
+    confidence: float
+
 
 @dataclass
 class ClassifierResult:
-    """Result from intent classification"""
-    selected_agent: str
-    confidence: float
+    """Result from intent classification — supports N agents."""
+    agents: list[AgentMatch] = field(default_factory=list)
     reasoning: Optional[str] = None
 
+    @property
+    def selected_agent(self) -> str:
+        """Backward compat: first agent or 'unknown'."""
+        return self.agents[0].agent if self.agents else "unknown"
+
+    @property
+    def confidence(self) -> float:
+        """Backward compat: first agent's confidence or 0."""
+        return self.agents[0].confidence if self.agents else 0.0
+
+
 class Classifier:
-    """Intelligent intent classifier for agent routing"""
-    
-    AGENT_DESCRIPTIONS = {
-        "aws": "Specializes in AWS resources (EC2, S3, RDS, Lambda, VPC, IAM). Handles queries about AWS infrastructure, services, configurations, and resource inventory.",
-        "kubernetes": "Specializes in Kubernetes clusters (pods, nodes, deployments, services, namespaces). Handles queries about K8s resources, health, scaling, and troubleshooting.",
-        "finops": "Specializes in cloud costs and financial optimization. Handles queries about AWS spending, Kubecost data, cost allocation, budget analysis, and savings recommendations.",
-        "devops": "Specializes in CI/CD pipelines, GitLab, automation, and internal documentation. Handles queries about deployments, rollbacks, pipeline failures, and development processes.",
-        "observability": "Specializes in metrics, logs, alerts, and anomaly detection. Handles queries about CloudWatch, Prometheus, Grafana, error rates, performance issues, and system health."
-    }
-    
-    SYSTEM_PROMPT = """You are AgentMatcher, an intelligent assistant that analyzes user queries and routes them to the most suitable specialist agent.
+    """Intelligent intent classifier with keyword fallback"""
+
+    SYSTEM_PROMPT = """You are AgentMatcher, an intelligent assistant that analyzes user queries and routes them to the most suitable specialist agent(s).
 
 **CRITICAL**: The user's input may be a follow-up response to a previous interaction. The conversation history shows which agent was previously selected. If the user's input is a continuation (e.g., "yes", "ok", "tell me more", "1", "no", "again"), select the SAME agent as before.
 
-Analyze the user's input and categorize it into one of the following agents:
+Analyze the user's input and select one or more agents from:
 
 <agents>
 {agent_descriptions}
 </agents>
 
 **Guidelines**:
-1. **Follow-ups**: For short responses like "yes", "ok", "more", "1", "no" → use the same agent from history
-2. **Context switching**: If user explicitly changes topic → select new appropriate agent
-3. **Confidence**: 
+1. **Follow-ups**: For short responses like "yes", "ok", "more", "1", "no" → use the same agent from history (single agent)
+2. **Single-domain queries** (most common): return 1 agent
+3. **Cross-domain queries** (e.g., "why did cost go up after deploy?"): return 2-3 agents
+4. **Never return more than 3 agents**
+5. **Empty agents list = unknown** (unable to classify)
+6. **Confidence**: 
    - High (0.9+): Clear requests or obvious follow-ups
    - Medium (0.6-0.9): Some ambiguity but likely classification
    - Low (<0.6): Vague or multi-faceted requests
@@ -46,79 +60,112 @@ Analyze the user's input and categorize it into one of the following agents:
 
 **Response Format** (JSON only, no preamble):
 {{
-  "selected_agent": "agent-name",
-  "confidence": 0.95,
+  "agents": [
+    {{"agent": "agent-name", "confidence": 0.95}}
+  ],
   "reasoning": "Brief explanation"
 }}
 
-If unable to classify, use "unknown" as selected_agent."""
+If unable to classify, return an empty agents list."""
 
-    def __init__(self):
-        self.agent_descriptions = "\n".join([
-            f"- {name}: {desc}" 
-            for name, desc in self.AGENT_DESCRIPTIONS.items()
-        ])
-    
+    def __init__(self, registry):
+        from src.core.registry import AgentRegistry
+        self._registry: AgentRegistry = registry
+        self._agent_names = registry.agent_names()
+        self.agent_descriptions = "\n".join(
+            f"- {agent.name}: {agent.description}"
+            for agent in registry.list_agents()
+        )
+
     async def classify(
         self,
         user_input: str,
         chat_history: List[ConversationMessage]
     ) -> ClassifierResult:
-        """Classify user intent and select appropriate agent"""
-        
-        # Format history for prompt
+        """Classify user intent; falls back to keyword matching on LLM failure"""
         history_text = self._format_history(chat_history)
-        
-        # Build prompt
+
         prompt = self.SYSTEM_PROMPT.format(
             agent_descriptions=self.agent_descriptions,
             history=history_text
         )
-        
-        # Call Bedrock
-        response = bedrock.invoke(
-            messages=[{"role": "user", "content": user_input}],
-            system_prompt=prompt,
-            temperature=0.3,
-            use_cache=True
-        )
-        
-        # Parse response
-        import json
+
+        try:
+            response = await bedrock.invoke(
+                messages=[{"role": "user", "content": user_input}],
+                system_prompt=prompt,
+                temperature=0.3,
+                use_cache=True,
+                agent_id="classifier",
+            )
+        except Exception as e:
+            logger.warning("Classifier LLM failed, using keyword fallback", extra={"error": str(e)})
+            return self._keyword_fallback(user_input)
+
         try:
             result = json.loads(response)
+            agents_raw = result.get("agents", [])
+            agents = [
+                AgentMatch(agent=a["agent"], confidence=a.get("confidence", 0.5))
+                for a in agents_raw
+                if a.get("agent") in self._agent_names
+            ]
             return ClassifierResult(
-                selected_agent=result.get("selected_agent", "unknown"),
-                confidence=result.get("confidence", 0.5),
+                agents=agents,
                 reasoning=result.get("reasoning")
             )
-        except json.JSONDecodeError:
-            # Fallback: extract agent name from text
-            for agent in self.AGENT_DESCRIPTIONS.keys():
-                if agent in response.lower():
+        except (json.JSONDecodeError, KeyError, TypeError):
+            # Fallback: try to find agent name in raw response
+            for agent_name in self._agent_names:
+                if agent_name in response.lower():
                     return ClassifierResult(
-                        selected_agent=agent,
-                        confidence=0.5,
+                        agents=[AgentMatch(agent=agent_name, confidence=0.5)],
                         reasoning="Fallback parsing"
                     )
-            
             return ClassifierResult(
-                selected_agent="unknown",
-                confidence=0.0,
+                agents=[],
                 reasoning="Failed to parse classifier response"
             )
-    
+
+    def _keyword_fallback(self, user_input: str) -> ClassifierResult:
+        """Route by matching routing_keywords from agent configs; returns up to 3 matches."""
+        lower = user_input.lower()
+        scored: list[tuple[str, int]] = []
+
+        for config in self._registry.list_agents():
+            score = sum(1 for kw in config.routing_keywords if kw in lower)
+            if score > 0:
+                scored.append((config.name, score))
+
+        if not scored:
+            return ClassifierResult(
+                agents=[],
+                reasoning="keyword fallback: no match"
+            )
+
+        scored.sort(key=lambda x: x[1], reverse=True)
+        top = scored[:3]
+        max_score = top[0][1]
+
+        agents = [
+            AgentMatch(agent=name, confidence=round(score / max_score * 0.6, 2))
+            for name, score in top
+        ]
+        return ClassifierResult(
+            agents=agents,
+            reasoning="keyword fallback (LLM unavailable)"
+        )
+
     def _format_history(self, messages: List[ConversationMessage]) -> str:
-        """Format conversation history for prompt"""
         if not messages:
             return "No previous conversation"
-        
+
         lines = []
-        for msg in messages[-10:]:  # Last 10 messages
+        for msg in messages[-10:]:
             agent_info = f" [{msg.agent_id}]" if msg.agent_id else ""
             lines.append(f"{msg.role}{agent_info}: {msg.content}")
-        
         return "\n".join(lines)
 
-# Singleton
-classifier = Classifier()
+
+# Will be initialized after registry discovery
+classifier = None

@@ -1,0 +1,51 @@
+name: Test
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install ruff
+      - run: ruff check src/ tests/
+
+  test:
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+
+      # Load the deploy key into ssh-agent so `pip install` can clone the
+      # private staffops-otel-libs dependency (git+ssh) — checkout's ssh-key
+      # only covers the checkout itself, not later git operations.
+      - uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.OTEL_LIBS_DEPLOY_KEY }}
+
+      - name: Trust github.com host key
+        run: ssh-keyscan github.com >> ~/.ssh/known_hosts
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install --quiet -r requirements.txt
+          pip install pytest pytest-asyncio pytest-cov ruff
+
+      - name: Run tests with coverage gate
+        run: pytest tests/ --cov --cov-fail-under=90 --tb=short -q
+        env:
+          REDIS_HOST: localhost
+          SERVICE_NAME: test
+          OTEL_EXPORTER_OTLP_ENDPOINT: http://localhost:4317
+          AWS_REGION: us-east-1

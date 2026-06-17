@@ -1,0 +1,6 @@
+global:
+  scrape_interval: 15s
+
+# Metrics arrive via OTel Collector → remote_write
+# (no scrape job needed)
+scrape_configs: []

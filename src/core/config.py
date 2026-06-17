@@ -4,7 +4,7 @@ from typing import Optional
 class Settings(BaseSettings):
     # AWS
     aws_region: str = "us-east-1"
-    bedrock_model_id: str = "anthropic.claude-sonnet-4-5-20250929-v1:0"  # Claude Sonnet 4.5 (latest)
+    bedrock_model_id: str = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"  # Claude Sonnet 4.5 (US inference profile; model requires INFERENCE_PROFILE, not on-demand)
     
     # DynamoDB
     dynamodb_sessions_table: str = "agent-sessions"

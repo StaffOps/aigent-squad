@@ -1,3 +1,174 @@
+# Changelog
+
+## [Unreleased] - 2026-06-16
+
+### Added (Terraform infrastructure — `terraform/`)
+- `iam/`: single IRSA role + scoped policies (Bedrock invoke, DynamoDB sessions = only write, read-only inventory ec2/rds/s3/ce/iam, optional Athena/CUR FinOps)
+- `dynamodb/`: sessions table (`pk`/`sk`, TTL, PITR, on-demand, SSE)
+- `bedrock/`: VPC endpoints (`bedrock-runtime` + `bedrock`) + optional invocation logging
+- `bedrock-aip/`: Application Inference Profiles (1 per model, configurable map) for FinOps cost attribution
+- `example/`: reference composition wiring all modules; cost/governance tags centralized in `provider.default_tags` (single source of truth)
+- All modules validated via `terraform validate` (Docker)
+
+### Added (Spec 26: Agent Skills)
+- `src/core/skills.py`: `Skill` + `SkillRegistry` — lazy-loaded markdown knowledge from global `skills/`, allowlist per agent (`agent.yaml` `skills:`), keyword match
+- Injected into the system prompt only when the query matches (token economy); fail-open
+- Example skill `skills/oomkill-investigation/`; wired into the kubernetes agent
+- `tests/test_skills.py` (19 tests, 100% coverage on skills.py)
+
+### Added (Spec 27: Bedrock cost attribution)
+- AIP-per-model (Terraform) carries FinOps tags → authoritative per-model spend in Cost Explorer
+- `BedrockClient.invoke` now labels token/cost metrics with `agent_id` (callers: GenericAgent, Classifier) → per-agent showback via token-share ratio
+- `tests/test_bedrock.py`: +2 tests (agent_id label propagation)
+
+### Added (MCP outbound — agents as MCP clients)
+- `McpAdapter` (`type: mcp` datasource): read-only tool allowlist (fail-closed), SSE transport, `inject_query_as` opt-in
+- Wired the kubernetes agent to the cluster's `devops-mcp-kube` server (read-only tools only; mutating tools excluded by allowlist)
+- `tests/test_adapters.py`: +7 MCP tests; validated end-to-end against the real cluster MCP server
+- `docs/MCP_INTEGRATION.md`: documented both directions (inbound server / outbound client)
+
+### Fixed (Bedrock model id requires inference profile)
+- `BEDROCK_MODEL_ID` corrected to the `us.` inference profile (`us.anthropic.claude-sonnet-4-5-20250929-v1:0`); the bare model id fails with `on-demand throughput isn't supported`
+- Updated `config.py`, `.env.example`, `docker-compose.yaml`, `src/supervisor/README.md`, and Terraform `allowed_model_arns`
+
+### Added (ADR)
+- `.kiro/specs/ADR-001-bedrock-direto-vs-strands.md`: decision to keep Bedrock-direct over the Strands SDK (with reopen signals)
+
+## [Unreleased] - 2026-06-14
+
+### Changed (Coverage gate raised: 80% → 90%)
+- Test suite expanded from 124 to 166 tests (+42 targeted tests)
+- Total coverage: **91.72%** (up from 84%)
+- `.coveragerc`: `fail_under = 90`
+- `.github/workflows/test.yml`: `--cov-fail-under=90`
+- `.kiro/steering/milestone-criteria.md`: minimum coverage updated to 90%
+- New tests target uncovered branches in: kb/store, state_store, cache, investigation, bedrock, kb/budget, kb/extractor, kb/embedder, kb/rag, circuit_breaker, supervisor/agent, supervisor/distillation
+
+### Added (Spec 18 Phase 2: Alert Ingestion + Slack post-back)
+- `src/supervisor/alert_handler.py`: AlertmanagerPayload + AlertmanagerAlert (Pydantic), `alert_to_symptom()`, fingerprint dedup via Redis, `handle_alert_payload()` orchestrator
+- `src/supervisor/slack_notifier.py`: `post_rca_to_slack()` (opt-in via `SLACK_WEBHOOK_URL`)
+- `POST /alerts/incoming` endpoint (auth via `X-Internal-Token`)
+- New metrics: `aigent.alerts.received`, `.deduplicated`, `.investigation_triggered`, `.postback`
+- `docs/ALERTING.md`: Alertmanager config + flow + Slack post-back + dedup behavior
+- `ALERT_DEDUP_TTL` env (default 3600s)
+
+### Documentation audit
+- Rewrote outdated docs to reflect current architecture: `ARCHITECTURE.md`, `OBSERVABILITY.md`, `PREREQUISITES.md`, `MCP_INTEGRATION.md`, `READ_ONLY_POLICY.md`
+- Deleted obsolete docs: `MIGRATION.md` (LangGraph era), `RAG_IMPLEMENTATION.md` (replaced by KNOWLEDGE-BASE.md), `LOCAL_DEVELOPMENT.md` (duplicated SETUP.md with old ports)
+- Tightened `.kiro/steering/milestone-criteria.md`: operational docs (ARCHITECTURE/SETUP/SECURITY/etc) now listed as mandatory milestone gate; new anti-pattern: "stale docs are worse than no docs"
+
+### Added (Metrics audit — covering specs 06, 17, 18, 21)
+13 new custom metrics + instrumentation in existing code:
+- Spec 06: `aigent.circuit_breaker.transitions`
+- Spec 17: `aigent.fanout.calls`, `aigent.fanout.agents_consulted`, `aigent.fanout.agents_failed`, `aigent.synthesizer.calls`
+- Spec 18: `aigent.investigation.started`, `.completed`, `.duration`, `.evidence_count`
+- Spec 21: `aigent.kb.distillation.cost`, `.items_created`, `.rag.queries`, `.rag.hits`, `.budget.exhausted`
+- Updated `docs/METRICS.md` with full reference (table per domain + label cardinality)
+- Updated `.kiro/steering/milestone-criteria.md` to make metrics a mandatory milestone gate (equal weight to tests/docs)
+
+### Added (Spec 21: Incident Memory & Learning)
+- Postgres+pgvector container (`pgvector/pgvector:pg16`) for KB persistence
+- `infra/postgres/init.sql`: kb_items + kb_provenance schema, HNSW index, FTS fallback
+- `src/core/kb/`: full KB module (models, store, redactor, extractor, enricher, validator, embedder, rag, budget)
+- `src/supervisor/distillation.py`: fire-and-forget distillation pipeline (after each RCA)
+- RAG injection wired into `run_investigation` (`<similar_cases>` block in synthesizer prompt)
+- Endpoints `/kb/pending`, `/kb/{id}/approve`, `/kb/{id}/reject`
+- PII redaction (emails, AWS keys, GitHub/GitLab PATs, Bearer tokens, OpenAI keys)
+- Monthly budget cap ($50 default, `KB_MONTHLY_BUDGET_USD` env)
+- Confidence thresholds per item type; `decision` type never auto-approves
+- `docs/KNOWLEDGE-BASE.md` with full reference
+
+### Added (Spec 18 Phase 1: RCA Investigation Workflow)
+- `src/core/investigation.py`: Evidence, RCAResult, InvestigationState dataclasses
+- `src/core/investigation.py`: `build_timeline()` — sorts evidence by timestamp, marks causal candidates (deploy/restart/config)
+- `src/core/investigation.py`: `correlate()` — confidence rule (≥3 independent signals → alta; contradicting evidence rebaixa)
+- `src/core/triage.py`: `should_investigate()` — keyword heuristic (no Bedrock call) for trivial-vs-investigate decision
+- `src/supervisor/investigation.py`: `run_investigation()` orchestrator — fan-out evidence collection (parallel) + RCA synthesizer (single Bedrock call)
+- `mode=investigate` flag on `/query` endpoint forces investigation workflow
+- `RCA_MAX_AGENTS` env var (default 5) caps cost per investigation
+
+### Added (Spec 17: Multi-Agent Fan-Out + Synthesizer)
+- `src/supervisor/synthesizer.py`: fuses N agent responses into 1 coherent answer
+- `src/core/agent_tools.py`: agent-as-tools helper with depth=1 guard (contextvars)
+- Supervisor fan-out: cross-domain queries trigger parallel `asyncio.gather` of N agents
+- Classifier returns multi-agent list (`AgentMatch[]`) with backward-compat `selected_agent`
+- max_agents=3 cap (cost protection)
+- Partial failure tolerance: 1 agent down → response synthesized with the rest
+
+### Changed (Spec 17)
+- ClassifierResult: now holds `agents: list[AgentMatch]` (was scalar `selected_agent`)
+- N=1 queries: fast-path preserved (zero synthesis overhead)
+
+### Added (Spec 06: Resilience Patterns)
+- `src/core/circuit_breaker.py`: CircuitBreaker (closed→open→half-open) for Bedrock calls
+- Classifier keyword fallback using `routing_keywords` from agent configs when LLM unavailable
+- Graceful shutdown via FastAPI lifespan (drain + flush)
+
+### Changed (Spec 06)
+- `bedrock.invoke()` is now async (`asyncio.to_thread`) — enables real parallelism for fan-out
+- Retry with jitter + botocore adaptive retry mode
+- Redis fail-open: connection failure at startup + all ops wrapped in try/except
+- DynamoDB fail-open: fetch returns `[]`, save logs warning — never crashes
+
+### Added (Spec 08: CI/CD Pipeline)
+- `.github/workflows/test.yml`: ruff lint + pytest --cov-fail-under=80 on push/PR
+- `.github/workflows/build.yml`: multi-arch buildx (amd64+arm64) + Trivy scan + SBOM + OIDC push to ECR
+- `.github/workflows/release.yml`: manual workflow_dispatch, semver tag + stable image
+
+### Removed
+- `docs/GITLAB_CI_SETUP.md` (obsolete, repo is on GitHub not GitLab)
+
+### Changed
+- `docs/SETUP.md` rewritten with current architecture (docker compose + Helm + GitHub Actions)
+
+### Added (Spec 22 Phase B: Helm Chart)
+- Helm chart at `helm-charts/charts/aigent-squad/` (deploy to K8s)
+- `agentsSource: configmap` — agents inline in values.yaml
+- `agentsSource: git` — initContainer clones agent definitions from git repo
+- 6th agent "security" (demonstrates zero-code extensibility)
+- `docs/HOW-TO-NEW-AGENT.md` — guide for creating agents (30s quick start)
+
+### Added (Spec 22 Phase A: Config-Driven Agent Platform)
+- `src/core/agent_config.py`: AgentConfig Pydantic schema
+- `src/core/registry.py`: AgentRegistry with auto-discovery from AGENTS_DIR
+- `src/core/adapters.py`: DatasourceAdapter interface + Boto3/K8s/Http/Athena adapters
+- `src/core/generic_agent.py`: GenericAgent (single implementation for all agents)
+- `agents/`: 5 agent config directories (aws, kubernetes, finops, devops, observability)
+- `tests/`: 13 tests (registry: 7, generic_agent: 6) — verification-independent
+
+### Changed (Spec 22 Phase A)
+- Agents now run IN-PROCESS (no HTTP inter-service calls)
+- docker-compose: 9 app containers → 2 (supervisor + mcp-server) + infra
+- Classifier builds agent list dynamically from registry
+- Single Docker image for entire platform
+
+### Added (Observability Stack)
+- Integrated `staffops-otel-libs` Python helper (`setup_telemetry()` in all 6 servers)
+- Local observability stack: OTel Collector (contrib 0.102) → Tempo (2.4.1) + Prometheus (2.52)
+- Grafana (10.4.2) on `:3001` with auto-provisioned dashboards (API metrics, workers, traces)
+- All services emit traces/metrics via `OTEL_EXPORTER_OTLP_ENDPOINT`
+
+### Changed (Spec 02: Unify Agent Architecture)
+- Rewrote kubernetes/devops/finops/observability `server.py` — all now use their `agent.py` class (mirrors aws pattern)
+- All 5 `/process` endpoints return uniform contract `{role, content, timestamp, agent_id}`
+- Supervisor simplified: reads `agent_response["content"]` directly (removed `get("response")` fallback)
+- All 5 agents use `chat_history` via `_format_history()` for multi-turn context
+
+### Fixed (Spec 01: Fix Blockers)
+- Created root `Dockerfile` for supervisor service (python:3.11-slim)
+- Removed duplicate class body in `src/core/gitlab_client.py` (kept 1st definition + 1 singleton)
+- Removed duplicate `app`/`SUPERVISOR_URL` declarations in `mcp-server/mcp-server.py`
+- Rewrote `src/api/server.py` — removed langchain/StateStore/graph imports, uses `supervisor.process_request()`
+- Added `__init__.py` to all `src/` packages (required for `python -m` execution)
+- Fixed supervisor healthcheck: `wget --spider` → `curl -f` (GNU wget HEAD rejected by FastAPI)
+
+### Result
+- `docker compose build` passes for all 7 services
+- `docker compose up -d` starts 9 containers, all healthy
+- Imports validated: `src.core.gitlab_client`, `src.api.server` — no errors
+
+---
+
 # 🎯 Agent Squad v2.0 - AWS Labs Best Practices
 
 ## ✅ All Implemented Changes

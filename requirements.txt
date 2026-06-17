@@ -1,36 +1,29 @@
-# Removed LangGraph - using direct Bedrock API
-# langgraph==0.2.45
-# langchain-aws==0.2.6
-# langchain-core==0.3.21
-
-# AWS (latest)
+# AWS
 boto3==1.35.80
 
-# Web Framework (latest)
+# Web Framework
 fastapi==0.115.8
 uvicorn[standard]==0.32.1
 httpx==0.28.1
 
-# Cache & Storage (latest)
+# Cache & Storage
 redis==5.2.1
+asyncpg==0.29.0
+pgvector==0.3.6
 
-# Kubernetes (latest)
+# Kubernetes
 kubernetes==31.0.0
 
-# Slack Integration (latest)
+# Slack Integration
 slack-sdk==3.33.4
 
-# Data Validation (latest)
+# Data Validation
 pydantic==2.10.5
 pydantic-settings==2.7.0
+pyyaml==6.0.2
 
-# OpenTelemetry (observability)
-opentelemetry-api==1.29.0
-opentelemetry-sdk==1.29.0
-opentelemetry-instrumentation-fastapi==0.50b0
-opentelemetry-instrumentation-httpx==0.50b0
-opentelemetry-instrumentation-logging==0.50b0
-opentelemetry-exporter-otlp==1.29.0
+# OpenTelemetry — via staffops-otel-libs helper (from git repo)
+otel-helper @ git+ssh://git@github.com/karlipegomes/staffops-otel-libs.git@main#subdirectory=python
 
 # Monitoring
 prometheus-client==0.21.1
@@ -38,3 +31,8 @@ python-json-logger==3.2.1
 
 # MCP Server
 mcp==1.0.0
+
+# Testing
+pytest==8.3.4
+pytest-asyncio==0.24.0
+pytest-cov==6.0.0

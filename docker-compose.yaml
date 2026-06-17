@@ -1,210 +1,105 @@
-version: '3.8'
-
 services:
   # Redis for caching
   redis:
-    image: redis:7.4-alpine
+    image: redis:8.4-alpine
     ports:
       - "6379:6379"
-    command: redis-server --appendonly yes
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-changeme}
     volumes:
       - redis-data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-changeme}", "ping"]
       interval: 5s
       timeout: 3s
       retries: 5
 
-  # AWS Agent
-  aws-agent:
-    build:
-      context: .
-      dockerfile: src/agents/aws/Dockerfile
-    ports:
-      - "8001:8001"
-    environment:
-      - AWS_REGION=${AWS_REGION:-us-east-1}
-      - BEDROCK_MODEL_ID=${BEDROCK_MODEL_ID:-anthropic.claude-sonnet-4-5-20250929-v1:0}
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - REDIS_SSL=false
-    volumes:
-      - ${HOME}/.aws:/root/.aws:ro
-    depends_on:
-      redis:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:8001/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-
-  # Kubernetes Agent
-  kubernetes-agent:
-    build:
-      context: .
-      dockerfile: src/agents/kubernetes/Dockerfile
-    ports:
-      - "8002:8002"
-    environment:
-      - AWS_REGION=${AWS_REGION:-us-east-1}
-      - BEDROCK_MODEL_ID=${BEDROCK_MODEL_ID:-anthropic.claude-sonnet-4-5-20250929-v1:0}
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - REDIS_SSL=false
-      - KUBECONFIG=/root/.kube/config
-    volumes:
-      - ${HOME}/.aws:/root/.aws:ro
-      - ${HOME}/.kube:/root/.kube:ro
-    depends_on:
-      redis:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:8002/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-
-  # FinOps Agent
-  finops-agent:
-    build:
-      context: .
-      dockerfile: src/agents/finops/Dockerfile
-    ports:
-      - "8003:8003"
-    environment:
-      - AWS_REGION=${AWS_REGION:-us-east-1}
-      - BEDROCK_MODEL_ID=${BEDROCK_MODEL_ID:-anthropic.claude-sonnet-4-5-20250929-v1:0}
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - REDIS_SSL=false
-      - ATHENA_PROJECT_ID=${ATHENA_PROJECT_ID:-123456789012}
-      - ATHENA_BUCKET=${ATHENA_BUCKET:-s3://company-athena-kubecost}
-      - ATHENA_REGION=${ATHENA_REGION:-us-east-1}
-      - ATHENA_DATABASE=${ATHENA_DATABASE:-kubecost}
-      - ATHENA_TABLE=${ATHENA_TABLE:-kubecost_split}
-      - ATHENA_WORKGROUP=${ATHENA_WORKGROUP:-primary}
-    volumes:
-      - ${HOME}/.aws:/root/.aws:ro
-    depends_on:
-      redis:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:8003/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-
-  # DevOps Agent
-  devops-agent:
-    build:
-      context: .
-      dockerfile: src/agents/devops/Dockerfile
-    ports:
-      - "8004:8004"
-    environment:
-      - AWS_REGION=${AWS_REGION:-us-east-1}
-      - BEDROCK_MODEL_ID=${BEDROCK_MODEL_ID:-anthropic.claude-sonnet-4-5-20250929-v1:0}
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - REDIS_SSL=false
-      - GITLAB_TOKEN=${GITLAB_TOKEN}
-      - GITLAB_URL=${GITLAB_URL:-https://gitlab.com}
-      - DOCS_PORTAL_URL=${DOCS_PORTAL_URL:-https://docs.company.internal/}
-      - DOCS_PORTAL_URL_NEW=${DOCS_PORTAL_URL_NEW:-https://docs.company.com/}
-    volumes:
-      - ${HOME}/.aws:/root/.aws:ro
-    depends_on:
-      redis:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:8004/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-
-  # Observability Agent
-  observability-agent:
-    build:
-      context: .
-      dockerfile: src/agents/observability/Dockerfile
-    ports:
-      - "8005:8005"
-    environment:
-      - AWS_REGION=${AWS_REGION:-us-east-1}
-      - BEDROCK_MODEL_ID=${BEDROCK_MODEL_ID:-anthropic.claude-sonnet-4-5-20250929-v1:0}
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - REDIS_SSL=false
-      - PROMETHEUS_URL=${PROMETHEUS_URL:-http://prometheus:9090}
-    volumes:
-      - ${HOME}/.aws:/root/.aws:ro
-    depends_on:
-      redis:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:8005/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-
-  # Supervisor
-  supervisor:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    ports:
-      - "8000:8000"
-    environment:
-      - AWS_REGION=${AWS_REGION:-us-east-1}
-      - BEDROCK_MODEL_ID=${BEDROCK_MODEL_ID:-anthropic.claude-sonnet-4-5-20250929-v1:0}
-      - DYNAMODB_SESSIONS_TABLE=${DYNAMODB_SESSIONS_TABLE:-agent-sessions}
-      - DYNAMODB_ENDPOINT=${DYNAMODB_ENDPOINT:-http://dynamodb-local:8000}
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - REDIS_SSL=false
-      - SLACK_BOT_TOKEN=${SLACK_BOT_TOKEN}
-      - SLACK_SIGNING_SECRET=${SLACK_SIGNING_SECRET}
-      - SLACK_PROACTIVE_CHANNEL=${SLACK_PROACTIVE_CHANNEL}
-    volumes:
-      - ${HOME}/.aws:/root/.aws:ro
-    depends_on:
-      redis:
-        condition: service_healthy
-      dynamodb-local:
-        condition: service_started
-      aws-agent:
-        condition: service_healthy
-      kubernetes-agent:
-        condition: service_healthy
-      finops-agent:
-        condition: service_healthy
-      devops-agent:
-        condition: service_healthy
-      observability-agent:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:8000/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-
-  # DynamoDB Local (for testing)
+  # DynamoDB Local (for conversation history in dev)
   dynamodb-local:
     image: amazon/dynamodb-local:latest
     ports:
       - "8100:8000"
     command: "-jar DynamoDBLocal.jar -sharedDb -inMemory"
 
-  # MCP Server (for Kiro CLI integration)
+  # Postgres + pgvector (knowledge base for spec 21)
+  postgres:
+    image: pgvector/pgvector:pg17
+    environment:
+      - POSTGRES_USER=aigent
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-changeme}
+      - POSTGRES_DB=aigent_kb
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aigent -d aigent_kb"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # Supervisor (all agents run in-process via GenericAgent + AGENTS_DIR)
+  supervisor:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      ssh:
+        - default
+    ports:
+      - "8000:8000"
+    environment:
+      - SERVICE_NAME=aigent-squad
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - ENVIRONMENT=LOCAL
+      - AGENTS_DIR=/app/agents
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - BEDROCK_MODEL_ID=${BEDROCK_MODEL_ID:-us.anthropic.claude-sonnet-4-5-20250929-v1:0}
+      - DYNAMODB_SESSIONS_TABLE=${DYNAMODB_SESSIONS_TABLE:-agent-sessions}
+      - DYNAMODB_ENDPOINT=http://dynamodb-local:8000
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_SSL=false
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-changeme}
+      - INTERNAL_API_TOKEN=${INTERNAL_API_TOKEN:-dev-secret-token}
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=aigent
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-changeme}
+      - POSTGRES_DB=aigent_kb
+      - SLACK_BOT_TOKEN=${SLACK_BOT_TOKEN}
+      - SLACK_SIGNING_SECRET=${SLACK_SIGNING_SECRET}
+      - GITLAB_TOKEN=${GITLAB_TOKEN}
+      - GITLAB_URL=${GITLAB_URL:-https://gitlab.com}
+      - DOCS_PORTAL_URL=${DOCS_PORTAL_URL:-https://docs.company.internal/}
+      - PROMETHEUS_URL=${PROMETHEUS_URL:-http://prometheus:9090}
+    volumes:
+      - ${HOME}/.aws:/home/appuser/.aws:ro
+      - ./agents:/app/agents:ro
+    depends_on:
+      redis:
+        condition: service_healthy
+      dynamodb-local:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # MCP Server (HTTP gateway for Kiro CLI)
   mcp-server:
     build:
       context: .
       dockerfile: mcp-server/Dockerfile
+      ssh:
+        - default
     ports:
       - "8006:8006"
     environment:
       - SUPERVISOR_URL=http://supervisor:8000/query
+      - INTERNAL_API_TOKEN=${INTERNAL_API_TOKEN:-dev-secret-token}
     depends_on:
       supervisor:
         condition: service_healthy
@@ -214,5 +109,55 @@ services:
       timeout: 5s
       retries: 3
 
+  # --- Observability Stack ---
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.154.0
+    command: ["--config=/etc/otelcol/config.yaml"]
+    volumes:
+      - ./infra/otel-collector.yaml:/etc/otelcol/config.yaml:ro
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+    depends_on:
+      - tempo
+
+  tempo:
+    image: grafana/tempo:2.10.7
+    volumes:
+      - ./infra/tempo.yaml:/etc/tempo/config.yaml:ro
+      - tempo-data:/var/tempo
+    command: ["-config.file=/etc/tempo/config.yaml"]
+
+  prometheus:
+    image: prom/prometheus:v3.11.3
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--web.enable-remote-write-receiver"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.console.libraries=/usr/share/prometheus/console_libraries"
+      - "--web.console.templates=/usr/share/prometheus/consoles"
+    volumes:
+      - ./infra/prometheus.yaml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9099:9090"
+
+  grafana:
+    image: grafana/grafana:13.0.2
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+      - GF_AUTH_DISABLE_LOGIN_FORM=true
+    volumes:
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - tempo
+      - prometheus
+
 volumes:
   redis-data:
+  tempo-data:
+  postgres-data:

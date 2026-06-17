@@ -1,0 +1,23 @@
+# Ruff configuration — lint rules for AIgent-squad.
+# Mirrors the CI gate (`ruff check src/ tests/`).
+target-version = "py311"
+line-length = 120
+
+[lint]
+# Pyflakes (F) + a focused subset of pycodestyle (E7 statement errors, E9
+# syntax/runtime). We intentionally DO NOT enable:
+#   - I  (import sorting) — would reformat every pre-existing file
+#   - E501 (line length) — large existing codebase exceeds it pervasively
+#   - W   (whitespace) — cosmetic churn across untouched files
+# These can be adopted later via a dedicated formatting pass (ruff format),
+# not mixed into feature work.
+select = ["F", "E7", "E9"]
+
+[lint.per-file-ignores]
+# Server entrypoints intentionally call setup_telemetry() BEFORE importing any
+# project module that creates tracers/meters at import time. Moving those
+# imports to the top (E402) would break telemetry — this ordering is by design.
+"src/supervisor/server.py" = ["E402"]
+"src/api/server.py" = ["E402"]
+# __init__.py re-exports: unused-import is expected (public surface).
+"**/__init__.py" = ["F401"]

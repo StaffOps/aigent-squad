@@ -1,0 +1,226 @@
+terraform {
+  required_version = ">= 1.5.0"
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = ">= 5.0"
+    }
+  }
+}
+
+provider "aws" {
+  region = var.region
+
+  # Single source of truth for cost/governance tags. Every taggable resource
+  # in all modules inherits these automatically — no need to pass `tags` or
+  # cost_* into each module. Per-resource tags (Name, Component) are still set
+  # on the resource itself and merge on top of these.
+  default_tags {
+    tags = {
+      CostProject = "aigent-squad"
+      CostScope   = "MONITORING"
+      Environment = "PRD"
+      CostCenter  = var.cost_center
+      ManagedBy   = "terraform"
+    }
+  }
+}
+
+variable "region" {
+  default = "us-east-1"
+}
+
+# In a real setup, these would come from a remote state of the EKS module.
+# For this example, fill them with values from your cluster.
+variable "eks_cluster_name" {
+  type    = string
+  default = "my-cluster"
+}
+
+variable "vpc_id" {
+  type = string
+}
+
+variable "private_subnet_ids" {
+  type = list(string)
+}
+
+variable "eks_worker_security_group_id" {
+  type = string
+}
+
+variable "cost_center" {
+  description = "CostCenter tag for Bedrock AIP cost attribution (mandatory)"
+  type        = string
+}
+
+variable "bedrock_model_profiles" {
+  description = <<-EOT
+    Map of model_key => system inference profile id to create an AIP for.
+    Add/remove entries to control how many/which models get a cost-tagged
+    Application Inference Profile. The id is the SYSTEM profile (the "us."
+    one); the full ARN is built from region + account automatically.
+    Discover ids: aws bedrock list-inference-profiles --query \
+      "inferenceProfileSummaries[?type=='SYSTEM_DEFINED'].inferenceProfileId"
+  EOT
+  type        = map(string)
+  default = {
+    sonnet45 = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
+    # haiku45  = "us.anthropic.claude-haiku-4-5-20251001-v1:0"   # e.g. for the classifier tier (spec 11)
+    # opus45   = "us.anthropic.claude-opus-4-5-20251101-v1:0"
+  }
+}
+
+# -----------------------------------------------------------------------
+# Lookups: account ID + EKS OIDC provider (created with the cluster)
+# -----------------------------------------------------------------------
+
+data "aws_caller_identity" "current" {}
+
+data "aws_eks_cluster" "this" {
+  name = var.eks_cluster_name
+}
+
+locals {
+  oidc_url = replace(data.aws_eks_cluster.this.identity[0].oidc[0].issuer, "https://", "")
+}
+
+data "aws_iam_openid_connect_provider" "eks" {
+  url = data.aws_eks_cluster.this.identity[0].oidc[0].issuer
+}
+
+# -----------------------------------------------------------------------
+# Security group for the Bedrock VPC endpoints
+# -----------------------------------------------------------------------
+
+resource "aws_security_group" "bedrock_endpoint" {
+  name        = "aigent-squad-bedrock-endpoint"
+  description = "Allow EKS workers to reach Bedrock VPC endpoints"
+  vpc_id      = var.vpc_id
+
+  ingress {
+    description     = "HTTPS from EKS workers"
+    from_port       = 443
+    to_port         = 443
+    protocol        = "tcp"
+    security_groups = [var.eks_worker_security_group_id]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "aigent-squad-bedrock-endpoint"
+  }
+}
+
+# -----------------------------------------------------------------------
+# DynamoDB — conversation/session history
+# -----------------------------------------------------------------------
+
+module "dynamodb" {
+  source = "../dynamodb"
+
+  name_prefix = "aigent-squad"
+  table_name  = "agent-sessions" # must match env DYNAMODB_SESSIONS_TABLE
+
+  enable_point_in_time_recovery = true
+  enable_deletion_protection    = false # set true in PRD
+}
+
+# -----------------------------------------------------------------------
+# IAM — single IRSA role with all capability policies
+# -----------------------------------------------------------------------
+
+module "iam" {
+  source = "../iam"
+
+  name_prefix = "aigent-squad"
+  region      = var.region
+  account_id  = data.aws_caller_identity.current.account_id
+
+  # IRSA wiring
+  eks_oidc_provider_arn = data.aws_iam_openid_connect_provider.eks.arn
+  eks_oidc_provider_url = local.oidc_url
+  k8s_namespace         = "aigent-squad"
+  k8s_service_account   = "aigent-squad"
+
+  # DynamoDB sessions table (the only write permission)
+  sessions_table_arn = module.dynamodb.table_arn
+
+  # FinOps: Cost Explorer is always on (own account). Athena/CUR is off
+  # until a CUR target exists (CUR may live in the payer account).
+  enable_athena_finops = false
+  # athena_workgroup          = "primary"
+  # athena_database           = "cur_db"
+  # cur_s3_bucket_arns        = ["arn:aws:s3:::my-cur-bucket", "arn:aws:s3:::my-cur-bucket/*"]
+  # athena_results_bucket_arn = "arn:aws:s3:::my-athena-results"
+}
+
+# -----------------------------------------------------------------------
+# Bedrock — VPC endpoints (+ optional invocation logging)
+# -----------------------------------------------------------------------
+
+module "bedrock" {
+  source = "../bedrock"
+
+  name_prefix = "aigent-squad"
+  region      = var.region
+
+  vpc_id             = var.vpc_id
+  subnet_ids         = var.private_subnet_ids
+  security_group_ids = [aws_security_group.bedrock_endpoint.id]
+
+  # enable_invocation_logging = true
+}
+
+# -----------------------------------------------------------------------
+# Bedrock — Application Inference Profiles for cost attribution (spec 27)
+# One AIP per model, carrying FinOps cost allocation tags. The app uses
+# the AIP ARN as BEDROCK_MODEL_ID so spend is taggable in Cost Explorer.
+# -----------------------------------------------------------------------
+
+module "bedrock_aip" {
+  source = "../bedrock-aip"
+
+  name_prefix = "aigent-squad"
+
+  # Build full system-profile ARNs (region + account) from the configurable
+  # map of model_key => system inference profile id. Add/remove entries in
+  # var.bedrock_model_profiles to control how many/which AIPs are created.
+  models = {
+    for key, profile_id in var.bedrock_model_profiles :
+    key => "arn:aws:bedrock:${var.region}:${data.aws_caller_identity.current.account_id}:inference-profile/${profile_id}"
+  }
+}
+
+# -----------------------------------------------------------------------
+# Outputs
+# -----------------------------------------------------------------------
+
+output "irsa_role_arn" {
+  value       = module.iam.role_arn
+  description = "Pass to Helm: --set serviceAccount.annotations.\"eks\\.amazonaws\\.com/role-arn\"=<this>"
+}
+
+output "service_account_annotation" {
+  value = module.iam.service_account_annotation
+}
+
+output "sessions_table_name" {
+  value       = module.dynamodb.table_name
+  description = "Set env DYNAMODB_SESSIONS_TABLE to this value"
+}
+
+output "bedrock_runtime_endpoint_id" {
+  value = module.bedrock.vpc_endpoint_runtime_id
+}
+
+output "bedrock_aip_arns" {
+  description = "Model => Application Inference Profile ARN. Set BEDROCK_MODEL_ID to the relevant ARN."
+  value       = module.bedrock_aip.inference_profile_arns
+}

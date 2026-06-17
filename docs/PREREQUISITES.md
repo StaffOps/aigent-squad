@@ -1,97 +1,30 @@
 # Prerequisites
 
-## Infraestrutura (Terraform)
+## Required
 
-### DynamoDB
-- Table: `agent-squad-sessions`
-- Hash key: `session_id`
-- TTL enabled
+| Requirement | Purpose |
+|-------------|---------|
+| Docker + Docker Compose | Build and run all services |
+| ssh-agent with GitHub key | Private `otel-helper` repo cloned during `docker build` |
+| AWS Bedrock model access | Claude Sonnet + Titan Embeddings v2 in `us-east-1` |
 
-### ElastiCache
-- Redis Serverless
-- Endpoint accessible do EKS
+### Enable Bedrock models
 
-### IAM
-- Role com IRSA for ServiceAccount `agent-squad`
-- Permissions: Bedrock, DynamoDB, AWS read-only, Athena
-- Explicit Deny em writes
+1. Go to https://console.aws.amazon.com/bedrock/home?region=us-east-1#/modelaccess
+2. Enable: `anthropic.claude-3-5-sonnet-20241022-v2:0` and `amazon.titan-embed-text-v2:0`
 
-### ECR
-- 6 repositories:
-  - agent-squad-supervisor
-  - agent-squad-aws
-  - agent-squad-kubernetes
-  - agent-squad-finops
-  - agent-squad-devops
-  - agent-squad-observability
+## Optional (for full functionality)
 
-## AWS
+| Requirement | Purpose | Without it |
+|-------------|---------|------------|
+| AWS credentials (`~/.aws/`) | AWS/FinOps agent datasources | Agents degrade gracefully (return empty data) |
+| Kubernetes config (`~/.kube/config`) | K8s agent datasource | K8s agent returns empty data |
 
-### Bedrock
-- Claude 3.5 Sonnet enabled na region
-- https://console.aws.amazon.com/bedrock/home#/modelaccess
+## Production-only
 
-### Kubecost (FinOps Agent)
-- Athena database: `kubecost`
-- Table: `kubecost_split`
-- Bucket: `s3://company-athena-kubecost`
-
-## Kubernetes
-
-### Cluster
-- EKS existente
-- OIDC provider enabled
-
-### Secrets
-```bash
-kubectl create secret generic agent-squad-secrets \
-  --from-literal=redis-host=<REDIS_ENDPOINT> \
-  --from-literal=slack-bot-token=<TOKEN> \
-  --from-literal=slack-signing-secret=<SECRET>
-```
-
-## Slack
-
-### App Configuration
-1. Create app: https://api.slack.com/apps
-2. Scopes: `app_mentions:read`, `chat:write`
-3. Event subscription: `app_mention`
-4. Webhook URL: `https://your-domain.com/slack/events`
-
-## Environment Variables
-
-### All os Agents
-```bash
-AWS_REGION=us-east-1
-BEDROCK_MODEL_ID=anthropic.claude-3-5-sonnet-20241022-v2:0
-REDIS_HOST=<endpoint>
-REDIS_PORT=6379
-REDIS_SSL=true
-```
-
-### Supervisor
-```bash
-DYNAMODB_SESSIONS_TABLE=agent-sessions
-SLACK_BOT_TOKEN=xoxb-...
-SLACK_SIGNING_SECRET=...
-SLACK_PROACTIVE_CHANNEL=C12345678
-```
-
-### FinOps Agent
-```bash
-ATHENA_PROJECT_ID=123456789012
-ATHENA_BUCKET=s3://company-athena-kubecost
-ATHENA_DATABASE=kubecost
-ATHENA_TABLE=kubecost_split
-```
-
-### DevOps Agent (Optional)
-```bash
-DOCS_PORTAL_URL=https://docs.company.com
-DOCS_PORTAL_TOKEN=...
-```
-
-### Observability Agent (Optional)
-```bash
-PROMETHEUS_URL=http://prometheus:9090
-```
+| Requirement | Purpose |
+|-------------|---------|
+| EKS cluster with IRSA | Pod-level AWS auth (no access keys) |
+| Helm 3.x | Chart deployment |
+| ECR/Harbor registry | Image storage |
+| AWS Secrets Manager + ESO | Secret injection |

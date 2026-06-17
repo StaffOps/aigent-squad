@@ -1,122 +1,86 @@
 # Setup Guide
 
-## Prerequisites
+## Local Development
 
-- AWS Account com Bedrock enabled
-- EKS cluster existente
-- kubectl configured
-- Terraform >= 1.0
-- GitLab CI ou Docker
+### Prerequisites
+- Docker + Docker Compose
+- SSH key configured for GitHub (for private otel-helper repo)
+- AWS credentials (`~/.aws/`) — optional, agents degrade gracefully without them
 
-## 1. Deploy Infraestrutura (10min)
-
-```bash
-cd terraform
-
-# Configure
-cp terraform.tfvars.example terraform.tfvars
-vim terraform.tfvars  # Adicione eks_cluster_name
-
-# Deploy
-terraform init
-terraform apply
-
-# Anote outputs
-terraform output redis_endpoint
-terraform output iam_role_arn
-```
-
-## 2. Build Imagens (5min)
-
-### Option A: GitLab CI (Recommended)
+### Quick start
 
 ```bash
-# Configure variables no GitLab:
-# Settings -> CI/CD -> Variables
-AWS_ACCOUNT_ID=123456789012
-AWS_REGION=us-east-1
-AWS_ACCESS_KEY_ID=AKIA...
-AWS_SECRET_ACCESS_KEY=***
+# 1. Clone
+git clone git@github.com:karlipegomes/staffops-aigent-squad.git
+cd staffops-aigent-squad
 
-# Push for trigger pipeline
-git push origin main
+# 2. Ensure ssh-agent is running (for private dep install during build)
+eval $(ssh-agent -s)
+ssh-add ~/.ssh/id_ed25519
+
+# 3. Build + run
+docker compose build
+docker compose up -d
+
+# 4. Verify
+curl http://localhost:8000/health  # supervisor
+curl http://localhost:3001         # Grafana dashboards
 ```
 
-### Option B: Local
+### Services
+
+| Service | URL | Purpose |
+|---------|-----|---------|
+| Supervisor | http://localhost:8000 | Main API (query routing) |
+| MCP Server | http://localhost:8006 | Kiro CLI integration |
+| Grafana | http://localhost:3001 | Dashboards + traces |
+| Prometheus | http://localhost:9099 | Metrics |
+
+### Making queries
 
 ```bash
-cd code
-docker-compoif build
-# Push manual for ECR
+curl -X POST http://localhost:8000/query \
+  -H "Content-Type: application/json" \
+  -H "X-Internal-Token: dev-secret-token" \
+  -d '{"user_input":"list ec2 instances","user_id":"dev","session_id":"test"}'
 ```
 
-## 3. Deploy Kubernetes (5min)
+### Adding a new agent
+
+See [HOW-TO-NEW-AGENT.md](HOW-TO-NEW-AGENT.md).
+
+---
+
+## Production (Kubernetes)
+
+### Prerequisites
+- EKS cluster with IRSA configured
+- Helm 3.x
+- AWS ECR or Harbor registry
+
+### Deploy via Helm
 
 ```bash
-cd k8s_manifests
-
-# Secrets
-kubectl create secret generic agent-squad-secrets \
-  --from-literal=redis-host=<REDIS_ENDPOINT> \
-  --from-literal=slack-bot-token=<TOKEN> \
-  --from-literal=slack-signing-secret=<SECRET>
-
-# Deploy
-kubectl apply -f rbac.yaml
-kubectl apply -f agents/
-kubectl apply -f deployment.yaml
-kubectl apply -f ingress.yaml
-kubectl apply -f cronjobs.yaml
-
-# Check
-kubectl get pods
-kubectl get hpa
+helm install aigent-squad oci://your-registry/charts/aigent-squad \
+  --set image.tag=v0.1.0 \
+  --set agentsSource.type=git \
+  --set agentsSource.repo=https://github.com/karlipegomes/staffops-agent-config.git \
+  --set agentsSource.tokenSecret=git-token \
+  --set env.AWS_REGION=us-east-1 \
+  --set env.INTERNAL_API_TOKEN=your-prod-token
 ```
 
-## 4. Configure Slack (5min)
+See the Helm chart at `helm-charts/charts/aigent-squad/` for full values reference.
 
-1. **Create App**: https://api.slack.com/apps -> "Create New App"
-2. **Scopes**: OAuth & Permissions -> Add:
-   - `app_mentions:read`
-   - `chat:write`
-3. **Events**: Event Subscriptions -> Enable
-   - URL: `https://your-domain.com/slack/events`
-   - Subscribe: `app_mention`
-4. **Install**: Install to Workspace
-5. **Tokens**: Copie Bot Token e Signing Secret
+> **Agent/skill source**: the `agentsSource` git repo above is
+> [`staffops-agent-config`](https://github.com/karlipegomes/staffops-agent-config)
+> — the canonical roster (agents in `agent.yaml`+`prompt.md`, skills in
+> `SKILL.md`) used to validate the project. Locally, mount `./agents` and
+> `./skills` instead (see `docker-compose.yaml`).
 
-## 5. Tthisr
+### CI/CD
 
-```bash
-# Slack
-@Agent Squad which EC2 are running?
-
-# Logs
-kubectl logs -l app=agent-squad-supervisor -f
-```
-
-## Troubleshooting
-
-### Pods not iniciam
-```bash
-kubectl describe pod <pod-name>
-kubectl logs <pod-name>
-```
-
-### Slack not responde
-```bash
-# Test endpoint
-curl https://your-domain.com/health
-
-# Verifique ingress
-kubectl get ingress
-```
-
-### Bedrock errors
-- Habilite Claude 3.5 Sonnet na region: https://console.aws.amazon.com/bedrock/home#/modelaccess
-
-## Next Steps
-
-1. Customize prompts: `code/src/agents/*/prompt.md`
-2. Ajuste HPA: `k8s_manifests/agents/*.yaml`
-3. Configure alertas proativos: `k8s_manifests/cronjobs.yaml`
+Pipeline runs on GitHub Actions (`.github/workflows/`):
+- **test.yml**: lint (ruff) + pytest --cov-fail-under=80
+- **build.yml**: multi-arch Docker build + Trivy scan + SBOM + push to ECR (OIDC)
+- **release.yml**: manual tag `v<semver>` + stable image push

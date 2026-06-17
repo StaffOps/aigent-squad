@@ -1,0 +1,22 @@
+name: observability
+description: "Observability specialist. Queries Prometheus/VictoriaMetrics metrics, detects anomalies."
+domain: observability
+capabilities: [metrics_query, anomaly_detection, alert_status, log_query]
+routing_keywords: [metric, alert, prometheus, grafana, latency, error rate, p99, slo, log, trace]
+datasources:
+  - type: http
+    name: prometheus
+    url: "${PROMETHEUS_URL}/api/v1/query?query=up"
+cache:
+  ttl: 60
+model:
+  tier: standard
+  temperature: 0.1
+read_only: true
+evidence_types: [metric, log, trace]
+delegates_to:
+  - agent: kubernetes
+    when: "metric anomaly points to pod restarts or OOM"
+  - agent: devops
+    when: "latency regression correlates with recent deploy"
+port: 8005

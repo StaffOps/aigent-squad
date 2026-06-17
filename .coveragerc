@@ -1,0 +1,12 @@
+[run]
+source = src
+omit =
+    # Entry-point thin wrappers (no logic to test — just FastAPI app instantiation)
+    src/api/server.py
+    src/supervisor/server.py
+    # Empty __init__.py files
+    */__init__.py
+
+[report]
+fail_under = 90
+show_missing = true

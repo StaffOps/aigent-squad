@@ -1,0 +1,24 @@
+name: finops
+description: "FinOps/Cost specialist. Queries AWS Cost Explorer, Athena/Kubecost."
+domain: cloud-costs
+capabilities: [cost_analysis, budget_tracking, savings_recommendations, kubecost_query]
+routing_keywords: [cost, spend, budget, savings, kubecost, billing, expensive, price, waste]
+datasources:
+  - type: boto3
+    services: [ce]
+  - type: athena
+    database: kubecost
+    table: kubecost_split
+    workgroup: primary
+cache:
+  ttl: 3600
+model:
+  tier: standard
+  temperature: 0.1
+read_only: true
+evidence_types: [cost_data, athena_query_result]
+delegates_to:
+  - agent: aws
+    when: "need resource details to attribute costs"
+required_env: [AWS_REGION]
+port: 8003

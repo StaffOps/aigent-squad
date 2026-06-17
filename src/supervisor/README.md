@@ -56,7 +56,7 @@ User → Supervisor → Classifier (IA) → Seleciona Agent
 ```bash
 # AWS
 AWS_REGION=us-east-1
-BEDROCK_MODEL_ID=anthropic.claude-sonnet-4-5-20250929-v1:0
+BEDROCK_MODEL_ID=us.anthropic.claude-sonnet-4-5-20250929-v1:0
 
 # DynamoDB
 DYNAMODB_SESSIONS_TABLE=agent-sessions

@@ -1,81 +1,57 @@
 # Read-Only Policy
 
-## Absolute Rule
+**Today, all agents are 100% read-only.** This is the current operating posture
+of the product, enforced in depth (4 layers below).
 
-**ALL agents are 100% READ-ONLY. No exceptions.**
+> **Not a permanent lock.** Executing actions (remediation/rollback/etc.) is an
+> open future possibility on the roadmap — it is **not ruled out**. But it is
+> deliberately gated: read-only is the default until an explicit decision to
+> enable execution is made. When/if that happens, it is **conditional on**:
+> (a) the defense-in-depth of `.kiro/specs/14-security-hardening/` being
+> implemented, and (b) **human-in-the-loop approval** for any mutating action.
+> Rationale: a read-only agent's worst-case under prompt injection is data
+> exfiltration; an *executing* agent's worst-case is a destructive action — so
+> execution may not ship without those guardrails. See `ADR-001`.
 
-## What This Means
+## Enforcement (4 layers)
 
-### ? Agents NEVER:
-- Create, modify, or delete resources
-- Execute commands that change state
-- Suggest manual commands (kubectl delete, aws ec2 terminate, etc)
-- Accept "emergency" requests to modify
+### 1. System prompts
+Every `prompt.md` includes explicit read-only instructions. Agents refuse modification requests.
 
-### ? Agents ONLY:
-- Analyze current state
-- Identify problems
-- Calculate ROI of optimizations
-- **Point to automation** (Terraform, ArgoCD, GitOps)
-- Provide code/YAML for PR
+### 2. DatasourceAdapter code
+Adapters are hardcoded to read-only operations:
 
-## Enforcement (4 Layers)
+| Adapter | Allowed operations |
+|---------|-------------------|
+| `Boto3Adapter` | `describe_*`, `list_*`, `get_*` only |
+| `KubernetesAdapter` | `get`, `list` verbs only |
+| `HttpAdapter` | GET requests only (configurable) |
+| `AthenaAdapter` | SELECT queries only |
 
-### 1. System Prompts
-All prompts have explicit instructions:
-```
-? YOU ARE 100% READ-ONLY
-? NEVER create, modify, or delete
-? ONLY analyze and suggest automation
-```
+Write operations are not implemented — there is no code path to mutate infrastructure.
 
-### 2. IAM Explicit Deny
+### 3. IRSA scope (production)
+IAM role attached via IRSA has explicit Deny on all write actions:
 ```json
-{
-  "Effect": "Deny",
-  "Action": ["*:Create*", "*:Delete*", "*:Update*"],
-  "Resource": "*"
-}
-```
-Impossible to bypass.
-
-### 3. Kubernetes RBAC
-```yaml
-verbs: ["get", "list", "watch"]  # NO create, update, delete
+{"Effect": "Deny", "Action": ["*:Create*", "*:Delete*", "*:Update*", "*:Put*"], "Resource": "*"}
 ```
 
-### 4. Response Templates
-Agents know how to refuse:
-```
-"I cannot perform modifications. I'm read-only.
-However, I can help you find the Terraform code..."
-```
+### 4. Kyverno policies (production)
+K8s RBAC restricts the ServiceAccount to `get`/`list`/`watch` verbs. Kyverno validates no privilege escalation.
 
-## Examples
+## Agent behavior
 
-### ? Correct
+Agents analyze and recommend. They never execute changes. Correct response pattern:
+
 ```
 "Found 3 idle EC2 instances (CPU <5%):
 - i-abc123: $50/month
 
-To shut down via Terraform:
-File: terraform/ec2.tf
-Change: count = 0
+To terminate via Terraform:
+  File: terraform/ec2.tf
+  Change: remove resource block
 
-Savings: $150/month"
+Estimated savings: $150/month"
 ```
 
-### ? Wrong
-```
-"Run: aws ec2 terminate-instances --instance-ids i-abc123"
-```
-
-## Why Read-Only?
-
-1. **Audit Trail**: Changes via Git = complete history
-2. **Peer Review**: PRs ensure review
-3. **Rollback**: Git revert vs manual undo
-4. **Consistency**: Automation prevents drift
-5. **Security**: No accidental deletions
-
-Agents are **advisors**, not **operators**.
+Agents point to automation (Terraform, ArgoCD, GitOps PRs) — never suggest direct CLI mutations.

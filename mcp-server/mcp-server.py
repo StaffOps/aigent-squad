@@ -13,11 +13,7 @@ app = FastAPI(title="Agent Squad MCP Server")
 
 # HTTP client for Supervisor
 SUPERVISOR_URL = os.getenv("SUPERVISOR_URL", "http://supervisor:8000/query")
-
-app = FastAPI(title="Agent Squad MCP Server")
-
-# HTTP client for Supervisor
-SUPERVISOR_URL = os.getenv("SUPERVISOR_URL", "http://supervisor:8000/query")
+_INTERNAL_TOKEN = os.getenv("INTERNAL_API_TOKEN", "")
 
 class QueryRequest(BaseModel):
     question: str
@@ -44,6 +40,7 @@ async def query_agent_squad(request: QueryRequest):
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(
                 SUPERVISOR_URL,
+                headers={"X-Internal-Token": _INTERNAL_TOKEN},
                 json={
                     "user_input": request.question,
                     "user_id": request.user_id,

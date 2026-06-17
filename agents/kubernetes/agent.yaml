@@ -1,0 +1,35 @@
+name: kubernetes
+description: "Kubernetes cluster specialist. Queries pods, nodes, deployments, services."
+domain: container-orchestration
+capabilities: [pod_status, node_health, deployment_management, service_discovery]
+routing_keywords: [pod, node, deployment, service, namespace, kubectl, k8s, cluster, replica, hpa]
+skills:
+  - oomkill-investigation
+datasources:
+  # Read-only access to the cluster via the kubernetes-mcp-server
+  # (devops/devops-mcp-kube). Caminho A of ADR-001: MCP-as-adapter, not
+  # autonomous tool-calling. The allowlist deliberately EXCLUDES the
+  # server's mutating tools (pods_delete/pods_exec/pods_run/resources_*),
+  # enforcing "read-only is law" even though the server is unauthenticated.
+  - type: mcp
+    name: k8s-mcp
+    url: https://devops-mcp-kube-core.bdc.app.br/sse
+    tools:
+      - pods_list
+      - namespaces_list
+      - events_list
+      - nodes_top
+      - pods_top
+cache:
+  ttl: 60
+model:
+  tier: standard
+  temperature: 0.1
+read_only: true
+evidence_types: [k8s_resource_state]
+delegates_to:
+  - agent: aws
+    when: "issue involves EKS node provisioning or IAM"
+  - agent: observability
+    when: "need metrics to correlate with pod behavior"
+port: 8002

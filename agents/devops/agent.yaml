@@ -1,0 +1,27 @@
+name: devops
+description: "DevOps specialist. Queries GitLab, documentation portal, CI/CD."
+domain: development-operations
+capabilities: [pipeline_status, code_search, documentation_search, deployment_history]
+routing_keywords: [pipeline, deploy, ci, cd, gitlab, merge, branch, rollback, release, docs]
+datasources:
+  - type: http
+    name: gitlab
+    url: "${GITLAB_URL}/api/v4"
+    headers:
+      PRIVATE-TOKEN: "${GITLAB_TOKEN}"
+  - type: http
+    name: docs-portal
+    url: "${DOCS_PORTAL_URL}"
+cache:
+  ttl: 300
+model:
+  tier: standard
+  temperature: 0.1
+read_only: true
+evidence_types: [gitlab_search_result, documentation]
+delegates_to:
+  - agent: observability
+    when: "deploy caused metric regression"
+  - agent: kubernetes
+    when: "need deployment/rollout status"
+port: 8004
