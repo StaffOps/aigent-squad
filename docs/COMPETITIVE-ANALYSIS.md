@@ -147,3 +147,86 @@ vale destacar o que aprendemos lendo o código (`holmes/core/`):
   oportunidade nossa (spec 14).
 - **Operator mode**: roda 24/7, detecta proativamente, avisa no Slack — é o
   "agentes proativos" do nosso roadmap, já maduro. Referência de UX.
+
+---
+
+## Deep-dive: padrões de engenharia para adotar (2026-06-16)
+
+Achados de **leitura de código** (HolmesGPT, Aurora, OpenSRE) que são melhoria
+concreta para nós. Ordenados por valor.
+
+### 🔴 Alto valor — atacam nossos maiores gaps
+
+1. **Benchmark scored de RCA — OpenSRE `tests/benchmarks/_framework/`** (o gap #2).
+   Não é "um teste" — é um framework de avaliação científica de qualidade de RCA:
+   - **CloudOpsBench**: corpus de **452 cenários** (HF dataset), não commitado no
+     repo — baixado em runtime; mirror em S3 revision-pinned para runs em Fargate.
+   - `cost.py`: **accounting de custo input/output separado por modelo + hard-cap
+     budget** (`CostBudgetExceeded` halta o run e publica relatório parcial — não
+     estoura silenciosamente). Casa 100% com nossa steering de eficiência.
+   - `overfit.py`: **guards anti-overfitting** (uniformidade por sistema/categoria,
+     held-out 80/20, A/A consistency de 2 seeds) — garante que uma "melhoria" não
+     é só sorte concentrada num cluster de casos.
+   - `provenance.py` + `integrity.py`: cada run grava code SHA, config, env,
+     versões de modelo → reprodutível e auditável.
+   - **Por que roubar**: hoje não medimos se a RCA é boa. Isso é o método. Vira
+     candidato a **spec própria** (ex: `28-rca-benchmark`).
+
+2. **Defesa anti-injection em camadas reais — Aurora `server/guardrails/`** (gap #1, alimenta spec 14).
+   - `input_rail.py`: **NeMo Guardrails como pre-flight** ANTES do agente planejar
+     — "compromised inputs never reach tool selection". Usa a variável estruturada
+     `triggered_input_rail` (não string-match de recusa — imune a wording do modelo).
+     **Fail-closed**: qualquer erro bloqueia. É exatamente o desenho da nossa spec 14,
+     já implementado — referência direta.
+   - `sigma_loader.py`: **transpila regras SigmaHQ → regex** para detectar comandos
+     maliciosos (clear syslog, crypto mining, curl|wget exec /tmp, etc.). Subset
+     curado (linux/process_creation, high/critical). **Camada L2 da nossa spec 14**,
+     pronta para quando formos executar comandos.
+   - `test_sigma_canary.py`: teste de **canary** garantindo que a defesa não regrediu.
+   - **Por que roubar**: valida a spec 14 e dá implementação de referência. NeMo é
+     alternativa/complemento ao Bedrock Guardrails (multi-provider via LangChain factory).
+
+### 🟠 Médio valor — eficiência e robustez
+
+3. **Context-window management — HolmesGPT `core/tools_utils/`** (alimenta steering de eficiência).
+   - `tool_context_window_limiter.py`: **spill de resultado grande para disco**;
+     só um resumo entra no contexto. `get_pct_token_count` dimensiona por % da
+     janela do modelo.
+   - `llm_summarize` transformer: resume output de tool com **modelo rápido** antes
+     de injetar (tiering aplicado a output, não só a roteamento).
+   - jq-query **paginado** (batches de 500) na toolset k8s — evita overflow na origem.
+   - **Por que roubar**: é a solução direta para a dor que medimos (MCP trouxe 165KB).
+     Ataca custo na raiz.
+
+4. **`ApprovalRequirement` por-tool — HolmesGPT `core/tools.py`** (execução futura).
+   Modelo `needs_approval` + `reason` + `prefixes_to_save` (aprovação de prefixo de
+   comando bash reutilizável). É o human-in-the-loop granular que vamos precisar.
+
+5. **`safeguards.prevent_overly_repeated_tool_call` — HolmesGPT** (eficiência + anti-abuso).
+   Barra tool-call idêntica repetida — conté loop/custo sem ML. Trivial de portar.
+
+### 🟢 Muito interessante (pertinente, não urgente)
+
+6. **Toolsets YAML declarativos com `prerequisites` — HolmesGPT**. Um toolset
+   declara o que precisa (`kubectl version --client`) e só ativa se o pré-requisito
+   passa. Mais robusto que nossos adapters assumirem que a dependência existe.
+   `expose_remotely: true` permite chamar toolset cluster-local via MCP cross-cluster.
+
+7. **`litellm` como camada multi-LLM — HolmesGPT**. Um wrapper, N providers
+   (OpenAI/Anthropic/Azure/Bedrock/Gemini) + prompt caching + content_filter
+   finish_reason já tratado. Reavaliar vs. nosso boto3-bedrock direto (ADR-001) —
+   trade-off: menos lock-in vs. mais uma dependência.
+
+8. **Operator mode 24/7 — HolmesGPT**. Roda em background, detecta proativamente,
+   avisa no Slack, abre PR (GitHub integration). É o "agentes proativos" do nosso
+   roadmap, maduro — referência de UX/arquitetura.
+
+9. **Modos training/shadow/detect — versus-incident**. Introduzir
+   detecção/ação sem risco: `shadow` loga "would have alerted" sem alertar.
+   Padrão de rollout seguro para quando formos agir.
+
+### Candidatos a spec (derivados destes achados)
+- `28-rca-benchmark` — suíte scored de qualidade de RCA (de OpenSRE; alto valor).
+- Reforço da `14-security-hardening` com NeMo input rail + Sigma rules (de Aurora).
+- Spec/feature de **context budgeting** universal nos adapters (de HolmesGPT;
+  alimenta steering de eficiência).
