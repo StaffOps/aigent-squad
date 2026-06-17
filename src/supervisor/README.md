@@ -1,46 +1,47 @@
 # Supervisor Agent
 
-Orquestra e delega tarefas para especialistas usando **Classifier inteligente** e conversation history.
+Orchestrates and delegates tasks to specialists using an **intelligent
+Classifier** and conversation history.
 
-## Função
+## Role
 
-- Recebe requests do Slack (ou API direta)
-- **Classifica intent** com IA (Bedrock Claude)
-- Detecta follow-ups e context switching
-- Delega para especialista apropriado via HTTP
-- Mantém contexto conversacional isolado por agent
-- Consolida respostas
+- Receives requests from Slack (or direct API)
+- **Classifies intent** with AI (Bedrock Claude)
+- Detects follow-ups and context switching
+- Delegates to the appropriate specialist via HTTP
+- Keeps per-agent isolated conversation context
+- Consolidates responses
 
-## Arquitetura v2.0
+## Architecture
 
 ```
-User → Supervisor → Classifier (IA) → Seleciona Agent
+User → Supervisor → Classifier (AI) → Selects Agent
                   ↓
             DynamoDB (conversation history)
                   ↓
             HTTP call → Specialist Agent
                   ↓
-            Salva resposta → DynamoDB
+            Saves response → DynamoDB
                   ↓
-            Retorna ao usuário
+            Returns to the user
 ```
 
-### Mudanças vs v1.0
-- ❌ **Removido**: LangGraph manual routing
-- ✅ **Adicionado**: Classifier inteligente com IA
-- ✅ **Adicionado**: Follow-up detection automático
-- ✅ **Adicionado**: Context switching inteligente
-- ✅ **Adicionado**: Conversation history separado (global vs isolado)
+### Changes vs v1.0
+- ❌ **Removed**: LangGraph manual routing
+- ✅ **Added**: intelligent AI Classifier
+- ✅ **Added**: automatic follow-up detection
+- ✅ **Added**: intelligent context switching
+- ✅ **Added**: separate conversation history (global vs isolated)
 
-## Dependências
+## Dependencies
 
 ### AWS
 - **Bedrock**: Claude 3.5 Sonnet (Classifier + Agents)
-- **DynamoDB**: Table `agent-sessions` (conversation history)
+- **DynamoDB**: `agent-sessions` table (conversation history)
 
-### Infraestrutura
-- **Redis**: Cache (opcional)
-- **Agents**: HTTP endpoints dos 5 especialistas
+### Infrastructure
+- **Redis**: Cache (optional)
+- **Agents**: HTTP endpoints of the 5 specialists
   - AWS Agent: `http://aws-agent:8001/process`
   - Kubernetes Agent: `http://kubernetes-agent:8002/process`
   - FinOps Agent: `http://finops-agent:8003/process`
@@ -48,7 +49,7 @@ User → Supervisor → Classifier (IA) → Seleciona Agent
   - Observability Agent: `http://observability-agent:8005/process`
 
 ### Kubernetes
-- **ServiceAccount**: `agent-squad-supervisor` com IRSA
+- **ServiceAccount**: `agent-squad-supervisor` with IRSA
 - **Secrets**: Slack tokens, DynamoDB access
 
 ## Environment Variables
@@ -60,14 +61,14 @@ BEDROCK_MODEL_ID=us.anthropic.claude-sonnet-4-5-20250929-v1:0
 
 # DynamoDB
 DYNAMODB_SESSIONS_TABLE=agent-sessions
-DYNAMODB_ENDPOINT=  # Opcional: para local development
+DYNAMODB_ENDPOINT=  # Optional: for local development
 
-# Redis (opcional)
+# Redis (optional)
 REDIS_HOST=<endpoint>
 REDIS_PORT=6379
 REDIS_SSL=true
 
-# Slack (opcional)
+# Slack (optional)
 SLACK_BOT_TOKEN=xoxb-...
 SLACK_SIGNING_SECRET=...
 SLACK_PROACTIVE_CHANNEL=C12345678
@@ -128,7 +129,7 @@ Attributes:
   "session_id": "session456",
   "agent_id": "aws",
   "role": "user",
-  "content": "Quantas instâncias EC2?",
+  "content": "How many EC2 instances?",
   "timestamp": "2026-02-14T10:00:00Z",
   "ttl": 1739548800
 }
@@ -137,12 +138,12 @@ Attributes:
 ## API Endpoints
 
 ### `POST /query`
-Processa query do usuário com roteamento inteligente.
+Processes a user query with intelligent routing.
 
 **Request**:
 ```json
 {
-  "user_input": "Quantas instâncias EC2 estão rodando?",
+  "user_input": "How many EC2 instances are running?",
   "user_id": "user123",
   "session_id": "session456"
 }
@@ -152,7 +153,7 @@ Processa query do usuário com roteamento inteligente.
 ```json
 {
   "agent": "aws",
-  "response": "Você tem 12 instâncias EC2 rodando...",
+  "response": "You have 12 EC2 instances running...",
   "confidence": 0.95,
   "reasoning": "User is asking about AWS EC2 instances"
 }
@@ -171,22 +172,22 @@ Health check.
 
 ## Classifier
 
-### Como Funciona
+### How It Works
 
-1. **Busca histórico global** (todas conversas do user/session)
-2. **Analisa com IA**:
+1. **Fetch global history** (all user/session conversations)
+2. **Analyze with AI**:
    - User input
    - Agent descriptions
    - Conversation history
-3. **Detecta**:
-   - Follow-ups ("sim", "ok", "1") → mantém mesmo agent
-   - Context switching ("agora sobre custos") → troca agent
-4. **Retorna**:
+3. **Detect**:
+   - Follow-ups ("yes", "ok", "1") → keep the same agent
+   - Context switching ("now about costs") → switch agent
+4. **Return**:
    - `selected_agent`: "aws" | "kubernetes" | "finops" | "devops" | "observability"
    - `confidence`: 0.0 - 1.0
-   - `reasoning`: Explicação da decisão
+   - `reasoning`: explanation of the decision
 
-### Agent Descriptions (usado pelo Classifier)
+### Agent Descriptions (used by the Classifier)
 ```python
 AGENT_DESCRIPTIONS = {
     "aws": "AWS resources (EC2, S3, RDS, Lambda, VPC, IAM)",
@@ -199,24 +200,24 @@ AGENT_DESCRIPTIONS = {
 
 ## Conversation History
 
-### Dois Níveis
+### Two Levels
 
-1. **Global** (Classifier vê):
-   - Todas conversas do user/session
-   - Todos agents
-   - Usado para classificação
+1. **Global** (the Classifier sees):
+   - All user/session conversations
+   - All agents
+   - Used for classification
 
-2. **Isolado** (Agent vê):
-   - Apenas conversas com aquele agent específico
-   - Não vê conversas com outros agents
-   - Usado para processar request
+2. **Isolated** (the Agent sees):
+   - Only conversations with that specific agent
+   - Does not see conversations with other agents
+   - Used to process the request
 
-### Exemplo
+### Example
 ```
-User: "Quantas instâncias EC2?" → AWS Agent
-User: "E pods?" → Kubernetes Agent
-User: "Volte para EC2" → AWS Agent (classifier detecta context switch)
-User: "Quantas em us-east-1?" → AWS Agent (follow-up, mantém agent)
+User: "How many EC2 instances?" → AWS Agent
+User: "And pods?" → Kubernetes Agent
+User: "Back to EC2" → AWS Agent (classifier detects context switch)
+User: "How many in us-east-1?" → AWS Agent (follow-up, keeps the agent)
 ```
 
 ## Deployment
@@ -269,52 +270,52 @@ spec:
           periodSeconds: 10
 ```
 
-## Escala
+## Scaling
 
 - **Min replicas**: 2
 - **Max replicas**: 10
-- **HPA**: CPU > 70% ou Memory > 80%
-- **Request timeout**: 30s (HTTP calls para agents)
+- **HPA**: CPU > 70% or Memory > 80%
+- **Request timeout**: 30s (HTTP calls to agents)
 
-## Exemplo de Uso
+## Usage Example
 
-### Query Simples
+### Simple Query
 ```bash
 curl -X POST http://localhost:8000/query \
   -H "Content-Type: application/json" \
   -d '{
-    "user_input": "Quantas instâncias EC2?",
+    "user_input": "How many EC2 instances?",
     "user_id": "user123",
     "session_id": "session456"
   }'
 ```
 
-### Conversação Multi-turn
+### Multi-turn Conversation
 ```bash
-# 1. Primeira pergunta (AWS)
+# 1. First question (AWS)
 curl -X POST http://localhost:8000/query \
-  -d '{"user_input": "Mostre instâncias EC2", "user_id": "user123", "session_id": "session456"}'
-# → Classifier seleciona: aws
+  -d '{"user_input": "Show EC2 instances", "user_id": "user123", "session_id": "session456"}'
+# → Classifier selects: aws
 
-# 2. Follow-up (mantém AWS)
+# 2. Follow-up (keeps AWS)
 curl -X POST http://localhost:8000/query \
-  -d '{"user_input": "Quantas em us-east-1?", "user_id": "user123", "session_id": "session456"}'
-# → Classifier detecta follow-up, mantém: aws
+  -d '{"user_input": "How many in us-east-1?", "user_id": "user123", "session_id": "session456"}'
+# → Classifier detects follow-up, keeps: aws
 
-# 3. Context switch (troca para FinOps)
+# 3. Context switch (switches to FinOps)
 curl -X POST http://localhost:8000/query \
-  -d '{"user_input": "Quanto custam?", "user_id": "user123", "session_id": "session456"}'
-# → Classifier detecta mudança de tópico, seleciona: finops
+  -d '{"user_input": "How much do they cost?", "user_id": "user123", "session_id": "session456"}'
+# → Classifier detects topic change, selects: finops
 
-# 4. Follow-up (mantém FinOps)
+# 4. Follow-up (keeps FinOps)
 curl -X POST http://localhost:8000/query \
-  -d '{"user_input": "E no mês passado?", "user_id": "user123", "session_id": "session456"}'
-# → Classifier detecta follow-up, mantém: finops
+  -d '{"user_input": "And last month?", "user_id": "user123", "session_id": "session456"}'
+# → Classifier detects follow-up, keeps: finops
 ```
 
-## Slack Integration (Opcional)
+## Slack Integration (Optional)
 
-### Configuração
+### Configuration
 ```python
 # src/supervisor/slack.py
 from slack_bolt import App
@@ -336,7 +337,7 @@ async def handle_message(message, say):
 
 ## MCP Servers
 
-Não requer MCP servers. Usa:
-- Bedrock API direta (boto3)
+Does not require MCP servers. Uses:
+- Bedrock API directly (boto3)
 - DynamoDB API (boto3)
-- HTTP calls para specialist agents
+- HTTP calls to specialist agents
