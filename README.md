@@ -527,7 +527,7 @@ This is a reference implementation based on AWS Labs Agent Squad best practices.
 
 ## 📝 License
 
-MIT License - See LICENSE file for details
+Apache 2.0 — See [LICENSE](LICENSE) for details.
 
 ---
 

@@ -1,0 +1,91 @@
+site_name: StaffOps — Aigent Squad
+site_description: Multi-agent platform for AWS and Kubernetes operations
+site_url: https://staffops.github.io/aigent-squad/
+repo_url: https://github.com/StaffOps/staffops-aigent-squad
+repo_name: StaffOps/aigent-squad
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  logo: assets/logo.png
+  favicon: assets/logo.png
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.top
+    - navigation.footer
+    - search.highlight
+    - search.suggest
+    - content.code.copy
+    - content.code.annotate
+    - content.action.edit
+  icon:
+    repo: fontawesome/brands/github
+
+nav:
+  - Home: index.md
+  - Getting Started:
+      - Prerequisites: getting-started/prerequisites.md
+      - Installation: getting-started/installation.md
+      - Quickstart: getting-started/quickstart.md
+  - Architecture: architecture.md
+  - Agents:
+      - Overview: agents/overview.md
+      - Read-Only Policy: agents/read-only-policy.md
+      - Adding an Agent: agents/how-to-new-agent.md
+  - Integrations:
+      - MCP: integrations/mcp.md
+      - Alerting: integrations/alerting.md
+  - Reference:
+      - Helm Chart: reference/helm.md
+      - Metrics: reference/metrics.md
+
+plugins:
+  - search:
+      lang: en
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.details
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - admonition
+  - attr_list
+  - md_in_html
+  - toc:
+      permalink: true
+
+extra_css:
+  - stylesheets/extra.css
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/StaffOps
+  generator: false
+
+copyright: Copyright &copy; StaffOps Contributors — Apache 2.0

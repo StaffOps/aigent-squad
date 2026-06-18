@@ -1,196 +1,130 @@
-# Handoff — sessions 2026-06-16 / 2026-06-17
+# Handoff — sessions 2026-06-16 / 2026-06-17 / 2026-06-18
 
-Estado para retomar amanhã. O que foi feito, o que ficou pendente, e próximos
+Estado para retomar. O que foi feito, o que ficou pendente, e próximos
 passos priorizados.
 
 ---
 
-## Feito nesta sessão (commitado em `dev`, repo privado `staffops-aigent-squad`)
+## Done — session 2026-06-16 / 2026-06-17 (historical)
 
-- **Migração**: código movido de `AIgent-squad` (público, congelado) → repo
-  privado `staffops-aigent-squad` com histórico completo. Diretório local antigo
-  removido. Repo de config renomeado para `staffops-aigent-config` (privado).
-- **Terraform**: módulos `iam/` (IRSA + policies read-only), `dynamodb/`,
-  `bedrock/` (VPC endpoints), `bedrock-aip/` (cost attribution). Tags centralizadas
-  em `provider.default_tags`. Tudo validado.
-- **Fix Bedrock**: `BEDROCK_MODEL_ID` precisa do inference profile `us.` (Sonnet 4.5
-  não tem on-demand). Validado end-to-end (Bedrock respondeu).
-- **MCP adapter** (`type: mcp`): agentes como MCP clients, allowlist read-only,
-  fail-closed. Validado contra o `devops-mcp-kube` real do cluster.
-- **Skills** (spec 26): conhecimento markdown lazy-loaded. 100% cov.
-- **Cost attribution** (spec 27): AIP por modelo + métricas com `agent_id`.
-- **Spec 14 (security)**: defense-in-depth anti-injection — **escrita, NÃO impl**.
-- **Steering eficiência/custo**: novo pilar (`efficiency-cost.md`).
-- **Competitive analysis**: `docs/COMPETITIVE-ANALYSIS.md` — 7 projetos + deep dive
-  HolmesGPT/Aurora/OpenSRE + padrões para adotar.
-- **Read-only reframe**: de "invariante eterno" → "postura atual; execução é
-  futuro em aberto com guardrails + HITL".
+- **Migration**: code moved from `AIgent-squad` (public, frozen) → private
+  repo `staffops-aigent-squad` with full history.
+- **Terraform**: `iam/`, `dynamodb/`, `bedrock/`, `bedrock-aip/`. All validated.
+- **Fix Bedrock**: `BEDROCK_MODEL_ID` needs inference profile `us.` prefix.
+- **MCP adapter** (`type: mcp`): agents as MCP clients, read-only allowlist.
+- **Skills** (spec 26): lazy-loaded markdown knowledge. 100% cov.
+- **Cost attribution** (spec 27): AIP per model + metrics with `agent_id`.
+- **Spec 14 (security)**: written, NOT implemented.
+- **Efficiency/cost steering**: `efficiency-cost.md` new pillar.
+- **Competitive analysis**: `docs/COMPETITIVE-ANALYSIS.md`.
+- **Helm chart** (`helm-charts/charts/aigent-squad` 0.4.0): `services` map,
+  two topologies (inProcess/distributed), HPA/KEDA/none, Ingress/GatewayAPI/none.
+- **Claude Code compatibility**: `CLAUDE.md` + `.claude/` mirror.
+- **OpenAI-compatible bridge** (spec 29): `/v1/models` + `/v1/chat/completions`
+  on supervisor; `docs/LIBRECHAT.md`.
+- **i18n**: all active docs/steering/prompts translated to English.
 
 ---
 
-## Pendências técnicas (bloqueantes / atenção)
+## Done — session 2026-06-18
 
-1. **CI `test` job falha** no repo privado — `pip install` não clona
-   `staffops-otel-libs` (git+ssh) por falta do secret `OTEL_LIBS_DEPLOY_KEY`.
-   **Ação (sua, envolve credencial)**: adicionar deploy key do otel-libs como
-   secret no repo. O workflow já está correto (usa `ssh-key`). Lint já passa.
-2. **PR #1** (`dev`→`main`) fica `UNSTABLE` até o item #1 ser resolvido.
-3. **Aurora/OpenSRE**: deep dive foi só dos 3 principais; esses 2 ainda em
-   nível README se quiser aprofundar (Aurora=guardrails, OpenSRE=benchmark).
+### Spec 07 — Readiness probes (COMPLETE ✅)
+- `src/core/health.py`: `DependencyChecker` — async checks (Redis, DynamoDB,
+  Bedrock creds, HTTP) with per-dep TTL cache (5 s) + timeout (2 s).
+- `src/supervisor/server.py`: `/healthz` (liveness), `/ready` (readiness),
+  `/health` legacy alias.
+- `mcp-server/mcp-server.py`: same probe set; `/ready` checks supervisor.
+- `docker-compose.yaml`: healthchecks → `/ready`.
+- `tests/test_health.py`: 237 tests total, 92.46% coverage.
+- `Dockerfile.test`: reproducible test image (python:3.11-slim + SSH);
+  run via volume mount, no rebuild on code change.
 
----
+### CI/CD — Docker Hub (COMPLETE ✅)
+- `.github/workflows/build.yml`: `build` job (multi-arch `linux/amd64,linux/arm64`
+  → `karlipegomes/aigent-squad:latest` + `:sha-<short>`) + `scan` job (Trivy
+  CRITICAL/HIGH + CycloneDX SBOM).
+- ECR removed — Docker Hub is the only registry.
+- `DOCKERHUB_USERNAME` + `DOCKERHUB_TOKEN` secrets configured on
+  `StaffOps/staffops-aigent-squad`.
 
-## Métricas — avaliação e próximos passos
+### Helm chart 0.6.0 (COMPLETE ✅)
+- Default image: `karlipegomes/aigent-squad:latest` (Docker Hub, `registry: ""`).
+- `Chart.yaml` home/sources → `StaffOps/` org.
+- All READMEs updated (root + aigent-squad + staffops-anomaly-detection):
+  `staffops.github.io`, `StaffOps/` org, chart badge 0.6.0.
+- GitHub Pages configured: `staffops.github.io/helm-charts` (source: `gh-pages`
+  branch, legacy mode). Branch `gh-pages` created.
+- Helm repo: `helm repo add staffops https://staffops.github.io/helm-charts`.
 
-**Estado**: 25 métricas, boa cobertura RED + domínio. Lacunas no eixo de
-**eficiência** (o pilar definido hoje). Ações priorizadas:
+### Spec 05 tasks.md cleanup
+- T5 (Argo Rollouts) and T14 (per-env values files) removed — out of scope.
+- "provider-agnostic" language removed from all chart files.
+- Completed tasks marked `[x]`.
 
-### Reforçar labels (baixo esforço, alto valor)
-- [ ] `aigent.tokens.total` / `aigent.cost.estimated`: adicionar label `model`
-      (o `agent_id` já entrou na spec 27) — destrava rateio por modelo + ver tiering.
+### Dockerfile → Alpine multi-stage (COMPLETE ✅)
+- Builder: `python:3.11-alpine` + gcc/libffi/openssl/git/ssh (build-only).
+- Runtime: clean `python:3.11-alpine` — no perl, no ncurses, no build tools.
+- `wheel>=0.46.2` + `setuptools>=79.0.1` upgraded to fix CVE-2026-24049 and
+  CVE-2026-23949.
+- Remaining OS CVEs (perl, ncurses, sqlite) have `status=affected` in Debian 13
+  — irrelevant now since Alpine has none of those packages.
+- `Dockerfile.test` stays on `python:3.11-slim` (OTel/pkg_resources constraint).
 
-### Métricas novas focadas em eficiência (~4)
-- [ ] `aigent.prompt.size_tokens` (histograma, por agente) — maior dreno de custo;
-      detecta prompts inchando (ex: MCP/adapter trazendo dump grande).
-- [ ] `aigent.investigation.rounds` (histograma) — distribuição real de rodadas
-      vs o cap (regra de custo da steering).
-- [ ] `aigent.llm.duration` separado de `aigent.collect.duration` — hoje
-      `request.duration` mistura Bedrock + coleta; não dá pra achar o gargalo.
-- [ ] `aigent.cache.tokens_saved` (counter) — quanto o cache de infra poupou.
-
-### Organização (doc)
-- [ ] Atualizar `docs/METRICS.md`: catalogar por **propósito** (RED / eficiência /
-      qualidade), não por spec. Documentar **regra de cardinalidade**: `agent_id`,
-      `model`, `direction`, `error_type` OK como label; `user_id`/`session_id`/
-      `trace_id` NUNCA (vão pra traces/logs — ver steering observability).
-- [ ] Painel Grafana: custo por agente, custo por modelo, prompt size p99,
-      rodadas por investigação, cache savings.
-
----
-
-## Candidatos a spec (do competitive analysis)
-
-Priorizados por impacto:
-
-1. **`28-rca-benchmark`** (de OpenSRE CloudOpsBench) — **maior gap**: não sabemos
-   medir se a RCA está correta. Framework scored (cenários + custo-cap +
-   anti-overfit + provenance). Resolve "qualidade", que nenhum guardrail resolve.
-2. **Implementar spec 14 Phase 1** (Bedrock Guardrail + fail-closed) — segurança
-   sai do papel. Referência de impl: Aurora `server/guardrails/` (NeMo + Sigma).
-3. **Context budgeting universal** nos adapters (de HolmesGPT) — trunca/sumariza
-   output antes do prompt. Ataca o maior dreno de tokens. Alimenta steering de
-   eficiência. Pode virar parte de uma spec de adapters ou da 27.
-4. **`28-llm-provider-abstraction`** (design only) — camada multi-provider
-   (litellm candidato). Reabre ADR-001. Preservar cost-attribution (spec 27) é
-   o ponto crítico. Implementar só com decisão explícita.
+### Org migration
+- `staffops-aigent-squad` remote → `git@github.com:StaffOps/staffops-aigent-squad.git`
+- `helm-charts` remote → `git@github.com:StaffOps/helm-charts.git`
 
 ---
 
-## O que pode ter passado (revisar amanhã com cabeça fresca)
+## Current branch state (`dev`)
 
-- **Métricas de eficiência** acima — a steering de custo foi escrita HOJE mas as
-  métricas que a tornam observável ainda não existem. Gap entre regra e medição.
-- **Spec 14 é só design** — fácil esquecer que segurança "está pronta" quando só
-  o plano está. Implementação é trabalho real.
-- **`staffops-agent-config`**: os agentes convertidos têm `datasources: []` e
-  keywords derivadas — precisam de tuning real antes de validar de verdade.
-- **HolmesGPT `litellm`**: vale uma decisão consciente (reavaliar ADR-001?) —
-  não deixar virar dívida silenciosa.
-- **Deploy real**: nada foi aplicado na AWS nem deployado. Todo o Terraform é
-  `validate`-only. O salto "spec/código → rodando em prod" é o maior trabalho
-  ainda não começado.
+All the above is committed and pushed to `dev`. **Not yet merged to `main`.**
+Merging `dev → main` will:
+1. Trigger `build.yml` → build Alpine image + push to Docker Hub + Trivy scan.
+2. CI `test.yml` will run lint + pytest (needs `OTEL_LIBS_DEPLOY_KEY` secret).
 
 ---
 
-## i18n — translate project to English (in progress, 2026-06-17)
+## Pending / Blockers
 
-Decision: all project files/docs in English; agents reply in the **user's
-language** (centralized directive in `bedrock.invoke`, classifier opted out).
-
-**Done:**
-- ✅ Language directive centralized in code (`bedrock.py` `_LANGUAGE_DIRECTIVE`,
-  `match_user_language` flag; classifier=False). +2 tests. Lint clean.
-- ✅ Steering (project, efficiency-cost, licensing-clean-room) → EN
-- ✅ Agent prompts (aws, devops, finops, kubernetes, observability) → EN
-- ✅ README → EN
-- ✅ ADR-001 renamed (direto→direct) + translated → EN
-
-**Done:** language directive in code; ALL of `docs/`, `src/`, agent prompts,
-steering, README, ADR-001, active specs (14/26/27/28), ROADMAP, AUDIT, ANALYSIS,
-ECOSYSTEM, EVIDENCE-MODEL, COMPETITIVE-ANALYSIS, supervisor/README → English.
-
-**Remaining (PT → EN) — historical record only (~47 files):**
-- Historical specs **01-25** (requirements/design/tasks/bugfix) — completed specs,
-  frozen historical record. Lowest priority; arguably fine to leave as-is.
-  (Active specs 14/26/27/28 are already English.)
-- Detect: `grep -rliE "\b(não|você|está|são)\b" --include=*.md .kiro/specs/[0-2]*`
-
+| # | Item | Notes |
+|---|------|-------|
+| 1 | **Merge `dev → main`** | Triggers first Docker Hub build. Lint passes. Test job needs `OTEL_LIBS_DEPLOY_KEY` secret on `StaffOps/staffops-aigent-squad` to pass. |
+| 2 | **`OTEL_LIBS_DEPLOY_KEY` secret** | SSH deploy key for private `staffops-otel-libs` repo. Must be added manually (involves credentials). |
+| 3 | **Helm T15** | `helm template \| kubectl apply --dry-run=client` — needs a cluster (kind/EKS). Deferred. |
+| 4 | **`ct install` on kind** | `lint-test.yaml` workflow runs this on PR — will only pass when chart installs cleanly on vanilla cluster. |
+| 5 | **LibreChat end-to-end** | Bridge unit-tested only; not validated against live LibreChat instance. |
+| 6 | **Spec 14 Phase 1** | Security design only — Bedrock Guardrail + fail-closed still not implemented. |
 
 ---
 
-## Session 2026-06-17 (cont.) — chart, Claude Code, LibreChat bridge
+## Next specs (priority order)
 
-### Done (committed + pushed)
+1. **Merge `dev → main`** — unblocks Docker Hub image + CI green.
+2. **Spec 03 — cache/observability fix** — Redis cache + OTel metrics gaps.
+3. **Spec 04 — harden security** — rate limit, per-user budget cap.
+4. **Spec 14 Phase 1** — Bedrock Guardrail implementation.
+5. **Spec 28 — RCA benchmark** (OpenSRE CloudOpsBench pattern) — quality gap.
 
-**Helm chart** (`helm-charts/charts/aigent-squad`, repo `helm-charts` branch
-`main`, chart `0.4.0`):
-- Own generic chart — **no BDC conventions, native Kubernetes only**.
-- Two topologies via a `services` map: `inProcess` (one supervisor runs all
-  agents) and `distributed` (supervisor + 5 agents + mcp-server, see
-  `values-distributed.yaml`).
-- **Workload**: `workload.kind: Deployment | StatefulSet` (StatefulSet gets a
-  headless Service + `volumeClaimTemplates`). **No Argo Rollout.**
-- **Autoscaling**: `scaling.autoscaling.kind: none | hpa | keda`
-  (`autoscaling/v2` HPA or KEDA `ScaledObject`).
-- **Routing**: `routing.type: none | ingress | gatewayapi` (provider-agnostic).
-- Opt-in (off by default): NetworkPolicy, ExternalSecret (ESO→AWS SM), read-only
-  RBAC, in-cluster Redis (DEV). Validated: lint + template (both topologies),
-  all workload/autoscaling/routing combos, distributed = 45 valid docs.
+---
 
-**Claude Code compatibility** (`staffops-aigent-squad`, branch `dev`):
-- `CLAUDE.md` entrypoint with build/test commands, architecture invariants,
-  read-only posture, and `@imports` of `.kiro/steering/*.md` (single source of
-  truth, no drift).
-- `.claude/` mirror: `rules` + `skills` symlinked to `.kiro/steering` + `skills`;
-  6 subagents converted from `agents/<name>/`; `settings.json` (read-only
-  permission posture); `README.md`.
-- `scripts/sync-claude.sh` — idempotent regenerator.
+## Metrics gaps (still open from 2026-06-17)
 
-**OpenAI-compatible bridge — LibreChat (Option A), spec 29** (`dev`):
-- `src/supervisor/openai_compat.py` + `/v1/models` + `/v1/chat/completions` on
-  the supervisor (behind `require_token`). Models: `aigent-squad` (classifier
-  auto-routes) + `aigent-squad-<agent>` (force a specialist via new
-  `process_request(force_agent=...)`).
-- `docs/LIBRECHAT.md` + `infra/librechat/librechat.yaml` example.
-- Tests: `openai_compat.py` 100% cov, `agent.py` 95%, lint clean.
+- [ ] `aigent.tokens.total` / `aigent.cost.estimated`: add `model` label.
+- [ ] `aigent.prompt.size_tokens` histogram — detect bloated prompts.
+- [ ] `aigent.investigation.rounds` histogram — real rounds vs cap.
+- [ ] `aigent.llm.duration` separate from `aigent.collect.duration`.
+- [ ] `aigent.cache.tokens_saved` counter.
+- [ ] `docs/METRICS.md`: reorganize by purpose (RED / efficiency / quality).
 
-**README/ROADMAP**: README fixed (residual PT, stale model id → Sonnet 4.5,
-pgvector KB, dates, roadmap pointer) + LibreChat/Claude Code references; ROADMAP
-gained spec 29 (implemented).
+---
 
-### Pendencies left from this session
+## What may have been missed
 
-- **Spec 07 (readiness-probes) NOT implemented**: the chart's probes point at
-  `/healthz` + `/ready`, but the code only exposes `/health`. A real deploy
-  needs spec 07 first or the probes fail.
-- **Spec 08 (CI/CD) NOT implemented**: the chart references images
-  (`aigent-squad/supervisor:0.1.0` …) that nothing builds yet.
-- **Chart not `ct install`-ed on a real cluster** — only lint + template + YAML
-  parse verified locally (CI `lint-test` covers kind install on PR).
-- **Bridge streaming is pseudo-streaming** (full answer as one SSE chunk) until
-  spec 06 token streaming; `usage` = zeros (spec 10/27); identity self-declared
-  (SEC-D12). **Not tested end-to-end with a live LibreChat** — contract verified
-  by unit tests only.
-- **Claude Code not validated at runtime** — conformance to the documented
-  format, not an actual Claude Code session.
-- **≥90% full suite gate** still only confirmed in CI (private `otel-helper`
-  git+ssh dep blocks the full local run; this session used a stub to verify the
-  touched modules).
+- **Deploy to AWS**: nothing applied. All Terraform is `validate`-only.
+  The jump from "code" to "running in prod" is the biggest remaining work.
+- **Spec 14 is design only** — easy to forget security "is done" when only
+  the plan exists.
 - **Historical specs 01-25 remain in PT** (frozen record, low priority).
-
-### Highest-value next steps to unblock real deploy
-
-1. Implement **spec 07** (`/healthz` + `/ready` + graceful shutdown).
-2. Implement **spec 08** (GitHub Actions: build/push images, coverage gate).
-3. Then the chart can actually deploy and the LibreChat bridge can be
-   exercised end-to-end.
+- **`staffops-agent-config` agents** have `datasources: []` and keyword
+  placeholders — need real tuning before production use.
