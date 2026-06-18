@@ -11,6 +11,8 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -26,12 +28,10 @@ jobs:
       - name: Build docs
         run: mkdocs build --site-dir site
 
-      - name: Deploy to staffops.github.io/aigent-squad/
+      - name: Deploy to gh-pages
         uses: peaceiris/actions-gh-pages@v4
         with:
-          deploy_key: ${{ secrets.DOCS_DEPLOY_KEY }}
-          external_repository: StaffOps/staffops.github.io
+          github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_branch: gh-pages
           publish_dir: ./site
-          destination_dir: aigent-squad
           keep_files: true

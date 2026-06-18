@@ -1,6 +1,6 @@
 site_name: Aigent Squad — StaffOps
 site_description: Multi-agent platform for AWS and Kubernetes operations
-site_url: https://staffops.github.io/aigent-squad/
+site_url: https://staffops.github.io/staffops-aigent-squad/
 repo_url: https://github.com/StaffOps/staffops-aigent-squad
 repo_name: StaffOps/aigent-squad
 edit_uri: edit/main/docs/
@@ -10,15 +10,15 @@ theme:
   palette:
     - media: "(prefers-color-scheme: light)"
       scheme: default
-      primary: deep purple
-      accent: indigo
+      primary: custom
+      accent: custom
       toggle:
         icon: material/weather-night
         name: Switch to dark mode
     - media: "(prefers-color-scheme: dark)"
       scheme: slate
-      primary: deep purple
-      accent: indigo
+      primary: custom
+      accent: custom
       toggle:
         icon: material/weather-sunny
         name: Switch to light mode
@@ -76,6 +76,9 @@ markdown_extensions:
   - md_in_html
   - toc:
       permalink: true
+
+extra_css:
+  - stylesheets/extra.css
 
 extra:
   social:
