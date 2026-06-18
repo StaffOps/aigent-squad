@@ -1,0 +1,33 @@
+# syntax=docker/dockerfile:1
+# Test harness — spec 23 / spec 07.
+# Build: docker build --ssh default -f Dockerfile.test -t aigent-test .
+# Run:   docker run --rm \
+#          -e REDIS_HOST=localhost \
+#          -e SERVICE_NAME=test \
+#          -e OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317 \
+#          -e AWS_REGION=us-east-1 \
+#          aigent-test
+FROM python:3.11-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends git openssh-client && rm -rf /var/lib/apt/lists/*
+RUN mkdir -p -m 0700 ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN --mount=type=ssh pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir pytest pytest-asyncio pytest-cov ruff
+
+COPY src/ ./src/
+COPY tests/ ./tests/
+COPY agents/ ./agents/
+COPY mcp-server/ ./mcp-server/
+COPY .coveragerc .
+
+ENV AGENTS_DIR=/app/agents
+ENV REDIS_HOST=localhost
+ENV SERVICE_NAME=test
+ENV OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
+ENV AWS_REGION=us-east-1
+
+CMD ["pytest", "tests/", "--cov", "--cov-fail-under=90", "--tb=short", "-v"]

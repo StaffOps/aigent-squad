@@ -15,11 +15,24 @@
 - `.claude/`: `rules` + `skills` symlinked to `.kiro/steering` + `skills`; 6 subagents converted from `agents/<name>/`; `settings.json` (read-only permissions); `README.md`
 - `scripts/sync-claude.sh`: idempotent regenerator (`.kiro/` + `agents/` → `.claude/`)
 
-### Added (Helm chart — repo `helm-charts`, chart `aigent-squad` 0.4.0)
+### Added (Spec 07: Readiness probes)
+- `src/core/health.py`: `DependencyChecker` — async checks for Redis, DynamoDB, Bedrock creds, and arbitrary HTTP endpoints; per-dep TTL cache (5 s) + timeout (2 s)
+- `src/supervisor/server.py`: `/healthz` (liveness — always 200), `/ready` (readiness — 503 when Redis/DynamoDB/agents unavailable), `/health` kept as legacy alias
+- `mcp-server/mcp-server.py`: same probe set; `/ready` checks supervisor reachability via httpx
+- `docker-compose.yaml`: healthchecks updated from `/health` to `/ready` (supervisor + mcp-server), retries 3→5 on supervisor
+- `tests/test_health.py`: 20 new tests (DependencyChecker unit + supervisor + mcp endpoint tests); 237 total passing, 92.46% coverage
+- `Dockerfile.test`: reproducible test image (`python:3.11-slim` + SSH for private `otel-helper` dep); run via volume mount — no rebuild on code change
+
+### Added (CI: Docker Hub image publishing)
+- `.github/workflows/build.yml`: new `build-dockerhub` job — builds true multi-arch manifest (`linux/amd64,linux/arm64`) and pushes `karlipegomes/aigent-squad:latest` + `:sha-<short>` on every merge to `main`
+- Fixed `build-ecr` SSH agent setup: now uses `webfactory/ssh-agent` (exposes `SSH_AUTH_SOCK` to Docker buildx) instead of checkout-only `ssh-key`
+
+### Added (Helm chart — repo `helm-charts`, chart `aigent-squad` 0.5.0)
 - Own generic chart (no vendor conventions): `services` map → Deployment | StatefulSet, autoscaling none | HPA | KEDA, routing none | Ingress | Gateway API
 - Two topologies: `inProcess` (default) and `distributed` (`values-distributed.yaml`)
 - Opt-in NetworkPolicy, ExternalSecret, read-only RBAC, in-cluster Redis (DEV)
-- Note: chart probes target `/healthz` + `/ready` (spec 07, not yet implemented in code) and reference images not yet built (spec 08)
+- Repo migrated to `StaffOps/helm-charts`; published via `chart-releaser-action` → GitHub Pages
+- Cleaned up "provider-agnostic" language throughout; removed Argo Rollouts (T5) and per-env values files (T14) from spec 05 scope
 
 ### Fixed (README accuracy)
 - Residual Portuguese, stale `Claude 3.5` → `Claude Sonnet 4.5`, KB clarified as PostgreSQL+pgvector, `Last Updated` date, roadmap pointer; added LibreChat + Claude Code references

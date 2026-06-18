@@ -7,10 +7,16 @@ setup_telemetry()
 
 from contextlib import asynccontextmanager
 from typing import Optional
+import boto3
+import redis as redis_lib
 from fastapi import FastAPI, HTTPException, Depends, Header
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 from src.core.auth import require_token
+from src.core.config import settings
+from src.core.health import DependencyChecker
 from src.core.kb.store import kb_store
+from src.core.state_store import storage
 from src.supervisor.agent import supervisor
 from src.supervisor.alert_handler import AlertmanagerPayload, handle_alert_payload
 from src.supervisor.slack_notifier import post_rca_to_slack
@@ -23,8 +29,23 @@ from src.supervisor.openai_compat import (
     resolve_target,
     sse_stream,
 )
-from fastapi.responses import JSONResponse, StreamingResponse
 import uvicorn
+
+_checker = DependencyChecker(cache_ttl=5.0, timeout=2.0)
+
+# Singletons used only for health checks — not the main clients
+_health_redis = redis_lib.Redis(
+    host=settings.redis_host,
+    port=settings.redis_port,
+    ssl=settings.redis_ssl,
+    password=settings.redis_password,
+    socket_connect_timeout=2,
+)
+_health_dynamodb_table = boto3.resource(
+    "dynamodb",
+    region_name=settings.aws_region,
+    endpoint_url=settings.dynamodb_endpoint,
+).Table(settings.dynamodb_sessions_table)
 
 
 @asynccontextmanager
@@ -60,8 +81,37 @@ async def query(request: QueryRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/healthz")
+async def healthz():
+    """Liveness probe — process is alive. Never checks external deps."""
+    return {"status": "ok", "service": "supervisor"}
+
+
+@app.get("/ready")
+async def ready():
+    """Readiness probe — checks Redis, DynamoDB, and ≥1 in-process agent loaded."""
+    results = {}
+
+    redis_result = await _checker.check_redis(_health_redis)
+    results["redis"] = {"ok": redis_result.ok, "detail": redis_result.detail}
+
+    dynamo_result = await _checker.check_dynamodb(_health_dynamodb_table)
+    results["dynamodb"] = {"ok": dynamo_result.ok, "detail": dynamo_result.detail}
+
+    agents_ok = len(supervisor.agents) > 0
+    results["agents"] = {"ok": agents_ok, "detail": f"{len(supervisor.agents)} agent(s) loaded"}
+
+    all_ok = redis_result.ok and dynamo_result.ok and agents_ok
+    status_code = 200 if all_ok else 503
+    return JSONResponse(
+        status_code=status_code,
+        content={"status": "ready" if all_ok else "not_ready", "checks": results},
+    )
+
+
 @app.get("/health")
 async def health():
+    """Legacy alias for /healthz — kept for backwards compatibility."""
     return {"status": "healthy", "service": "supervisor"}
 
 
