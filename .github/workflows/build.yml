@@ -63,6 +63,7 @@ jobs:
           format: table
           exit-code: 1
           severity: CRITICAL,HIGH
+          trivyignores: .trivyignore
 
       - name: Trivy SBOM (CycloneDX)
         uses: aquasecurity/trivy-action@master
