@@ -23,15 +23,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Load the deploy key into ssh-agent so `pip install` can clone the
-      # private staffops-otel-libs dependency (git+ssh) — checkout's ssh-key
-      # only covers the checkout itself, not later git operations.
-      - uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.OTEL_LIBS_DEPLOY_KEY }}
-
-      - name: Trust github.com host key
-        run: ssh-keyscan github.com >> ~/.ssh/known_hosts
+      - name: Configure git for private deps
+        run: |
+          git config --global url."https://x-access-token:${{ secrets.DOCS_DEPLOY_TOKEN }}@github.com/".insteadOf "ssh://git@github.com/"
+          git config --global url."https://x-access-token:${{ secrets.DOCS_DEPLOY_TOKEN }}@github.com/".insteadOf "git@github.com:"
 
       - uses: actions/setup-python@v5
         with:
