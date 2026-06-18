@@ -1,4 +1,4 @@
-site_name: Aigent Squad — StaffOps
+site_name: StaffOps — Aigent Squad
 site_description: Multi-agent platform for AWS and Kubernetes operations
 site_url: https://staffops.github.io/staffops-aigent-squad/
 repo_url: https://github.com/StaffOps/staffops-aigent-squad
@@ -7,6 +7,8 @@ edit_uri: edit/main/docs/
 
 theme:
   name: material
+  logo: assets/logo.png
+  favicon: assets/logo.png
   palette:
     - media: "(prefers-color-scheme: light)"
       scheme: default
