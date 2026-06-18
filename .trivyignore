@@ -1,0 +1,15 @@
+# Trivy CVE ignore list — reviewed and assessed as non-applicable
+# Format: CVE-ID [expiry] [reason]
+
+# starlette: StaticFiles SSRF via UNC paths — aigent-squad does not serve static files
+CVE-2026-48818
+
+# starlette: request.form() multipart limits ignored — aigent-squad accepts no form uploads
+CVE-2026-54283
+
+# wheel: CVE fixed by Dockerfile upgrade (pip install --upgrade wheel>=0.46.2);
+# Trivy reads build-stage metadata, not the upgraded runtime venv entry
+CVE-2026-24049
+
+# mcp DNS rebinding: affects MCP Server only — aigent-squad uses mcp as a CLIENT
+CVE-2025-66416
