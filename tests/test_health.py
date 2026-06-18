@@ -157,11 +157,8 @@ async def test_check_bedrock_creds_down():
 
 def _make_supervisor_app():
     """Return a TestClient for the supervisor FastAPI app with mocked deps."""
-    import redis as redis_lib
-    import boto3
-
     with (
-        patch("src.supervisor.agent.AgentRegistry") as mock_reg_cls,
+        patch("src.supervisor.agent.AgentRegistry"),
         patch("src.supervisor.agent.SkillRegistry"),
         patch("src.supervisor.agent.GenericAgent"),
         patch("src.supervisor.agent.create_adapters", return_value=[]),
@@ -172,8 +169,8 @@ def _make_supervisor_app():
         patch("otel_helper.setup_telemetry"),
         patch("otel_helper.get_tracer", return_value=MagicMock()),
         patch("src.supervisor.server.kb_store") as mock_kb,
-        patch("src.supervisor.server._health_redis") as mock_hredis,
-        patch("src.supervisor.server._health_dynamodb_table") as mock_htable,
+        patch("src.supervisor.server._health_redis"),
+        patch("src.supervisor.server._health_dynamodb_table"),
         patch("src.supervisor.server._checker") as mock_checker,
         patch("src.supervisor.server.supervisor") as mock_sup,
     ):
@@ -445,7 +442,6 @@ def test_mcp_healthz_always_200():
     mcp_mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mcp_mod)
 
-    from fastapi.testclient import TestClient
     client = TestClient(mcp_mod.app)
 
     response = client.get("/healthz")
@@ -468,7 +464,6 @@ def test_mcp_health_legacy_alias():
     mcp_mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mcp_mod)
 
-    from fastapi.testclient import TestClient
     client = TestClient(mcp_mod.app)
 
     response = client.get("/health")
@@ -490,7 +485,6 @@ def test_mcp_ready_503_when_supervisor_down():
     mcp_mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mcp_mod)
 
-    from fastapi.testclient import TestClient
     import httpx
 
     with patch("httpx.AsyncClient") as mock_client_cls:
@@ -523,8 +517,6 @@ def test_mcp_ready_200_when_supervisor_ok():
     )
     mcp_mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mcp_mod)
-
-    from fastapi.testclient import TestClient
 
     with patch("httpx.AsyncClient") as mock_client_cls:
         mock_resp = MagicMock()
