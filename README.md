@@ -1,10 +1,10 @@
 # Agent Squad - Multi-Agent System for AWS/Kubernetes Operations
 
 **Version**: 0.x (pre-release)
-**Status**: 🚧 Em estabilização — ver `.kiro/specs/ROADMAP.md`
+**Status**: 🚧 Stabilizing — see `.kiro/specs/ROADMAP.md`
 **Architecture**: AWS Labs Best Practices
 
-> ⚠️ **Estado real**: este projeto está em **Fase 0 (estabilização)**, não em produção. Há blockers conhecidos (build, arquitetura, segurança, testes) documentados na auditoria em [`.kiro/specs/AUDIT.md`](.kiro/specs/AUDIT.md). O plano de trabalho está em [`.kiro/specs/ROADMAP.md`](.kiro/specs/ROADMAP.md). O trabalho acontece na branch `dev`.
+> ⚠️ **Real state**: this project is in **Phase 0 (stabilization)**, not in production. There are known blockers (build, architecture, security, tests) documented in the audit at [`.kiro/specs/AUDIT.md`](.kiro/specs/AUDIT.md). The work plan is in [`.kiro/specs/ROADMAP.md`](.kiro/specs/ROADMAP.md). Work happens on the `dev` branch.
 
 ---
 
@@ -21,6 +21,7 @@ Agent Squad is a multi-agent system with 1 supervisor + 5 specialist agents for 
 - 🔒 Read-only by default (current posture; execution is an open roadmap item, gated by guardrails + human-in-the-loop)
 - 🚀 Kubernetes-native deployment
 - 🔌 MCP integration (squad as server for Kiro + agents as MCP clients)
+- 🤖 OpenAI-compatible API (`/v1`) — plugs into LibreChat or any OpenAI client ([docs](docs/LIBRECHAT.md))
 - 💲 Per-agent Bedrock cost attribution (Application Inference Profiles + token metrics)
 
 ---
@@ -71,7 +72,7 @@ Agent Squad is a multi-agent system with 1 supervisor + 5 specialist agents for 
 │                         Shared Services                                  │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐                 │
 │  │   Bedrock    │  │  DynamoDB    │  │    Redis     │                 │
-│  │ Claude 3.5   │  │ Conversation │  │    Cache     │                 │
+│  │ Claude Sonnet│  │ Conversation │  │    Cache     │                 │
 │  │   Sonnet     │  │   History    │  │  (1-60min)   │                 │
 │  └──────────────┘  └──────────────┘  └──────────────┘                 │
 │                                                                          │
@@ -100,7 +101,7 @@ User Query: "How many EC2 instances are running?"
 │  │ Input: "How many EC2 instances are running?"          │ │
 │  │ History: [previous conversation context]              │ │
 │  │                                                        │ │
-│  │ Classifier (Claude 3.5):                              │ │
+│  │ Classifier (Claude Sonnet):                           │ │
 │  │  - Analyzes intent                                    │ │
 │  │  - Detects follow-ups                                 │ │
 │  │  - Considers context                                  │ │
@@ -156,7 +157,7 @@ User Query: "How many EC2 instances are running?"
 │                                                              │
 │  Step 4: Generate Response                                  │
 │  ┌────────────────────────────────────────────────────────┐ │
-│  │ Bedrock Claude 3.5 Sonnet:                             │ │
+│  │ Bedrock Claude Sonnet 4.5:                             │ │
 │  │  - System prompt: AWS Senior Principal Engineer       │ │
 │  │  - Context: 640 instances + RAG data                  │ │
 │  │  - Generate: detailed analysis + recommendations      │ │
@@ -233,7 +234,7 @@ User Query: "How many EC2 instances are running?"
 │  │                                                                     │ │
 │  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────────┐│ │
 │  │  │  DynamoDB    │  │ ElastiCache  │  │   Bedrock                ││ │
-│  │  │  (Sessions)  │  │    Redis     │  │   - Claude 3.5 Sonnet    ││ │
+│  │  │  (Sessions)  │  │    Redis     │  │   - Claude Sonnet 4.5    ││ │
 │  │  │              │  │  Serverless  │  │   - Knowledge Bases (5)  ││ │
 │  │  └──────────────┘  └──────────────┘  └──────────────────────────┘│ │
 │  │                                                                     │ │
@@ -272,8 +273,8 @@ User Query: "How many EC2 instances are running?"
 **Infrastructure**:
 - **DynamoDB**: Conversation state (24h TTL)
 - **Redis**: Cache for inventories (1-60min TTL)
-- **Bedrock**: Claude 3.5 Sonnet LLM
-- **Knowledge Bases**: RAG for each agent (optional)
+- **Bedrock**: Claude Sonnet 4.5 LLM (via `us.` inference profile)
+- **Knowledge Base**: incident-memory RAG via PostgreSQL+pgvector (spec 21). The Bedrock Knowledge Bases / OpenSearch path in the diagram above is an aspirational alternative, not the current implementation.
 
 ---
 
@@ -318,29 +319,30 @@ curl http://localhost:8000/health
 
 ## 📖 Documentation
 
-### Specs & Planejamento (spec-driven — `.kiro/`)
-- [`.kiro/specs/AUDIT.md`](.kiro/specs/AUDIT.md) - Auditoria do estado real (achados + severidade)
-- [`.kiro/specs/ROADMAP.md`](.kiro/specs/ROADMAP.md) - Roadmap por fases (Fase 0 = estabilização)
-- [`.kiro/specs/01-fix-blockers/`](.kiro/specs/01-fix-blockers/) - Destravar build e código quebrado
-- [`.kiro/specs/02-unify-agent-architecture/`](.kiro/specs/02-unify-agent-architecture/) - Unificar agentes no padrão base
-- [`.kiro/specs/03-fix-cache-observability/`](.kiro/specs/03-fix-cache-observability/) - Cache determinístico + OTel
+### Specs & Planning (spec-driven — `.kiro/`)
+- [`.kiro/specs/AUDIT.md`](.kiro/specs/AUDIT.md) - Audit of the real state (findings + severity)
+- [`.kiro/specs/ROADMAP.md`](.kiro/specs/ROADMAP.md) - Roadmap by phases (Phase 0 = stabilization)
+- [`.kiro/specs/01-fix-blockers/`](.kiro/specs/01-fix-blockers/) - Unblock build and broken code
+- [`.kiro/specs/02-unify-agent-architecture/`](.kiro/specs/02-unify-agent-architecture/) - Unify agents on the base pattern
+- [`.kiro/specs/03-fix-cache-observability/`](.kiro/specs/03-fix-cache-observability/) - Deterministic cache + OTel
 - [`.kiro/specs/04-harden-security/`](.kiro/specs/04-harden-security/) - Auth, non-root, prompt injection
-- [`.kiro/specs/05-helm-chart/`](.kiro/specs/05-helm-chart/) - Helm chart para EKS (Fase 2 — deploy)
-- [`.kiro/specs/26-agent-skills/`](.kiro/specs/26-agent-skills/) - Skills: conhecimento markdown lazy-loaded por agente
-- [`.kiro/specs/27-bedrock-cost-attribution/`](.kiro/specs/27-bedrock-cost-attribution/) - Atribuição de custo Bedrock (AIP por modelo + rateio por agente)
-- [`.kiro/specs/ADR-001-bedrock-direto-vs-strands.md`](.kiro/specs/ADR-001-bedrock-direto-vs-strands.md) - Decisão: Bedrock direto vs. framework Strands
-- [`.kiro/steering/project.md`](.kiro/steering/project.md) - Regras e invariantes do projeto
+- [`.kiro/specs/05-helm-chart/`](.kiro/specs/05-helm-chart/) - Helm chart for EKS (Phase 2 — deploy)
+- [`.kiro/specs/26-agent-skills/`](.kiro/specs/26-agent-skills/) - Skills: per-agent lazy-loaded markdown knowledge
+- [`.kiro/specs/27-bedrock-cost-attribution/`](.kiro/specs/27-bedrock-cost-attribution/) - Bedrock cost attribution (AIP per model + per-agent showback)
+- [`.kiro/specs/ADR-001-bedrock-direct-vs-strands.md`](.kiro/specs/ADR-001-bedrock-direct-vs-strands.md) - Decision: Bedrock-direct vs. the Strands framework
+- [`.kiro/steering/project.md`](.kiro/steering/project.md) - Project rules and invariants
 
 ### Getting Started
 - [QUICKSTART.md](QUICKSTART.md) - Setup in 3 steps
 - [IMPLEMENTATION_HISTORY.md](IMPLEMENTATION_HISTORY.md) - Complete roadmap (Phases 1-13)
 - [VERSIONS.md](VERSIONS.md) - Package versions
-- [CHANGES.md](CHANGES.md) - v2.0 summary
+- [CHANGES.md](CHANGES.md) - Changelog
 
 ### Technical Docs
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) - Architecture
-- [docs/MCP_INTEGRATION.md](docs/MCP_INTEGRATION.md) - MCP: squad como server (Kiro) + agentes como clients (`type: mcp`)
-- [docs/HOW-TO-NEW-AGENT.md](docs/HOW-TO-NEW-AGENT.md) - Criar agente (datasources, skills, MCP)
+- [docs/MCP_INTEGRATION.md](docs/MCP_INTEGRATION.md) - MCP: squad as server (Kiro) + agents as clients (`type: mcp`)
+- [docs/LIBRECHAT.md](docs/LIBRECHAT.md) - LibreChat integration via the OpenAI-compatible bridge (`/v1`)
+- [docs/HOW-TO-NEW-AGENT.md](docs/HOW-TO-NEW-AGENT.md) - Create an agent (datasources, skills, MCP)
 - [docs/KNOWLEDGE-BASE.md](docs/KNOWLEDGE-BASE.md) - KB / RAG (pgvector)
 - [docs/OBSERVABILITY.md](docs/OBSERVABILITY.md) - Logging & tracing
 - [docs/METRICS.md](docs/METRICS.md) - Custom metrics catalog
@@ -349,14 +351,21 @@ curl http://localhost:8000/health
 - [docs/SECURITY.md](docs/SECURITY.md) - Security model
 - [docs/SETUP.md](docs/SETUP.md) - Local setup
 - [docs/PREREQUISITES.md](docs/PREREQUISITES.md) - Infrastructure requirements
-- [docs/COMPETITIVE-ANALYSIS.md](docs/COMPETITIVE-ANALYSIS.md) - Comparação vs. AI SRE agents (Aurora, OpenSRE, etc.) + posicionamento
+- [docs/COMPETITIVE-ANALYSIS.md](docs/COMPETITIVE-ANALYSIS.md) - Comparison vs. AI SRE agents (Aurora, OpenSRE, etc.) + positioning
 
 ### Infrastructure (Terraform)
-- [terraform/README.md](terraform/README.md) - Módulos AWS (IAM/IRSA, DynamoDB, Bedrock endpoints, AIP de custo)
-- [terraform/bedrock-aip/README.md](terraform/bedrock-aip/README.md) - Application Inference Profiles + atribuição de custo
+- [terraform/README.md](terraform/README.md) - AWS modules (IAM/IRSA, DynamoDB, Bedrock endpoints, cost AIP)
+- [terraform/bedrock-aip/README.md](terraform/bedrock-aip/README.md) - Application Inference Profiles + cost attribution
 
 ### Agents
 Agents are config-driven (`agent.yaml` + `prompt.md`) under [`agents/`](agents/) — see [docs/HOW-TO-NEW-AGENT.md](docs/HOW-TO-NEW-AGENT.md). Supervisor internals: [src/supervisor/README.md](src/supervisor/README.md).
+
+### AI tooling (Kiro CLI + Claude Code)
+The project is spec-driven with `.kiro/` as the single source of truth. It also
+works with **Claude Code**: [`CLAUDE.md`](CLAUDE.md) is the entrypoint and the
+[`.claude/`](.claude/) directory mirrors `.kiro/` (rules/skills via symlink, agents
+converted). Regenerate with `./scripts/sync-claude.sh` after changing steering,
+skills, or agent definitions. See [`.claude/README.md`](.claude/README.md).
 
 ---
 
@@ -443,7 +452,7 @@ See [docs/READ_ONLY_POLICY.md](docs/READ_ONLY_POLICY.md) and
 
 - **Language**: Python 3.12
 - **Framework**: FastAPI
-- **LLM**: AWS Bedrock (Claude) — modelo único via env `BEDROCK_MODEL_ID` (ver `src/core/config.py`)
+- **LLM**: AWS Bedrock (Claude) — single model via env `BEDROCK_MODEL_ID` (see `src/core/config.py`)
 - **State**: DynamoDB
 - **Cache**: Redis
 - **Observability**: OpenTelemetry + JSON logging
@@ -453,6 +462,11 @@ See [docs/READ_ONLY_POLICY.md](docs/READ_ONLY_POLICY.md) and
 ---
 
 ## 📊 Roadmap
+
+> **Authoritative roadmap**: [`.kiro/specs/ROADMAP.md`](.kiro/specs/ROADMAP.md)
+> (spec-numbered, phase-based, reflects the real state). The phase list below is
+> the original aspirational outline, kept for reference — where the two differ,
+> ROADMAP.md wins.
 
 ### Phase 1: Testing & Validation (1-2 days)
 - Test all agents with 10+ questions each
@@ -464,7 +478,7 @@ See [docs/READ_ONLY_POLICY.md](docs/READ_ONLY_POLICY.md) and
 - Enable RAG in all agents
 
 ### Phase 3: Production Deploy (3-5 days)
-- Terraform infrastructure — ✅ módulos prontos (IAM/IRSA, DynamoDB, Bedrock endpoints, AIP de custo); ver [terraform/](terraform/)
+- Terraform infrastructure — ✅ modules ready (IAM/IRSA, DynamoDB, Bedrock endpoints, cost AIP); see [terraform/](terraform/)
 - CI/CD pipeline (GitHub Actions)
 - EKS deployment
 
@@ -517,6 +531,6 @@ MIT License - See LICENSE file for details
 
 ---
 
-**Last Updated**: 2026-05-30
+**Last Updated**: 2026-06-17
 **Version**: 0.x (pre-release)
-**Status**: 🚧 Em estabilização (Fase 0) — ver `.kiro/specs/ROADMAP.md`
+**Status**: 🚧 Stabilizing (Phase 0) — see `.kiro/specs/ROADMAP.md`

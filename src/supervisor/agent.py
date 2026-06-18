@@ -3,7 +3,7 @@ from typing import Dict
 import time
 from datetime import datetime, timezone
 from opentelemetry import trace
-from src.core.classifier import Classifier, ClassifierResult
+from src.core.classifier import Classifier, ClassifierResult, AgentMatch
 from src.core.state_store import storage, ConversationMessage
 from src.core.logger import logger, log_request, log_response, log_error
 from src.core.metrics import request_counter, error_counter, request_duration, fanout_calls, fanout_agents_consulted, fanout_agents_failed
@@ -46,8 +46,14 @@ class SupervisorAgent:
         user_id: str,
         session_id: str,
         mode: str = "query",
+        force_agent: str | None = None,
     ) -> Dict:
-        """Process user request with intelligent routing and optional fan-out"""
+        """Process user request with intelligent routing and optional fan-out.
+
+        When ``force_agent`` is set (and known), the classifier is bypassed and
+        the request is routed directly to that specialist — used by the OpenAI
+        bridge's per-agent models (spec 29).
+        """
 
         start_time = time.time()
 
@@ -59,6 +65,23 @@ class SupervisorAgent:
             log_request("supervisor", user_id, session_id, user_input)
 
             try:
+                # Forced agent (OpenAI bridge per-agent model): bypass classifier.
+                if force_agent and force_agent in self.agents:
+                    direct = ClassifierResult(
+                        agents=[AgentMatch(agent=force_agent, confidence=1.0)],
+                        reasoning=f"forced to {force_agent}",
+                    )
+                    user_message = ConversationMessage(
+                        role="user",
+                        content=user_input,
+                        timestamp=datetime.now(timezone.utc).isoformat(),
+                        agent_id=force_agent,
+                    )
+                    await storage.save_chat_message(user_id, session_id, force_agent, user_message)
+                    return await self._single_agent_call(
+                        force_agent, direct, user_input, user_id, session_id, start_time
+                    )
+
                 # 0. Check if this warrants RCA investigation
                 force_investigate = mode == "investigate"
                 if should_investigate(user_input, force=force_investigate):

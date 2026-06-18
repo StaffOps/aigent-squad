@@ -1,0 +1,31 @@
+# LibreChat configuration — AIgent-squad as a custom OpenAI endpoint.
+#
+# Mount this at /app/librechat.yaml in the LibreChat container and set
+# AIGENT_SQUAD_API_KEY to the squad's INTERNAL_API_TOKEN.
+#
+# The squad exposes an OpenAI-compatible bridge at /v1 (spec 29), so LibreChat
+# talks to it natively — no extra gateway.
+version: 1.2.0
+cache: true
+
+endpoints:
+  custom:
+    - name: "AIgent-Squad"
+      # Point at the supervisor's OpenAI bridge. Adjust host per environment:
+      #   local compose : http://supervisor:8000/v1
+      #   k8s           : http://aigent-squad-supervisor:8000/v1
+      baseURL: "http://supervisor:8000/v1"
+      apiKey: "${AIGENT_SQUAD_API_KEY}"
+      # The squad authenticates via X-Internal-Token, not a Bearer apiKey —
+      # forward the key in that header.
+      headers:
+        X-Internal-Token: "${AIGENT_SQUAD_API_KEY}"
+      models:
+        # `fetch: true` pulls the live list from GET /v1/models:
+        #   aigent-squad            → classifier auto-routes
+        #   aigent-squad-<agent>    → force a specialist (aws, kubernetes, ...)
+        default: ["aigent-squad"]
+        fetch: true
+      titleConvo: true
+      titleModel: "aigent-squad"
+      modelDisplayLabel: "AIgent-Squad"

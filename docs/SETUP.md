@@ -11,7 +11,7 @@
 
 ```bash
 # 1. Clone
-git clone git@github.com:karlipegomes/staffops-aigent-squad.git
+git clone git@github.com:StaffOps/staffops-aigent-squad.git
 cd staffops-aigent-squad
 
 # 2. Ensure ssh-agent is running (for private dep install during build)
@@ -23,7 +23,8 @@ docker compose build
 docker compose up -d
 
 # 4. Verify
-curl http://localhost:8000/health  # supervisor
+curl http://localhost:8000/healthz  # liveness
+curl http://localhost:8000/ready    # readiness (Redis + DynamoDB + agents)
 curl http://localhost:3001         # Grafana dashboards
 ```
 
@@ -58,29 +59,37 @@ See [HOW-TO-NEW-AGENT.md](HOW-TO-NEW-AGENT.md).
 - Helm 3.x
 - AWS ECR or Harbor registry
 
+### Image
+
+The image is published to Docker Hub on every merge to `main`:
+
+```bash
+docker pull karlipegomes/aigent-squad:latest
+```
+
+Tags: `latest` + `sha-<short>`. Multi-arch manifest (amd64 + arm64).
+
 ### Deploy via Helm
 
 ```bash
-helm install aigent-squad oci://your-registry/charts/aigent-squad \
-  --set image.tag=v0.1.0 \
-  --set agentsSource.type=git \
-  --set agentsSource.repo=https://github.com/karlipegomes/staffops-agent-config.git \
-  --set agentsSource.tokenSecret=git-token \
-  --set env.AWS_REGION=us-east-1 \
-  --set env.INTERNAL_API_TOKEN=your-prod-token
+# Add the chart repo (published via GitHub Pages)
+helm repo add staffops https://StaffOps.github.io/helm-charts
+helm repo update
+
+# Install (inProcess topology — one pod, all agents in-process)
+helm install aigent-squad staffops/aigent-squad \
+  --namespace aigent-squad --create-namespace \
+  --set global.image.registry="" \
+  --set services.supervisor.image.repository=karlipegomes/aigent-squad \
+  --set services.supervisor.image.tag=latest \
+  --set redis.host=my-elasticache.cache.amazonaws.com
 ```
 
-See the Helm chart at `helm-charts/charts/aigent-squad/` for full values reference.
-
-> **Agent/skill source**: the `agentsSource` git repo above is
-> [`staffops-agent-config`](https://github.com/karlipegomes/staffops-agent-config)
-> — the canonical roster (agents in `agent.yaml`+`prompt.md`, skills in
-> `SKILL.md`) used to validate the project. Locally, mount `./agents` and
-> `./skills` instead (see `docker-compose.yaml`).
+See `helm-charts/charts/aigent-squad/README.md` for full values reference.
 
 ### CI/CD
 
 Pipeline runs on GitHub Actions (`.github/workflows/`):
-- **test.yml**: lint (ruff) + pytest --cov-fail-under=80
-- **build.yml**: multi-arch Docker build + Trivy scan + SBOM + push to ECR (OIDC)
-- **release.yml**: manual tag `v<semver>` + stable image push
+- **test.yml**: lint (ruff) + pytest `--cov-fail-under=90` (≥90% enforced)
+- **build.yml**: multi-arch Docker build → ECR (OIDC) + Docker Hub (`karlipegomes/aigent-squad`) + Trivy scan + SBOM
+- **helm-charts repo**: `release.yaml` (chart-releaser) + `lint-test.yaml` (ct lint + kind install)

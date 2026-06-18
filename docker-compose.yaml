@@ -83,10 +83,10 @@ services:
       postgres:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://127.0.0.1:8000/health"]
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8000/ready"]
       interval: 10s
       timeout: 5s
-      retries: 3
+      retries: 5
 
   # MCP Server (HTTP gateway for Kiro CLI)
   mcp-server:
@@ -104,7 +104,7 @@ services:
       supervisor:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:8006/health"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:8006/ready"]
       interval: 10s
       timeout: 5s
       retries: 3

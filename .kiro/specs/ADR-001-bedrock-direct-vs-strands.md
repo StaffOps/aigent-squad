@@ -1,96 +1,97 @@
-# ADR-001 — Bedrock direto vs. framework de agentes (Strands)
+# ADR-001 — Bedrock-direct vs. an agent framework (Strands)
 
-**Status**: Aceito
-**Data**: 2026-06-16
-**Contexto de decisão**: orquestração multi-agente do AIgent-squad
-**Relacionado**: `02-unify-agent-architecture`, `17-multi-agent-collaboration`, `18-rca-investigation-workflow`, steering `project.md` ("não reintroduzir LangGraph")
-
----
-
-## Decisão
-
-**Manter a orquestração sobre Bedrock direto (classifier + GenericAgent +
-investigation/synthesizer), sem adotar o AWS Strands Agents SDK no momento.**
+**Status**: Accepted
+**Date**: 2026-06-16
+**Decision context**: AIgent-squad multi-agent orchestration
+**Related**: `02-unify-agent-architecture`, `17-multi-agent-collaboration`, `18-rca-investigation-workflow`, steering `project.md` ("do not reintroduce LangGraph")
 
 ---
 
-## Contexto
+## Decision
 
-O Strands Agents (SDK open-source da AWS, GA 1.0 em jul/2025) foi avaliado
-como alternativa à orquestração atual. O Strands é **model-driven**: o LLM
-decide autonomamente, em loop, quais tools chamar — em vez de o workflow ser
-codado à mão. O 1.0 oferece 4 padrões multi-agente (agents-as-tools, swarm,
-graph, workflow) e integra com Bedrock AgentCore (runtime/memory/observability
-gerenciados).
-
-O projeto **já migrou para fora de um framework antes** (LangGraph removido em
-favor de Bedrock direto — registrado como proibição na steering). A pergunta é
-se o Strands justifica reverter essa direção.
-
-### Estado atual (o que já existe e está validado por testes)
-
-| Capacidade | Implementação atual |
-|-----------|---------------------|
-| Roteamento | `classifier` (chamada Bedrock) → especialista |
-| Especialistas | `GenericAgent` + `AGENTS_DIR` (config-driven, `agent.yaml`) |
-| Fan-out + síntese | `investigation.py` + `synthesizer.py` |
-| Tool-calling | Adapters **read-only** manuais (`adapters.py`) |
-| Resiliência | `circuit_breaker.py`, cache sha256 determinístico, fail-open |
-| Observability | OTel instrumentado |
-| Read-only é lei | 4 camadas: prompt, IAM deny, RBAC, templates de recusa |
+**Keep orchestration on Bedrock-direct (classifier + GenericAgent +
+investigation/synthesizer), without adopting the AWS Strands Agents SDK at this
+time.**
 
 ---
 
-## Justificativa (em ordem de força)
+## Context
 
-1. **"Read-only é lei" briga com o paradigma model-driven.** O núcleo do
-   Strands é o LLM decidir autonomamente quais tools invocar num loop. O
-   projeto construiu deliberadamente o oposto: roteamento por classifier,
-   adapters que só leem, 4 camadas de recusa de escrita. Adotar o tool-loop
-   autônomo obrigaria a reconstruir essas barreiras *por cima* de um framework
-   cujo propósito é remover exatamente esse controle.
+Strands Agents (AWS open-source SDK, GA 1.0 in Jul/2025) was evaluated as an
+alternative to the current orchestration. Strands is **model-driven**: the LLM
+autonomously decides, in a loop, which tools to call — instead of the workflow
+being hand-coded. 1.0 offers 4 multi-agent patterns (agents-as-tools, swarm,
+graph, workflow) and integrates with Bedrock AgentCore (managed
+runtime/memory/observability).
 
-2. **O "difícil" já está feito e testado.** Circuit breaker, cache
-   determinístico, fail-open no DynamoDB, fan-out, synthesizer e OTel já
-   existem com ~85% de cobertura. O ganho imediato do Strands (orquestração +
-   tool loop) é justamente o que já foi codado e validado.
+The project **has already migrated away from a framework before** (LangGraph
+removed in favor of Bedrock-direct — recorded as a prohibition in steering). The
+question is whether Strands justifies reversing that direction.
 
-3. **O custo de sair de um framework já foi pago uma vez (LangGraph).** Voltar
-   a acoplar a um framework agora arrisca repetir o mesmo ciclo de migração. A
-   direção registrada na steering é controle direto sobre o Bedrock.
+### Current state (what exists and is test-validated)
 
----
-
-## Trade-offs aceitos
-
-| Custo | Realidade |
-|-------|-----------|
-| Mantemos à mão orquestração que o Strands daria de graça (classifier, fan-out, synthesizer) | Já está escrito, testado e estável — custo marginal de manutenção é baixo |
-| Não usamos padrões prontos (swarm/graph) nem AgentCore (runtime/memory gerenciados) | Não são necessários enquanto os agentes forem consultivos read-only single/poucos-rounds |
-| Ficamos "fora" do caminho recomendado pela AWS para agentes | Lock-in zero e alinhamento total com a invariante read-only compensam |
+| Capability | Current implementation |
+|-----------|------------------------|
+| Routing | `classifier` (Bedrock call) → specialist |
+| Specialists | `GenericAgent` + `AGENTS_DIR` (config-driven, `agent.yaml`) |
+| Fan-out + synthesis | `investigation.py` + `synthesizer.py` |
+| Tool-calling | Hand-written **read-only** adapters (`adapters.py`) |
+| Resilience | `circuit_breaker.py`, deterministic sha256 cache, fail-open |
+| Observability | OTel instrumented |
+| Read-only is law | 4 layers: prompt, IAM deny, RBAC, refusal templates |
 
 ---
 
-## Quando esta decisão estaria errada (signals para reabrir)
+## Rationale (in order of strength)
 
-- **Os agentes deixarem de ser consultivos read-only** e passarem a executar
-  ações multi-step autônomas (encadear tools dinamicamente, planning de
-  múltiplos passos). Aí classifier + investigation + synthesizer manuais viram
-  peso morto e o tool-loop + swarm/graph do Strands passam a **habilitar** o
-  que ainda não temos, em vez de competir com o que já temos.
-- **Necessidade de runtime/memory gerenciados** (não querer operar isso no
-  EKS) → Bedrock AgentCore passa a fazer sentido.
-- **A orquestração manual crescer a ponto de a manutenção superar** o custo de
-  adotar um framework (ex: muitos padrões de coordenação novos por trimestre).
+1. **"Read-only is law" conflicts with the model-driven paradigm.** The core of
+   Strands is the LLM autonomously deciding which tools to invoke in a loop. The
+   project deliberately built the opposite: classifier-based routing, read-only
+   adapters, 4 layers of write refusal. Adopting the autonomous tool-loop would
+   force rebuilding those barriers *on top of* a framework whose purpose is to
+   remove exactly that control.
+
+2. **The "hard part" is already done and tested.** Circuit breaker, deterministic
+   cache, fail-open DynamoDB, fan-out, synthesizer and OTel already exist with
+   ~85% coverage. Strands' immediate gain (orchestration + tool loop) is exactly
+   what is already coded and validated.
+
+3. **The cost of leaving a framework was already paid once (LangGraph).**
+   Re-coupling to a framework now risks repeating the same migration cycle. The
+   direction recorded in steering is direct control over Bedrock.
 
 ---
 
-## Alternativas consideradas e descartadas
+## Accepted trade-offs
 
-- **Strands Agents SDK (self-hosted no EKS)** — descartado agora: paradigma
-  model-driven conflita com read-only; reconstruiria barreiras de escrita por
-  cima do framework.
-- **Strands + Bedrock AgentCore (gerenciado)** — descartado agora: resolve
-  runtime/memory que já temos cobertos (EKS + DynamoDB + pgvector); introduz
-  acoplamento sem ganho proporcional no caso consultivo atual.
-- **Reintroduzir LangGraph** — proibido por steering (`project.md`).
+| Cost | Reality |
+|------|---------|
+| We maintain by hand orchestration Strands would give for free (classifier, fan-out, synthesizer) | Already written, tested and stable — marginal maintenance cost is low |
+| We don't use ready-made patterns (swarm/graph) nor AgentCore (managed runtime/memory) | Not needed while agents are consultative read-only single/few-rounds |
+| We stay "off" AWS's recommended path for agents | Zero lock-in and full alignment with the read-only posture compensate |
+
+---
+
+## When this decision would be wrong (signals to reopen)
+
+- **Agents stop being consultative read-only** and start executing autonomous
+  multi-step actions (chaining tools dynamically, multi-step planning). Then the
+  hand-written classifier + investigation + synthesizer become dead weight, and
+  Strands' tool-loop + swarm/graph start to **enable** what we don't have yet,
+  instead of competing with what we already have.
+- **Need for managed runtime/memory** (not wanting to operate it on EKS) →
+  Bedrock AgentCore starts to make sense.
+- **Hand-written orchestration grows to the point where maintenance exceeds** the
+  cost of adopting a framework (e.g. many new coordination patterns per quarter).
+
+---
+
+## Alternatives considered and discarded
+
+- **Strands Agents SDK (self-hosted on EKS)** — discarded now: the model-driven
+  paradigm conflicts with read-only; it would rebuild write barriers on top of
+  the framework.
+- **Strands + Bedrock AgentCore (managed)** — discarded now: it solves
+  runtime/memory we already cover (EKS + DynamoDB + pgvector); introduces
+  coupling without proportional gain in the current consultative case.
+- **Reintroduce LangGraph** — prohibited by steering (`project.md`).
