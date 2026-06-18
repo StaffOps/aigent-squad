@@ -6,9 +6,7 @@ FROM python:3.11-alpine AS builder
 
 RUN apk add --no-cache \
     gcc musl-dev libffi-dev openssl-dev \
-    git openssh-client
-
-RUN mkdir -p -m 0700 ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
+    git
 
 WORKDIR /app
 
@@ -16,8 +14,12 @@ RUN python -m venv /venv
 ENV PATH="/venv/bin:$PATH"
 
 COPY requirements.txt .
-RUN --mount=type=ssh pip install --no-cache-dir -r requirements.txt \
-    && pip install --no-cache-dir --upgrade "wheel>=0.46.2" "setuptools>=79.0.1"
+RUN --mount=type=secret,id=github_token \
+    git config --global credential.helper store \
+    && printf "https://x-access-token:%s@github.com\n" "$(cat /run/secrets/github_token)" > ~/.git-credentials \
+    && pip install --no-cache-dir -r requirements.txt \
+    && pip install --no-cache-dir --upgrade "wheel>=0.46.2" "setuptools>=79.0.1" \
+    && rm -f ~/.git-credentials
 
 # ── Stage 2: runtime ──────────────────────────────────────────────────────────
 # Alpine: no perl, no ncurses, no apt — drastically smaller CVE surface.
