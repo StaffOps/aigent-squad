@@ -23,14 +23,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Configure git for private deps
+      - name: Configure git credentials for private deps
         env:
           DOCS_DEPLOY_TOKEN: ${{ secrets.DOCS_DEPLOY_TOKEN }}
         run: |
           git config --global credential.helper store
-          echo "https://x-access-token:${DOCS_DEPLOY_TOKEN}@github.com" > ~/.git-credentials
-          git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
-          git config --global url."https://github.com/".insteadOf "git@github.com:"
+          printf "https://x-access-token:%s@github.com\n" "${DOCS_DEPLOY_TOKEN}" > ~/.git-credentials
 
       - uses: actions/setup-python@v5
         with:
