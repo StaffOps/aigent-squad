@@ -1,6 +1,16 @@
 # Changelog
 
-## [Unreleased] - 2026-06-18
+## [0.2.0] - 2026-06-21
+
+First tagged release. Bundles all previously-unreleased work below (sessions
+2026-06-17 / 06-18 / 06-21): spec 07 readiness probes, spec 29 OpenAI bridge,
+spec 10 metrics, Alpine image, Docker Hub CI, Apache 2.0, MkDocs site, CVE
+cleanup, and the CI/CD model (see `docs/CI-CD.md`). Establishes app↔chart
+version linkage (`appVersion` 0.2.0, scan-gated `release.yml`).
+
+### Added (CI/CD model + versioning)
+- `docs/CI-CD.md`: Model A pipeline (branch strategy, two lanes, scan-before-publish, SemVer linkage app↔chart↔image)
+- `release.yml`: rewritten — tag-driven (`v*`) / manual, Docker Hub, build-local → **Trivy gate** → push immutable `:X.Y.Z` + `latest`, SBOM + GitHub Release. Replaces the legacy ECR/SSH workflow.
 
 ### Added (Spec 10 Phase 1: Metrics — efficiency + quality)
 - `src/core/metrics.py`: 4 new metrics — `aigent.collect.duration` (histogram, ms, `agent_id`), `aigent.llm.duration` (histogram, ms, `agent_id`), `aigent.prompt.size_tokens` (histogram, `agent_id`), `aigent.investigation.rounds` (histogram)
