@@ -16,6 +16,7 @@ from src.core.logger import logger, log_request, log_response
 from src.core.metrics import (
     investigation_started, investigation_completed,
     investigation_duration, investigation_evidence_count,
+    investigation_rounds,
 )
 
 tracer = get_tracer(__name__)
@@ -119,6 +120,7 @@ async def run_investigation(
         investigation_duration.record(duration_ms, {"confidence": rca.confidence})
         investigation_completed.add(1, {"confidence": rca.confidence})
         investigation_evidence_count.record(len(rca.evidence))
+        investigation_rounds.record(state.rounds_completed)
 
         return rca
 

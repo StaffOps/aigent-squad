@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 # Test harness — spec 23 / spec 07.
-# Build: docker build --ssh default -f Dockerfile.test -t aigent-test .
+# Build: docker build --secret id=github_token,env=GH_TOKEN -f Dockerfile.test -t aigent-test .
 # Run:   docker run --rm \
 #          -e REDIS_HOST=localhost \
 #          -e SERVICE_NAME=test \
@@ -9,13 +9,16 @@
 #          aigent-test
 FROM python:3.11-slim
 
-RUN apt-get update && apt-get install -y --no-install-recommends git openssh-client && rm -rf /var/lib/apt/lists/*
-RUN mkdir -p -m 0700 ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
+RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
 COPY requirements.txt .
-RUN --mount=type=ssh pip install --no-cache-dir -r requirements.txt
+RUN --mount=type=secret,id=github_token \
+    git config --global credential.helper store \
+    && printf "https://x-access-token:%s@github.com\n" "$(cat /run/secrets/github_token)" > ~/.git-credentials \
+    && pip install --no-cache-dir -r requirements.txt \
+    && rm -f ~/.git-credentials
 RUN pip install --no-cache-dir pytest pytest-asyncio pytest-cov ruff
 
 COPY src/ ./src/

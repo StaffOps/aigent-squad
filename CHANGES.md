@@ -1,5 +1,16 @@
 # Changelog
 
+## [Unreleased] - 2026-06-18
+
+### Added (Spec 10 Phase 1: Metrics — efficiency + quality)
+- `src/core/metrics.py`: 4 new metrics — `aigent.collect.duration` (histogram, ms, `agent_id`), `aigent.llm.duration` (histogram, ms, `agent_id`), `aigent.prompt.size_tokens` (histogram, `agent_id`), `aigent.investigation.rounds` (histogram)
+- `src/core/generic_agent.py`: emit `aigent.collect.duration` around the adapter fan-out (data-collection latency split from LLM)
+- `src/core/bedrock.py`: emit `aigent.llm.duration` (round-trip latency, excludes retry backoff) + `aigent.prompt.size_tokens` (Bedrock-reported input tokens as a distribution — detect prompt bloat) on every successful call (covers agents, classifier, synthesizer, RCA)
+- `src/supervisor/investigation.py`: emit `aigent.investigation.rounds` (rounds_completed; 1 today, ready for multi-round)
+- `docs/METRICS.md`: reorganized by purpose (RED / Efficiency / Quality / Domain) + new "Known gaps" section documenting that `aigent.cache.hits/misses` are **defined but never emitted** (datasource cache not wired into adapters — deferred to a future `datasource-cache-layer` spec)
+- Tests: `test_bedrock` (llm.duration + prompt.size, snake_case key, usage-absent, backoff-excluded, not-on-failure), `test_generic_agent` (collect.duration with/without adapters), `test_run_investigation` (rounds value + no-label cardinality). Verification independence: tests reviewed/strengthened by a separate agent. 246 passed, 92.46% coverage
+- `Dockerfile.test`: switched from `--mount=type=ssh` to `--mount=type=secret,id=github_token` (matches main Dockerfile; HTTPS private dep)
+
 ## [Unreleased] - 2026-06-17
 
 ### Added (Spec 29: OpenAI-compatible bridge — LibreChat)

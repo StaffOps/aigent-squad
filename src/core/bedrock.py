@@ -8,7 +8,9 @@ from botocore.config import Config
 from botocore.exceptions import ClientError
 from src.core.config import settings
 from src.core.logger import logger
-from src.core.metrics import token_counter, estimated_cost
+from src.core.metrics import (
+    token_counter, estimated_cost, llm_duration, prompt_size_tokens,
+)
 from src.core.circuit_breaker import CircuitBreaker
 
 
@@ -69,10 +71,12 @@ class BedrockClient:
                     "temperature": temperature
                 })
 
+                llm_start = time.time()
                 response = self.client.invoke_model(
                     modelId=self.model_id,
                     body=json.dumps(body)
                 )
+                llm_elapsed_ms = (time.time() - llm_start) * 1000
 
                 result = json.loads(response['body'].read())
 
@@ -90,6 +94,12 @@ class BedrockClient:
                 token_counter.add(output_tokens, {**attrs, "direction": "output"})
                 cost = (input_tokens * 3 / 1_000_000) + (output_tokens * 15 / 1_000_000)
                 estimated_cost.add(cost, attrs)
+
+                # Efficiency metrics (spec 10): LLM latency + prompt size distribution.
+                # prompt_size_tokens is a histogram of input tokens (p50/p95 → bloat),
+                # distinct from token_counter which is the running spend total.
+                llm_duration.record(llm_elapsed_ms, {"agent_id": agent_id})
+                prompt_size_tokens.record(input_tokens, {"agent_id": agent_id})
 
                 return result['content'][0]['text']
 

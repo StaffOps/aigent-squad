@@ -12,7 +12,7 @@ Label cardinality is bounded by design. The following labels are **safe** to use
 
 | Label | Allowed values | Cardinality |
 |-------|----------------|-------------|
-| `agent_id` | `aws`, `kubernetes`, `finops`, `devops`, `observability`, `supervisor`, `security` | 7 |
+| `agent_id` | `aws`, `kubernetes`, `finops`, `devops`, `observability`, `supervisor`, `security`, `classifier`, `synthesizer`, `unknown` | ~10 |
 | `error_type` | `validation`, `timeout`, `bedrock`, `internal` | 4 |
 | `direction` | `input`, `output` | 2 |
 | `model` | `sonnet`, `haiku`, `opus`, `titan` | ~4 |
@@ -66,7 +66,7 @@ and by model.
 
 | Metric | Type | Labels | Description |
 |--------|------|--------|-------------|
-| `aigent.tokens.total` | Counter | `agent_id`, `direction` | Tokens consumed (input and output tracked separately) |
+| `aigent.tokens.total` | Counter | `agent_id`, `model`, `direction` | Tokens consumed (input and output tracked separately) |
 | `aigent.cost.estimated` | Counter | `agent_id`, `model` | Estimated USD cost from Bedrock pricing |
 
 The `direction` label (`input` / `output`) is important: output tokens are
@@ -74,15 +74,37 @@ approximately 5x more expensive than input tokens on Claude models.
 
 ---
 
-## Cache
+## Efficiency — where time and tokens go (spec 10)
 
-Redis data cache hit/miss tracking. LLM responses are **not** cached — only
-infrastructure data with deterministic, TTL-bounded values.
+These split a request's latency into data-collection vs LLM time and expose the
+prompt-size distribution, so cost regressions can be attributed (the two halves
+have different fixes: cache/truncate vs model tiering).
 
 | Metric | Type | Labels | Description |
 |--------|------|--------|-------------|
-| `aigent.cache.hits` | Counter | `agent_id`, `namespace` | Infra data cache hits |
-| `aigent.cache.misses` | Counter | `agent_id`, `namespace` | Infra data cache misses |
+| `aigent.collect.duration` | Histogram | `agent_id` | Datasource collection latency (adapter fan-out, ms) |
+| `aigent.llm.duration` | Histogram | `agent_id` | Bedrock round-trip latency per call (ms, excludes retry backoff) |
+| `aigent.prompt.size_tokens` | Histogram | `agent_id` | Bedrock-reported input tokens per call — distribution to detect prompt bloat (p50/p95) |
+
+`aigent.prompt.size_tokens` is a **histogram** of the same input tokens that
+`aigent.tokens.total` sums as a counter: the histogram exposes the per-call
+*distribution* (catch bloat), the counter exposes total *spend*.
+
+---
+
+## Cache
+
+!!! warning "Defined but not emitted yet"
+    The cache metrics below exist in `metrics.py` but are **not wired into any
+    code path** — the `CacheStore` is not used by the datasource adapters
+    (`Boto3Adapter`, `HttpAdapter`, …), which fetch fresh on every call. Do not
+    build alerts on them; they read as permanently zero until the
+    datasource-cache layer ships (future spec). See "Gaps and upcoming metrics".
+
+| Metric | Type | Labels | State |
+|--------|------|--------|-------|
+| `aigent.cache.hits` | Counter | `agent_id`, `namespace` | Defined, never emitted |
+| `aigent.cache.misses` | Counter | `agent_id`, `namespace` | Defined, never emitted |
 
 ---
 
@@ -123,6 +145,7 @@ tracking RCA quality over time.
 | `aigent.investigation.completed` | Counter | `confidence` | Completed investigations, by confidence level |
 | `aigent.investigation.duration` | Histogram | `confidence` | End-to-end investigation duration |
 | `aigent.investigation.evidence_count` | Histogram | — | Evidence items collected per investigation |
+| `aigent.investigation.rounds` | Histogram | — | Rounds completed per investigation (vs cost cap; 1 today, single-round) |
 
 ---
 
@@ -196,11 +219,11 @@ Future dashboards (not yet provisioned):
 
 ## Gaps and upcoming metrics
 
-The following metrics are planned but not yet instrumented:
+`aigent.collect.duration`, `aigent.llm.duration`, `aigent.prompt.size_tokens`,
+and `aigent.investigation.rounds` shipped in spec 10 (see Efficiency / RCA
+sections above). Still planned:
 
-| Metric | Purpose |
-|--------|---------|
-| `aigent.prompt.size_tokens` | Track prompt size growth over time |
-| `aigent.investigation.rounds` | Multi-round RCA round count (Phase 3) |
-| `aigent.llm.duration` | LLM-only latency, separate from collection time |
-| `aigent.cache.tokens_saved` | Estimated token savings from Bedrock prompt cache |
+| Metric | State | Purpose |
+|--------|-------|---------|
+| `aigent.cache.hits` / `aigent.cache.misses` | Defined, not emitted | Need datasource cache wired into the adapter layer (future spec) |
+| `aigent.cache.tokens_saved` | Not defined | Estimated token savings once the datasource cache exists (future spec) |

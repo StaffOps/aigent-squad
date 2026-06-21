@@ -10,7 +10,10 @@ All metrics emitted by AIgent-squad, collected via OTel Collector → Prometheus
 | `http.server.active_requests` | UpDownCounter | FastAPI | Concurrent requests |
 | `http.client.request.duration` | Histogram | httpx | Outbound HTTP call latency |
 
-## RED metrics (per agent)
+> Metrics below are grouped by **purpose**: RED (is it working?), Efficiency
+> (what does it cost?), Quality (is the answer good?), and Domain (feature-specific).
+
+## RED — is it working? (per agent)
 
 | Metric | Type | Labels | Description |
 |--------|------|--------|-------------|
@@ -18,19 +21,21 @@ All metrics emitted by AIgent-squad, collected via OTel Collector → Prometheus
 | `aigent.errors.total` | Counter | `agent_id`, `error_type` | Errors |
 | `aigent.request.duration` | Histogram | `agent_id` | E2E processing time (ms) |
 
-## Cost / tokens
+## Efficiency — what does it cost? (specs 27, 10)
 
 | Metric | Type | Labels | Description |
 |--------|------|--------|-------------|
-| `aigent.tokens.total` | Counter | `agent_id`, `direction` | Tokens consumed |
+| `aigent.tokens.total` | Counter | `agent_id`, `model`, `direction` | Tokens consumed (running total) |
 | `aigent.cost.estimated` | Counter | `agent_id`, `model` | Estimated USD cost |
+| `aigent.collect.duration` | Histogram | `agent_id` | Datasource collection latency (adapter fan-out, ms) |
+| `aigent.llm.duration` | Histogram | `agent_id` | Bedrock round-trip latency (ms, excludes retry backoff) |
+| `aigent.prompt.size_tokens` | Histogram | `agent_id` | Input-token distribution per call (detect prompt bloat; p50/p95) |
 
-## Cache
-
-| Metric | Type | Labels | Description |
-|--------|------|--------|-------------|
-| `aigent.cache.hits` | Counter | `agent_id`, `namespace` | Data cache hits |
-| `aigent.cache.misses` | Counter | `agent_id`, `namespace` | Data cache misses |
+`aigent.collect.duration` + `aigent.llm.duration` split request latency into
+data-collection vs LLM time — the two have different fixes (cache/truncate vs
+model tiering). `aigent.prompt.size_tokens` is a **histogram** of the same input
+tokens `aigent.tokens.total` sums, but exposes the *distribution* to catch
+context bloat (efficiency-cost steering).
 
 ## Resilience (spec 06)
 
@@ -47,7 +52,7 @@ All metrics emitted by AIgent-squad, collected via OTel Collector → Prometheus
 | `aigent.fanout.agents_failed` | Counter | — | Failed agents during fan-out |
 | `aigent.synthesizer.calls` | Counter | `has_failures` | Synthesizer invocations |
 
-## RCA Investigation (spec 18)
+## Quality — RCA Investigation (specs 18, 10)
 
 | Metric | Type | Labels | Description |
 |--------|------|--------|-------------|
@@ -55,6 +60,7 @@ All metrics emitted by AIgent-squad, collected via OTel Collector → Prometheus
 | `aigent.investigation.completed` | Counter | `confidence` | Completed by confidence (alta/media/baixa) |
 | `aigent.investigation.duration` | Histogram | `confidence` | E2E investigation duration (ms) |
 | `aigent.investigation.evidence_count` | Histogram | — | Evidence items per investigation |
+| `aigent.investigation.rounds` | Histogram | — | Rounds completed per investigation (vs cost cap; 1 today, single-round) |
 
 ## Knowledge Base (spec 21)
 
@@ -75,11 +81,22 @@ All metrics emitted by AIgent-squad, collected via OTel Collector → Prometheus
 | `aigent.alerts.investigation_triggered` | Counter | — | Investigations triggered from alerts |
 | `aigent.alerts.postback` | Counter | `status` | Slack post-back attempts |
 
+## Known gaps (not usable yet)
+
+Do not build alerts on these — they will read as permanently zero (or do not
+exist yet). All belong to the deferred datasource-cache work.
+
+| Metric | State | Why | Tracked in |
+|--------|-------|-----|------------|
+| `aigent.cache.hits` | **Defined, never emitted** | The `CacheStore` is not used by the datasource adapters (`Boto3Adapter`, `HttpAdapter`, …) — they fetch fresh every call. Only `kb/budget` and alert dedup use the cache. | future spec (datasource-cache-layer) |
+| `aigent.cache.misses` | **Defined, never emitted** | Same as above — requires wiring a deterministic-key (`hashlib.sha256`) TTL cache into the adapter layer. | future spec (datasource-cache-layer) |
+| `aigent.cache.tokens_saved` | **Not defined** | Planned metric; depends on a working datasource cache (above). Not yet in `metrics.py`. | future spec (datasource-cache-layer) |
+
 ## Labels (attributes)
 
 | Label | Values | Cardinality |
 |-------|--------|-------------|
-| `agent_id` | aws, kubernetes, finops, devops, observability, supervisor, security | 7 |
+| `agent_id` | aws, kubernetes, finops, devops, observability, supervisor, security, classifier, synthesizer, unknown | ~10 |
 | `error_type` | validation, timeout, bedrock, internal | 4 |
 | `direction` | input, output | 2 |
 | `model` | sonnet, haiku, opus, titan | ~4 |

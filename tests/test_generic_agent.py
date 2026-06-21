@@ -156,6 +156,46 @@ class TestAdapterFailureDoesNotCrash:
 
 
 @pytest.mark.asyncio
+class TestCollectDurationMetric:
+    """spec 10: data-collection latency is recorded per agent."""
+
+    @patch("src.core.generic_agent.collect_duration")
+    @patch("src.core.generic_agent.bedrock")
+    async def test_collect_duration_recorded_with_agent_id(self, mock_bedrock, mock_collect_dur):
+        mock_bedrock.invoke = AsyncMock(return_value="ok")
+
+        agent = GenericAgent(
+            config=_make_config(name="aws"),
+            prompt="p",
+            adapters=[FakeAdapter("data")],
+        )
+
+        await agent.process_request(
+            input_text="q", user_id="u", session_id="s", chat_history=[],
+        )
+
+        assert mock_collect_dur.record.call_count == 1
+        value, labels = mock_collect_dur.record.call_args.args
+        assert value >= 0
+        assert labels == {"agent_id": "aws"}
+
+    @patch("src.core.generic_agent.collect_duration")
+    @patch("src.core.generic_agent.bedrock")
+    async def test_collect_duration_recorded_even_with_no_adapters(self, mock_bedrock, mock_collect_dur):
+        """Baseline: emitted once even when the agent has zero datasources."""
+        mock_bedrock.invoke = AsyncMock(return_value="ok")
+
+        agent = GenericAgent(config=_make_config(name="finops"), prompt="p", adapters=[])
+
+        await agent.process_request(
+            input_text="q", user_id="u", session_id="s", chat_history=[],
+        )
+
+        mock_collect_dur.record.assert_called_once()
+        assert mock_collect_dur.record.call_args.args[1] == {"agent_id": "finops"}
+
+
+@pytest.mark.asyncio
 class TestHistoryFormattedInContext:
     @patch("src.core.generic_agent.bedrock")
     async def test_history_formatted_in_context(self, mock_bedrock):

@@ -10,6 +10,7 @@ from src.core.adapters import DatasourceAdapter
 from src.core.agent_config import AgentConfig
 from src.core.bedrock import bedrock
 from src.core.logger import log_request, log_response, log_error
+from src.core.metrics import collect_duration
 from src.core.state_store import ConversationMessage
 
 tracer = get_tracer(__name__)
@@ -46,11 +47,16 @@ class GenericAgent:
                     raise ValueError("Input text too long (max 10000 characters)")
 
                 # Collect context from adapters (parallel)
+                collect_start = time.time()
                 with tracer.start_as_current_span(f"{self.config.name}_agent.collect_data"):
                     contexts = await asyncio.gather(
                         *[a.collect(input_text) for a in self.adapters],
                         return_exceptions=True,
                     )
+                collect_duration.record(
+                    (time.time() - collect_start) * 1000,
+                    {"agent_id": self.config.name},
+                )
                 infra_data = "\n".join(
                     str(c) for c in contexts if c and not isinstance(c, Exception)
                 )
