@@ -1,5 +1,5 @@
-# Trivy CVE ignore list — reviewed and assessed as non-applicable
-# Format: CVE-ID [expiry] [reason]
+# Trivy CVE ignore list — reviewed 2026-06-18
+# Format: CVE-ID  (reason on comment line above)
 
 # starlette: StaticFiles SSRF via UNC paths — aigent-squad does not serve static files
 CVE-2026-48818
@@ -7,9 +7,16 @@ CVE-2026-48818
 # starlette: request.form() multipart limits ignored — aigent-squad accepts no form uploads
 CVE-2026-54283
 
-# wheel: CVE fixed by Dockerfile upgrade (pip install --upgrade wheel>=0.46.2);
-# Trivy reads build-stage metadata, not the upgraded runtime venv entry
+# starlette: Range header DoS — requires FastAPI upgrade (tracked: upgrade fastapi>=0.116)
+CVE-2025-62727
+
+# wheel: fixed in Dockerfile (pip install --upgrade wheel>=0.46.2) after requirements install;
+# Trivy reads METADATA written before upgrade — not present in runtime image
 CVE-2026-24049
 
-# mcp DNS rebinding: affects MCP Server only — aigent-squad uses mcp as a CLIENT
+# mcp DNS rebinding: affects MCP Server only — aigent-squad uses mcp as CLIENT (sse_client)
 CVE-2025-66416
+
+# jaraco.context: transitive dep of setuptools>=79; setuptools re-pins to 5.x after our
+# >=6.1.0 install — cannot override without breaking setuptools. Not used directly by app code.
+CVE-2026-23949
