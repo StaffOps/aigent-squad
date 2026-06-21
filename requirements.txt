@@ -19,7 +19,6 @@ slack-sdk==3.33.4
 
 # Data Validation
 pydantic==2.10.5
-jaraco.context>=6.1.0
 pydantic-settings==2.7.0
 pyyaml==6.0.2
 

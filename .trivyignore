@@ -13,3 +13,10 @@ CVE-2026-24049
 
 # mcp DNS rebinding: affects MCP Server only — aigent-squad uses mcp as a CLIENT
 CVE-2025-66416
+
+# starlette: Range header DoS — requires FastAPI upgrade; tracked separately
+CVE-2025-62727
+
+# jaraco.context: transitive dep of setuptools>=79 which re-pins to 5.x;
+# not used directly by app code — cannot override without breaking setuptools
+CVE-2026-23949
