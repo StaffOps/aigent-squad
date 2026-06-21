@@ -30,6 +30,13 @@ All metrics emitted by AIgent-squad, collected via OTel Collector → Prometheus
 | `aigent.collect.duration` | Histogram | `agent_id` | Datasource collection latency (adapter fan-out, ms) |
 | `aigent.llm.duration` | Histogram | `agent_id` | Bedrock round-trip latency (ms, excludes retry backoff) |
 | `aigent.prompt.size_tokens` | Histogram | `agent_id` | Input-token distribution per call (detect prompt bloat; p50/p95) |
+| `aigent.cache.hits` | Counter | `namespace` | Datasource cache hits (avoided re-fetch) — spec 30 |
+| `aigent.cache.misses` | Counter | `namespace` | Datasource cache misses (fresh fetch) — spec 30 |
+
+The datasource cache (spec 30) wraps each adapter's `collect()` with a
+deterministic `sha256` key + per-agent TTL (fail-open). `namespace` is the
+agent's cache namespace (defaults to the agent name). Hit ratio =
+`hits / (hits + misses)` measures cache effectiveness per agent.
 
 `aigent.collect.duration` + `aigent.llm.duration` split request latency into
 data-collection vs LLM time — the two have different fixes (cache/truncate vs
@@ -83,14 +90,14 @@ context bloat (efficiency-cost steering).
 
 ## Known gaps (not usable yet)
 
-Do not build alerts on these — they will read as permanently zero (or do not
-exist yet). All belong to the deferred datasource-cache work.
+Do not build alerts on these — they do not exist yet.
 
 | Metric | State | Why | Tracked in |
 |--------|-------|-----|------------|
-| `aigent.cache.hits` | **Defined, never emitted** | The `CacheStore` is not used by the datasource adapters (`Boto3Adapter`, `HttpAdapter`, …) — they fetch fresh every call. Only `kb/budget` and alert dedup use the cache. | future spec (datasource-cache-layer) |
-| `aigent.cache.misses` | **Defined, never emitted** | Same as above — requires wiring a deterministic-key (`hashlib.sha256`) TTL cache into the adapter layer. | future spec (datasource-cache-layer) |
-| `aigent.cache.tokens_saved` | **Not defined** | Planned metric; depends on a working datasource cache (above). Not yet in `metrics.py`. | future spec (datasource-cache-layer) |
+| `aigent.cache.tokens_saved` | **Not defined** | Belongs to Bedrock **prompt** caching, not the datasource cache: a datasource hit avoids an API call, not LLM tokens (infra data still enters the prompt). | spec 11 (bedrock-resilience-cost) |
+
+> `aigent.cache.hits` / `aigent.cache.misses` are now emitted by the datasource
+> cache (spec 30) — see the Efficiency section.
 
 ## Labels (attributes)
 

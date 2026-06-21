@@ -29,14 +29,14 @@ class FakeAdapter(DatasourceAdapter):
     def __init__(self, response: str = "fake data"):
         self._response = response
 
-    async def collect(self, query: str) -> str:
+    async def _collect(self, query: str) -> str:
         return self._response
 
 
 class FailingAdapter(DatasourceAdapter):
     """Adapter that always raises."""
 
-    async def collect(self, query: str) -> str:
+    async def _collect(self, query: str) -> str:
         raise RuntimeError("datasource unavailable")
 
 

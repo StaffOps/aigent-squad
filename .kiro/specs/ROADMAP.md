@@ -307,7 +307,8 @@ without waiting for a human). Convergence by voting/confidence, not a fixed roun
 | 05-helm-chart | Not started (original; superseded partially by spec 22 Phase B) |
 | 07-readiness-probes | ✅ Complete (2026-06-17) — /healthz, /ready, /health alias |
 | 09-otel-instrumentation | Not started (partial coverage via otel-helper) |
-| 10-metrics-and-cost-observability | ✅ Phase 1 (2026-06-18) — efficiency (collect/llm duration, prompt size) + quality (rounds); cache instrumentation deferred (datasource cache not wired) |
+| 10-metrics-and-cost-observability | ✅ Phase 1 (2026-06-18) — efficiency (collect/llm duration, prompt size) + quality (rounds) |
+| 30-datasource-cache-layer | ✅ (2026-06-21) — sha256 TTL cache wired into adapters, fail-open; `aigent.cache.hits/misses` now emitted |
 | 11-bedrock-resilience-cost | Not started |
 | 12-terraform-infra | Delivered outside the numbered spec (see `terraform/`) |
 | 13-iam-least-privilege | Partially delivered in `terraform/iam/` |
