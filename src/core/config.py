@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     slack_proactive_channel: Optional[str] = None
     
     # API
-    api_host: str = "0.0.0.0"
+    api_host: str = "0.0.0.0"  # nosec B104 — containerized service must bind all interfaces
     api_port: int = 8000
     
     # GitLab (DevOps Agent)

@@ -3,7 +3,7 @@
 AIgent-squad exposes an **OpenAI-compatible API** (`/v1/models`,
 `/v1/chat/completions`), so [LibreChat](https://www.librechat.ai/) — or any
 OpenAI-compatible client — can talk to the squad **directly**, with no extra
-gateway. (Spec: [`.kiro/specs/29-openai-compat-bridge/`](../.kiro/specs/29-openai-compat-bridge/).)
+gateway. (Spec: [`.kiro/specs/29-openai-compat-bridge/`](https://github.com/StaffOps/staffops-aigent-squad/tree/main/.kiro/specs/29-openai-compat-bridge).)
 
 ## How it works
 
@@ -36,7 +36,7 @@ routing, fan-out, and RCA investigation as the native `/query` endpoint.
    authenticated — fail-closed, no token = 401).
 
 2. **Point LibreChat at the bridge.** Use
-   [`infra/librechat/librechat.yaml`](../infra/librechat/librechat.yaml) as a
+   [`infra/librechat/librechat.yaml`](https://github.com/StaffOps/staffops-aigent-squad/blob/main/infra/librechat/librechat.yaml) as a
    starting point — it registers the squad as a custom endpoint and forwards the
    token in the `X-Internal-Token` header. Set `AIGENT_SQUAD_API_KEY` to the
    squad's `INTERNAL_API_TOKEN`.
