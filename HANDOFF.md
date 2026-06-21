@@ -89,29 +89,29 @@ Merging `dev → main` will:
 
 | # | Item | Notes |
 |---|------|-------|
-| 1 | **Merge `dev → main`** | Triggers first Docker Hub build. Lint passes. Test job needs `OTEL_LIBS_DEPLOY_KEY` secret on `StaffOps/staffops-aigent-squad` to pass. |
-| 2 | **`OTEL_LIBS_DEPLOY_KEY` secret** | SSH deploy key for private `staffops-otel-libs` repo. Must be added manually (involves credentials). |
-| 3 | **Helm T15** | `helm template \| kubectl apply --dry-run=client` — needs a cluster (kind/EKS). Deferred. |
-| 4 | **`ct install` on kind** | `lint-test.yaml` workflow runs this on PR — will only pass when chart installs cleanly on vanilla cluster. |
-| 5 | **LibreChat end-to-end** | Bridge unit-tested only; not validated against live LibreChat instance. |
-| 6 | **Spec 14 Phase 1** | Security design only — Bedrock Guardrail + fail-closed still not implemented. |
+| 1 | **Branch protection NOT enforced** | GitHub branch protection + rulesets need GitHub Pro/Team or a public repo (private Free plan → HTTP 403). Today "no direct push" is policy-only; the `guard` job enforces PR-from-dev→main and all CI checks run, but a direct `git push` is still technically possible. Decision deferred (do nothing for now). To enable: upgrade plan or make repo public, then set the required checks in `docs/CI-CD.md`. |
+| 2 | **`build.yml` uses personal Docker Hub** | Image is `karlipegomes/aigent-squad`; migrate to a StaffOps org Docker Hub namespace for consistency. |
+| 3 | **Helm install on a real cluster** | `helm template \| kubectl apply --dry-run` + `ct install` on kind/EKS — needs a cluster. Deferred. |
+| 4 | **LibreChat end-to-end** | Bridge unit-tested only; not validated against a live LibreChat instance. |
+| 5 | **Spec 14 Phase 1** | Security design only — Bedrock Guardrail + fail-closed not implemented. |
 
 ---
 
 ## Next specs (priority order)
 
-> Done since last handoff: `dev → main` merged (CI green: test + Docker Hub build
-> + Trivy + docs deploy); Apache 2.0 migration; MkDocs site live at
-> `staffops.github.io/aigent-squad/`; CI switched to `DOCS_DEPLOY_TOKEN` (HTTPS
-> private dep + BuildKit secret); CVE cleanup + `.trivyignore`; **spec 10 Phase 1**
-> (efficiency/quality metrics). Specs 03 and 04 were already complete (2026-06-14).
+> Done since last handoff: `dev → main` merged; Apache 2.0; MkDocs site live;
+> CI on `DOCS_DEPLOY_TOKEN` (HTTPS dep + BuildKit secret); CVE cleanup; **spec 10**
+> (efficiency/quality metrics); **first release `v0.2.0`** (tag-driven scan-gated
+> release.yml, image `:0.2.0`, chart 0.7.0 → appVersion 0.2.0); **CI/CD Model A**
+> (`docs/CI-CD.md`: scan-before-publish on build+release, guard, Bandit SAST,
+> Trivy fs dep scan, docs deploy only from main + strict PR build); **spec 30**
+> (datasource cache wired into adapters, `cache.hits/misses` now emitted).
+> Specs 03/04 were already complete (2026-06-14).
 
-1. **`datasource-cache-layer`** (new spec) — wire deterministic-key (`sha256`) TTL
-   cache into the adapter layer; then emit `aigent.cache.hits/misses` +
-   `aigent.cache.tokens_saved`. Unblocks the deferred cache metrics.
-2. **Spec 14 Phase 1** — Bedrock Guardrail + fail-closed (security; design only today).
-3. **Spec 11 — bedrock-resilience-cost** — Haiku in the classifier, prompt caching, model tiering.
-4. **Spec 28 — RCA benchmark** (OpenSRE CloudOpsBench pattern) — quality gap.
+1. **Spec 14 Phase 1** — Bedrock Guardrail + fail-closed (security; design only today).
+2. **Spec 11 — bedrock-resilience-cost** — Haiku in the classifier, prompt caching, model tiering (includes `aigent.cache.tokens_saved`).
+3. **Spec 28 — RCA benchmark** (OpenSRE CloudOpsBench pattern) — quality gap.
+4. **Branch protection** — once the GitHub plan allows (see Pending #1).
 
 ---
 

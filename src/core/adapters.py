@@ -1,6 +1,7 @@
 """Datasource adapters — read-only collectors for agent context."""
 from __future__ import annotations
 
+import hashlib
 import os
 import re
 import time
@@ -13,14 +14,53 @@ from kubernetes import client as k8s_client, config as k8s_config
 from kubernetes.config import ConfigException
 
 from src.core.agent_config import DatasourceConfig
+from src.core.cache import cache
+from src.core.metrics import cache_hits, cache_misses
 
 
 class DatasourceAdapter(ABC):
-    """Base class for all datasource adapters."""
+    """Base class for all datasource adapters.
+
+    `collect()` is a template method: it wraps a deterministic, TTL-bounded
+    Redis cache (spec 30) around the concrete `_collect()` each subclass
+    implements. Caching is per-agent (TTL + namespace from `agent.yaml`),
+    fail-open, and disabled when `cache_ttl <= 0`.
+    """
+
+    cache_ttl: int = 0            # 0/negative → caching disabled
+    cache_namespace: str = "default"
 
     @abstractmethod
+    async def _collect(self, query: str) -> str:
+        """Fetch fresh data for the query. Returns text summary."""
+
+    def _cache_id(self) -> str:
+        """Stable per-instance identity for the cache key. Override when the
+        adapter's output depends on instance config (services, url, table…)."""
+        return self.__class__.__name__
+
     async def collect(self, query: str) -> str:
-        """Collect data relevant to the query. Returns text summary."""
+        """Cache-wrapped collection. Deterministic sha256 key; fail-open."""
+        if self.cache_ttl <= 0:
+            return await self._collect(query)
+        key = hashlib.sha256(f"{self._cache_id()}|{query}".encode()).hexdigest()
+        ns = self.cache_namespace
+        # Fail-open at the adapter boundary (invariant: cache loss never breaks
+        # collection), regardless of the cache backend's own error handling.
+        try:
+            hit = cache.get(key, namespace=ns)
+        except Exception:
+            hit = None
+        if hit is not None:
+            cache_hits.add(1, {"namespace": ns})
+            return hit
+        cache_misses.add(1, {"namespace": ns})
+        result = await self._collect(query)
+        try:
+            cache.set(key, result, ttl=self.cache_ttl, namespace=ns)
+        except Exception:
+            pass
+        return result
 
 
 class Boto3Adapter(DatasourceAdapter):
@@ -29,7 +69,10 @@ class Boto3Adapter(DatasourceAdapter):
     def __init__(self, services: list[str]):
         self.services = services
 
-    async def collect(self, query: str) -> str:
+    def _cache_id(self) -> str:
+        return "boto3:" + ",".join(sorted(self.services))
+
+    async def _collect(self, query: str) -> str:
         parts = []
         for svc in self.services:
             try:
@@ -76,7 +119,7 @@ class Boto3Adapter(DatasourceAdapter):
 class KubernetesAdapter(DatasourceAdapter):
     """Collects K8s cluster summary."""
 
-    async def collect(self, query: str) -> str:
+    async def _collect(self, query: str) -> str:
         try:
             try:
                 k8s_config.load_incluster_config()
@@ -106,7 +149,10 @@ class HttpAdapter(DatasourceAdapter):
     def _interpolate_env(url: str) -> str:
         return re.sub(r"\$\{(\w+)\}", lambda m: os.environ.get(m.group(1), m.group(0)), url)
 
-    async def collect(self, query: str) -> str:
+    def _cache_id(self) -> str:
+        return f"http:{self.name}:{self.url}"
+
+    async def _collect(self, query: str) -> str:
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
                 r = await client.get(self.url, headers=self.headers)
@@ -124,7 +170,10 @@ class AthenaAdapter(DatasourceAdapter):
         self.table = table
         self.workgroup = workgroup
 
-    async def collect(self, query: str) -> str:
+    def _cache_id(self) -> str:
+        return f"athena:{self.database}.{self.table}"
+
+    async def _collect(self, query: str) -> str:
         try:
             c = boto3.client("athena")
             q = f"SELECT * FROM {self.table} LIMIT 5"
@@ -180,7 +229,10 @@ class McpAdapter(DatasourceAdapter):
         self.tool_arguments = tool_arguments or {}
         self.inject_query_as = inject_query_as
 
-    async def collect(self, query: str) -> str:
+    def _cache_id(self) -> str:
+        return f"mcp:{self.url}:" + ",".join(sorted(self.tools))
+
+    async def _collect(self, query: str) -> str:
         if not self.tools:
             # Fail-closed: no allowlisted tools => nothing callable.
             return f"[mcp:{self.name}] no tools allowlisted (skipped)"
@@ -228,8 +280,13 @@ class McpAdapter(DatasourceAdapter):
         return ("\n".join(parts))[:4000] if parts else "(no text content)"
 
 
-def create_adapters(datasource_configs: list[DatasourceConfig]) -> list[DatasourceAdapter]:
-    """Instantiate adapters from config."""
+def create_adapters(
+    datasource_configs: list[DatasourceConfig],
+    cache_ttl: int = 0,
+    cache_namespace: str = "default",
+) -> list[DatasourceAdapter]:
+    """Instantiate adapters from config, threading the agent's cache settings
+    (TTL + namespace) onto each so `collect()` caches deterministically."""
     adapters: list[DatasourceAdapter] = []
     for cfg in datasource_configs:
         if cfg.type == "boto3":
@@ -249,4 +306,7 @@ def create_adapters(datasource_configs: list[DatasourceConfig]) -> list[Datasour
                 tool_arguments=cfg.tool_arguments,
                 inject_query_as=cfg.inject_query_as,
             ))
+    for adapter in adapters:
+        adapter.cache_ttl = cache_ttl
+        adapter.cache_namespace = cache_namespace
     return adapters

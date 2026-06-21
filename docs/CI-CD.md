@@ -10,14 +10,23 @@ publishes — and nothing reaches a registry without passing Trivy first.**
 
 | Branch | Role | Protection |
 |--------|------|------------|
-| `main` | Production source of truth | Protected. PRs **only from `dev`**. No direct push. |
-| `dev` | Integration | Protected. PRs from `feature/*`. No direct push. |
+| `main` | Production source of truth | Policy: PRs **only from `dev`** (guard job). |
+| `dev` | Integration | Policy: PRs from `feature/*`. |
 | `feature/*`, `fix/*` | Day-to-day work | — |
 
 Flow: `feature/* ──PR──▶ dev ──PR──▶ main`
 
+> ⚠️ **Branch protection is not yet enforced.** GitHub branch protection and
+> rulesets require **GitHub Pro/Team** (or a public repo) for private repos —
+> the current plan returns HTTP 403. So "no direct push" is **policy, not
+> enforced**; a `git push` straight to `main`/`dev` is still technically
+> possible. What *is* enforced today: the `guard` job fails any PR to `main`
+> whose source isn't `dev`, and all CI checks run on every PR. To get true
+> enforcement, upgrade the plan or make the repo public, then enable the
+> required checks below. Tracked in `HANDOFF.md`.
+
 `main` accepting PRs only from `dev` is enforced by a guard job (below) — GitHub
-branch protection alone cannot restrict the source branch.
+branch protection alone cannot restrict the source branch anyway.
 
 ---
 
@@ -59,7 +68,10 @@ Both `build.yml` (per-merge `latest`/`sha`) and `release.yml` (versioned
 
 ---
 
-## Required status checks (branch protection)
+## Required status checks (branch protection — TO ENABLE once plan allows)
+
+Not active yet (plan-gated, see warning above). When branch protection becomes
+available, configure:
 
 - **`dev`**: Require PR · Require status checks → `lint`, `test`, `dep_scan`, `bandit` · Require up to date
 - **`main`**: Require PR · Require status checks → `guard`, `lint`, `test`, `dep_scan`, `bandit` · Require up to date

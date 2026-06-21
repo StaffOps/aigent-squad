@@ -1,5 +1,23 @@
 # Changelog
 
+## [Unreleased]
+
+### Added (Spec 30: Datasource cache layer)
+- `src/core/adapters.py`: `DatasourceAdapter.collect()` is now a template method wrapping a deterministic (`sha256`) TTL cache around each adapter's `_collect()`. Per-agent TTL + namespace from `agent.yaml`; fail-open (cache errors never break collection — wrapped `cache.get`/`cache.set`); disabled when `ttl <= 0`.
+- `create_adapters(..., cache_ttl, cache_namespace)` threads cache config onto every adapter; `supervisor/agent.py` passes `config.cache.{ttl,namespace}`.
+- Emits `aigent.cache.hits` / `aigent.cache.misses` (label `namespace`) — closes the dead-metric gap (defined but never emitted).
+- `docs/METRICS.md`: cache hits/misses moved out of "Known gaps"; `aigent.cache.tokens_saved` reassigned to spec 11 (a datasource hit avoids an API call, not LLM tokens).
+- `tests/test_cache_layer.py` (20 tests, independent author): hit/miss/disabled/fail-open (store + wrapper)/key-determinism/threading. 266 passed, 92.62% coverage.
+
+### Changed (CI/CD hardening — Model A)
+- `build.yml` + `release.yml`: **scan-before-publish** (build local → Trivy gate → push) — a vulnerable image never reaches the registry.
+- `release.yml`: tag-driven (`v*`) / manual, Docker Hub, immutable `:X.Y.Z` + SBOM + GitHub Release (replaced legacy ECR/SSH).
+- `test.yml`: `guard` job (main accepts PRs only from `dev`) + `dep_scan` (Trivy fs deps); PRs run on main and dev.
+- `sast.yml`: Bandit SAST (CodeQL unavailable — private repo without GHAS). 4 reviewed B104 false-positives suppressed with `# nosec`.
+- `docs.yml`: deploy only from `main` (was overwriting prod from `dev`); `mkdocs build --strict` validation on PRs.
+- `docs/CI-CD.md`: Model A pipeline + versioning (SemVer app↔chart↔image). Branch protection documented as plan-gated (not enforced — needs GitHub Pro/public; tracked in HANDOFF).
+- Fixed broken Architecture page (case collision `ARCHITECTURE.md`→`architecture.md`) + LIBRECHAT external links (`--strict` clean).
+
 ## [0.2.0] - 2026-06-21
 
 First tagged release. Bundles all previously-unreleased work below (sessions
