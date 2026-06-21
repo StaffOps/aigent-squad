@@ -34,7 +34,11 @@ class SupervisorAgent:
         # Create in-process agent instances
         self.agents: dict[str, GenericAgent] = {}
         for config in registry.list_agents():
-            adapters = create_adapters(config.datasources)
+            adapters = create_adapters(
+                config.datasources,
+                cache_ttl=config.cache.ttl,
+                cache_namespace=config.cache.namespace,
+            )
             prompt = registry.get_prompt(config.name)
             self.agents[config.name] = GenericAgent(config, prompt, adapters, skill_registry=self.skill_registry)
 
