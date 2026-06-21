@@ -53,6 +53,7 @@ nav:
   - Reference:
       - Helm Chart: reference/helm.md
       - Metrics: reference/metrics.md
+      - CI/CD & Versioning: CI-CD.md
 
 plugins:
   - search:
