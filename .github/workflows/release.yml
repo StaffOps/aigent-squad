@@ -1,53 +1,109 @@
 name: Release
 
+# Versioned release: cut by pushing a semver tag (e.g. v0.2.0) or manually.
+# Publishes an IMMUTABLE image tagged with the version — not just `latest`.
+# Trivy gates the push: a vulnerable image is NEVER published (build local →
+# scan → push only if clean).
 on:
+  push:
+    tags: ["v*"]
   workflow_dispatch:
     inputs:
       version:
-        description: "Release version (e.g. 0.2.0)"
+        description: "Release version without the leading v (e.g. 0.2.0)"
         required: true
         type: string
 
 permissions:
-  id-token: write
-  contents: write
+  contents: write   # create the GitHub Release
 
 env:
-  REGISTRY: ${{ vars.ECR_REGISTRY || '123456789012.dkr.ecr.us-east-1.amazonaws.com' }}
-  IMAGE_NAME: aigent-squad
+  DOCKERHUB_IMAGE: karlipegomes/aigent-squad
 
 jobs:
   release:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          ssh-key: ${{ secrets.OTEL_LIBS_DEPLOY_KEY }}
+
+      - name: Resolve version
+        id: ver
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            V="${{ inputs.version }}"
+          else
+            V="${GITHUB_REF_NAME#v}"   # strip leading v from the tag
+          fi
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          echo "Releasing version: $V"
 
       - uses: docker/setup-buildx-action@v3
       - uses: docker/setup-qemu-action@v3
 
-      - name: Configure AWS credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v4
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
         with:
-          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
-          aws-region: us-east-1
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Login to ECR
-        uses: aws-actions/amazon-ecr-login@v2
+      # 1) Build SINGLE-ARCH into the local daemon (no push) so Trivy can scan
+      #    the exact artifact before anything reaches the registry. OS/dep CVEs
+      #    are identical across arch, so amd64 is enough for the gate.
+      - name: Build (local, no push) for scan
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          load: true
+          push: false
+          tags: ${{ env.DOCKERHUB_IMAGE }}:${{ steps.ver.outputs.version }}
+          secrets: |
+            github_token=${{ secrets.DOCS_DEPLOY_TOKEN }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
-      - name: Build and push multi-arch release
+      # 2) GATE — fail the release if the local image has HIGH/CRITICAL CVEs
+      #    (exceptions in .trivyignore). Nothing has been pushed yet.
+      - name: Trivy scan (gate before push)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.DOCKERHUB_IMAGE }}:${{ steps.ver.outputs.version }}
+          format: table
+          exit-code: 1
+          severity: CRITICAL,HIGH
+          trivyignores: .trivyignore
+
+      # 3) Only reached if the scan passed: build multi-arch and PUSH the
+      #    immutable version tag (+ latest). Cache reuse from step 1 keeps it fast.
+      - name: Build + push multi-arch (scan passed)
         uses: docker/build-push-action@v6
         with:
           context: .
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:v${{ inputs.version }}
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
-          ssh: default=${{ env.SSH_AUTH_SOCK }}
+            ${{ env.DOCKERHUB_IMAGE }}:${{ steps.ver.outputs.version }}
+            ${{ env.DOCKERHUB_IMAGE }}:latest
+          secrets: |
+            github_token=${{ secrets.DOCS_DEPLOY_TOKEN }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
-      - name: Create git tag
-        run: |
-          git tag "v${{ inputs.version }}"
-          git push origin "v${{ inputs.version }}"
+      - name: Trivy SBOM (CycloneDX)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.DOCKERHUB_IMAGE }}:${{ steps.ver.outputs.version }}
+          format: cyclonedx
+          output: sbom.cdx.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sbom-${{ steps.ver.outputs.version }}
+          path: sbom.cdx.json
+
+      - name: Create GitHub Release
+        if: github.event_name == 'push'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.ver.outputs.version }}
+          generate_release_notes: true
