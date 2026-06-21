@@ -26,11 +26,8 @@ theme:
         icon: material/weather-sunny
         name: Switch to light mode
   features:
-    - navigation.tabs
-    - navigation.tabs.sticky
     - navigation.sections
     - navigation.top
-    - navigation.footer
     - search.highlight
     - search.suggest
     - content.code.copy
