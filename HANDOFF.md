@@ -100,22 +100,30 @@ Merging `dev → main` will:
 
 ## Next specs (priority order)
 
-1. **Merge `dev → main`** — unblocks Docker Hub image + CI green.
-2. **Spec 03 — cache/observability fix** — Redis cache + OTel metrics gaps.
-3. **Spec 04 — harden security** — rate limit, per-user budget cap.
-4. **Spec 14 Phase 1** — Bedrock Guardrail implementation.
-5. **Spec 28 — RCA benchmark** (OpenSRE CloudOpsBench pattern) — quality gap.
+> Done since last handoff: `dev → main` merged (CI green: test + Docker Hub build
+> + Trivy + docs deploy); Apache 2.0 migration; MkDocs site live at
+> `staffops.github.io/aigent-squad/`; CI switched to `DOCS_DEPLOY_TOKEN` (HTTPS
+> private dep + BuildKit secret); CVE cleanup + `.trivyignore`; **spec 10 Phase 1**
+> (efficiency/quality metrics). Specs 03 and 04 were already complete (2026-06-14).
+
+1. **`datasource-cache-layer`** (new spec) — wire deterministic-key (`sha256`) TTL
+   cache into the adapter layer; then emit `aigent.cache.hits/misses` +
+   `aigent.cache.tokens_saved`. Unblocks the deferred cache metrics.
+2. **Spec 14 Phase 1** — Bedrock Guardrail + fail-closed (security; design only today).
+3. **Spec 11 — bedrock-resilience-cost** — Haiku in the classifier, prompt caching, model tiering.
+4. **Spec 28 — RCA benchmark** (OpenSRE CloudOpsBench pattern) — quality gap.
 
 ---
 
-## Metrics gaps (still open from 2026-06-17)
+## Metrics gaps — closed by spec 10 Phase 1 (2026-06-18)
 
-- [ ] `aigent.tokens.total` / `aigent.cost.estimated`: add `model` label.
-- [ ] `aigent.prompt.size_tokens` histogram — detect bloated prompts.
-- [ ] `aigent.investigation.rounds` histogram — real rounds vs cap.
-- [ ] `aigent.llm.duration` separate from `aigent.collect.duration`.
-- [ ] `aigent.cache.tokens_saved` counter.
-- [ ] `docs/METRICS.md`: reorganize by purpose (RED / efficiency / quality).
+- [x] `aigent.tokens.total` / `aigent.cost.estimated`: `model` label — already present in `bedrock.py` (spec 27).
+- [x] `aigent.prompt.size_tokens` histogram — detect bloated prompts (bedrock.py).
+- [x] `aigent.investigation.rounds` histogram — real rounds vs cap (investigation.py).
+- [x] `aigent.llm.duration` separate from `aigent.collect.duration` — both shipped (bedrock.py + generic_agent.py).
+- [x] `docs/METRICS.md`: reorganized by purpose (RED / Efficiency / Quality / Domain) + "Known gaps" section.
+- [ ] `aigent.cache.hits/misses`: **defined but never emitted** — datasource cache not wired into adapters. Deferred.
+- [ ] `aigent.cache.tokens_saved` counter: not defined; depends on datasource cache. Deferred to a future `datasource-cache-layer` spec.
 
 ---
 

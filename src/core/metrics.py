@@ -35,6 +35,32 @@ estimated_cost = meter.create_counter(
     unit="USD",
 )
 
+# === Spec 10: Efficiency (where do time and tokens go?) ===
+collect_duration = meter.create_histogram(
+    name="aigent.collect.duration",
+    description="Time spent collecting datasource context (adapter fan-out) per agent",
+    unit="ms",
+)
+
+llm_duration = meter.create_histogram(
+    name="aigent.llm.duration",
+    description="Bedrock round-trip latency per call (excludes retry backoff)",
+    unit="ms",
+)
+
+prompt_size_tokens = meter.create_histogram(
+    name="aigent.prompt.size_tokens",
+    description="Distribution of Bedrock-reported input tokens per call (detect prompt bloat)",
+    unit="1",
+)
+
+# === Spec 10: Quality (investigation depth) ===
+investigation_rounds = meter.create_histogram(
+    name="aigent.investigation.rounds",
+    description="Rounds completed per RCA investigation (vs cost cap)",
+    unit="1",
+)
+
 # Cache metrics
 cache_hits = meter.create_counter(
     name="aigent.cache.hits",

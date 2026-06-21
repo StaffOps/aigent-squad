@@ -99,6 +99,55 @@ async def test_run_investigation_falls_back_on_invalid_json():
     assert result.evidence[0].signal_type == "unknown"
 
 
+@pytest.mark.asyncio
+async def test_run_investigation_records_rounds_metric():
+    """spec 10: investigation.rounds records rounds_completed (1 for single-round).
+
+    Contract: the histogram carries NO label (no agent_id / cardinality), so the
+    record call must be a bare positional value.
+    """
+    agents = {"obs": _make_agent(_valid_evidence_json())}
+    with patch("src.supervisor.investigation.bedrock") as mock_bedrock, \
+         patch("src.supervisor.investigation.investigation_rounds") as mock_rounds:
+        mock_bedrock.invoke = AsyncMock(return_value=_rca_json())
+        await _run(agents)
+    mock_rounds.record.assert_called_once_with(1)
+    # No attributes dict passed (bounded cardinality: rounds is a global hist).
+    assert mock_rounds.record.call_args.kwargs == {}
+    assert len(mock_rounds.record.call_args.args) == 1
+
+
+@pytest.mark.asyncio
+async def test_run_investigation_rounds_metric_reads_state_field():
+    """spec 10 contract: the recorded value is state.rounds_completed, not a
+    hardcoded literal. We substitute an InvestigationState whose
+    rounds_completed is pinned to 3 regardless of orchestrator writes, and
+    assert the metric mirrors it. Guards against a regression like
+    `investigation_rounds.record(1)`.
+    """
+    agents = {"obs": _make_agent(_valid_evidence_json())}
+
+    from src.core.investigation import InvestigationState as RealState
+
+    class PinnedRoundsState(RealState):
+        """rounds_completed always reads as 3 (ignores the orchestrator's =1)."""
+
+        def __setattr__(self, name, value):
+            if name == "rounds_completed":
+                value = 3
+            object.__setattr__(self, name, value)
+
+    pinned = PinnedRoundsState(symptom="latency spike")
+
+    with patch("src.supervisor.investigation.bedrock") as mock_bedrock, \
+         patch("src.supervisor.investigation.investigation_rounds") as mock_rounds, \
+         patch("src.supervisor.investigation.InvestigationState", return_value=pinned):
+        mock_bedrock.invoke = AsyncMock(return_value=_rca_json())
+        await _run(agents)
+
+    mock_rounds.record.assert_called_once_with(3)
+
+
 async def _run(agents):
     from src.supervisor.investigation import run_investigation
     return await run_investigation(

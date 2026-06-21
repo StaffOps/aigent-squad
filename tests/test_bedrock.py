@@ -109,6 +109,160 @@ async def test_invoke_defaults_agent_id_to_unknown(mock_boto3_client):
 
 
 @pytest.mark.asyncio
+async def test_invoke_records_llm_duration_and_prompt_size(mock_boto3_client):
+    """spec 10: invoke records llm.duration + prompt.size_tokens labeled by agent_id."""
+    mock_boto3_client.invoke_model.return_value = {
+        "body": MagicMock(read=MagicMock(return_value=b'{"content":[{"text":"ok"}],"usage":{"input_tokens":321,"output_tokens":50}}'))
+    }
+    from src.core.bedrock import BedrockClient
+    client = BedrockClient()
+    client.client = mock_boto3_client
+
+    with patch("src.core.bedrock.token_counter"), \
+         patch("src.core.bedrock.estimated_cost"), \
+         patch("src.core.bedrock.llm_duration") as mock_llm_dur, \
+         patch("src.core.bedrock.prompt_size_tokens") as mock_prompt_size:
+        await client.invoke(
+            messages=[{"role": "user", "content": "test"}],
+            system_prompt="sys",
+            agent_id="finops",
+        )
+
+    # llm.duration recorded once with a non-negative ms value, labeled agent_id
+    assert mock_llm_dur.record.call_count == 1
+    dur_value, dur_labels = mock_llm_dur.record.call_args.args
+    assert dur_value >= 0
+    assert dur_labels == {"agent_id": "finops"}
+
+    # prompt.size_tokens records the Bedrock-reported input tokens
+    mock_prompt_size.record.assert_called_once_with(321, {"agent_id": "finops"})
+
+
+@pytest.mark.asyncio
+async def test_prompt_size_reads_snake_case_usage_key(mock_boto3_client):
+    """spec 10 contract: prompt.size_tokens is the Bedrock Messages-API
+    `input_tokens` (snake_case). A camelCase-only `inputTokens` response (which
+    is NOT what bedrock-runtime returns for the Anthropic Messages API) is not
+    read, so the metric records 0 rather than the camelCase value.
+
+    This pins the key the impl reads and documents why several legacy mocks in
+    this file that use `inputTokens` never actually assert a token *value*.
+    """
+    mock_boto3_client.invoke_model.return_value = {
+        "body": MagicMock(read=MagicMock(
+            return_value=b'{"content":[{"text":"ok"}],"usage":{"inputTokens":999,"outputTokens":7}}'))
+    }
+    from src.core.bedrock import BedrockClient
+    client = BedrockClient()
+    client.client = mock_boto3_client
+
+    with patch("src.core.bedrock.token_counter"), \
+         patch("src.core.bedrock.estimated_cost"), \
+         patch("src.core.bedrock.llm_duration"), \
+         patch("src.core.bedrock.prompt_size_tokens") as mock_prompt_size:
+        await client.invoke(
+            messages=[{"role": "user", "content": "x"}],
+            system_prompt="s",
+            agent_id="aws",
+        )
+
+    # camelCase key is ignored → snake_case default of 0 recorded, no crash.
+    mock_prompt_size.record.assert_called_once_with(0, {"agent_id": "aws"})
+
+
+@pytest.mark.asyncio
+async def test_prompt_size_records_zero_when_usage_absent(mock_boto3_client):
+    """spec 10 contract: a response with no `usage` block records 0 input
+    tokens (graceful default), never raises KeyError."""
+    mock_boto3_client.invoke_model.return_value = {
+        "body": MagicMock(read=MagicMock(
+            return_value=b'{"content":[{"text":"ok"}]}'))
+    }
+    from src.core.bedrock import BedrockClient
+    client = BedrockClient()
+    client.client = mock_boto3_client
+
+    with patch("src.core.bedrock.token_counter"), \
+         patch("src.core.bedrock.estimated_cost"), \
+         patch("src.core.bedrock.llm_duration") as mock_llm_dur, \
+         patch("src.core.bedrock.prompt_size_tokens") as mock_prompt_size:
+        result = await client.invoke(
+            messages=[{"role": "user", "content": "x"}],
+            system_prompt="s",
+            agent_id="devops",
+        )
+
+    assert result == "ok"
+    mock_prompt_size.record.assert_called_once_with(0, {"agent_id": "devops"})
+    # llm.duration is independent of usage and is still recorded once.
+    assert mock_llm_dur.record.call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_llm_duration_excludes_retry_backoff(mock_boto3_client):
+    """spec 10 contract: llm.duration is per-call round-trip latency and MUST
+    exclude retry backoff sleep. With one throttle + a 5s backoff before the
+    successful call, the recorded duration must be far below the backoff time
+    (the timer is started inside the final attempt, after sleeping)."""
+    from botocore.exceptions import ClientError
+
+    throttle_error = ClientError(
+        {"Error": {"Code": "ThrottlingException", "Message": "Rate exceeded"}},
+        "InvokeModel",
+    )
+    success_response = {
+        "body": MagicMock(read=MagicMock(
+            return_value=b'{"content":[{"text":"ok"}],"usage":{"input_tokens":10,"output_tokens":5}}'))
+    }
+    mock_boto3_client.invoke_model.side_effect = [throttle_error, success_response]
+
+    from src.core.bedrock import BedrockClient
+    client = BedrockClient()
+    client.client = mock_boto3_client
+    client.base_delay = 5.0  # large backoff; must NOT leak into llm.duration
+
+    # Patch time.sleep so the test doesn't actually wait, but still let the
+    # impl's elapsed-time math run against the real clock around invoke_model.
+    with patch("src.core.bedrock.time.sleep"), \
+         patch("src.core.bedrock.token_counter"), \
+         patch("src.core.bedrock.estimated_cost"), \
+         patch("src.core.bedrock.prompt_size_tokens"), \
+         patch("src.core.bedrock.llm_duration") as mock_llm_dur:
+        result = await client.invoke(
+            messages=[{"role": "user", "content": "x"}],
+            system_prompt="s",
+            agent_id="kubernetes",
+        )
+
+    assert result == "ok"
+    # Only the successful attempt records duration.
+    assert mock_llm_dur.record.call_count == 1
+    dur_value, dur_labels = mock_llm_dur.record.call_args.args
+    assert dur_labels == {"agent_id": "kubernetes"}
+    # Backoff was 5000ms; a mocked invoke_model returns in well under 1s.
+    # If backoff leaked in, this would be ~5000+.
+    assert dur_value < 1000
+
+
+@pytest.mark.asyncio
+async def test_invoke_does_not_record_efficiency_metrics_on_failure(mock_boto3_client):
+    """spec 10: llm.duration + prompt.size_tokens only emitted on a successful call."""
+    mock_boto3_client.invoke_model.side_effect = Exception("boom")
+    from src.core.bedrock import BedrockClient
+    client = BedrockClient()
+    client.client = mock_boto3_client
+    client.max_retries = 1
+
+    with patch("src.core.bedrock.llm_duration") as mock_llm_dur, \
+         patch("src.core.bedrock.prompt_size_tokens") as mock_prompt_size:
+        with pytest.raises(Exception, match="boom"):
+            await client.invoke(messages=[{"role": "user", "content": "x"}], system_prompt="s")
+
+    mock_llm_dur.record.assert_not_called()
+    mock_prompt_size.record.assert_not_called()
+
+
+@pytest.mark.asyncio
 async def test_invoke_retries_on_throttling(mock_boto3_client):
     """Bedrock retries on ThrottlingException then succeeds."""
     from botocore.exceptions import ClientError
