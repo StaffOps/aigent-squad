@@ -30,7 +30,7 @@ status so required checks never hang on a docs-only change.
 |-------|-----------|-----------|
 | **PR → dev** | `lint` · `test` (cov ≥90%) · SAST (CodeQL) · Trivy **fs** (deps) | `mkdocs build` |
 | **push: dev** (post-merge) | nothing required (optional re-`test`) | nothing (prod docs only from `main`) |
-| **PR → main** (only from `dev`) | `guard` (head==dev) · `lint` · `test` · Trivy **fs** (deps) | `mkdocs build` |
+| **PR → main** (only from `dev`) | `guard` (head==dev) · `lint` · `test` · SAST (CodeQL) · Trivy **fs** (deps) | `mkdocs build --strict` |
 | **push: main** (post-merge) | `build.yml`: build → scan → push `latest`+`sha` | `docs.yml`: deploy → `staffops.github.io/aigent-squad/` |
 | **tag `v*`** (release) | `release.yml`: build local → **Trivy gate** → push **`X.Y.Z`**+`latest` · SBOM · GitHub Release | — |
 
@@ -52,16 +52,15 @@ the local daemon (`load`, no push), Trivy scans it (`exit-code 1` on
 HIGH/CRITICAL, exceptions in `.trivyignore`), and only if it passes does the
 multi-arch build + push run. A vulnerable image never reaches the registry.
 
-> Known gap: `build.yml` (the per-merge `latest`/`sha` path) currently scans
-> *after* push. Follow-up: align it to the same build-local → gate → push order
-> used by `release.yml`.
+Both `build.yml` (per-merge `latest`/`sha`) and `release.yml` (versioned
+`X.Y.Z`) use the same build-local → Trivy gate → push order.
 
 ---
 
 ## Required status checks (branch protection)
 
-- **`dev`**: Require PR · Require status checks → `lint`, `test` · Require up to date
-- **`main`**: Require PR · Require status checks → `guard`, `lint`, `test`, `build` · Require up to date
+- **`dev`**: Require PR · Require status checks → `lint`, `test`, `dep_scan`, CodeQL · Require up to date
+- **`main`**: Require PR · Require status checks → `guard`, `lint`, `test`, `dep_scan`, CodeQL · Require up to date
 
 A check must have run once before it can be marked required. The coverage gate is
 `pytest --cov --cov-fail-under=90`: exit code 1 → red `test` check → merge blocked.

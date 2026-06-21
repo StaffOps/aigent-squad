@@ -4,9 +4,23 @@ on:
   push:
     branches: [main, dev]
   pull_request:
-    branches: [main]
+    branches: [main, dev]
 
 jobs:
+  # main accepts PRs ONLY from dev (branch protection can't enforce source branch).
+  # Required check on main only — it won't run on dev PRs, so it never hangs them.
+  guard:
+    if: github.event_name == 'pull_request' && github.base_ref == 'main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enforce PR source is dev
+        run: |
+          if [ "${{ github.head_ref }}" != "dev" ]; then
+            echo "::error::main only accepts PRs from 'dev' (got '${{ github.head_ref }}')"
+            exit 1
+          fi
+          echo "OK: PR from dev → main"
+
   lint:
     runs-on: ubuntu-latest
     steps:
@@ -16,6 +30,21 @@ jobs:
           python-version: "3.11"
       - run: pip install ruff
       - run: ruff check src/ tests/
+
+  # SCA — vulnerable dependencies in requirements.txt (no image build; fast PR feedback).
+  dep_scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Trivy filesystem (dependencies)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: table
+          exit-code: 1
+          severity: CRITICAL,HIGH
+          trivyignores: .trivyignore
 
   test:
     runs-on: ubuntu-latest
