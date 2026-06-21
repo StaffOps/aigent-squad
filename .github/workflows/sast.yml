@@ -1,0 +1,26 @@
+name: SAST
+
+# Static analysis of our Python source (Bandit). Bandit (not CodeQL) because
+# the repo is private without GitHub Advanced Security — Bandit runs entirely in
+# CI and fails the job on findings, no Security-tab upload required.
+# Reviewed false-positives are suppressed inline with `# nosec <ID>` + reason.
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+
+permissions:
+  contents: read
+
+jobs:
+  bandit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install bandit
+      - name: Bandit (medium+ severity, medium+ confidence)
+        run: bandit -r src/ mcp-server/ --severity-level medium --confidence-level medium

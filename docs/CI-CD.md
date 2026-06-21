@@ -23,14 +23,16 @@ branch protection alone cannot restrict the source branch.
 
 ## What runs, and WHEN
 
-Two lanes selected by what the PR touches (path filters). Jobs always report a
-status so required checks never hang on a docs-only change.
+Code checks (`lint`, `test`, `dep_scan`, `bandit`) run on **every** PR — they are
+cheap and are the required gates, so they always report and never hang a merge.
+The docs `build_check` is **path-filtered** (`docs/**`, `mkdocs.yml`) and is not a
+required gate — it runs only when docs change.
 
 | Event | Code lane | Docs lane |
 |-------|-----------|-----------|
-| **PR → dev** | `lint` · `test` (cov ≥90%) · SAST (CodeQL) · Trivy **fs** (deps) | `mkdocs build` |
+| **PR → dev** | `lint` · `test` (cov ≥90%) · SAST (Bandit) · Trivy **fs** (deps) | `mkdocs build` |
 | **push: dev** (post-merge) | nothing required (optional re-`test`) | nothing (prod docs only from `main`) |
-| **PR → main** (only from `dev`) | `guard` (head==dev) · `lint` · `test` · SAST (CodeQL) · Trivy **fs** (deps) | `mkdocs build --strict` |
+| **PR → main** (only from `dev`) | `guard` (head==dev) · `lint` · `test` · SAST (Bandit) · Trivy **fs** (deps) | `mkdocs build --strict` |
 | **push: main** (post-merge) | `build.yml`: build → scan → push `latest`+`sha` | `docs.yml`: deploy → `staffops.github.io/aigent-squad/` |
 | **tag `v*`** (release) | `release.yml`: build local → **Trivy gate** → push **`X.Y.Z`**+`latest` · SBOM · GitHub Release | — |
 
@@ -59,8 +61,8 @@ Both `build.yml` (per-merge `latest`/`sha`) and `release.yml` (versioned
 
 ## Required status checks (branch protection)
 
-- **`dev`**: Require PR · Require status checks → `lint`, `test`, `dep_scan`, CodeQL · Require up to date
-- **`main`**: Require PR · Require status checks → `guard`, `lint`, `test`, `dep_scan`, CodeQL · Require up to date
+- **`dev`**: Require PR · Require status checks → `lint`, `test`, `dep_scan`, `bandit` · Require up to date
+- **`main`**: Require PR · Require status checks → `guard`, `lint`, `test`, `dep_scan`, `bandit` · Require up to date
 
 A check must have run once before it can be marked required. The coverage gate is
 `pytest --cov --cov-fail-under=90`: exit code 1 → red `test` check → merge blocked.
@@ -72,13 +74,16 @@ A required job on PRs targeting `main` that fails when the head branch is not
 
 ```yaml
 guard:
-  if: github.base_ref == 'main'
+  if: github.event_name == 'pull_request' && github.base_ref == 'main'
   runs-on: ubuntu-latest
   steps:
     - run: |
         test "${{ github.head_ref }}" = "dev" \
           || { echo "main only accepts PRs from dev"; exit 1; }
 ```
+
+It runs (and is required) only on PRs targeting `main`; on PRs to `dev` it is
+skipped, so it never blocks a feature PR.
 
 ---
 
@@ -133,7 +138,8 @@ Chart A.B.C ── chart-releaser ──▶ Helm repo (staffops.github.io/helm-c
 
 | File | Trigger | Purpose |
 |------|---------|---------|
-| `test.yml` | push/PR (main, dev) | lint + test (coverage gate) |
-| `build.yml` | push: main | build + push `latest`/`sha` to Docker Hub + Trivy |
-| `docs.yml` | push: main (docs/**) | deploy MkDocs to the portal |
+| `test.yml` | push/PR (main, dev) | `guard` (PR→main from dev) · `lint` · `test` (coverage gate) · `dep_scan` (Trivy fs) |
+| `sast.yml` | push/PR (main, dev) | `bandit` static analysis of Python source |
+| `build.yml` | push: main | build local → Trivy gate → push `latest`/`sha` + SBOM |
+| `docs.yml` | PR (docs/**): `mkdocs build --strict`; push: main: deploy | MkDocs validation + portal deploy |
 | `release.yml` | tag `v*` / manual | versioned, scan-gated image `:X.Y.Z` + SBOM + Release |
