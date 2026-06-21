@@ -1,5 +1,8 @@
 name: Build & Push
 
+# Continuous publish on every merge to main: latest + short SHA.
+# Trivy gates the push — build local → scan → push only if clean. A vulnerable
+# image never reaches the registry (same order as release.yml).
 on:
   push:
     branches: [main]
@@ -11,7 +14,6 @@ env:
   DOCKERHUB_IMAGE: karlipegomes/aigent-squad
 
 jobs:
-  # ── Docker Hub (multi-arch manifest) ──────────────────────────────────────
   build:
     runs-on: ubuntu-latest
     steps:
@@ -26,49 +28,53 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Docker metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.DOCKERHUB_IMAGE }}
-          tags: |
-            type=raw,value=latest
-            type=sha,prefix=,format=short
+      - name: Short SHA
+        id: sha
+        run: echo "short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
 
-      - name: Build and push to Docker Hub
-        id: build
+      # 1) Build single-arch into the local daemon (no push) for scanning.
+      - name: Build (local, no push) for scan
         uses: docker/build-push-action@v6
         with:
           context: .
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          platforms: linux/amd64
+          load: true
+          push: false
+          tags: ${{ env.DOCKERHUB_IMAGE }}:${{ steps.sha.outputs.short }}
           secrets: |
             github_token=${{ secrets.DOCS_DEPLOY_TOKEN }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  # ── Trivy scan (sobre a imagem Docker Hub) ────────────────────────────────
-  scan:
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Trivy vulnerability scan
+      # 2) GATE — fail before any push if HIGH/CRITICAL CVEs (exceptions in .trivyignore).
+      - name: Trivy scan (gate before push)
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: ${{ env.DOCKERHUB_IMAGE }}:latest
+          image-ref: ${{ env.DOCKERHUB_IMAGE }}:${{ steps.sha.outputs.short }}
           format: table
           exit-code: 1
           severity: CRITICAL,HIGH
           trivyignores: .trivyignore
 
+      # 3) Only if the scan passed: build multi-arch and push latest + sha.
+      - name: Build + push multi-arch (scan passed)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ env.DOCKERHUB_IMAGE }}:latest
+            ${{ env.DOCKERHUB_IMAGE }}:${{ steps.sha.outputs.short }}
+          secrets: |
+            github_token=${{ secrets.DOCS_DEPLOY_TOKEN }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
       - name: Trivy SBOM (CycloneDX)
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: ${{ env.DOCKERHUB_IMAGE }}:latest
+          image-ref: ${{ env.DOCKERHUB_IMAGE }}:${{ steps.sha.outputs.short }}
           format: cyclonedx
           output: sbom.cdx.json
 
