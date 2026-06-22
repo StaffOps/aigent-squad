@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Added (Spec 31: Edge gateway + worker pool — spec only)
+- `specs/31-edge-gateway-worker-pool/{requirements,design,tasks}.md`: design for a thin FastAPI gateway in front of the supervisor (admission control, `WorkerPool` backpressure, protocol isolation, global rate/budget), enabling the supervisor to scale multi-replica. Reuses `staffops-chaitops` `agent-api` patterns (authorized internal reuse). Documents the concurrency trade-off: **local** per-replica semaphore (pod self-protection) vs **global** Redis-coordinated budget/TPS guard — and corrects spec 25's framing (its in-memory Bedrock semaphore can't bound a global TPS limit under multi-replica). No code yet — pending design-review sign-off.
+
 ### Added (Spec 14 Phase 1: Bedrock Guardrail + fail-closed anti-prompt-injection)
 - `infra/terraform/guardrail/`: `aws_bedrock_guardrail` (PROMPT_ATTACK `HIGH` input filter — natively multi-language; harmful-content filters input+output; PII `BLOCK`; optional operator-defined denied topics) + a published immutable version. Outputs `guardrail_id`/`guardrail_version` for the app to pin.
 - `src/core/guardrail.py`: `GuardrailClient.apply(text, source, …)` evaluates untrusted input (pre-invoke) and model output (post-invoke) via the `apply_guardrail` API — a distinct evaluation from the agent's prompt (Decision 1: an injection that fools the LLM does not fool the guardrail). **Fail-closed** (Decision 2): a block OR guardrail unavailability/misconfiguration raises `GuardrailBlockedError` — never bypasses to the model.

@@ -98,7 +98,7 @@ closed** (Redis/DynamoDB with no error handling), and is **blind/indefensible**
 | 11 | `bedrock-resilience-cost` (Haiku in the classifier, prompt caching, tiering) | 🟠 | 06 |
 | 12 | `terraform-infra` (DynamoDB/ElastiCache/ECR/IRSA/Secrets) | 🟠 | — |
 | 13 | `iam-least-privilege` (read-only per agent + explicit deny) | 🟠 | 12 |
-| 14 | `security-hardening` (defense-in-depth anti-prompt-injection: multi-language Bedrock Guardrails, fail-closed, canary/output-filter, rate/budget; read-only as a security posture = competitive differentiator) | 📝 spec written, impl pending | 04 |
+| 14 | `security-hardening` (defense-in-depth anti-prompt-injection: multi-language Bedrock Guardrails, fail-closed, canary/output-filter, rate/budget; read-only as a security posture = competitive differentiator) | ⚠️ Phase 1 done (Guardrail L1 + fail-closed + audit); Phases 2-5 pending | 04 |
 | 15 | `sli-slo-framework` | 🟡 | 10 |
 | 16 | `incident-runbooks` | 🟡 | 06, 07 |
 | 17 | `multi-agent-collaboration` (cross-domain fan-out/fan-in + synthesis, agent-as-tools 1 hop) | ✅ done | 06, 09 |
@@ -114,6 +114,7 @@ closed** (Redis/DynamoDB with no error handling), and is **blind/indefensible**
 | 27 | `bedrock-cost-attribution` (AIP per model + FinOps tags; per-agent attribution via labeled token metric) | ✅ done (infra+app; deploy pending) | — |
 | 28 | `llm-provider-abstraction` (multi-provider layer: `LLMProvider` Protocol + common `LLMService`; litellm candidate; preserves cost-attribution; clean-room) | 📝 design only | reopens ADR-001 |
 | 29 | `openai-compat-bridge` (OpenAI `/v1` API on the supervisor → LibreChat plugs in directly; auto + per-agent models; pseudo-streaming until spec 06) | ✅ implemented | enables LibreChat (Option A) |
+| 31 | `edge-gateway-worker-pool` (thin FastAPI gateway in front of the supervisor: admission control + WorkerPool backpressure + protocol isolation + global rate/budget; enables multi-replica supervisor; reuses `staffops-chaitops` `agent-api` patterns) | 📝 spec written, impl pending | 25, 29 |
 
 > **ADR-001** ([`ADR-001-bedrock-direct-vs-strands.md`](ADR-001-bedrock-direct-vs-strands.md)): decision to keep Bedrock-direct (not adopt Strands). Reopen signal: agents stop being consultative read-only.
 
