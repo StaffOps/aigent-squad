@@ -9,7 +9,7 @@
 - [ ] T5: **Reescrever** `architecture/` — components/data-flow/read-only; remover LangGraph/HPA (D3/D12), corrigir encoding (D8) (depends on: T2)
 - [ ] T6: `architecture/decisions.md` (ADRs): LangGraph, Bedrock-direto, read-only, classifier, reposicionamento (ECOSYSTEM) (depends on: T5)
 - [ ] T7: Migrar Operations (observability) + API (mcp, supervisor, auth) + Agents (specialists, capability-manifest→spec 22, adding-an-agent); corrigir encoding (depends on: T2)
-- [ ] T8: `development/` — building, testing (→spec 23), contributing (novo CONTRIBUTING), specs (link `.kiro/specs/`) (depends on: T2)
+- [ ] T8: `development/` — building, testing (→spec 23), contributing (novo CONTRIBUTING), specs (link `specs/`) (depends on: T2)
 - [ ] T9: `CHANGELOG.md` (Keep a Changelog, versão `0.x`); absorver e **deletar** CHANGES/VERSIONS/GENERIC_VERSION; deletar MIGRATION (fantasma); arquivar IMPLEMENTATION_HISTORY (depends on: T4–T8)
 - [ ] T10: Reduzir `README.md` a índice (overview + diagrama + tabela de links pro portal) (depends on: T4–T9)
 - [ ] T11: `mkdocs build --strict` via Docker — zero link quebrado / nav órfã; nenhuma referência a server_new.py/terraform (depends on: T10)
@@ -19,7 +19,7 @@
 T1→T2→T3; T4/T5/T7/T8 em paralelo; T6 (após T5); T9 (após migrações); T10; T11→T12.
 
 ## Notas
-- `.kiro/specs/` continua SSOT — o portal **linka**, não duplica.
+- `specs/` continua SSOT — o portal **linka**, não duplica.
 - Doc desatualizada é pior que ausência: deletar fantasma ativamente (git preserva histórico).
 - Build/serve só via Docker (`dev-environment`); hosting (GitHub Pages) fica pra spec 08.
 - Idioma: portal em inglês (open-source); specs em PT permanecem — documentar a convenção.

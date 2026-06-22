@@ -63,7 +63,7 @@ Combined with read-only policy (agents never mutate infrastructure today), promp
 > **Current vs planned**: today's defense is delimitation only (1 layer). The
 > full anti-prompt-injection defense-in-depth (Bedrock Guardrails, fail-closed,
 > multi-language, canary/output filter) is designed in
-> [`.kiro/specs/14-security-hardening/`](../.kiro/specs/14-security-hardening/)
+> [`specs/14-security-hardening/`](../specs/14-security-hardening/)
 > — **not yet implemented**. It also becomes a prerequisite if/when execution
 > (non-read-only) is enabled, since blast radius would no longer be limited.
 

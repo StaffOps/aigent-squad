@@ -37,8 +37,8 @@ Every milestone (spec, feature, or significant change) MUST meet ALL of these be
 
 ### Documentation
 - `CHANGES.md`: entry describing what changed
-- `.kiro/specs/ROADMAP.md`: mark completed specs
-- `.kiro/specs/<spec>/tasks.md`: **mark each task `[x]` with completion date**; explicitly mark deferred tasks as `NOT IMPLEMENTED` or `deferred to Phase X`
+- `specs/ROADMAP.md`: mark completed specs
+- `specs/<spec>/tasks.md`: **mark each task `[x]` with completion date**; explicitly mark deferred tasks as `NOT IMPLEMENTED` or `deferred to Phase X`
 - **Operational docs** in `docs/` MUST be updated when behavior, architecture, or APIs change:
   - `docs/ARCHITECTURE.md` — system design changes (new components, removed ones)
   - `docs/SETUP.md` — install/run changes (new deps, ports, env vars)

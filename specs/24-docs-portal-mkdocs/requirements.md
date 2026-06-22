@@ -32,11 +32,11 @@ WHEN docs redundantes/fantasma existem hoje THEN SHALL ser **removidos ou absorv
 - [ ] **Remoção**: `CHANGES.md`, `VERSIONS.md`, `GENERIC_VERSION.md`, `docs/MIGRATION.md` (fantasma) → conteúdo útil absorvido; resto deletado. `IMPLEMENTATION_HISTORY.md` → arquivado (fora do portal).
 - [ ] `CHANGELOG.md` (Keep a Changelog) substitui `CHANGES.md`/`VERSIONS.md`; versão honesta `0.x`.
 - [ ] `architecture/decisions.md` (ou `architecture/adr/`) com ADRs: LangGraph removido, Bedrock-direto, read-only 4-camadas, classifier vs tool-use, reposicionamento no ecossistema (`ECOSYSTEM.md`).
-- [ ] `development/`: building, testing (aponta spec 23), contributing, specs (aponta `.kiro/specs/`).
+- [ ] `development/`: building, testing (aponta spec 23), contributing, specs (aponta `specs/`).
 - [ ] Encoding corrompido corrigido nos arquivos migrados (D8: "docker-compoif", "Responif", etc.).
 - [ ] Script `docs/scripts/serve.sh` + `build.sh` (MkDocs via Docker — sem instalar local, per `dev-environment`).
 - [ ] Nenhum link interno quebrado; nenhuma referência a arquivo inexistente.
-- [ ] `.kiro/specs/` permanece a SSOT de specs; o portal **linka** para specs, não as duplica.
+- [ ] `specs/` permanece a SSOT de specs; o portal **linka** para specs, não as duplica.
 
 ## Fora de escopo
 

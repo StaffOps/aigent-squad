@@ -21,7 +21,7 @@ claude/kiro/opencode CLIs). 186 tests, 83% coverage, GitHub Actions CI, MkDocs,
 OTel Collector already in compose. Principles: **no LangGraph, adapter-based,
 MCP-first, OTel day one, CLI-agnostic** (the same we adopted in AIgent-squad).
 
-Specs already written (`.kiro/specs/`):
+Specs already written (`specs/`):
 
 | chaitops spec | What it is | Overlaps our spec |
 |---------------|------------|-------------------|

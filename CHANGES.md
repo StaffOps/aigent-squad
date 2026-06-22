@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Changed (AI-tool-agnostic layout)
+- `AGENTS.md` is now the canonical, tool-neutral agent guide (was `CLAUDE.md`); `CLAUDE.md` is a one-line pointer (`See @AGENTS.md`). Any AI assistant (Claude Code, Cursor, Copilot, Aider…) reads `AGENTS.md`.
+- Specs moved `.kiro/specs/` → `specs/` and steering `.kiro/steering/` → `steering/` (history preserved); `.kiro/` removed. All 70+ references across docs/README/specs updated.
+- Per-tool dirs (`.claude/`, `.cursor/`, `.aider*`, `.kiro/`, `.windsurf/`) are now git-ignored (local-only). `.claude/` (subagent defs were tool-test artifacts) + `scripts/sync-claude.sh` removed from the repo.
+- `README.md` "AI tooling" section rewritten to the tool-agnostic model.
+
 ### Added (Spec 30: Datasource cache layer)
 - `src/core/adapters.py`: `DatasourceAdapter.collect()` is now a template method wrapping a deterministic (`sha256`) TTL cache around each adapter's `_collect()`. Per-agent TTL + namespace from `agent.yaml`; fail-open (cache errors never break collection — wrapped `cache.get`/`cache.set`); disabled when `ttl <= 0`.
 - `create_adapters(..., cache_ttl, cache_namespace)` threads cache config onto every adapter; `supervisor/agent.py` passes `config.cache.{ttl,namespace}`.
@@ -50,8 +56,8 @@ version linkage (`appVersion` 0.2.0, scan-gated `release.yml`).
 - `tests/test_openai_compat.py` (100% coverage on the module) + `force_agent` supervisor tests
 
 ### Added (Claude Code compatibility)
-- `CLAUDE.md`: entrypoint with build/test commands, architecture invariants, read-only posture, and `@imports` of `.kiro/steering/*.md` (single source of truth)
-- `.claude/`: `rules` + `skills` symlinked to `.kiro/steering` + `skills`; 6 subagents converted from `agents/<name>/`; `settings.json` (read-only permissions); `README.md`
+- `CLAUDE.md`: entrypoint with build/test commands, architecture invariants, read-only posture, and `@imports` of `steering/*.md` (single source of truth)
+- `.claude/`: `rules` + `skills` symlinked to `steering` + `skills`; 6 subagents converted from `agents/<name>/`; `settings.json` (read-only permissions); `README.md`
 - `scripts/sync-claude.sh`: idempotent regenerator (`.kiro/` + `agents/` → `.claude/`)
 
 ### Added (Spec 07: Readiness probes)
@@ -108,7 +114,7 @@ version linkage (`appVersion` 0.2.0, scan-gated `release.yml`).
 - Updated `config.py`, `.env.example`, `docker-compose.yaml`, `src/supervisor/README.md`, and Terraform `allowed_model_arns`
 
 ### Added (ADR)
-- `.kiro/specs/ADR-001-bedrock-direct-vs-strands.md`: decision to keep Bedrock-direct over the Strands SDK (with reopen signals)
+- `specs/ADR-001-bedrock-direct-vs-strands.md`: decision to keep Bedrock-direct over the Strands SDK (with reopen signals)
 
 ## [Unreleased] - 2026-06-14
 
@@ -117,7 +123,7 @@ version linkage (`appVersion` 0.2.0, scan-gated `release.yml`).
 - Total coverage: **91.72%** (up from 84%)
 - `.coveragerc`: `fail_under = 90`
 - `.github/workflows/test.yml`: `--cov-fail-under=90`
-- `.kiro/steering/milestone-criteria.md`: minimum coverage updated to 90%
+- `steering/milestone-criteria.md`: minimum coverage updated to 90%
 - New tests target uncovered branches in: kb/store, state_store, cache, investigation, bedrock, kb/budget, kb/extractor, kb/embedder, kb/rag, circuit_breaker, supervisor/agent, supervisor/distillation
 
 ### Added (Spec 18 Phase 2: Alert Ingestion + Slack post-back)
@@ -131,7 +137,7 @@ version linkage (`appVersion` 0.2.0, scan-gated `release.yml`).
 ### Documentation audit
 - Rewrote outdated docs to reflect current architecture: `ARCHITECTURE.md`, `OBSERVABILITY.md`, `PREREQUISITES.md`, `MCP_INTEGRATION.md`, `READ_ONLY_POLICY.md`
 - Deleted obsolete docs: `MIGRATION.md` (LangGraph era), `RAG_IMPLEMENTATION.md` (replaced by KNOWLEDGE-BASE.md), `LOCAL_DEVELOPMENT.md` (duplicated SETUP.md with old ports)
-- Tightened `.kiro/steering/milestone-criteria.md`: operational docs (ARCHITECTURE/SETUP/SECURITY/etc) now listed as mandatory milestone gate; new anti-pattern: "stale docs are worse than no docs"
+- Tightened `steering/milestone-criteria.md`: operational docs (ARCHITECTURE/SETUP/SECURITY/etc) now listed as mandatory milestone gate; new anti-pattern: "stale docs are worse than no docs"
 
 ### Added (Metrics audit — covering specs 06, 17, 18, 21)
 13 new custom metrics + instrumentation in existing code:
@@ -140,7 +146,7 @@ version linkage (`appVersion` 0.2.0, scan-gated `release.yml`).
 - Spec 18: `aigent.investigation.started`, `.completed`, `.duration`, `.evidence_count`
 - Spec 21: `aigent.kb.distillation.cost`, `.items_created`, `.rag.queries`, `.rag.hits`, `.budget.exhausted`
 - Updated `docs/METRICS.md` with full reference (table per domain + label cardinality)
-- Updated `.kiro/steering/milestone-criteria.md` to make metrics a mandatory milestone gate (equal weight to tests/docs)
+- Updated `steering/milestone-criteria.md` to make metrics a mandatory milestone gate (equal weight to tests/docs)
 
 ### Added (Spec 21: Incident Memory & Learning)
 - Postgres+pgvector container (`pgvector/pgvector:pg16`) for KB persistence

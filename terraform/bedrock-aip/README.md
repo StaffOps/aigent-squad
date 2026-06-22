@@ -5,7 +5,7 @@ FinOps cost allocation tags. The app invokes the AIP ARN instead of the raw
 model id, so Amazon Bedrock spend becomes filterable by tag in Cost Explorer.
 
 Per-agent cost is **not** done with per-agent AIPs. It's derived from the
-per-agent token metric (showback). See `.kiro/specs/27-bedrock-cost-attribution/`.
+per-agent token metric (showback). See `specs/27-bedrock-cost-attribution/`.
 
 ## What it creates
 

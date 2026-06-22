@@ -35,5 +35,10 @@ Thumbs.db
 .coverage
 htmlcov/
 
-# Claude Code per-user settings
-.claude/settings.local.json
+# Local AI-tool dirs — repo guidance is tool-agnostic in AGENTS.md.
+# Tool-specific config/agents are local-only (not committed).
+.claude/
+.cursor/
+.aider*
+.kiro/
+.windsurf/

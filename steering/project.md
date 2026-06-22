@@ -41,7 +41,7 @@ All agents are consultative today. They never execute `create/update/delete/term
 
 > Read-only is the **current** posture, not a permanent lock — execution is an
 > open roadmap item, gated by the spec 14 guardrails + human-in-the-loop. See
-> `.kiro/specs/14-security-hardening/` and `ADR-001`.
+> `specs/14-security-hardening/` and `ADR-001`.
 
 ## Conventions
 
@@ -54,4 +54,4 @@ All agents are consultative today. They never execute `create/update/delete/term
 
 `01-fix-blockers` → `02-unify-agent-architecture` → `03-fix-cache-observability` → `04-harden-security`.
 Deploy (Phase 2): `05-helm-chart` (Helm chart for EKS).
-See `.kiro/specs/ROADMAP.md` and `.kiro/specs/AUDIT.md`.
+See `specs/ROADMAP.md` and `specs/AUDIT.md`.

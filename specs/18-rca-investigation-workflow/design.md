@@ -97,7 +97,7 @@ class RCAResult:
 
 ### Modelo de evidência e correlação → ver `../EVIDENCE-MODEL.md`
 
-O catálogo completo de sinais (33 signals C1-C8/M1-M13/I1-I8/T1-T4/E1-E4), as 14 assinaturas de root-cause, o algoritmo de confiança e o teste de independência vivem em **`.kiro/specs/EVIDENCE-MODEL.md`** (deliberação observability+sre+troubleshoot, 2026-06-02). Resumo do que muda aqui:
+O catálogo completo de sinais (33 signals C1-C8/M1-M13/I1-I8/T1-T4/E1-E4), as 14 assinaturas de root-cause, o algoritmo de confiança e o teste de independência vivem em **`specs/EVIDENCE-MODEL.md`** (deliberação observability+sre+troubleshoot, 2026-06-02). Resumo do que muda aqui:
 
 **Correlação por CAMADAS causais, não por contagem de sinais:**
 ```

@@ -7,7 +7,7 @@ of the product, enforced in depth (4 layers below).
 > open future possibility on the roadmap — it is **not ruled out**. But it is
 > deliberately gated: read-only is the default until an explicit decision to
 > enable execution is made. When/if that happens, it is **conditional on**:
-> (a) the defense-in-depth of `.kiro/specs/14-security-hardening/` being
+> (a) the defense-in-depth of `specs/14-security-hardening/` being
 > implemented, and (b) **human-in-the-loop approval** for any mutating action.
 > Rationale: a read-only agent's worst-case under prompt injection is data
 > exfiltration; an *executing* agent's worst-case is a destructive action — so

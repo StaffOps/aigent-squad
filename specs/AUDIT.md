@@ -7,7 +7,7 @@
 docs (`docs/*`, READMEs) and version files.
 
 This document consolidates the findings that originate the specs in
-`.kiro/specs/`. Severity:
+`specs/`. Severity:
 
 - 🔴 **Blocker** — prevents the system from running or building.
 - 🟠 **High** — breaks expected behavior, architectural debt, or security risk.

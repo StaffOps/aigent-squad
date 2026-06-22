@@ -2,7 +2,7 @@
 
 ## Arquitetura
 
-Portal MkDocs Material, idêntico em convenção aos portais `staffops-chaitops` e `staffops-anomaly-detection` (consistência no ecossistema). README vira índice; conteúdo vive em `docs/src/`; specs continuam em `.kiro/specs/` (SSOT) e são **linkadas**, não duplicadas.
+Portal MkDocs Material, idêntico em convenção aos portais `staffops-chaitops` e `staffops-anomaly-detection` (consistência no ecossistema). README vira índice; conteúdo vive em `docs/src/`; specs continuam em `specs/` (SSOT) e são **linkadas**, não duplicadas.
 
 ```
 README.md            ← índice curto (overview + diagrama + tabela de links)
@@ -20,7 +20,7 @@ docs/
     ├── api/               (index, supervisor, mcp, auth)
     ├── operations/        (index, deployment, observability, troubleshooting)
     └── development/       (index, building, testing, contributing, specs)
-.kiro/specs/          ← SSOT das specs (linkado de development/specs.md)
+specs/          ← SSOT das specs (linkado de development/specs.md)
 ```
 
 ## Mapa de migração (consolidação)
@@ -68,9 +68,9 @@ Seguir formato do specialist de docs (`ANALYSIS.md` Proposta 2): Status · Conte
 
 **Quando estaria errada**: se o projeto adotar outra stack de docs no ecossistema (improvável — já há 2 portais Material).
 
-### Decisão 2: README = índice; `.kiro/specs/` = SSOT (portal linka, não duplica)
+### Decisão 2: README = índice; `specs/` = SSOT (portal linka, não duplica)
 
-**Escolha**: README curto apontando pro portal; specs permanecem em `.kiro/specs/` e são referenciadas, não copiadas.
+**Escolha**: README curto apontando pro portal; specs permanecem em `specs/` e são referenciadas, não copiadas.
 
 **Justificativa**: o anti-pattern atual é duplicação (README gigante + docs sobrepostos). Uma fonte por tipo de conteúdo elimina drift (steering `documentation-sync`). Specs têm ciclo próprio (spec-driven-workflow) — copiá-las pro portal criaria duas verdades.
 
@@ -87,7 +87,7 @@ Seguir formato do specialist de docs (`ANALYSIS.md` Proposta 2): Status · Conte
 ## Invariantes
 
 - README **não** duplica conteúdo do portal (é índice).
-- `.kiro/specs/` é a **única** fonte das specs; portal linka.
+- `specs/` é a **única** fonte das specs; portal linka.
 - Nenhum doc no portal referencia arquivo/feature inexistente.
 - Build/serve do portal roda **via Docker** (sem install local — `dev-environment`).
 - Idioma do portal consistente (inglês para open-source; specs em PT permanecem).
