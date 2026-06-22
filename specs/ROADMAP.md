@@ -76,7 +76,7 @@ inflating the version before real usage:
 - RAG/Knowledge Bases (high cost — evaluate ROI; see estimates in the README).
 - Slack integration (depends on `api/server.py` rewritten in spec 01).
 - Proactive agents (CronJobs).
-- Remaining phases 6–13 of `IMPLEMENTATION_HISTORY.md` as needed.
+- Remaining phases 6–13 of `archive/IMPLEMENTATION_HISTORY.md` as needed.
 
 ---
 

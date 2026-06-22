@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Removed (root doc cleanup — spec 24)
+- Deleted stale root docs `VERSIONS.md` and `GENERIC_VERSION.md` (v2.0-era, 2026-02-14): package versions now live in `requirements.txt`/`CHANGES.md`; the "generic/sanitized" note described the obsolete `src/agents/` 5-agent layout.
+- Archived `IMPLEMENTATION_HISTORY.md` → `archive/` (historical v2.0 roadmap, phases 6–13; still referenced by `specs/ROADMAP.md`).
+- Updated refs: `README.md` (Getting Started + roadmap pointer), `specs/ROADMAP.md`.
+
 ### Changed (infra/ reorganized)
 - `terraform/` → `infra/terraform/` (IaC under one roof). `git mv`, history preserved.
 - Observability configs grouped: `infra/{otel-collector,tempo,prometheus}.yaml` + `infra/grafana/` → `infra/observability/`. `docker-compose.yaml` volume paths updated (validated with `docker compose config`).

@@ -334,9 +334,8 @@ curl http://localhost:8000/health
 
 ### Getting Started
 - [QUICKSTART.md](QUICKSTART.md) - Setup in 3 steps
-- [IMPLEMENTATION_HISTORY.md](IMPLEMENTATION_HISTORY.md) - Complete roadmap (Phases 1-13)
-- [VERSIONS.md](VERSIONS.md) - Package versions
 - [CHANGES.md](CHANGES.md) - Changelog
+- [archive/IMPLEMENTATION_HISTORY.md](archive/IMPLEMENTATION_HISTORY.md) - Historical roadmap (v2.0, Phases 1-13)
 
 ### Technical Docs
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) - Architecture
@@ -500,7 +499,7 @@ See [docs/READ_ONLY_POLICY.md](docs/READ_ONLY_POLICY.md) and
 - Predictive analysis
 - Multi-modal (screenshots, diagrams)
 
-**See**: [IMPLEMENTATION_HISTORY.md](IMPLEMENTATION_HISTORY.md) for complete roadmap
+**See**: [archive/IMPLEMENTATION_HISTORY.md](archive/IMPLEMENTATION_HISTORY.md) for complete roadmap
 
 ---
 
