@@ -156,11 +156,18 @@ worker polls every ~500ms, plus `asyncio.wait_for` timeout and `PoolFullError`.
 
 - The gateway holds **no orchestration logic** (routing/fan-out/investigation live
   only in the supervisor).
-- The guardrail (spec 14) stays in the supervisor backend — the gateway never
-  evaluates or weakens it (fail-closed preserved).
+- **The gateway SHALL NOT evaluate the guardrail nor hold guardrail credentials.**
+  The supervisor evaluates the guardrail (spec 14, fail-closed) on **every**
+  `/internal/process` call, regardless of caller identity — so even a request that
+  somehow bypasses NP/token still gets guardrail-checked. The trust boundary for
+  *injection defense* is the supervisor, not the gateway.
 - Local pool semaphore never depends on Redis (pod self-protection survives Redis
   outage); global guard fails open per spec 25.
 - Backpressure returns `503 + Retry-After`; the gateway never queues unboundedly.
+- **Gateway readiness is decoupled from supervisor health**: `/ready` = Redis
+  reachable + pool functional. Supervisor availability is handled at request-time
+  (preflight → 503), NOT in the readiness probe — coupling them would turn a
+  supervisor outage into a gateway-removed-from-LB cascade, defeating the split.
 - State (sessions, jobs, locks, budget) lives in Redis/DynamoDB — both tiers
   stateless and restart-safe.
 - `/healthz` never checks external deps; `/ready` does.
@@ -176,6 +183,46 @@ POST /internal/process            (supervisor, gateway-only, internal token)
 The supervisor keeps `process_request` untouched; `/internal/process` is a thin
 wrapper. The existing public `/query` and `/v1/*` routes **move to the gateway**;
 the supervisor's public surface shrinks to the internal contract + health.
+
+## Security: gateway ↔ supervisor link (round-table 2026-06-22)
+
+Three independent layers — the link **trusts no single control alone**:
+
+| Layer | Control | When |
+|-------|---------|------|
+| Network | NetworkPolicy: supervisor `/internal/*` ingress only from `app.kubernetes.io/name: gateway`; deny-all else | **Day 1** |
+| AuthZ | `SUPERVISOR_INTERNAL_TOKEN` — a **distinct** secret from `INTERNAL_API_TOKEN`, mounted as file (mode 0400, per `cloud-security`/`12-factor`), fail-closed if missing | **Day 1** |
+| Identity/encryption | Istio Ambient mTLS + `AuthorizationPolicy` restricting `/internal/*` to the gateway ServiceAccount (SPIFFE) | When mesh lands (additive) |
+
+The token is **kept after** mTLS lands (defense-in-depth: mTLS = identity at L4;
+token = authorization intent at L7). A ztunnel crash or mesh misconfig must not
+silently open the privileged endpoint. NetworkPolicy is independent of mesh health.
+
+## Resolved defaults — worker pool + timeouts (round-table 2026-06-22)
+
+| Parameter | Value | Reason |
+|-----------|-------|--------|
+| `max_concurrent` (per replica) | **20** | IO-bound edge; ~matches 2 supervisor replicas × 10 Bedrock slots |
+| Pool shape | **global, immediate-reject** | No per-agent pools, no queue — any queue adds tail latency. `PoolFullError → 503` |
+| `job_timeout` (hard backstop) | **45s** | Investigation p99 ~30s → 50% headroom; 120s would hold zombie slots too long. Stalls caught earlier by idle timeout |
+| `first_byte_timeout` | **15s** | Supervisor must start producing within 15s |
+| `idle_stream_timeout` | **10s** | No data for 10s mid-stream → abort, free the slot (the real stall protection) |
+| `cancel_poll_interval` | **500ms** | ChaitOps reference |
+| `Retry-After` | **dynamic + jitter** `ceil(active/max × avg_latency) + random(0,3)` | Avoid thundering-herd retries |
+| httpx `max_connections` | **`max_concurrent + 5`** | Prevent hidden backpressure below the semaphore |
+
+503 response distinguishes subtypes in the body: `service_overloaded` (pool full,
+self-healing) vs `backend_unavailable` (supervisor unreachable, needs action).
+
+Per-agent pools are deferred; if ever needed, the shape is a **priority lane**
+(2 pools), not N per-agent pools — a separate spec.
+
+## Shared-module placement (avoids spec-25 coupling)
+
+`RateLimiter` / `BudgetGuard` live in **`src/core/`** (not `src/gateway/` nor
+`src/supervisor/`), so spec 31 and spec 25 can land in either order without
+circular imports. The gateway imports them for admission; if spec 25 hasn't
+landed, spec 31 L3 implements them in `src/core/` (~150 LoC) and spec 25 reuses.
 
 ## External dependencies
 
