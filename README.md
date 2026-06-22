@@ -515,6 +515,11 @@ This is a reference implementation based on AWS Labs Agent Squad best practices.
 - Read-only by default (execution = future, gated)
 - Production-grade observability
 
+**Workflow**: work on `dev` (every push runs lint + tests + coverage ≥90% +
+dep/SAST scans); release via PR `dev → main` (scan-gated image publish) and a
+`vX.Y.Z` tag. See [docs/CI-CD.md](docs/CI-CD.md) for the full pipeline and
+versioning model.
+
 ---
 
 ## 📚 References
