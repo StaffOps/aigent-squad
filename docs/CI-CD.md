@@ -8,41 +8,39 @@ publishes — and nothing reaches a registry without passing Trivy first.**
 
 ## Branching
 
-| Branch | Role | Protection |
-|--------|------|------------|
-| `main` | Production source of truth | Policy: PRs **only from `dev`** (guard job). |
-| `dev` | Integration | Policy: PRs from `feature/*`. |
-| `feature/*`, `fix/*` | Day-to-day work | — |
+| Branch | Role | Workflow |
+|--------|------|----------|
+| `main` | Production source of truth | Receives **only PRs from `dev`** (guard job). Publishing happens here. |
+| `dev` | Working / integration branch | **Direct commits** (solo dev). Every push runs the full validation suite. |
+| `feature/*`, `fix/*` | Optional, for larger/risky changes | PR into `dev` |
 
-Flow: `feature/* ──PR──▶ dev ──PR──▶ main`
+Flow (solo, current): `commit ──▶ dev (validated on push) ──PR──▶ main ──▶ publish`
 
-> ⚠️ **Branch protection is not yet enforced.** GitHub branch protection and
-> rulesets require **GitHub Pro/Team** (or a public repo) for private repos —
-> the current plan returns HTTP 403. So "no direct push" is **policy, not
-> enforced**; a `git push` straight to `main`/`dev` is still technically
-> possible. What *is* enforced today: the `guard` job fails any PR to `main`
-> whose source isn't `dev`, and all CI checks run on every PR. To get true
-> enforcement, upgrade the plan or make the repo public, then enable the
-> required checks below. Tracked in `HANDOFF.md`.
+Because the project is single-developer for now, `dev` is committed to directly —
+no `feature/* → dev` PR step. The same checks that would run on a PR (`lint`,
+`test`+coverage, `dep_scan`, `bandit`) run on **every push to `dev`**, so each
+commit is validated. The difference vs a PR gate: validation is **post-commit**
+(fix-forward if a push goes red) rather than blocking. `main` keeps the PR gate.
 
-`main` accepting PRs only from `dev` is enforced by a guard job (below) — GitHub
-branch protection alone cannot restrict the source branch anyway.
+> ⚠️ **Branch protection is not enforced.** GitHub branch protection / rulesets
+> need **GitHub Pro/Team** (or a public repo) for private repos — the current
+> plan returns HTTP 403. So the rules above are **policy, not a technical lock**.
+> What *is* enforced today: the `guard` job fails any PR to `main` not from `dev`,
+> and CI runs on every push/PR. Tracked in `HANDOFF.md`.
 
 ---
 
 ## What runs, and WHEN
 
-Code checks (`lint`, `test`, `dep_scan`, `bandit`) run on **every** PR — they are
-cheap and are the required gates, so they always report and never hang a merge.
-The docs `build_check` is **path-filtered** (`docs/**`, `mkdocs.yml`) and is not a
-required gate — it runs only when docs change.
+Code checks (`lint`, `test`, `dep_scan`, `bandit`) run on **every push and PR** to
+`dev`/`main` — cheap, and the validation/gate. The docs `build_check` is
+**path-filtered** (`docs/**`, `mkdocs.yml`) and runs only on PRs that touch docs.
 
 | Event | Code lane | Docs lane |
 |-------|-----------|-----------|
-| **PR → dev** | `lint` · `test` (cov ≥90%) · SAST (Bandit) · Trivy **fs** (deps) | `mkdocs build` |
-| **push: dev** (post-merge) | nothing required (optional re-`test`) | nothing (prod docs only from `main`) |
+| **push: dev** (direct commit) | `lint` · `test` (cov ≥90%) · SAST (Bandit) · Trivy **fs** (deps) | — |
 | **PR → main** (only from `dev`) | `guard` (head==dev) · `lint` · `test` · SAST (Bandit) · Trivy **fs** (deps) | `mkdocs build --strict` |
-| **push: main** (post-merge) | `build.yml`: build → scan → push `latest`+`sha` | `docs.yml`: deploy → `staffops.github.io/aigent-squad/` |
+| **push: main** (merge) | `build.yml`: build local → **Trivy gate** → push `latest`+`sha` · SBOM | `docs.yml`: deploy → `staffops.github.io/aigent-squad/` |
 | **tag `v*`** (release) | `release.yml`: build local → **Trivy gate** → push **`X.Y.Z`**+`latest` · SBOM · GitHub Release | — |
 
 ### Why scan happens at two scopes (not twice)
