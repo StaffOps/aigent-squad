@@ -3,11 +3,13 @@ site_description: Multi-agent platform for AWS and Kubernetes operations
 site_url: https://staffops.github.io/aigent-squad/
 repo_url: https://github.com/StaffOps/staffops-aigent-squad
 repo_name: StaffOps/aigent-squad
-edit_uri: edit/main/docs/
+edit_uri: edit/main/docs/site/
+
+docs_dir: docs/site
 
 theme:
   name: material
-  custom_dir: overrides
+  custom_dir: docs/site/overrides
   logo: assets/logo.png
   favicon: assets/logo.png
   palette:
