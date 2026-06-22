@@ -115,7 +115,7 @@ services:
     image: otel/opentelemetry-collector-contrib:0.154.0
     command: ["--config=/etc/otelcol/config.yaml"]
     volumes:
-      - ./infra/otel-collector.yaml:/etc/otelcol/config.yaml:ro
+      - ./infra/observability/otel-collector.yaml:/etc/otelcol/config.yaml:ro
     ports:
       - "4317:4317"
       - "4318:4318"
@@ -125,7 +125,7 @@ services:
   tempo:
     image: grafana/tempo:2.10.7
     volumes:
-      - ./infra/tempo.yaml:/etc/tempo/config.yaml:ro
+      - ./infra/observability/tempo.yaml:/etc/tempo/config.yaml:ro
       - tempo-data:/var/tempo
     command: ["-config.file=/etc/tempo/config.yaml"]
 
@@ -138,7 +138,7 @@ services:
       - "--web.console.libraries=/usr/share/prometheus/console_libraries"
       - "--web.console.templates=/usr/share/prometheus/consoles"
     volumes:
-      - ./infra/prometheus.yaml:/etc/prometheus/prometheus.yml:ro
+      - ./infra/observability/prometheus.yaml:/etc/prometheus/prometheus.yml:ro
     ports:
       - "9099:9090"
 
@@ -151,8 +151,8 @@ services:
       - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
       - GF_AUTH_DISABLE_LOGIN_FORM=true
     volumes:
-      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
-      - ./infra/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - ./infra/observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
     depends_on:
       - tempo
       - prometheus

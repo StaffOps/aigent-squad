@@ -117,7 +117,7 @@ closed** (Redis/DynamoDB with no error handling), and is **blind/indefensible**
 
 > **ADR-001** ([`ADR-001-bedrock-direct-vs-strands.md`](ADR-001-bedrock-direct-vs-strands.md)): decision to keep Bedrock-direct (not adopt Strands). Reopen signal: agents stop being consultative read-only.
 
-> **Infra (Terraform)** — was not a numbered spec; delivered in `terraform/`
+> **Infra (Terraform)** — was not a numbered spec; delivered in `infra/terraform/`
 > (covers spec 12 `terraform-infra` + part of 13 `iam-least-privilege`): modules
 > `iam/` (IRSA + read-only policies), `dynamodb/` (sessions), `bedrock/` (VPC
 > endpoints), `bedrock-aip/` (cost attribution). Tags centralized in
@@ -310,8 +310,8 @@ without waiting for a human). Convergence by voting/confidence, not a fixed roun
 | 10-metrics-and-cost-observability | ✅ Phase 1 (2026-06-18) — efficiency (collect/llm duration, prompt size) + quality (rounds) |
 | 30-datasource-cache-layer | ✅ (2026-06-21) — sha256 TTL cache wired into adapters, fail-open; `aigent.cache.hits/misses` now emitted |
 | 11-bedrock-resilience-cost | Not started |
-| 12-terraform-infra | Delivered outside the numbered spec (see `terraform/`) |
-| 13-iam-least-privilege | Partially delivered in `terraform/iam/` |
+| 12-terraform-infra | Delivered outside the numbered spec (see `infra/terraform/`) |
+| 13-iam-least-privilege | Partially delivered in `infra/terraform/iam/` |
 | 14-security-hardening | Spec written; not implemented |
 | 15-sli-slo-framework | Not started |
 | 16-incident-runbooks | Not started |

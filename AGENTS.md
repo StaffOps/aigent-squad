@@ -122,7 +122,7 @@ specs/                  ← Spec-driven planning (source of truth)
 
 steering/               ← project.md, efficiency-cost.md, licensing-clean-room.md, milestone-criteria.md
 
-terraform/              ← IAM/IRSA, DynamoDB, Bedrock endpoints, cost AIP
+infra/terraform/              ← IAM/IRSA, DynamoDB, Bedrock endpoints, cost AIP
 docs/                   ← ARCHITECTURE.md, SECURITY.md, METRICS.md, HOW-TO-NEW-AGENT.md, ...
 ```
 

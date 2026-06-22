@@ -354,8 +354,8 @@ curl http://localhost:8000/health
 - [docs/COMPETITIVE-ANALYSIS.md](docs/COMPETITIVE-ANALYSIS.md) - Comparison vs. AI SRE agents (Aurora, OpenSRE, etc.) + positioning
 
 ### Infrastructure (Terraform)
-- [terraform/README.md](terraform/README.md) - AWS modules (IAM/IRSA, DynamoDB, Bedrock endpoints, cost AIP)
-- [terraform/bedrock-aip/README.md](terraform/bedrock-aip/README.md) - Application Inference Profiles + cost attribution
+- [infra/terraform/README.md](infra/terraform/README.md) - AWS modules (IAM/IRSA, DynamoDB, Bedrock endpoints, cost AIP)
+- [infra/terraform/bedrock-aip/README.md](infra/terraform/bedrock-aip/README.md) - Application Inference Profiles + cost attribution
 
 ### Agents
 Agents are config-driven (`agent.yaml` + `prompt.md`) under [`agents/`](agents/) — see [docs/HOW-TO-NEW-AGENT.md](docs/HOW-TO-NEW-AGENT.md). Supervisor internals: [src/supervisor/README.md](src/supervisor/README.md).
@@ -478,7 +478,7 @@ See [docs/READ_ONLY_POLICY.md](docs/READ_ONLY_POLICY.md) and
 - Enable RAG in all agents
 
 ### Phase 3: Production Deploy (3-5 days)
-- Terraform infrastructure — ✅ modules ready (IAM/IRSA, DynamoDB, Bedrock endpoints, cost AIP); see [terraform/](terraform/)
+- Terraform infrastructure — ✅ modules ready (IAM/IRSA, DynamoDB, Bedrock endpoints, cost AIP); see [infra/terraform/](infra/terraform/)
 - CI/CD pipeline (GitHub Actions)
 - EKS deployment
 

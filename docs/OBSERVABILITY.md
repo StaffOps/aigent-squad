@@ -79,7 +79,7 @@ JSON structured logs with automatic trace correlation:
 
 ## Dashboards
 
-Pre-provisioned (via `infra/grafana/provisioning/`):
+Pre-provisioned (via `infra/observability/grafana/provisioning/`):
 - **01-api-business-metrics** — RED metrics, tokens, costs
 - **02-workers-background** — Background task metrics
 - **03-traces-reliability** — p50/p95/p99 latency from traces

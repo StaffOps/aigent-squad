@@ -14,7 +14,7 @@ The [`example/`](./example) wires all modules together against an existing
 EKS cluster + VPC.
 
 ```
-terraform/
+infra/terraform/
 ├── iam/          # IRSA role + policies
 ├── dynamodb/     # sessions table
 ├── bedrock/      # VPC endpoints + logging
@@ -73,7 +73,7 @@ aws bedrock list-foundation-models --region us-east-1 \
 ### 2. Apply
 
 ```bash
-cd terraform/example
+cd infra/terraform/example
 terraform init
 terraform plan
 terraform apply
@@ -196,7 +196,7 @@ on the host (see root `docker-compose.yaml`).
 ## Removing
 
 ```bash
-cd terraform/example
+cd infra/terraform/example
 terraform destroy
 ```
 

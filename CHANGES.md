@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Changed (infra/ reorganized)
+- `terraform/` → `infra/terraform/` (IaC under one roof). `git mv`, history preserved.
+- Observability configs grouped: `infra/{otel-collector,tempo,prometheus}.yaml` + `infra/grafana/` → `infra/observability/`. `docker-compose.yaml` volume paths updated (validated with `docker compose config`).
+- `infra/` now organized by domain: `terraform/`, `observability/`, `librechat/`, `postgres/`.
+- Real path refs updated (README, AGENTS.md, ROADMAP, terraform README, OBSERVABILITY.md). Illustrative `terraform/ec2.tf` examples (read-only refusal) left as-is.
+
 ### Changed (AI-tool-agnostic layout)
 - `AGENTS.md` is now the canonical, tool-neutral agent guide (was `CLAUDE.md`); `CLAUDE.md` is a one-line pointer (`See @AGENTS.md`). Any AI assistant (Claude Code, Cursor, Copilot, Aider…) reads `AGENTS.md`.
 - Specs moved `.kiro/specs/` → `specs/` and steering `.kiro/steering/` → `steering/` (history preserved); `.kiro/` removed. All 70+ references across docs/README/specs updated.
