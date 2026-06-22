@@ -350,3 +350,119 @@ async def test_invoke_can_opt_out_of_language_directive(mock_boto3_client):
 
     body = json.loads(mock_boto3_client.invoke_model.call_args.kwargs["body"])
     assert body["system"][0]["text"] == "BASE"
+
+
+# ---------------------------------------------------------------------------
+# Guardrail integration (spec 14 Phase 1)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_input_guardrail_block_skips_invoke(mock_boto3_client):
+    """spec 14: INPUT guardrail blocks → invoke_model is NEVER called."""
+    from src.core.bedrock import BedrockClient
+    from src.core.guardrail import GuardrailBlockedError
+
+    client = BedrockClient()
+    client.client = mock_boto3_client
+
+    with patch("src.core.bedrock.guardrail") as mock_gr:
+        mock_gr.apply.side_effect = GuardrailBlockedError(
+            reason="blocked", source="INPUT", categories=["topic:Attack"]
+        )
+        with pytest.raises(GuardrailBlockedError) as exc_info:
+            await client.invoke(
+                messages=[{"role": "user", "content": "evil"}],
+                system_prompt="sys",
+                agent_id="test",
+            )
+        assert exc_info.value.reason == "blocked"
+        mock_boto3_client.invoke_model.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_output_guardrail_block_raises(mock_boto3_client):
+    """spec 14: OUTPUT guardrail blocks → raises after invoke_model ran."""
+    from src.core.bedrock import BedrockClient
+    from src.core.guardrail import GuardrailBlockedError
+
+    mock_boto3_client.invoke_model.return_value = {
+        "body": MagicMock(read=MagicMock(
+            return_value=b'{"content":[{"text":"leaked PII"}],"usage":{"input_tokens":1,"output_tokens":1}}'))
+    }
+    client = BedrockClient()
+    client.client = mock_boto3_client
+
+    call_count = [0]
+
+    def _side_effect(text, source, **kwargs):
+        call_count[0] += 1
+        if source == "OUTPUT":
+            raise GuardrailBlockedError(reason="blocked", source="OUTPUT", categories=["pii:SSN"])
+
+    with patch("src.core.bedrock.guardrail") as mock_gr:
+        mock_gr.apply.side_effect = _side_effect
+        with pytest.raises(GuardrailBlockedError) as exc_info:
+            await client.invoke(
+                messages=[{"role": "user", "content": "show me data"}],
+                system_prompt="sys",
+            )
+        assert exc_info.value.source == "OUTPUT"
+        # invoke_model WAS called (input passed)
+        mock_boto3_client.invoke_model.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_guardrail_blocked_does_not_trip_circuit_breaker(mock_boto3_client):
+    """spec 14: GuardrailBlockedError does NOT record a circuit-breaker failure."""
+    from src.core.bedrock import BedrockClient
+    from src.core.guardrail import GuardrailBlockedError
+
+    client = BedrockClient()
+    client.client = mock_boto3_client
+
+    with patch("src.core.bedrock.guardrail") as mock_gr:
+        mock_gr.apply.side_effect = GuardrailBlockedError(
+            reason="blocked", source="INPUT"
+        )
+        with patch.object(client.circuit_breaker, "record_failure") as mock_fail:
+            with pytest.raises(GuardrailBlockedError):
+                await client.invoke(
+                    messages=[{"role": "user", "content": "x"}],
+                    system_prompt="s",
+                )
+            mock_fail.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_user_text_extracts_user_role_only(mock_boto3_client):
+    """_user_text only picks user-role messages, ignoring assistant."""
+    from src.core.bedrock import BedrockClient
+    client = BedrockClient()
+    messages = [
+        {"role": "assistant", "content": "I'm the assistant"},
+        {"role": "user", "content": "user message"},
+        {"role": "system", "content": "system msg"},
+    ]
+    result = client._user_text(messages)
+    assert "user message" in result
+    assert "assistant" not in result
+    assert "system" not in result
+
+
+@pytest.mark.asyncio
+async def test_user_text_handles_anthropic_blocks(mock_boto3_client):
+    """_user_text extracts text from Anthropic block list format."""
+    from src.core.bedrock import BedrockClient
+    client = BedrockClient()
+    messages = [
+        {"role": "user", "content": [
+            {"type": "text", "text": "block one"},
+            {"type": "image", "data": "..."},
+            {"type": "text", "text": "block two"},
+        ]},
+    ]
+    result = client._user_text(messages)
+    assert "block one" in result
+    assert "block two" in result
+    assert "..." not in result

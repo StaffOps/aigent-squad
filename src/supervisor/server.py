@@ -14,6 +14,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 from src.core.auth import require_token
 from src.core.config import settings
+from src.core.guardrail import GuardrailBlockedError
 from src.core.health import DependencyChecker
 from src.core.kb.store import kb_store
 
@@ -77,6 +78,10 @@ async def query(request: QueryRequest):
             mode=request.mode or "query",
         )
         return response
+    except GuardrailBlockedError as e:
+        # Fail-closed (spec 14): security guardrail refused the request.
+        # 403 — not 500 — so the caller knows this was a policy decision.
+        raise HTTPException(status_code=403, detail="Request blocked by security guardrail") from e
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -184,12 +189,19 @@ async def openai_chat_completions(
     user_id = request.user or "librechat"
     session_id = x_session_id or f"openai-{user_id}"
 
-    result = await supervisor.process_request(
-        user_input=user_input,
-        user_id=user_id,
-        session_id=session_id,
-        force_agent=force_agent,
-    )
+    try:
+        result = await supervisor.process_request(
+            user_input=user_input,
+            user_id=user_id,
+            session_id=session_id,
+            force_agent=force_agent,
+        )
+    except GuardrailBlockedError:
+        # Fail-closed (spec 14) — OpenAI-shaped 403 so LibreChat surfaces it.
+        return JSONResponse(
+            status_code=403,
+            content={"error": {"type": "guardrail_blocked", "message": "Request blocked by security guardrail"}},
+        )
 
     if request.stream:
         return StreamingResponse(

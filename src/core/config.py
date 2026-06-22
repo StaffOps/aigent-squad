@@ -5,6 +5,13 @@ class Settings(BaseSettings):
     # AWS
     aws_region: str = "us-east-1"
     bedrock_model_id: str = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"  # Claude Sonnet 4.5 (US inference profile; model requires INFERENCE_PROFILE, not on-demand)
+
+    # Bedrock Guardrail — anti-prompt-injection (spec 14, L1). Fail-closed:
+    # when guardrail_enabled and no id is configured, invoke is refused (not
+    # bypassed). Provision via infra/terraform/guardrail (outputs id/version).
+    guardrail_enabled: bool = True
+    guardrail_id: Optional[str] = None
+    guardrail_version: str = "DRAFT"
     
     # DynamoDB
     dynamodb_sessions_table: str = "agent-sessions"

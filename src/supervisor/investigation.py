@@ -7,6 +7,7 @@ import time as time_mod
 from otel_helper import get_tracer
 
 from src.core.bedrock import bedrock
+from src.core.guardrail import GuardrailBlockedError
 from src.core.investigation import (
     Evidence, RCAResult, InvestigationState,
     build_timeline, correlate,
@@ -93,6 +94,13 @@ async def run_investigation(
             for name in chosen
         ]
         results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # Fail-closed (spec 14): a guardrail refusal on the (shared) symptom is a
+        # security decision — propagate it (→ 403) instead of producing an empty
+        # RCA from zero evidence.
+        for result in results:
+            if isinstance(result, GuardrailBlockedError):
+                raise result
 
         # Parse responses into Evidence
         for name, result in zip(chosen, results):

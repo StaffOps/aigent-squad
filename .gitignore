@@ -42,3 +42,9 @@ htmlcov/
 .aider*
 .kiro/
 .windsurf/
+
+# Terraform — local state, provider binaries, lock files
+**/.terraform/
+*.tfstate
+*.tfstate.*
+crash.log

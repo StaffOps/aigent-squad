@@ -25,3 +25,16 @@ def make_agent_dir(tmp_path):
         return agent_dir
 
     return _make
+
+
+@pytest.fixture(autouse=True)
+def _disable_guardrail_by_default(monkeypatch):
+    """Disable the module-level guardrail singleton so tests that predate spec 14
+    don't trip the fail-closed path. Tests that exercise the guardrail explicitly
+    patch it themselves.
+    """
+    try:
+        from src.core.guardrail import guardrail
+        monkeypatch.setattr(guardrail, "enabled", False)
+    except ImportError:
+        pass

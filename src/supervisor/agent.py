@@ -4,6 +4,7 @@ import time
 from datetime import datetime, timezone
 from opentelemetry import trace
 from src.core.classifier import Classifier, ClassifierResult, AgentMatch
+from src.core.guardrail import GuardrailBlockedError
 from src.core.state_store import storage, ConversationMessage
 from src.core.logger import logger, log_request, log_response, log_error
 from src.core.metrics import request_counter, error_counter, request_duration, fanout_calls, fanout_agents_consulted, fanout_agents_failed
@@ -168,6 +169,10 @@ class SupervisorAgent:
                     user_id, session_id, start_time
                 )
 
+            except GuardrailBlockedError:
+                # Fail-closed (spec 14): propagate so the entrypoint returns 403.
+                # The audit log was already emitted inside the guardrail client.
+                raise
             except Exception as e:
                 log_error("supervisor", e, user_id=user_id, session_id=session_id)
                 return {
@@ -195,6 +200,9 @@ class SupervisorAgent:
                     session_id=session_id,
                     chat_history=agent_history,
                 )
+            except GuardrailBlockedError:
+                # Fail-closed (spec 14): propagate to the entrypoint (→ 403).
+                raise
             except Exception as e:
                 logger.error("Agent processing error", extra={
                     "agent_id": agent_name, "error": str(e)
@@ -237,6 +245,13 @@ class SupervisorAgent:
             ]
 
             results = await asyncio.gather(*tasks, return_exceptions=True)
+
+            # Fail-closed (spec 14): a GuardrailBlockedError from ANY agent is a
+            # security refusal, not a transient failure to route around. Refuse
+            # the whole request (→ 403) rather than synthesizing partial results.
+            for r in results:
+                if isinstance(r, GuardrailBlockedError):
+                    raise r
 
             ok: list[tuple[str, str]] = []
             failed: list[str] = []

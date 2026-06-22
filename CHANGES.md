@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+### Added (Spec 14 Phase 1: Bedrock Guardrail + fail-closed anti-prompt-injection)
+- `infra/terraform/guardrail/`: `aws_bedrock_guardrail` (PROMPT_ATTACK `HIGH` input filter — natively multi-language; harmful-content filters input+output; PII `BLOCK`; optional operator-defined denied topics) + a published immutable version. Outputs `guardrail_id`/`guardrail_version` for the app to pin.
+- `src/core/guardrail.py`: `GuardrailClient.apply(text, source, …)` evaluates untrusted input (pre-invoke) and model output (post-invoke) via the `apply_guardrail` API — a distinct evaluation from the agent's prompt (Decision 1: an injection that fools the LLM does not fool the guardrail). **Fail-closed** (Decision 2): a block OR guardrail unavailability/misconfiguration raises `GuardrailBlockedError` — never bypasses to the model.
+- `src/core/bedrock.py`: guardrail applied in `_invoke_sync` (INPUT before spend, OUTPUT before return), outside the retry loop. `GuardrailBlockedError` is re-raised without tripping the circuit breaker (security refusal ≠ Bedrock fault). New `user_id`/`session_id` invoke params for audit traceability.
+- Fail-closed propagation: `classifier` (no keyword-fallback on block), `supervisor` (`process_request`/`_single_agent_call`/`_fan_out` — refuses if **any** agent is blocked), `investigation` (refuses rather than emit an empty RCA). Mapped to **HTTP 403** at `/query` and `/v1/chat/completions` (OpenAI-shaped error).
+- Structured audit log (no payload in clear text): `audit=True`, event, source, `agent_id`/`user_id`/`session_id`, and a sha256[:12] digest. `_extract_categories` records only detector labels, never matched text.
+- `src/core/config.py`: `guardrail_enabled` (default `True`), `guardrail_id`, `guardrail_version` (`DRAFT` dev default; prod pins the Terraform-published version).
+- Tests: `tests/test_guardrail.py` (25) + guardrail cases in `tests/test_bedrock.py`. **99% coverage** on `guardrail.py`. Independent test-author + code-review (APPROVE-WITH-NITS, nits fixed) per `verification-independence`.
+
 ### Removed (root doc cleanup — spec 24)
 - Deleted stale root docs `VERSIONS.md` and `GENERIC_VERSION.md` (v2.0-era, 2026-02-14): package versions now live in `requirements.txt`/`CHANGES.md`; the "generic/sanitized" note described the obsolete `src/agents/` 5-agent layout.
 - Archived `IMPLEMENTATION_HISTORY.md` → `archive/` (historical v2.0 roadmap, phases 6–13; still referenced by `specs/ROADMAP.md`).

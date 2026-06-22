@@ -29,7 +29,12 @@ Order by value/risk. Each layer is an independent deliverable — not big-bang.
 ## Phase 1 status table (update when implementing)
 | Task | State | Note |
 |------|-------|------|
-| 1–14 | ❌ not started | spec written; implementation pending |
+| 1 — Terraform guardrail | ✅ done | `infra/terraform/guardrail/` — `aws_bedrock_guardrail` (PROMPT_ATTACK HIGH, content filters, PII BLOCK, optional denied topics) + published version; outputs `guardrail_id`/`guardrail_version` |
+| 2 — GuardrailClient in invoke | ✅ done | `src/core/guardrail.py` applied in `bedrock._invoke_sync` INPUT (pre-invoke) + OUTPUT (post-invoke) via `apply_guardrail` (separate evals per Decision 1) |
+| 3 — Fail-closed → 403 | ✅ done | block OR unavailable/misconfigured → `GuardrailBlockedError`; propagated through classifier/supervisor/investigation (fail-closed on ANY agent) → HTTP 403 at `/query` and `/v1/chat/completions`. Does NOT trip the Bedrock circuit breaker |
+| 4 — Structured audit log | ✅ done | `GuardrailClient._audit` — `audit=True`, event, source, agent_id/user_id/session_id, sha256[:12] digest. Never logs the payload in clear text (`_extract_categories` returns only labels) |
+| 5 — Tests ≥90% | ✅ done | `tests/test_guardrail.py` (25) + guardrail cases in `tests/test_bedrock.py`; **99% coverage** on `guardrail.py`. Independent test-author + code-review (APPROVE) per `verification-independence` |
+| 6–14 | ❌ not started | Phases 2–5 (canary, output filter, rate limit, input scanner, multi-language suite, docs) pending |
 
 ## Promotion triggers (when to reopen / harden)
 - Guardrail false-positives block legitimate use → add our own detector as an L1 fallback.
