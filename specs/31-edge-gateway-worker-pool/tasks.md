@@ -36,6 +36,7 @@ layers add admission, scaling, validation. Reuses `staffops-chaitops` patterns
 - [ ] T19: (NetworkPolicy already day-1 via T5c)
 - [ ] T19b: Argo Rollout canary Ingress cutover (20→50→100%); rollback = revert Ingress backend
 - [ ] T19c: Rewire `mcp-server/mcp-server.py` default `SUPERVISOR_URL` to the **gateway** `/query` (was the supervisor :8000/query, which no longer exists — supervisor is :8001 `/internal/*` only). Local docker-compose: add gateway service, point mcp-server + LibreChat at it.
+- [ ] T19d: (hardening) Make `AdmissionGuard.check_budget` atomic via an EVAL/Lua check-and-reserve (closes the GET→compare→INCR TOCTOU; code-review 2026-06-22). Deferred from L3 because the test fakeredis lacks `eval`; needs a real-Redis integration test.
 
 ## Phase 5 — Docs + validation
 - [ ] T20: `docs/ARCHITECTURE.md` (or site) — two-tier topology + contract + 3-layer link security + concurrency model (local vs global)
@@ -60,8 +61,8 @@ layers add admission, scaling, validation. Reuses `staffops-chaitops` patterns
 | T10 (`/jobs/{id}/cancel`) | ✅ done | 202 cancelling / 404 not-found |
 | T11 (metrics) | ✅ done | `gateway.pool_rejections`/`pool_depth`/`queue_wait`/`redis_fallback_active` |
 | T12 (tests L2) | ✅ done | 62 tests, **92% coverage** (internal_auth 100%, auth 100%, main 93%, client 97%, pool 89%); code-review APPROVE-WITH-NITS (nits fixed) |
-| T13–T15 (admission L3) | ⬜ pending | rate/budget guards in `src/core/` (co-with or after spec 25) |
-| T16–T19b (deploy L4) | ⬜ pending | Helm two-tier, HPA, NetworkPolicy, Rollout cutover |
+| T13–T15 (admission L3) | ✅ done | `src/core/rate_limiter.py` (`AdmissionGuard` + `estimate_cost`, fail-open, global rate+budget); wired into both gateway routes before pool/preflight; 429 rate / 503 budget with headers; `rate_limit.blocks` metric. 100% coverage on rate_limiter; main.py 99%. Independent author + review (APPROVE-WITH-NITS). Budget TOCTOU hardening → T19d |
+| T16–T19b (deploy L4) | ⬜ pending | Helm two-tier, HPA, NetworkPolicy, Rollout cutover, mcp-server rewire |
 | T20–T23 (docs/validation L5) | ⬜ pending | architecture docs, k6, metrics doc, final review |
 
 ## Dependencies / sequencing

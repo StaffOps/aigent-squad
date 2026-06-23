@@ -106,6 +106,12 @@ gateway_redis_fallback_active = meter.create_counter(
     unit="1",
 )
 
+rate_limit_blocks = meter.create_counter(
+    name="aigent.rate_limit.blocks",
+    description="Requests blocked by admission guards (rate or budget)",
+    unit="1",
+)
+
 # === Spec 17: Multi-agent fan-out ===
 fanout_calls = meter.create_counter(
     name="aigent.fanout.calls",

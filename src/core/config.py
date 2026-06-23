@@ -45,6 +45,13 @@ class Settings(BaseSettings):
     gateway_first_byte_timeout_seconds: int = 15
     gateway_idle_stream_timeout_seconds: int = 10
     gateway_cancel_poll_seconds: float = 0.5
+
+    # Admission guards (spec 31 L3 / spec 25 logic) — global, Redis-coordinated.
+    # Account-wide limits (distinct from the per-replica worker-pool semaphore).
+    # Fail-open: a Redis outage degrades to "allow" (availability over hard cap).
+    rate_limit_per_minute: int = 60          # per-user sliding window
+    daily_budget_usd: float = 50.0           # global daily Bedrock spend cap
+    rate_budget_enabled: bool = True         # master switch for admission guards
     
     # GitLab (DevOps Agent)
     gitlab_token: Optional[str] = None

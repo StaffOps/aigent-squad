@@ -16,6 +16,7 @@ from pydantic import BaseModel  # noqa: E402
 import uvicorn  # noqa: E402
 
 from src.core.config import settings  # noqa: E402
+from src.core.rate_limiter import AdmissionGuard, estimate_cost  # noqa: E402
 from src.gateway import __version__  # noqa: E402
 from src.gateway.auth import require_edge_auth  # noqa: E402
 from src.gateway.supervisor_client import (  # noqa: E402
@@ -52,6 +53,12 @@ worker_pool = WorkerPool(
     idle_timeout=settings.gateway_idle_stream_timeout_seconds,
     cancel_poll_interval=settings.gateway_cancel_poll_seconds,
     redis_client=_redis,
+)
+# Global admission guards (rate + budget), Redis-coordinated, fail-open.
+admission = AdmissionGuard(
+    redis_client=_redis,
+    rate_per_minute=settings.rate_limit_per_minute,
+    daily_budget_usd=settings.daily_budget_usd,
 )
 
 # Agent names exposed by the OpenAI bridge. The gateway holds no registry; it
@@ -93,9 +100,43 @@ def _busy_response(subtype: str, detail: str):
     )
 
 
+async def _check_admission(user_id: str, max_tokens: int = 4096):
+    """Global rate + budget admission (spec 31 L3). Fail-open.
+
+    Returns ``None`` when admitted, or a ready-to-return JSONResponse (429 rate /
+    503 budget) when denied. Carries `X-RateLimit-Remaining` /
+    `X-Budget-Remaining-USD` headers either way.
+    """
+    if not settings.rate_budget_enabled:
+        return None
+
+    allowed, remaining = await admission.check_rate(user_id)
+    if not allowed:
+        return JSONResponse(
+            status_code=429,
+            content={"error": {"type": "rate_limited", "message": "per-user rate limit exceeded"}},
+            headers={"X-RateLimit-Remaining": "0", "Retry-After": "60"},
+        )
+
+    # Pessimistic pre-call estimate (input unknown at the edge → assume a modest
+    # prompt; the supervisor's real token metric is the source of truth post-call).
+    est = estimate_cost(input_tokens=1000, max_output_tokens=max_tokens)
+    budget_ok, budget_remaining = await admission.check_budget(est)
+    if not budget_ok:
+        return JSONResponse(
+            status_code=503,
+            content={"error": {"type": "budget_exhausted", "message": "daily budget exhausted"}},
+            headers={"X-Budget-Remaining-USD": f"{budget_remaining:.4f}", "Retry-After": "3600"},
+        )
+    return None
+
+
 @app.post("/query", dependencies=[Depends(require_edge_auth)])
 async def query(request: QueryRequest):
     """Native entrypoint — admission control, then forward to the supervisor."""
+    denied = await _check_admission(request.user_id)
+    if denied is not None:
+        return denied
     if not worker_pool.has_capacity():
         return _busy_response("service_overloaded", "server busy — worker pool at capacity")
     if not await supervisor_client.is_supervisor_ready():
@@ -148,13 +189,16 @@ async def openai_chat_completions(
             content={"error": {"type": "invalid_request_error", "message": str(exc)}},
         )
 
+    user_id = request.user or "librechat"
+    denied = await _check_admission(user_id, max_tokens=request.max_tokens or 4096)
+    if denied is not None:
+        return denied
     if not worker_pool.has_capacity():
         return _busy_response("service_overloaded", "server busy — worker pool at capacity")
     if not await supervisor_client.is_supervisor_ready():
         return _busy_response("backend_unavailable", "supervisor backend is not ready")
 
     user_input = messages_to_user_input(request.messages)
-    user_id = request.user or "librechat"
     session_id = x_session_id or f"openai-{user_id}"
     job_id = str(uuid.uuid4())
 

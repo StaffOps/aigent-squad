@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Added (Spec 31 L3: Global admission guards)
+- `src/core/rate_limiter.py`: `AdmissionGuard` (per-user sliding-window rate + global daily budget, Redis-coordinated) + `estimate_cost` (pessimistic per-model pricing). **Fail-open** (Redis down → allow), the opposite of the spec-14 guardrail (security, fail-closed) — distinction documented in the module. Placed in `src/core/` so spec 25 reuses it (round-table).
+- Wired into the gateway: `_check_admission` runs BEFORE pool/preflight/forward in `/query` and `/v1/chat/completions` — a denied request never reaches the supervisor (no spend). 429 `rate_limited` (`X-RateLimit-Remaining`) / 503 `budget_exhausted` (`X-Budget-Remaining-USD`). Master switch `RATE_BUDGET_ENABLED`.
+- `aigent.rate_limit.blocks` metric (label `reason` = user/global, bounded cardinality).
+- Tests: `tests/test_rate_limiter.py` + `tests/test_gateway_admission.py` + `tests/test_gateway_main_paths.py` (100% on rate_limiter; gateway 96% overall). Independent author + review (APPROVE-WITH-NITS). Budget check-and-increment TOCTOU deferred to hardening (T19d — needs real-Redis EVAL/Lua; test fakeredis lacks `eval`).
+
 ### Added (Spec 31 L1+L2: Edge gateway + worker pool — implemented)
 - `src/gateway/`: thin FastAPI front door (`main.py`) — hosts native `/query`, OpenAI `/v1/*` (reusing spec 29 `openai_compat` shaping), `/jobs/{id}/cancel`, `/healthz`, `/ready`. Holds no orchestration logic; forwards to the supervisor.
 - `gateway/worker_pool.py`: local `asyncio.Semaphore(20)` admission with immediate-reject `PoolFullError → 503`, cancel via `cancel:<job_id>` Redis poll, three timeouts (first-byte 15s / idle-stream 10s / job backstop 45s), fail-open job lifecycle (Redis down → log-only + `redis_fallback_active` metric).
