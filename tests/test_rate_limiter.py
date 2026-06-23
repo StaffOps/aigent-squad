@@ -7,7 +7,6 @@ errors. Uses fakeredis for the happy path; AsyncMock for error simulation.
 NOTE: otel_helper stub used (no real OTel SDK in test env).
 """
 import pytest
-import pytest_asyncio
 from unittest.mock import AsyncMock, patch, MagicMock
 from datetime import datetime, timezone
 

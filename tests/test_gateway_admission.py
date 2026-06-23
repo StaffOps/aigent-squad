@@ -7,7 +7,7 @@ pool capacity / supervisor preflight).
 NOTE: otel_helper stub used (no real OTel SDK in test env).
 """
 import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock, patch
 
 from fastapi.testclient import TestClient
 
