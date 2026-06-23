@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+### Added (Spec 31 L1+L2: Edge gateway + worker pool — implemented)
+- `src/gateway/`: thin FastAPI front door (`main.py`) — hosts native `/query`, OpenAI `/v1/*` (reusing spec 29 `openai_compat` shaping), `/jobs/{id}/cancel`, `/healthz`, `/ready`. Holds no orchestration logic; forwards to the supervisor.
+- `gateway/worker_pool.py`: local `asyncio.Semaphore(20)` admission with immediate-reject `PoolFullError → 503`, cancel via `cancel:<job_id>` Redis poll, three timeouts (first-byte 15s / idle-stream 10s / job backstop 45s), fail-open job lifecycle (Redis down → log-only + `redis_fallback_active` metric).
+- `gateway/supervisor_client.py`: httpx client with `is_supervisor_ready` preflight, `process`, `list_agents`; pool sized `max_concurrent+5` to avoid hidden backpressure.
+- `gateway/auth.py`: edge auth (`INTERNAL_API_TOKEN` or `GATEWAY_API_KEYS` allowlist), fail-closed.
+- `src/core/internal_auth.py`: `require_internal_token` (`X-Supervisor-Token`), fail-closed, **distinct** from `INTERNAL_API_TOKEN`.
+- `src/supervisor/server.py`: public `/query` + `/v1/*` **removed** (moved to gateway); added `/internal/process` + `/internal/agents` (internal-token gated). Supervisor is now a backend on **:8001**; guardrail (spec 14) still runs on every `/internal/process` call.
+- Backpressure: `503 + dynamic Retry-After (jitter)`, body subtypes `service_overloaded` (pool full, self-healing) vs `backend_unavailable` (supervisor unreachable). Gateway `/ready` decoupled from supervisor health (avoids cascade).
+- `src/core/metrics.py`: `aigent.gateway.pool_rejections`/`pool_depth`/`queue_wait`/`redis_fallback_active`.
+- `src/core/config.py` + `.env.example`: `SUPERVISOR_INTERNAL_TOKEN`, `SUPERVISOR_URL`, `GATEWAY_*` pool/timeout settings.
+- Tests: `tests/test_gateway_{worker_pool,client,main}.py` + `tests/test_internal_auth.py` (62 tests, **92% coverage** on new code). Independent test-author + code-review (APPROVE-WITH-NITS; nits fixed). L3–L5 (admission guards, Helm two-tier, NetworkPolicy/Rollout, docs/k6) pending.
+
 ### Added (Spec 31: Edge gateway + worker pool — spec only)
 - `specs/31-edge-gateway-worker-pool/{requirements,design,tasks}.md`: design for a thin FastAPI gateway in front of the supervisor (admission control, `WorkerPool` backpressure, protocol isolation, global rate/budget), enabling the supervisor to scale multi-replica. Reuses `staffops-chaitops` `agent-api` patterns (authorized internal reuse). Documents the concurrency trade-off: **local** per-replica semaphore (pod self-protection) vs **global** Redis-coordinated budget/TPS guard — and corrects spec 25's framing (its in-memory Bedrock semaphore can't bound a global TPS limit under multi-replica). No code yet.
 - Round-table sign-off (dev + security + sre + gitops, 2026-06-22): land 31 before 25 (shared guards in `src/core/`); day-1 security = NetworkPolicy + dedicated `SUPERVISOR_INTERNAL_TOKEN` (file-mounted, fail-closed), Istio mTLS later (additive); pool defaults = global, `max_concurrent=20`, immediate-reject, `job_timeout=45s` + first-byte 15s + idle 10s. Gateway readiness decoupled from supervisor health (avoid cascade); guardrail (spec 14) stays supervisor-side on every `/internal/process` call.

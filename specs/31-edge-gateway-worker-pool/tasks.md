@@ -35,6 +35,7 @@ layers add admission, scaling, validation. Reuses `staffops-chaitops` patterns
 - [ ] T18: `/ready` checks Redis + pool functional ONLY (NOT supervisor health — decoupled to avoid cascade)
 - [ ] T19: (NetworkPolicy already day-1 via T5c)
 - [ ] T19b: Argo Rollout canary Ingress cutover (20→50→100%); rollback = revert Ingress backend
+- [ ] T19c: Rewire `mcp-server/mcp-server.py` default `SUPERVISOR_URL` to the **gateway** `/query` (was the supervisor :8000/query, which no longer exists — supervisor is :8001 `/internal/*` only). Local docker-compose: add gateway service, point mcp-server + LibreChat at it.
 
 ## Phase 5 — Docs + validation
 - [ ] T20: `docs/ARCHITECTURE.md` (or site) — two-tier topology + contract + 3-layer link security + concurrency model (local vs global)
@@ -45,7 +46,23 @@ layers add admission, scaling, validation. Reuses `staffops-chaitops` patterns
 ## Phase 1 status table (update when implementing)
 | Task | State | Note |
 |------|-------|------|
-| T1–T23 | ❌ not started | spec + round-table sign-off (2026-06-22); ready for L1 |
+| T1 (gateway package) | ✅ done | `src/gateway/` — main, worker_pool, supervisor_client, auth; `setup_telemetry()` first |
+| T2 (`/internal/process`) | ✅ done | supervisor, `require_internal_token` gated, fail-closed, guardrail 403 preserved |
+| T3 (move /query + /v1) | ✅ done | moved to gateway; supervisor public surface = `/internal/*` + health + kb/alerts; supervisor now on :8001 |
+| T4 (supervisor_client) | ✅ done | httpx, `is_supervisor_ready` preflight, `process`, `list_agents`, `max_connections=max+5` |
+| T5 (edge auth) | ✅ done | `require_edge_auth` — `INTERNAL_API_TOKEN` or `GATEWAY_API_KEYS` allowlist, fail-closed |
+| T5b (internal token) | ✅ done (app) | `SUPERVISOR_INTERNAL_TOKEN` config + `internal_auth`; ExternalSecret manifest pending (L4) |
+| T5c (NetworkPolicy) | ⬜ L4 | manifest pending (Helm phase) |
+| T6 (tests L1) | ✅ done | independent author; covered in gateway suite |
+| T7/T7b (worker pool) | ✅ done | `Semaphore(20)`, `PoolFullError`, first-byte(15s)/idle(10s)/job(45s), cancel via Redis poll |
+| T8/T8b (backpressure) | ✅ done | 503 + dynamic Retry-After (jitter); `service_overloaded`/`backend_unavailable`; httpx pool sized |
+| T9 (job lifecycle) | ✅ done | Redis `job:<id>`, fail-open to log + `redis_fallback_active` metric |
+| T10 (`/jobs/{id}/cancel`) | ✅ done | 202 cancelling / 404 not-found |
+| T11 (metrics) | ✅ done | `gateway.pool_rejections`/`pool_depth`/`queue_wait`/`redis_fallback_active` |
+| T12 (tests L2) | ✅ done | 62 tests, **92% coverage** (internal_auth 100%, auth 100%, main 93%, client 97%, pool 89%); code-review APPROVE-WITH-NITS (nits fixed) |
+| T13–T15 (admission L3) | ⬜ pending | rate/budget guards in `src/core/` (co-with or after spec 25) |
+| T16–T19b (deploy L4) | ⬜ pending | Helm two-tier, HPA, NetworkPolicy, Rollout cutover |
+| T20–T23 (docs/validation L5) | ⬜ pending | architecture docs, k6, metrics doc, final review |
 
 ## Dependencies / sequencing
 - **Land spec 31 first (L1–L2)** — round-table consensus (4/4). No spec-25 dependency

@@ -31,6 +31,20 @@ class Settings(BaseSettings):
     # API
     api_host: str = "0.0.0.0"  # nosec B104 — containerized service must bind all interfaces
     api_port: int = 8000
+
+    # Edge gateway (spec 31) — the gateway fronts the supervisor.
+    # SUPERVISOR_INTERNAL_TOKEN gates the supervisor's /internal/process; it is a
+    # DISTINCT secret from INTERNAL_API_TOKEN (edge auth). Fail-closed: the
+    # supervisor refuses /internal/process if this is unset (see internal_auth).
+    supervisor_internal_token: Optional[str] = None
+    # Where the gateway forwards to (supervisor Service URL in K8s).
+    supervisor_url: str = "http://localhost:8001"
+    # Worker pool (gateway-side admission). Defaults from spec 31 round-table.
+    gateway_max_concurrent: int = 20
+    gateway_job_timeout_seconds: int = 45
+    gateway_first_byte_timeout_seconds: int = 15
+    gateway_idle_stream_timeout_seconds: int = 10
+    gateway_cancel_poll_seconds: float = 0.5
     
     # GitLab (DevOps Agent)
     gitlab_token: Optional[str] = None
