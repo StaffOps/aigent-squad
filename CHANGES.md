@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Added (Spec 31 L4: two-tier deploy)
+- `helm/aigent-squad/`: new chart splitting gateway + supervisor into two Deployments + two Services (same image, `command` override; gateway public/Ingress-backed on 8000, supervisor ClusterIP-internal on 8001). KEDA `ScaledObject` per tier (gateway on RPS via Prometheus trigger; supervisor on CPU placeholder + TODO for Bedrock-concurrency). NetworkPolicy restricts supervisor `:8001` ingress to gateway pods only (deny-all else); gateway ingress only from the ingress controller. `SUPERVISOR_INTERNAL_TOKEN` as a **distinct** ExternalSecret (ESO ← AWS Secrets Manager), file-mount (0400) as end-state. k8s-best-practices compliant (resources.requests, mandatory labels, restricted securityContext, KEDA not raw HPA, preStop graceful shutdown, no `latest`). Plain Deployment rolling update (no Argo Rollouts). helm lint clean, 13 manifests.
+- `docker-compose.yaml`: two-tier local stack — supervisor now backend-only (`expose: 8001`, `command: src.supervisor.server`, `SUPERVISOR_INTERNAL_TOKEN`), new `gateway` service (`:8000`, forwards to supervisor). `mcp-server` repointed to `http://gateway:8000/query` (T19c).
+- `mcp-server/mcp-server.py`: default `SUPERVISOR_URL` → gateway `/query` (supervisor public `/query` no longer exists).
+
 ### Added (Spec 31 L3: Global admission guards)
 - `src/core/rate_limiter.py`: `AdmissionGuard` (per-user sliding-window rate + global daily budget, Redis-coordinated) + `estimate_cost` (pessimistic per-model pricing). **Fail-open** (Redis down → allow), the opposite of the spec-14 guardrail (security, fail-closed) — distinction documented in the module. Placed in `src/core/` so spec 25 reuses it (round-table).
 - Wired into the gateway: `_check_admission` runs BEFORE pool/preflight/forward in `/query` and `/v1/chat/completions` — a denied request never reaches the supervisor (no spend). 429 `rate_limited` (`X-RateLimit-Remaining`) / 503 `budget_exhausted` (`X-Budget-Remaining-USD`). Master switch `RATE_BUDGET_ENABLED`.

@@ -1,0 +1,19 @@
+{{- range $name, $svc := .Values.services }}
+{{- if and $svc.scaling $svc.scaling.enabled }}
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: {{ include "aigent.fullname" (dict "name" $name "root" $) }}
+  labels:
+    {{- include "aigent.labels" (dict "name" $name "root" $) | nindent 4 }}
+spec:
+  scaleTargetRef:
+    name: {{ include "aigent.fullname" (dict "name" $name "root" $) }}
+    kind: Deployment
+  minReplicaCount: {{ $svc.scaling.min }}
+  maxReplicaCount: {{ $svc.scaling.max }}
+  triggers:
+    {{- toYaml $svc.scaling.triggers | nindent 4 }}
+{{- end }}
+{{- end }}

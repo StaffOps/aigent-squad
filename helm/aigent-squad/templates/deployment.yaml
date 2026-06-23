@@ -1,0 +1,110 @@
+{{- range $name, $svc := .Values.services }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "aigent.fullname" (dict "name" $name "root" $) }}
+  labels:
+    {{- include "aigent.labels" (dict "name" $name "root" $) | nindent 4 }}
+spec:
+  replicas: {{ $svc.replicas | default 2 }}
+  selector:
+    matchLabels:
+      {{- include "aigent.selectorLabels" (dict "name" $name) | nindent 6 }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        {{- include "aigent.labels" (dict "name" $name "root" $) | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "aigent.fullname" (dict "name" $name "root" $) }}
+      securityContext:
+        runAsNonRoot: {{ $.Values.securityContext.runAsNonRoot }}
+        runAsUser: {{ $.Values.securityContext.runAsUser }}
+      terminationGracePeriodSeconds: {{ $.Values.terminationGracePeriodSeconds }}
+      containers:
+        - name: {{ $name }}
+          image: {{ include "aigent.image" $ }}
+          {{- if $svc.command }}
+          command:
+            {{- toYaml $svc.command | nindent 12 }}
+          {{- end }}
+          ports:
+            - name: http
+              containerPort: {{ $svc.port }}
+              protocol: TCP
+          env:
+            - name: SERVICE_NAME
+              value: {{ $name }}
+            - name: OTEL_SERVICE_NAME
+              value: {{ $name }}
+            - name: ENVIRONMENT
+              value: {{ $.Values.global.environment }}
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: {{ $.Values.global.otelEndpoint }}
+            - name: AWS_REGION
+              value: {{ $.Values.global.awsRegion }}
+            - name: BEDROCK_MODEL_ID
+              value: {{ $.Values.global.bedrockModelId }}
+            - name: API_PORT
+              value: {{ $svc.port | quote }}
+            {{- /* Gateway needs SUPERVISOR_URL pointing to the supervisor service */}}
+            {{- if eq $name "gateway" }}
+            - name: SUPERVISOR_URL
+              value: "http://{{ include "aigent.fullname" (dict "name" "supervisor" "root" $) }}:{{ (index $.Values.services "supervisor").port }}"
+            {{- end }}
+            {{- /* Both tiers get the internal token from the ExternalSecret */}}
+            - name: SUPERVISOR_INTERNAL_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $.Release.Name }}-supervisor-internal-token
+                  key: SUPERVISOR_INTERNAL_TOKEN
+            - name: INTERNAL_API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $.Release.Name }}-secrets
+                  key: INTERNAL_API_TOKEN
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $.Release.Name }}-secrets
+                  key: REDIS_PASSWORD
+            {{- range $k, $v := $.Values.env }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+            {{- end }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            {{- toYaml $svc.resources | nindent 12 }}
+          securityContext:
+            readOnlyRootFilesystem: {{ $.Values.securityContext.readOnlyRootFilesystem }}
+            allowPrivilegeEscalation: {{ $.Values.securityContext.allowPrivilegeEscalation }}
+            capabilities:
+              drop:
+                {{- toYaml $.Values.securityContext.capabilities.drop | nindent 16 }}
+          lifecycle:
+            preStop:
+              exec:
+                command: ["sh", "-c", "sleep 5"]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+{{- end }}

@@ -12,8 +12,9 @@ import uvicorn
 
 app = FastAPI(title="Agent Squad MCP Server")
 
-# HTTP client for Supervisor
-SUPERVISOR_URL = os.getenv("SUPERVISOR_URL", "http://supervisor:8000/query")
+# HTTP client for the edge gateway (spec 31). The gateway fronts the supervisor;
+# the public /query lives there now (the supervisor exposes only /internal/*).
+SUPERVISOR_URL = os.getenv("SUPERVISOR_URL", "http://gateway:8000/query")
 _SUPERVISOR_BASE = SUPERVISOR_URL.rsplit("/", 1)[0]  # strip /query
 _INTERNAL_TOKEN = os.getenv("INTERNAL_API_TOKEN", "")
 
