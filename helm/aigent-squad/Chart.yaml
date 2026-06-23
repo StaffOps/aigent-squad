@@ -1,6 +1,0 @@
-apiVersion: v2
-name: aigent-squad
-description: AIgent Squad — two-tier (gateway + supervisor) AI orchestration platform
-type: application
-version: 0.1.0
-appVersion: "0.5.0"

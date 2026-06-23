@@ -62,7 +62,7 @@ layers add admission, scaling, validation. Reuses `staffops-chaitops` patterns
 | T11 (metrics) | ✅ done | `gateway.pool_rejections`/`pool_depth`/`queue_wait`/`redis_fallback_active` |
 | T12 (tests L2) | ✅ done | 62 tests, **92% coverage** (internal_auth 100%, auth 100%, main 93%, client 97%, pool 89%); code-review APPROVE-WITH-NITS (nits fixed) |
 | T13–T15 (admission L3) | ✅ done | `src/core/rate_limiter.py` (`AdmissionGuard` + `estimate_cost`, fail-open, global rate+budget); wired into both gateway routes before pool/preflight; 429 rate / 503 budget with headers; `rate_limit.blocks` metric. 100% coverage on rate_limiter; main.py 99%. Independent author + review (APPROVE-WITH-NITS). Budget TOCTOU hardening → T19d |
-| T16–T19b (deploy L4) | 🔶 mostly done | Helm `helm/aigent-squad/` — 2 Deployments + 2 Services (gateway public, supervisor internal), KEDA per tier, NetworkPolicy (supervisor:8001 ⇐ gateway only), ExternalSecret for `SUPERVISOR_INTERNAL_TOKEN`. docker-compose two-tier + mcp-server repointed to gateway (T19c). helm lint clean, 13 manifests. Pending: real-cluster install test; CostCenter is a placeholder default (confirm value) |
+| T16–T19b (deploy L4) | 🔶 in progress | Chart lives in `StaffOps/helm-charts` repo (chart `aigent-squad`, existing `services` map + KEDA + per-service `networkPolicy.allowFrom`). Adding `gateway` service + making `supervisor` backend-only. docker-compose two-tier + mcp-server repointed (T19c) ✅. CostCenter `devops-team`. Pending: chart edits in helm-charts repo + real-cluster install |
 | T20–T23 (docs/validation L5) | ⬜ pending | architecture docs, k6, metrics doc, final review |
 
 ## Dependencies / sequencing
