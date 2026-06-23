@@ -81,6 +81,37 @@ circuit_breaker_transitions = meter.create_counter(
     unit="1",
 )
 
+# === Spec 31: Edge gateway + worker pool ===
+gateway_pool_rejections = meter.create_counter(
+    name="aigent.gateway.pool_rejections",
+    description="Requests rejected with 503 because the worker pool was at capacity",
+    unit="1",
+)
+
+gateway_pool_depth = meter.create_up_down_counter(
+    name="aigent.gateway.pool_depth",
+    description="In-flight jobs currently held by the gateway worker pool",
+    unit="1",
+)
+
+gateway_queue_wait = meter.create_histogram(
+    name="aigent.gateway.queue_wait",
+    description="Time a job waited to acquire a worker pool slot",
+    unit="ms",
+)
+
+gateway_redis_fallback_active = meter.create_counter(
+    name="aigent.gateway.redis_fallback_active",
+    description="Times job lifecycle fell back to log-only because Redis was unavailable",
+    unit="1",
+)
+
+rate_limit_blocks = meter.create_counter(
+    name="aigent.rate_limit.blocks",
+    description="Requests blocked by admission guards (rate or budget)",
+    unit="1",
+)
+
 # === Spec 17: Multi-agent fan-out ===
 fanout_calls = meter.create_counter(
     name="aigent.fanout.calls",

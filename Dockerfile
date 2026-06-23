@@ -36,6 +36,10 @@ COPY agents/ ./agents/
 
 USER appuser
 
+# One image, two tiers (spec 31). The runtime command is overridden per tier by
+# the deployment (Helm `command:` / compose `command:`):
+#   gateway    → python -m src.gateway.main      (port 8000, public front door)
+#   supervisor → python -m src.supervisor.server (port 8001, backend, default below)
 ENV AGENTS_DIR=/app/agents
-EXPOSE 8000
+EXPOSE 8000 8001
 CMD ["python", "-m", "src.supervisor.server"]

@@ -5,6 +5,13 @@ class Settings(BaseSettings):
     # AWS
     aws_region: str = "us-east-1"
     bedrock_model_id: str = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"  # Claude Sonnet 4.5 (US inference profile; model requires INFERENCE_PROFILE, not on-demand)
+
+    # Bedrock Guardrail — anti-prompt-injection (spec 14, L1). Fail-closed:
+    # when guardrail_enabled and no id is configured, invoke is refused (not
+    # bypassed). Provision via infra/terraform/guardrail (outputs id/version).
+    guardrail_enabled: bool = True
+    guardrail_id: Optional[str] = None
+    guardrail_version: str = "DRAFT"
     
     # DynamoDB
     dynamodb_sessions_table: str = "agent-sessions"
@@ -24,6 +31,27 @@ class Settings(BaseSettings):
     # API
     api_host: str = "0.0.0.0"  # nosec B104 — containerized service must bind all interfaces
     api_port: int = 8000
+
+    # Edge gateway (spec 31) — the gateway fronts the supervisor.
+    # SUPERVISOR_INTERNAL_TOKEN gates the supervisor's /internal/process; it is a
+    # DISTINCT secret from INTERNAL_API_TOKEN (edge auth). Fail-closed: the
+    # supervisor refuses /internal/process if this is unset (see internal_auth).
+    supervisor_internal_token: Optional[str] = None
+    # Where the gateway forwards to (supervisor Service URL in K8s).
+    supervisor_url: str = "http://localhost:8001"
+    # Worker pool (gateway-side admission). Defaults from spec 31 round-table.
+    gateway_max_concurrent: int = 20
+    gateway_job_timeout_seconds: int = 45
+    gateway_first_byte_timeout_seconds: int = 15
+    gateway_idle_stream_timeout_seconds: int = 10
+    gateway_cancel_poll_seconds: float = 0.5
+
+    # Admission guards (spec 31 L3 / spec 25 logic) — global, Redis-coordinated.
+    # Account-wide limits (distinct from the per-replica worker-pool semaphore).
+    # Fail-open: a Redis outage degrades to "allow" (availability over hard cap).
+    rate_limit_per_minute: int = 60          # per-user sliding window
+    daily_budget_usd: float = 50.0           # global daily Bedrock spend cap
+    rate_budget_enabled: bool = True         # master switch for admission guards
     
     # GitLab (DevOps Agent)
     gitlab_token: Optional[str] = None

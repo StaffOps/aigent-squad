@@ -8,7 +8,7 @@ Azure SRE Agent) via public material. For most, based on READMEs + structure;
 read still pending.
 
 > Scope: positioning and product direction. For architecture decisions see
-> `.kiro/specs/ADR-001` and `.kiro/specs/14-security-hardening/`.
+> `specs/ADR-001` and `specs/14-security-hardening/`.
 
 ---
 

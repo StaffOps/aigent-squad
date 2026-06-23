@@ -119,7 +119,7 @@ A single skill can be shared by multiple agents (e.g. kubernetes + observability
 - **Multi-word keywords** (`"out of memory"`) match as a substring.
 - Skill content is treated as **reference knowledge**, never executable
   instructions (read-only is law). Missing/invalid skills fail open.
-- See spec `.kiro/specs/26-agent-skills/` for the design + rationale.
+- See spec `specs/26-agent-skills/` for the design + rationale.
 
 ## Examples
 

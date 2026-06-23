@@ -38,17 +38,19 @@ services:
       timeout: 3s
       retries: 5
 
-  # Supervisor (all agents run in-process via GenericAgent + AGENTS_DIR)
+  # Supervisor (backend — orchestration only; all agents in-process via GenericAgent).
+  # No public port: only the gateway reaches it via /internal/* on 8001.
   supervisor:
     build:
       context: .
       dockerfile: Dockerfile
       ssh:
         - default
-    ports:
-      - "8000:8000"
+    command: ["python", "-m", "src.supervisor.server"]
+    expose:
+      - "8001"
     environment:
-      - SERVICE_NAME=aigent-squad
+      - SERVICE_NAME=aigent-squad-supervisor
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
       - ENVIRONMENT=LOCAL
       - AGENTS_DIR=/app/agents
@@ -61,6 +63,7 @@ services:
       - REDIS_SSL=false
       - REDIS_PASSWORD=${REDIS_PASSWORD:-changeme}
       - INTERNAL_API_TOKEN=${INTERNAL_API_TOKEN:-dev-secret-token}
+      - SUPERVISOR_INTERNAL_TOKEN=${SUPERVISOR_INTERNAL_TOKEN:-dev-internal-token}
       - POSTGRES_HOST=postgres
       - POSTGRES_PORT=5432
       - POSTGRES_USER=aigent
@@ -83,12 +86,49 @@ services:
       postgres:
         condition: service_healthy
     healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8001/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Gateway (public front door — edge auth, worker pool, admission, protocol).
+  # Forwards to the supervisor; the only tier clients/LibreChat talk to.
+  gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      ssh:
+        - default
+    command: ["python", "-m", "src.gateway.main"]
+    ports:
+      - "8000:8000"
+    environment:
+      - SERVICE_NAME=aigent-squad-gateway
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - ENVIRONMENT=LOCAL
+      - SUPERVISOR_URL=http://supervisor:8001
+      - SUPERVISOR_INTERNAL_TOKEN=${SUPERVISOR_INTERNAL_TOKEN:-dev-internal-token}
+      - INTERNAL_API_TOKEN=${INTERNAL_API_TOKEN:-dev-secret-token}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_SSL=false
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-changeme}
+      - GATEWAY_MAX_CONCURRENT=${GATEWAY_MAX_CONCURRENT:-20}
+      - RATE_BUDGET_ENABLED=${RATE_BUDGET_ENABLED:-true}
+      - RATE_LIMIT_PER_MINUTE=${RATE_LIMIT_PER_MINUTE:-60}
+      - DAILY_BUDGET_USD=${DAILY_BUDGET_USD:-50.0}
+    depends_on:
+      supervisor:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
       test: ["CMD", "curl", "-f", "http://127.0.0.1:8000/ready"]
       interval: 10s
       timeout: 5s
       retries: 5
 
-  # MCP Server (HTTP gateway for Kiro CLI)
+  # MCP Server (HTTP gateway for Kiro CLI) — talks to the edge gateway's /query
   mcp-server:
     build:
       context: .
@@ -98,10 +138,10 @@ services:
     ports:
       - "8006:8006"
     environment:
-      - SUPERVISOR_URL=http://supervisor:8000/query
+      - SUPERVISOR_URL=http://gateway:8000/query
       - INTERNAL_API_TOKEN=${INTERNAL_API_TOKEN:-dev-secret-token}
     depends_on:
-      supervisor:
+      gateway:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:8006/ready"]
@@ -115,7 +155,7 @@ services:
     image: otel/opentelemetry-collector-contrib:0.154.0
     command: ["--config=/etc/otelcol/config.yaml"]
     volumes:
-      - ./infra/otel-collector.yaml:/etc/otelcol/config.yaml:ro
+      - ./infra/observability/otel-collector.yaml:/etc/otelcol/config.yaml:ro
     ports:
       - "4317:4317"
       - "4318:4318"
@@ -125,7 +165,7 @@ services:
   tempo:
     image: grafana/tempo:2.10.7
     volumes:
-      - ./infra/tempo.yaml:/etc/tempo/config.yaml:ro
+      - ./infra/observability/tempo.yaml:/etc/tempo/config.yaml:ro
       - tempo-data:/var/tempo
     command: ["-config.file=/etc/tempo/config.yaml"]
 
@@ -138,7 +178,7 @@ services:
       - "--web.console.libraries=/usr/share/prometheus/console_libraries"
       - "--web.console.templates=/usr/share/prometheus/consoles"
     volumes:
-      - ./infra/prometheus.yaml:/etc/prometheus/prometheus.yml:ro
+      - ./infra/observability/prometheus.yaml:/etc/prometheus/prometheus.yml:ro
     ports:
       - "9099:9090"
 
@@ -151,8 +191,8 @@ services:
       - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
       - GF_AUTH_DISABLE_LOGIN_FORM=true
     volumes:
-      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
-      - ./infra/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - ./infra/observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
     depends_on:
       - tempo
       - prometheus

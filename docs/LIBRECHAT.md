@@ -3,7 +3,7 @@
 AIgent-squad exposes an **OpenAI-compatible API** (`/v1/models`,
 `/v1/chat/completions`), so [LibreChat](https://www.librechat.ai/) — or any
 OpenAI-compatible client — can talk to the squad **directly**, with no extra
-gateway. (Spec: [`.kiro/specs/29-openai-compat-bridge/`](https://github.com/StaffOps/staffops-aigent-squad/tree/main/.kiro/specs/29-openai-compat-bridge).)
+gateway. (Spec: [`specs/29-openai-compat-bridge/`](https://github.com/StaffOps/staffops-aigent-squad/tree/main/specs/29-openai-compat-bridge).)
 
 ## How it works
 

@@ -2,6 +2,64 @@
 
 ## [Unreleased]
 
+### Added (Spec 31 L5: docs — started)
+- `docs/site/architecture.md`: rewritten for the two-tier topology — gateway (public) → supervisor (backend) diagram, the concurrency model (per-replica pool vs global rate/budget, with the fail-open/fail-closed contrast), two-tier design decisions, and split ports/endpoints (gateway `:8000` public, supervisor `:8001` internal-only with `/internal/*`).
+- `docs/site/reference/metrics.md`: new "Edge gateway and admission" section (`gateway.pool_rejections`/`pool_depth`/`queue_wait`/`redis_fallback_active`, `rate_limit.blocks`) with operational signals.
+- `Dockerfile`: documents one-image/two-command model (EXPOSE 8000+8001). Pipelines confirmed aligned — `test.yml` coverage gate already covers `src/gateway` via `.coveragerc` (`source=src`); one image + command override needs no build split. Full suite green: 402 tests, 93.28% coverage. L5 pending: k6 load test (T21), final independent review (T23).
+
+### Added (Spec 31 L4: two-tier deploy)
+- **Helm** (in the `StaffOps/helm-charts` repo, chart `aigent-squad`): the existing `services` map gains a `gateway` entry (public, port 8000) alongside `supervisor` (now backend-only, port 8001). The chart's per-service `networkPolicy.allowFrom` makes gateway ingress customizable — the gateway fronts BOTH external traffic AND in-cluster callers (Alertmanager → spec 18, anomaly-detection, Falco, …). Supervisor NetworkPolicy stays gateway-only (the `/internal/*` trust boundary). `SUPERVISOR_INTERNAL_TOKEN` as a distinct ExternalSecret. CostCenter `devops-team`. (Chart changes live in that repo, not here.)
+- `docker-compose.yaml`: two-tier local stack — supervisor now backend-only (`expose: 8001`, `command: src.supervisor.server`, `SUPERVISOR_INTERNAL_TOKEN`), new `gateway` service (`:8000`, forwards to supervisor). `mcp-server` repointed to `http://gateway:8000/query` (T19c).
+- `mcp-server/mcp-server.py`: default `SUPERVISOR_URL` → gateway `/query` (supervisor public `/query` no longer exists).
+
+### Added (Spec 31 L3: Global admission guards)
+- `src/core/rate_limiter.py`: `AdmissionGuard` (per-user sliding-window rate + global daily budget, Redis-coordinated) + `estimate_cost` (pessimistic per-model pricing). **Fail-open** (Redis down → allow), the opposite of the spec-14 guardrail (security, fail-closed) — distinction documented in the module. Placed in `src/core/` so spec 25 reuses it (round-table).
+- Wired into the gateway: `_check_admission` runs BEFORE pool/preflight/forward in `/query` and `/v1/chat/completions` — a denied request never reaches the supervisor (no spend). 429 `rate_limited` (`X-RateLimit-Remaining`) / 503 `budget_exhausted` (`X-Budget-Remaining-USD`). Master switch `RATE_BUDGET_ENABLED`.
+- `aigent.rate_limit.blocks` metric (label `reason` = user/global, bounded cardinality).
+- Tests: `tests/test_rate_limiter.py` + `tests/test_gateway_admission.py` + `tests/test_gateway_main_paths.py` (100% on rate_limiter; gateway 96% overall). Independent author + review (APPROVE-WITH-NITS). Budget check-and-increment TOCTOU deferred to hardening (T19d — needs real-Redis EVAL/Lua; test fakeredis lacks `eval`).
+
+### Added (Spec 31 L1+L2: Edge gateway + worker pool — implemented)
+- `src/gateway/`: thin FastAPI front door (`main.py`) — hosts native `/query`, OpenAI `/v1/*` (reusing spec 29 `openai_compat` shaping), `/jobs/{id}/cancel`, `/healthz`, `/ready`. Holds no orchestration logic; forwards to the supervisor.
+- `gateway/worker_pool.py`: local `asyncio.Semaphore(20)` admission with immediate-reject `PoolFullError → 503`, cancel via `cancel:<job_id>` Redis poll, three timeouts (first-byte 15s / idle-stream 10s / job backstop 45s), fail-open job lifecycle (Redis down → log-only + `redis_fallback_active` metric).
+- `gateway/supervisor_client.py`: httpx client with `is_supervisor_ready` preflight, `process`, `list_agents`; pool sized `max_concurrent+5` to avoid hidden backpressure.
+- `gateway/auth.py`: edge auth (`INTERNAL_API_TOKEN` or `GATEWAY_API_KEYS` allowlist), fail-closed.
+- `src/core/internal_auth.py`: `require_internal_token` (`X-Supervisor-Token`), fail-closed, **distinct** from `INTERNAL_API_TOKEN`.
+- `src/supervisor/server.py`: public `/query` + `/v1/*` **removed** (moved to gateway); added `/internal/process` + `/internal/agents` (internal-token gated). Supervisor is now a backend on **:8001**; guardrail (spec 14) still runs on every `/internal/process` call.
+- Backpressure: `503 + dynamic Retry-After (jitter)`, body subtypes `service_overloaded` (pool full, self-healing) vs `backend_unavailable` (supervisor unreachable). Gateway `/ready` decoupled from supervisor health (avoids cascade).
+- `src/core/metrics.py`: `aigent.gateway.pool_rejections`/`pool_depth`/`queue_wait`/`redis_fallback_active`.
+- `src/core/config.py` + `.env.example`: `SUPERVISOR_INTERNAL_TOKEN`, `SUPERVISOR_URL`, `GATEWAY_*` pool/timeout settings.
+- Tests: `tests/test_gateway_{worker_pool,client,main}.py` + `tests/test_internal_auth.py` (62 tests, **92% coverage** on new code). Independent test-author + code-review (APPROVE-WITH-NITS; nits fixed). L3–L5 (admission guards, Helm two-tier, NetworkPolicy/Rollout, docs/k6) pending.
+
+### Added (Spec 31: Edge gateway + worker pool — spec only)
+- `specs/31-edge-gateway-worker-pool/{requirements,design,tasks}.md`: design for a thin FastAPI gateway in front of the supervisor (admission control, `WorkerPool` backpressure, protocol isolation, global rate/budget), enabling the supervisor to scale multi-replica. Reuses `staffops-chaitops` `agent-api` patterns (authorized internal reuse). Documents the concurrency trade-off: **local** per-replica semaphore (pod self-protection) vs **global** Redis-coordinated budget/TPS guard — and corrects spec 25's framing (its in-memory Bedrock semaphore can't bound a global TPS limit under multi-replica). No code yet.
+- Round-table sign-off (dev + security + sre + gitops, 2026-06-22): land 31 before 25 (shared guards in `src/core/`); day-1 security = NetworkPolicy + dedicated `SUPERVISOR_INTERNAL_TOKEN` (file-mounted, fail-closed), Istio mTLS later (additive); pool defaults = global, `max_concurrent=20`, immediate-reject, `job_timeout=45s` + first-byte 15s + idle 10s. Gateway readiness decoupled from supervisor health (avoid cascade); guardrail (spec 14) stays supervisor-side on every `/internal/process` call.
+
+### Added (Spec 14 Phase 1: Bedrock Guardrail + fail-closed anti-prompt-injection)
+- `infra/terraform/guardrail/`: `aws_bedrock_guardrail` (PROMPT_ATTACK `HIGH` input filter — natively multi-language; harmful-content filters input+output; PII `BLOCK`; optional operator-defined denied topics) + a published immutable version. Outputs `guardrail_id`/`guardrail_version` for the app to pin.
+- `src/core/guardrail.py`: `GuardrailClient.apply(text, source, …)` evaluates untrusted input (pre-invoke) and model output (post-invoke) via the `apply_guardrail` API — a distinct evaluation from the agent's prompt (Decision 1: an injection that fools the LLM does not fool the guardrail). **Fail-closed** (Decision 2): a block OR guardrail unavailability/misconfiguration raises `GuardrailBlockedError` — never bypasses to the model.
+- `src/core/bedrock.py`: guardrail applied in `_invoke_sync` (INPUT before spend, OUTPUT before return), outside the retry loop. `GuardrailBlockedError` is re-raised without tripping the circuit breaker (security refusal ≠ Bedrock fault). New `user_id`/`session_id` invoke params for audit traceability.
+- Fail-closed propagation: `classifier` (no keyword-fallback on block), `supervisor` (`process_request`/`_single_agent_call`/`_fan_out` — refuses if **any** agent is blocked), `investigation` (refuses rather than emit an empty RCA). Mapped to **HTTP 403** at `/query` and `/v1/chat/completions` (OpenAI-shaped error).
+- Structured audit log (no payload in clear text): `audit=True`, event, source, `agent_id`/`user_id`/`session_id`, and a sha256[:12] digest. `_extract_categories` records only detector labels, never matched text.
+- `src/core/config.py`: `guardrail_enabled` (default `True`), `guardrail_id`, `guardrail_version` (`DRAFT` dev default; prod pins the Terraform-published version).
+- Tests: `tests/test_guardrail.py` (25) + guardrail cases in `tests/test_bedrock.py`. **99% coverage** on `guardrail.py`. Independent test-author + code-review (APPROVE-WITH-NITS, nits fixed) per `verification-independence`.
+
+### Removed (root doc cleanup — spec 24)
+- Deleted stale root docs `VERSIONS.md` and `GENERIC_VERSION.md` (v2.0-era, 2026-02-14): package versions now live in `requirements.txt`/`CHANGES.md`; the "generic/sanitized" note described the obsolete `src/agents/` 5-agent layout.
+- Archived `IMPLEMENTATION_HISTORY.md` → `archive/` (historical v2.0 roadmap, phases 6–13; still referenced by `specs/ROADMAP.md`).
+- Updated refs: `README.md` (Getting Started + roadmap pointer), `specs/ROADMAP.md`.
+
+### Changed (infra/ reorganized)
+- `terraform/` → `infra/terraform/` (IaC under one roof). `git mv`, history preserved.
+- Observability configs grouped: `infra/{otel-collector,tempo,prometheus}.yaml` + `infra/grafana/` → `infra/observability/`. `docker-compose.yaml` volume paths updated (validated with `docker compose config`).
+- `infra/` now organized by domain: `terraform/`, `observability/`, `librechat/`, `postgres/`.
+- Real path refs updated (README, AGENTS.md, ROADMAP, terraform README, OBSERVABILITY.md). Illustrative `terraform/ec2.tf` examples (read-only refusal) left as-is.
+
+### Changed (AI-tool-agnostic layout)
+- `AGENTS.md` is now the canonical, tool-neutral agent guide (was `CLAUDE.md`); `CLAUDE.md` is a one-line pointer (`See @AGENTS.md`). Any AI assistant (Claude Code, Cursor, Copilot, Aider…) reads `AGENTS.md`.
+- Specs moved `.kiro/specs/` → `specs/` and steering `.kiro/steering/` → `steering/` (history preserved); `.kiro/` removed. All 70+ references across docs/README/specs updated.
+- Per-tool dirs (`.claude/`, `.cursor/`, `.aider*`, `.kiro/`, `.windsurf/`) are now git-ignored (local-only). `.claude/` (subagent defs were tool-test artifacts) + `scripts/sync-claude.sh` removed from the repo.
+- `README.md` "AI tooling" section rewritten to the tool-agnostic model.
+
 ### Added (Spec 30: Datasource cache layer)
 - `src/core/adapters.py`: `DatasourceAdapter.collect()` is now a template method wrapping a deterministic (`sha256`) TTL cache around each adapter's `_collect()`. Per-agent TTL + namespace from `agent.yaml`; fail-open (cache errors never break collection — wrapped `cache.get`/`cache.set`); disabled when `ttl <= 0`.
 - `create_adapters(..., cache_ttl, cache_namespace)` threads cache config onto every adapter; `supervisor/agent.py` passes `config.cache.{ttl,namespace}`.
@@ -50,8 +108,8 @@ version linkage (`appVersion` 0.2.0, scan-gated `release.yml`).
 - `tests/test_openai_compat.py` (100% coverage on the module) + `force_agent` supervisor tests
 
 ### Added (Claude Code compatibility)
-- `CLAUDE.md`: entrypoint with build/test commands, architecture invariants, read-only posture, and `@imports` of `.kiro/steering/*.md` (single source of truth)
-- `.claude/`: `rules` + `skills` symlinked to `.kiro/steering` + `skills`; 6 subagents converted from `agents/<name>/`; `settings.json` (read-only permissions); `README.md`
+- `CLAUDE.md`: entrypoint with build/test commands, architecture invariants, read-only posture, and `@imports` of `steering/*.md` (single source of truth)
+- `.claude/`: `rules` + `skills` symlinked to `steering` + `skills`; 6 subagents converted from `agents/<name>/`; `settings.json` (read-only permissions); `README.md`
 - `scripts/sync-claude.sh`: idempotent regenerator (`.kiro/` + `agents/` → `.claude/`)
 
 ### Added (Spec 07: Readiness probes)
@@ -108,7 +166,7 @@ version linkage (`appVersion` 0.2.0, scan-gated `release.yml`).
 - Updated `config.py`, `.env.example`, `docker-compose.yaml`, `src/supervisor/README.md`, and Terraform `allowed_model_arns`
 
 ### Added (ADR)
-- `.kiro/specs/ADR-001-bedrock-direct-vs-strands.md`: decision to keep Bedrock-direct over the Strands SDK (with reopen signals)
+- `specs/ADR-001-bedrock-direct-vs-strands.md`: decision to keep Bedrock-direct over the Strands SDK (with reopen signals)
 
 ## [Unreleased] - 2026-06-14
 
@@ -117,7 +175,7 @@ version linkage (`appVersion` 0.2.0, scan-gated `release.yml`).
 - Total coverage: **91.72%** (up from 84%)
 - `.coveragerc`: `fail_under = 90`
 - `.github/workflows/test.yml`: `--cov-fail-under=90`
-- `.kiro/steering/milestone-criteria.md`: minimum coverage updated to 90%
+- `steering/milestone-criteria.md`: minimum coverage updated to 90%
 - New tests target uncovered branches in: kb/store, state_store, cache, investigation, bedrock, kb/budget, kb/extractor, kb/embedder, kb/rag, circuit_breaker, supervisor/agent, supervisor/distillation
 
 ### Added (Spec 18 Phase 2: Alert Ingestion + Slack post-back)
@@ -131,7 +189,7 @@ version linkage (`appVersion` 0.2.0, scan-gated `release.yml`).
 ### Documentation audit
 - Rewrote outdated docs to reflect current architecture: `ARCHITECTURE.md`, `OBSERVABILITY.md`, `PREREQUISITES.md`, `MCP_INTEGRATION.md`, `READ_ONLY_POLICY.md`
 - Deleted obsolete docs: `MIGRATION.md` (LangGraph era), `RAG_IMPLEMENTATION.md` (replaced by KNOWLEDGE-BASE.md), `LOCAL_DEVELOPMENT.md` (duplicated SETUP.md with old ports)
-- Tightened `.kiro/steering/milestone-criteria.md`: operational docs (ARCHITECTURE/SETUP/SECURITY/etc) now listed as mandatory milestone gate; new anti-pattern: "stale docs are worse than no docs"
+- Tightened `steering/milestone-criteria.md`: operational docs (ARCHITECTURE/SETUP/SECURITY/etc) now listed as mandatory milestone gate; new anti-pattern: "stale docs are worse than no docs"
 
 ### Added (Metrics audit — covering specs 06, 17, 18, 21)
 13 new custom metrics + instrumentation in existing code:
@@ -140,7 +198,7 @@ version linkage (`appVersion` 0.2.0, scan-gated `release.yml`).
 - Spec 18: `aigent.investigation.started`, `.completed`, `.duration`, `.evidence_count`
 - Spec 21: `aigent.kb.distillation.cost`, `.items_created`, `.rag.queries`, `.rag.hits`, `.budget.exhausted`
 - Updated `docs/METRICS.md` with full reference (table per domain + label cardinality)
-- Updated `.kiro/steering/milestone-criteria.md` to make metrics a mandatory milestone gate (equal weight to tests/docs)
+- Updated `steering/milestone-criteria.md` to make metrics a mandatory milestone gate (equal weight to tests/docs)
 
 ### Added (Spec 21: Incident Memory & Learning)
 - Postgres+pgvector container (`pgvector/pgvector:pg16`) for KB persistence

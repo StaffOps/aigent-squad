@@ -2,6 +2,7 @@ import json
 from typing import List, Optional
 from dataclasses import dataclass, field
 from src.core.bedrock import bedrock
+from src.core.guardrail import GuardrailBlockedError
 from src.core.state_store import ConversationMessage
 from src.core.logger import logger
 
@@ -99,6 +100,10 @@ If unable to classify, return an empty agents list."""
                 agent_id="classifier",
                 match_user_language=False,  # classifier returns JSON, not prose
             )
+        except GuardrailBlockedError:
+            # Fail-closed: a blocked input must NOT silently fall back to
+            # keyword routing (that would proceed despite the security refusal).
+            raise
         except Exception as e:
             logger.warning("Classifier LLM failed, using keyword fallback", extra={"error": str(e)})
             return self._keyword_fallback(user_input)

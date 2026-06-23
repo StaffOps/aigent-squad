@@ -1,7 +1,52 @@
-# Handoff — sessions 2026-06-16 / 2026-06-17 / 2026-06-18
+# Handoff — sessions 2026-06-16 → 2026-06-22
 
 Estado para retomar. O que foi feito, o que ficou pendente, e próximos
 passos priorizados.
+
+---
+
+## Done — session 2026-06-21 / 2026-06-22
+
+### Release v0.2.0 (first tagged release)
+- App tag `v0.2.0` → `release.yml` built scan-gated multi-arch image
+  `karlipegomes/aigent-squad:0.2.0` (+ `latest`) + SBOM + GitHub Release.
+- Chart `helm-charts/aigent-squad` → `version 0.7.0`, `appVersion 0.2.0`;
+  `image.tag` removed so it inherits `appVersion` (renders `:0.2.0`, never
+  `latest` in prod). chart-releaser published `aigent-squad-0.7.0`.
+- `CHANGES.md` cut `[0.2.0]`; new work accrues under `[Unreleased]`.
+
+### CI/CD — Model A (`docs/CI-CD.md`)
+- **Scan-before-publish** on `build.yml` AND `release.yml`: build local →
+  Trivy gate → push only if clean. Vulnerable image never reaches the registry.
+- `release.yml` rewritten: tag-driven (`v*`)/manual, Docker Hub, SBOM, Release
+  (replaced legacy ECR/SSH).
+- `test.yml`: `guard` (main accepts PRs only from `dev`) + `dep_scan` (Trivy fs).
+- `sast.yml`: **Bandit** (CodeQL needs GHAS — unavailable on private repo). 4
+  reviewed B104 (`0.0.0.0` bind) suppressed with `# nosec`.
+- `docs.yml`: deploy ONLY from `main` (was overwriting prod from `dev`);
+  `mkdocs build --strict` on PRs. Fixed broken Architecture page (case collision)
+  + LIBRECHAT external links → strict-clean.
+
+### Specs
+- **Spec 10 Phase 1** — efficiency/quality metrics (collect/llm duration,
+  prompt size, investigation rounds). 246 tests.
+- **Spec 30** — datasource cache wired into adapters (sha256 TTL, fail-open at
+  the adapter boundary); `aigent.cache.hits/misses` now emitted; `tokens_saved`
+  reassigned to spec 11. 266 tests, 92.62% coverage. Tests by an independent agent.
+
+### Workflow change — solo dev
+- `dev` is now committed to **directly** (no `feature → dev` PRs). Every push to
+  `dev` runs lint + test+coverage + dep_scan + bandit. `main` keeps the PR gate.
+  Documented in `docs/CI-CD.md` + README.
+
+### Misc
+- Apache 2.0 migration; MkDocs site live at `staffops.github.io/aigent-squad/`;
+  CI on `DOCS_DEPLOY_TOKEN` (HTTPS private dep + BuildKit secret); CVE cleanup
+  + `.trivyignore`.
+
+> **Sync note:** as of 2026-06-22, `dev` is 2 docs-only commits ahead of `main`
+> (the direct-commit-flow docs). They reach the published site on the next
+> `dev → main`. Not urgent.
 
 ---
 

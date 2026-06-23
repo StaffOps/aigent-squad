@@ -1,10 +1,10 @@
 # Agent Squad - Multi-Agent System for AWS/Kubernetes Operations
 
 **Version**: 0.x (pre-release)
-**Status**: 🚧 Stabilizing — see `.kiro/specs/ROADMAP.md`
+**Status**: 🚧 Stabilizing — see `specs/ROADMAP.md`
 **Architecture**: AWS Labs Best Practices
 
-> ⚠️ **Real state**: this project is in **Phase 0 (stabilization)**, not in production. There are known blockers (build, architecture, security, tests) documented in the audit at [`.kiro/specs/AUDIT.md`](.kiro/specs/AUDIT.md). The work plan is in [`.kiro/specs/ROADMAP.md`](.kiro/specs/ROADMAP.md). Work happens on the `dev` branch.
+> ⚠️ **Real state**: this project is in **Phase 0 (stabilization)**, not in production. There are known blockers (build, architecture, security, tests) documented in the audit at [`specs/AUDIT.md`](specs/AUDIT.md). The work plan is in [`specs/ROADMAP.md`](specs/ROADMAP.md). Work happens on the `dev` branch.
 
 ---
 
@@ -319,24 +319,23 @@ curl http://localhost:8000/health
 
 ## 📖 Documentation
 
-### Specs & Planning (spec-driven — `.kiro/`)
-- [`.kiro/specs/AUDIT.md`](.kiro/specs/AUDIT.md) - Audit of the real state (findings + severity)
-- [`.kiro/specs/ROADMAP.md`](.kiro/specs/ROADMAP.md) - Roadmap by phases (Phase 0 = stabilization)
-- [`.kiro/specs/01-fix-blockers/`](.kiro/specs/01-fix-blockers/) - Unblock build and broken code
-- [`.kiro/specs/02-unify-agent-architecture/`](.kiro/specs/02-unify-agent-architecture/) - Unify agents on the base pattern
-- [`.kiro/specs/03-fix-cache-observability/`](.kiro/specs/03-fix-cache-observability/) - Deterministic cache + OTel
-- [`.kiro/specs/04-harden-security/`](.kiro/specs/04-harden-security/) - Auth, non-root, prompt injection
-- [`.kiro/specs/05-helm-chart/`](.kiro/specs/05-helm-chart/) - Helm chart for EKS (Phase 2 — deploy)
-- [`.kiro/specs/26-agent-skills/`](.kiro/specs/26-agent-skills/) - Skills: per-agent lazy-loaded markdown knowledge
-- [`.kiro/specs/27-bedrock-cost-attribution/`](.kiro/specs/27-bedrock-cost-attribution/) - Bedrock cost attribution (AIP per model + per-agent showback)
-- [`.kiro/specs/ADR-001-bedrock-direct-vs-strands.md`](.kiro/specs/ADR-001-bedrock-direct-vs-strands.md) - Decision: Bedrock-direct vs. the Strands framework
-- [`.kiro/steering/project.md`](.kiro/steering/project.md) - Project rules and invariants
+### Specs & Planning (spec-driven — `specs/`)
+- [`specs/AUDIT.md`](specs/AUDIT.md) - Audit of the real state (findings + severity)
+- [`specs/ROADMAP.md`](specs/ROADMAP.md) - Roadmap by phases (Phase 0 = stabilization)
+- [`specs/01-fix-blockers/`](specs/01-fix-blockers/) - Unblock build and broken code
+- [`specs/02-unify-agent-architecture/`](specs/02-unify-agent-architecture/) - Unify agents on the base pattern
+- [`specs/03-fix-cache-observability/`](specs/03-fix-cache-observability/) - Deterministic cache + OTel
+- [`specs/04-harden-security/`](specs/04-harden-security/) - Auth, non-root, prompt injection
+- [`specs/05-helm-chart/`](specs/05-helm-chart/) - Helm chart for EKS (Phase 2 — deploy)
+- [`specs/26-agent-skills/`](specs/26-agent-skills/) - Skills: per-agent lazy-loaded markdown knowledge
+- [`specs/27-bedrock-cost-attribution/`](specs/27-bedrock-cost-attribution/) - Bedrock cost attribution (AIP per model + per-agent showback)
+- [`specs/ADR-001-bedrock-direct-vs-strands.md`](specs/ADR-001-bedrock-direct-vs-strands.md) - Decision: Bedrock-direct vs. the Strands framework
+- [`steering/project.md`](steering/project.md) - Project rules and invariants
 
 ### Getting Started
 - [QUICKSTART.md](QUICKSTART.md) - Setup in 3 steps
-- [IMPLEMENTATION_HISTORY.md](IMPLEMENTATION_HISTORY.md) - Complete roadmap (Phases 1-13)
-- [VERSIONS.md](VERSIONS.md) - Package versions
 - [CHANGES.md](CHANGES.md) - Changelog
+- [archive/IMPLEMENTATION_HISTORY.md](archive/IMPLEMENTATION_HISTORY.md) - Historical roadmap (v2.0, Phases 1-13)
 
 ### Technical Docs
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) - Architecture
@@ -354,18 +353,18 @@ curl http://localhost:8000/health
 - [docs/COMPETITIVE-ANALYSIS.md](docs/COMPETITIVE-ANALYSIS.md) - Comparison vs. AI SRE agents (Aurora, OpenSRE, etc.) + positioning
 
 ### Infrastructure (Terraform)
-- [terraform/README.md](terraform/README.md) - AWS modules (IAM/IRSA, DynamoDB, Bedrock endpoints, cost AIP)
-- [terraform/bedrock-aip/README.md](terraform/bedrock-aip/README.md) - Application Inference Profiles + cost attribution
+- [infra/terraform/README.md](infra/terraform/README.md) - AWS modules (IAM/IRSA, DynamoDB, Bedrock endpoints, cost AIP)
+- [infra/terraform/bedrock-aip/README.md](infra/terraform/bedrock-aip/README.md) - Application Inference Profiles + cost attribution
 
 ### Agents
 Agents are config-driven (`agent.yaml` + `prompt.md`) under [`agents/`](agents/) — see [docs/HOW-TO-NEW-AGENT.md](docs/HOW-TO-NEW-AGENT.md). Supervisor internals: [src/supervisor/README.md](src/supervisor/README.md).
 
-### AI tooling (Kiro CLI + Claude Code)
-The project is spec-driven with `.kiro/` as the single source of truth. It also
-works with **Claude Code**: [`CLAUDE.md`](CLAUDE.md) is the entrypoint and the
-[`.claude/`](.claude/) directory mirrors `.kiro/` (rules/skills via symlink, agents
-converted). Regenerate with `./scripts/sync-claude.sh` after changing steering,
-skills, or agent definitions. See [`.claude/README.md`](.claude/README.md).
+### AI tooling (tool-agnostic)
+Repo guidance is **tool-neutral**: [`AGENTS.md`](AGENTS.md) is the canonical guide
+that any AI coding assistant reads (Claude Code, Cursor, Copilot, Aider, …), with
+detailed rules in [`steering/`](steering/) and plans in [`specs/`](specs/).
+Tool-specific files are thin pointers — [`CLAUDE.md`](CLAUDE.md) is just
+`See @AGENTS.md`. Per-tool local dirs (`.claude/`, `.cursor/`, …) are git-ignored.
 
 ---
 
@@ -403,7 +402,7 @@ curl -X POST http://localhost:8001/process \
 Read-only is today's operating mode (not a permanent lock — executing actions is
 an open roadmap item, conditional on the spec 14 guardrails + human-in-the-loop).
 See [docs/READ_ONLY_POLICY.md](docs/READ_ONLY_POLICY.md) and
-[.kiro/specs/14-security-hardening/](.kiro/specs/14-security-hardening/).
+[specs/14-security-hardening/](specs/14-security-hardening/).
 
 1. **System Prompts**: Explicit read-only instructions
 2. **IAM Policies**: Explicit deny on write operations
@@ -463,7 +462,7 @@ See [docs/READ_ONLY_POLICY.md](docs/READ_ONLY_POLICY.md) and
 
 ## 📊 Roadmap
 
-> **Authoritative roadmap**: [`.kiro/specs/ROADMAP.md`](.kiro/specs/ROADMAP.md)
+> **Authoritative roadmap**: [`specs/ROADMAP.md`](specs/ROADMAP.md)
 > (spec-numbered, phase-based, reflects the real state). The phase list below is
 > the original aspirational outline, kept for reference — where the two differ,
 > ROADMAP.md wins.
@@ -478,7 +477,7 @@ See [docs/READ_ONLY_POLICY.md](docs/READ_ONLY_POLICY.md) and
 - Enable RAG in all agents
 
 ### Phase 3: Production Deploy (3-5 days)
-- Terraform infrastructure — ✅ modules ready (IAM/IRSA, DynamoDB, Bedrock endpoints, cost AIP); see [terraform/](terraform/)
+- Terraform infrastructure — ✅ modules ready (IAM/IRSA, DynamoDB, Bedrock endpoints, cost AIP); see [infra/terraform/](infra/terraform/)
 - CI/CD pipeline (GitHub Actions)
 - EKS deployment
 
@@ -500,7 +499,7 @@ See [docs/READ_ONLY_POLICY.md](docs/READ_ONLY_POLICY.md) and
 - Predictive analysis
 - Multi-modal (screenshots, diagrams)
 
-**See**: [IMPLEMENTATION_HISTORY.md](IMPLEMENTATION_HISTORY.md) for complete roadmap
+**See**: [archive/IMPLEMENTATION_HISTORY.md](archive/IMPLEMENTATION_HISTORY.md) for complete roadmap
 
 ---
 
@@ -514,6 +513,11 @@ This is a reference implementation based on AWS Labs Agent Squad best practices.
 - Standardized agent interface
 - Read-only by default (execution = future, gated)
 - Production-grade observability
+
+**Workflow**: work on `dev` (every push runs lint + tests + coverage ≥90% +
+dep/SAST scans); release via PR `dev → main` (scan-gated image publish) and a
+`vX.Y.Z` tag. See [docs/site/CI-CD.md](docs/site/CI-CD.md) for the full pipeline and
+versioning model.
 
 ---
 
@@ -533,4 +537,4 @@ Apache 2.0 — See [LICENSE](LICENSE) for details.
 
 **Last Updated**: 2026-06-17
 **Version**: 0.x (pre-release)
-**Status**: 🚧 Stabilizing (Phase 0) — see `.kiro/specs/ROADMAP.md`
+**Status**: 🚧 Stabilizing (Phase 0) — see `specs/ROADMAP.md`
