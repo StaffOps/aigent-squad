@@ -63,7 +63,7 @@ layers add admission, scaling, validation. Reuses `staffops-chaitops` patterns
 | T12 (tests L2) | ✅ done | 62 tests, **92% coverage** (internal_auth 100%, auth 100%, main 93%, client 97%, pool 89%); code-review APPROVE-WITH-NITS (nits fixed) |
 | T13–T15 (admission L3) | ✅ done | `src/core/rate_limiter.py` (`AdmissionGuard` + `estimate_cost`, fail-open, global rate+budget); wired into both gateway routes before pool/preflight; 429 rate / 503 budget with headers; `rate_limit.blocks` metric. 100% coverage on rate_limiter; main.py 99%. Independent author + review (APPROVE-WITH-NITS). Budget TOCTOU hardening → T19d |
 | T16–T19b (deploy L4) | 🔶 in progress | Chart lives in `StaffOps/helm-charts` repo (chart `aigent-squad`, existing `services` map + KEDA + per-service `networkPolicy.allowFrom`). Adding `gateway` service + making `supervisor` backend-only. docker-compose two-tier + mcp-server repointed (T19c) ✅. CostCenter `devops-team`. Pending: chart edits in helm-charts repo + real-cluster install |
-| T20–T23 (docs/validation L5) | ⬜ pending | architecture docs, k6, metrics doc, final review |
+| T20–T23 (docs/validation L5) | 🔶 in progress | T20 architecture doc (two-tier topology + concurrency model + endpoints) ✅; T22 metrics doc (gateway + admission) ✅; Dockerfile two-tier + pipelines confirmed ✅. Pending: T21 k6 load test, T23 final independent review |
 
 ## Dependencies / sequencing
 - **Land spec 31 first (L1–L2)** — round-table consensus (4/4). No spec-25 dependency

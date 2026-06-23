@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Added (Spec 31 L5: docs — started)
+- `docs/site/architecture.md`: rewritten for the two-tier topology — gateway (public) → supervisor (backend) diagram, the concurrency model (per-replica pool vs global rate/budget, with the fail-open/fail-closed contrast), two-tier design decisions, and split ports/endpoints (gateway `:8000` public, supervisor `:8001` internal-only with `/internal/*`).
+- `docs/site/reference/metrics.md`: new "Edge gateway and admission" section (`gateway.pool_rejections`/`pool_depth`/`queue_wait`/`redis_fallback_active`, `rate_limit.blocks`) with operational signals.
+- `Dockerfile`: documents one-image/two-command model (EXPOSE 8000+8001). Pipelines confirmed aligned — `test.yml` coverage gate already covers `src/gateway` via `.coveragerc` (`source=src`); one image + command override needs no build split. Full suite green: 402 tests, 93.28% coverage. L5 pending: k6 load test (T21), final independent review (T23).
+
 ### Added (Spec 31 L4: two-tier deploy)
 - **Helm** (in the `StaffOps/helm-charts` repo, chart `aigent-squad`): the existing `services` map gains a `gateway` entry (public, port 8000) alongside `supervisor` (now backend-only, port 8001). The chart's per-service `networkPolicy.allowFrom` makes gateway ingress customizable — the gateway fronts BOTH external traffic AND in-cluster callers (Alertmanager → spec 18, anomaly-detection, Falco, …). Supervisor NetworkPolicy stays gateway-only (the `/internal/*` trust boundary). `SUPERVISOR_INTERNAL_TOKEN` as a distinct ExternalSecret. CostCenter `devops-team`. (Chart changes live in that repo, not here.)
 - `docker-compose.yaml`: two-tier local stack — supervisor now backend-only (`expose: 8001`, `command: src.supervisor.server`, `SUPERVISOR_INTERNAL_TOKEN`), new `gateway` service (`:8000`, forwards to supervisor). `mcp-server` repointed to `http://gateway:8000/query` (T19c).

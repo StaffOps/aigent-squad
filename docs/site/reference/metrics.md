@@ -119,6 +119,27 @@ build Prometheus rules that alert on `closed → open` transitions.
 
 ---
 
+## Edge gateway and admission (spec 31)
+
+Emitted by the edge gateway. The worker-pool metrics reflect the **per-replica**
+local concurrency cap; the admission metric reflects the **global** Redis-backed
+rate/budget guards (see Architecture → Concurrency model).
+
+| Metric | Type | Labels | Description |
+|--------|------|--------|-------------|
+| `aigent.gateway.pool_rejections` | Counter | — | Requests rejected with `503` because the worker pool was at capacity (backpressure) |
+| `aigent.gateway.pool_depth` | UpDownCounter | — | In-flight jobs currently held by the pool |
+| `aigent.gateway.queue_wait` | Histogram (ms) | — | Time a job waited to acquire a pool slot |
+| `aigent.gateway.redis_fallback_active` | Counter | — | Times job lifecycle fell back to log-only (Redis unavailable) |
+| `aigent.rate_limit.blocks` | Counter | `reason` (`user`/`global`) | Requests blocked by the admission guards (per-user rate or global budget) |
+
+Useful signals: a rising `pool_rejections` with low `pool_depth` variance means
+the cap is too low for the replica count; `queue_wait` p99 climbing toward the
+job timeout indicates saturation; `rate_limit.blocks{reason="global"}` firing
+means the daily budget is exhausted.
+
+---
+
 ## Fan-out and synthesis (spec 17)
 
 Emitted when the supervisor routes a query to two or more agents in parallel
