@@ -18,18 +18,21 @@ of the old README. The premise: the system **didn't build/run** at the time
 | Multi-turn (history) | ✅ unified via agent_base |
 | Cache | ✅ deterministic sha256 key (spec 03) |
 | Observability | ✅ OTel wired, JSONFormatter, PROMETHEUS_URL, custom metrics (spec 03) |
-| Security | ✅ auth, non-root, redis password, prompt delimiters (spec 04) |
-| Tests | ✅ ~85% global coverage, CI gate 80% |
-| Docs | ✅ METRICS.md, SECURITY.md, KNOWLEDGE-BASE.md, HOW-TO |
+| Security (baseline) | ✅ auth, non-root, redis password, prompt delimiters (spec 04) |
+| Security (anti-injection) | ⚠️ spec 14 Phase 1 done (Bedrock Guardrail L1 + fail-closed + audit); Phases 2–5 pending |
+| Edge gateway | ✅ spec 31 L1–L4 (gateway front door + worker pool + admission + two-tier Helm); ⚠️ not cluster-validated; L5 docs partial |
+| Tests | ✅ ~93% global coverage, CI gate 90% |
+| Docs | ✅ MkDocs site (architecture/metrics two-tier), METRICS.md, SECURITY.md, KNOWLEDGE-BASE.md, HOW-TO |
 | Async/Resilience | ✅ full async, circuit breaker, fail-open (spec 06) |
 | Multi-agent | ✅ fan-out, synthesizer, agent-as-tools (spec 17) |
 | RCA | ⚠️ Phase 1 done (single-round); Phase 2 pending (spec 18) |
 | Incident memory | ✅ pgvector KB, extraction, RAG injection (spec 21) |
 | Platform | ✅ config-driven, Helm chart, zero-code agent add (spec 22) |
-| CI/CD | ✅ GitHub Actions, multi-arch, Trivy, OIDC (spec 08) |
+| CI/CD | ✅ GitHub Actions, multi-arch, Trivy scan-before-push, Bandit SAST (spec 08) |
 
-**Suggested real version**: `0.x` (pre-release). The README's "v2.0 / Production
-Ready" is inflated (see `version-management.md`).
+**Suggested real version**: `0.2.0` released; gateway (spec 31) accrues toward
+`0.3.0` (MINOR — new tier), to be cut once cluster-validated. The README's
+"v2.0 / Production Ready" is inflated (see `version-management.md`).
 
 ---
 

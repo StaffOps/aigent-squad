@@ -1,7 +1,62 @@
-# Handoff — sessions 2026-06-16 → 2026-06-22
+# Handoff — sessions 2026-06-16 → 2026-06-23
 
 Estado para retomar. O que foi feito, o que ficou pendente, e próximos
 passos priorizados.
+
+---
+
+## Done — session 2026-06-22 / 2026-06-23
+
+### Root doc cleanup (spec 24)
+- Deleted stale `VERSIONS.md` + `GENERIC_VERSION.md`; archived
+  `IMPLEMENTATION_HISTORY.md` → `archive/`. Refs updated in README + ROADMAP.
+
+### Spec 14 Phase 1 — Bedrock Guardrail + fail-closed (DONE ✅)
+- `infra/terraform/guardrail/`: `aws_bedrock_guardrail` (PROMPT_ATTACK HIGH
+  multi-language, PII BLOCK, content filters, optional denied topics) + published
+  version; outputs id/version.
+- `src/core/guardrail.py`: `GuardrailClient.apply()` input+output via
+  `apply_guardrail` API; **fail-closed** (block OR unavailable → 403, never
+  bypass); structured audit log (no cleartext payload, sha256 digest).
+- Wired into `bedrock.invoke` (chokepoint for all LLM calls); does NOT trip the
+  circuit breaker. Propagated through classifier/supervisor/investigation → 403
+  at `/internal/process`. 99% cov on guardrail. Independent author + review.
+- Phases 2–5 (canary, output filter, rate/budget L6, input scanner,
+  multi-language suite) still pending.
+
+### Spec 31 — Edge gateway + worker pool (L1–L4 DONE ✅, L5 partial)
+- **L1/L2**: `src/gateway/` — thin FastAPI front door (edge auth, `WorkerPool`
+  backpressure, OpenAI /v1 + /query + /jobs/{id}/cancel). Supervisor became
+  backend-only (`:8001`, `/internal/process` + `/internal/agents`, gateway-only
+  via `SUPERVISOR_INTERNAL_TOKEN`); public routes moved to the gateway.
+- **L3**: `src/core/rate_limiter.py` — `AdmissionGuard` (per-user rate + global
+  daily budget, Redis, **fail-open**) + `estimate_cost`. Enforced at the gateway
+  before forward (429/503 with headers). Budget TOCTOU → hardening T19d.
+- **L4**: chart in `StaffOps/helm-charts` (`aigent-squad` 0.8.0) — gateway +
+  supervisor in the `services` map (KEDA per tier), supervisor NetworkPolicy
+  locked to gateway-only, gateway `networkPolicy.allowFrom` opens it to in-cluster
+  callers (Alertmanager, anomaly-detection, Falco). CostCenter `devops-team`.
+  docker-compose two-tier + mcp-server repointed to the gateway. Both topologies
+  (inProcess + distributed) aligned.
+- **L5 partial**: `docs/site/architecture.md` + `metrics.md` rewritten two-tier.
+  Pending: T21 (k6 load test), T23 (final independent review).
+- Round-table sign-off (dev+security+sre+gitops) settled the 3 design questions.
+- Concurrency model: per-replica pool (fail-open-to-reject) + global Redis
+  rate/budget (fail-open-to-allow), distinct from spec-14 guardrail (fail-closed).
+
+### Shipped (2026-06-23)
+- PR #17 `dev → main` merged → `build.yml` built scan-gated multi-arch image with
+  `src/gateway` → Docker Hub tags `latest` + `ba13399` (the `0.2.0` tag does NOT
+  contain the gateway). helm-charts `main` pushed (chart 0.8.0), CI green.
+- CI fixes found by watching pipelines: ruff F401 in L3 tests; added
+  `fakeredis`+`respx` to `test.yml` (gateway test deps); ct-values pinned both
+  tiers to `autoscaling.kind=none` (no CRD on bare kind).
+
+### Release note
+- No version bump yet. The gateway is a **new tier → MINOR `0.3.0`** (not a
+  PATCH), to be cut once validated in a cluster (per `version-management`).
+  Until then the image `latest`/`sha` carries the gateway; chart `appVersion`
+  stays `0.2.0` with a ⚠️ in the chart README.
 
 ---
 
@@ -121,12 +176,11 @@ passos priorizados.
 
 ---
 
-## Current branch state (`dev`)
+## Current branch state
 
-All the above is committed and pushed to `dev`. **Not yet merged to `main`.**
-Merging `dev → main` will:
-1. Trigger `build.yml` → build Alpine image + push to Docker Hub + Trivy scan.
-2. CI `test.yml` will run lint + pytest (needs `OTEL_LIBS_DEPLOY_KEY` secret).
+`dev` and `main` are in sync as of 2026-06-23 (PR #17 merged). The gateway image
+is on Docker Hub (`latest` + `ba13399`); helm-charts `main` has chart 0.8.0.
+Next work resumes on `dev`.
 
 ---
 
@@ -134,29 +188,29 @@ Merging `dev → main` will:
 
 | # | Item | Notes |
 |---|------|-------|
-| 1 | **Branch protection NOT enforced** | GitHub branch protection + rulesets need GitHub Pro/Team or a public repo (private Free plan → HTTP 403). Today "no direct push" is policy-only; the `guard` job enforces PR-from-dev→main and all CI checks run, but a direct `git push` is still technically possible. Decision deferred (do nothing for now). To enable: upgrade plan or make repo public, then set the required checks in `docs/CI-CD.md`. |
-| 2 | **`build.yml` uses personal Docker Hub** | Image is `karlipegomes/aigent-squad`; migrate to a StaffOps org Docker Hub namespace for consistency. |
-| 3 | **Helm install on a real cluster** | `helm template \| kubectl apply --dry-run` + `ct install` on kind/EKS — needs a cluster. Deferred. |
-| 4 | **LibreChat end-to-end** | Bridge unit-tested only; not validated against a live LibreChat instance. |
-| 5 | **Spec 14 Phase 1** | Security design only — Bedrock Guardrail + fail-closed not implemented. |
+| 1 | **Branch protection NOT enforced** | Needs GitHub Pro/Team or a public repo (private Free → 403). `guard` job + CI checks run, but a direct push to `main` is technically possible. Deferred. |
+| 2 | **`build.yml` uses personal Docker Hub** | Image is `karlipegomes/aigent-squad`; migrate to a StaffOps org namespace. |
+| 3 | **Helm install on a real cluster** | `ct install` on kind/EKS needs a cluster + a real image in `ct-values` (currently the placeholder `aigent-squad/supervisor:0.1.0`). Validated only via `ct lint`/template/parse locally. Deferred. |
+| 4 | **LibreChat end-to-end** | Bridge unit-tested only; now behind the gateway — not validated against a live LibreChat. |
+| 5 | **Spec 31 gateway not cluster-validated** | Code + chart done; never deployed. The `0.3.0` release is gated on a real-cluster run. |
+| 6 | **Budget TOCTOU (spec 31 L3)** | `check_budget` GET→compare→INCR not atomic; tracked as T19d (needs EVAL/Lua + real-Redis test; test fakeredis lacks `eval`). |
+| 7 | **Spec 14 Phases 2–5** | Only L1 (guardrail + fail-closed) done; canary/output-filter/rate-budget/input-scanner/multi-language suite pending. |
 
 ---
 
 ## Next specs (priority order)
 
-> Done since last handoff: `dev → main` merged; Apache 2.0; MkDocs site live;
-> CI on `DOCS_DEPLOY_TOKEN` (HTTPS dep + BuildKit secret); CVE cleanup; **spec 10**
-> (efficiency/quality metrics); **first release `v0.2.0`** (tag-driven scan-gated
-> release.yml, image `:0.2.0`, chart 0.7.0 → appVersion 0.2.0); **CI/CD Model A**
-> (`docs/CI-CD.md`: scan-before-publish on build+release, guard, Bandit SAST,
-> Trivy fs dep scan, docs deploy only from main + strict PR build); **spec 30**
-> (datasource cache wired into adapters, `cache.hits/misses` now emitted).
-> Specs 03/04 were already complete (2026-06-14).
+> Done since last handoff: **root doc cleanup**; **spec 14 Phase 1** (Bedrock
+> Guardrail + fail-closed + audit); **spec 31 L1–L4** (edge gateway + worker pool
+> + admission + two-tier Helm) + L5 docs partial; PR #17 shipped (gateway image on
+> Docker Hub, chart 0.8.0).
 
-1. **Spec 14 Phase 1** — Bedrock Guardrail + fail-closed (security; design only today).
-2. **Spec 11 — bedrock-resilience-cost** — Haiku in the classifier, prompt caching, model tiering (includes `aigent.cache.tokens_saved`).
-3. **Spec 28 — RCA benchmark** (OpenSRE CloudOpsBench pattern) — quality gap.
-4. **Branch protection** — once the GitHub plan allows (see Pending #1).
+1. **Spec 31 L5 finish** — k6 load test (T21) + final independent review (T23) + real-cluster `ct install`.
+2. **Spec 31 release** — cut `0.3.0` once the gateway runs in a cluster (app image + chart appVersion).
+3. **Spec 14 Phase 2** — canary tokens + output filter (exfiltration defense).
+4. **Spec 11 — bedrock-resilience-cost** — Haiku classifier, prompt caching, model tiering.
+5. **Spec 28 — RCA benchmark** (OpenSRE CloudOpsBench pattern).
+6. **Branch protection** — once the GitHub plan allows (Pending #1).
 
 ---
 
