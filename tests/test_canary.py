@@ -14,9 +14,8 @@ Tests against the BEHAVIOR CONTRACT:
 NOTE: otel_helper stub used (no real OTel SDK in test env).
 """
 import hashlib
-import logging
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 from src.core.canary import CanaryGuard, _generate_token, _digest
 from src.core.guardrail import GuardrailBlockedError

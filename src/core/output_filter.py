@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import hashlib
 import re
-from typing import List, Optional, Tuple
+from typing import List, Tuple
 
 from src.core.config import settings
 from src.core.guardrail import GuardrailBlockedError

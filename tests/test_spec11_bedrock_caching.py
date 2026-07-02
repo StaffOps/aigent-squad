@@ -5,7 +5,7 @@ graceful degradation, and metric emission with correct labels.
 """
 import json
 import pytest
-from unittest.mock import patch, MagicMock, call
+from unittest.mock import patch, MagicMock
 from botocore.exceptions import ClientError
 
 
@@ -275,7 +275,7 @@ class TestPerModelCostMetric:
         )
 
         with patch("src.core.bedrock.estimated_cost") as mock_cost, \
-             patch("src.core.bedrock.compute_cost", wraps=__import__("src.core.model_tier", fromlist=["compute_cost"]).compute_cost) as mock_cc:
+             patch("src.core.bedrock.compute_cost", wraps=__import__("src.core.model_tier", fromlist=["compute_cost"]).compute_cost):
             await client.invoke(
                 messages=[{"role": "user", "content": "test"}],
                 system_prompt="sys",

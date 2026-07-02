@@ -89,8 +89,6 @@ class TestIntegrationCanaryLeak:
         # bedrock return one of them.
         known_token = "CNRY-aaaa1111bbbb2222cccc3333dddd4444"
 
-        original_inject = None
-
         def fake_inject(self, infra_data):
             tokens = [known_token, "CNRY-eeee5555ffff6666aaaa7777bbbb8888"]
             return f"[session-ref: {tokens[0]}]\n{infra_data}\n[trace-ref: {tokens[1]}]", tokens

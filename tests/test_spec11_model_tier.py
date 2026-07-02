@@ -3,10 +3,6 @@
 Written against the BEHAVIOR CONTRACT, not implementation details.
 Bedrock is fully mocked — no AWS calls.
 """
-import json
-import pytest
-from unittest.mock import patch, MagicMock
-from dataclasses import dataclass
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
