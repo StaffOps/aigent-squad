@@ -31,13 +31,14 @@ from src.core.config import settings
 from src.core.guardrail import GuardrailBlockedError
 from src.core.logger import logger
 
-# --- Zero-width characters to strip ---
-# U+200B ZERO WIDTH SPACE, U+200C ZERO WIDTH NON-JOINER,
-# U+200D ZERO WIDTH JOINER, U+FEFF BOM/ZERO WIDTH NO-BREAK SPACE,
-# U+2060 WORD JOINER, U+180E MONGOLIAN VOWEL SEPARATOR,
-# U+00AD SOFT HYPHEN
+# --- Zero-width + bidi-override characters to strip ---
+# Zero-width: U+200B ZWSP, U+200C ZWNJ, U+200D ZWJ, U+FEFF BOM,
+#   U+2060 WORD JOINER, U+180E MONGOLIAN VOWEL SEP, U+00AD SOFT HYPHEN.
+# Bidi overrides (LOW-1): U+202A-U+202E (LRE/RLE/PDF/LRO/RLO) and
+#   U+2066-U+2069 (LRI/RLI/FSI/PDI) — reverse/hide text direction to obfuscate
+#   injection from human review; no legitimate use in a chat input.
 _ZERO_WIDTH_RE = re.compile(
-    r"[\u200b\u200c\u200d\ufeff\u2060\u180e\u00ad]+"
+    r"[\u200b\u200c\u200d\ufeff\u2060\u180e\u00ad\u202a-\u202e\u2066-\u2069]+"
 )
 
 # --- Homoglyph map: Cyrillic/Greek lookalikes → Latin ---

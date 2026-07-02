@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+### Added (Spec 14 Phase 4: multilingual prompt-injection attack suite — CI gate)
+- `tests/test_attack_suite.py`: deterministic security regression gate (62
+  parametrized attack cases, no Bedrock/AWS/cost). Covers 5 languages (PT, EN,
+  ES, Chinese, Arabic) × 6 obfuscation vectors (zero-width splitting, Cyrillic/
+  Greek homoglyphs, fullwidth chars, base64-encoded payloads, combined layered
+  attacks, leetspeak). Asserts L2 InputScanner normalizes obfuscations (exposing
+  canonical text for L1) or blocks (GuardrailBlockedError). Plain-text and
+  leetspeak injections marked `xfail(strict=True)` — L1 is the catcher by design.
+  L3 context isolation tests (7 cases) confirm delimiter structure is sound.
+- **Task 13 (L3 reinforcement)**: no code change needed. Attack suite confirmed
+  that `generic_agent.py` context construction is structurally sound against
+  delimiter spoofing — the trailing reinforcement line is positionally anchored
+  and user-injected close tags are nested content, not real delimiters.
+
 ### Added (Spec 14 Phase 3: input normalization + cheap heuristics — L2)
 - `src/core/input_scanner.py`: `InputScanner` — pre-LLM normalization (Unicode
   NFKC, zero-width char stripping, Cyrillic/Greek homoglyph→Latin folding) +
