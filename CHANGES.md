@@ -2,6 +2,25 @@
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-07-02
+
+First cluster-validated release: the edge gateway + supervisor (spec 31) and the
+OpenAI-compatible bridge (spec 29) run end-to-end on a real EKS cluster
+(devops-core), serving live queries through Bedrock with real AWS inventory via
+IRSA. Promotes the accumulated `0.3.0-dev` work to a stable cut.
+
+### Cluster validation & fixes (2026-07-02)
+- `Boto3Adapter` builds clients with explicit `region_name` (botocore reads
+  AWS_DEFAULT_REGION, not AWS_REGION → NoRegionError). EC2/RDS/CE return real data.
+- `Classifier._extract_json`: strips ```json fences / preamble before json.loads
+  → structured parse instead of the low-confidence "Fallback parsing" path.
+- Terraform: `bedrock-aip` output `arn`; IAM `ApplyGuardrail` + `DescribeTable`;
+  `example` parametrized (namespace/SA) + guardrail module. Cost-allocation tags
+  are no longer mandatory/hardcoded — `default_tags` = `ManagedBy` + optional
+  `var.tags`; removed the required `cost_center` variable. `*.auto.tfvars` gitignored.
+- Homologated live: 695 EC2 / 670 S3 / 10 RDS; Cost Explorer $191k/30d; guardrail
+  (PROMPT_ATTACK MEDIUM) passing; gateway `FIRST_BYTE_TIMEOUT` 15→30s for slow agents.
+
 ### Added (Spec 31 L5: docs — started)
 - `docs/site/architecture.md`: rewritten for the two-tier topology — gateway (public) → supervisor (backend) diagram, the concurrency model (per-replica pool vs global rate/budget, with the fail-open/fail-closed contrast), two-tier design decisions, and split ports/endpoints (gateway `:8000` public, supervisor `:8001` internal-only with `/internal/*`).
 - `docs/site/reference/metrics.md`: new "Edge gateway and admission" section (`gateway.pool_rejections`/`pool_depth`/`queue_wait`/`redis_fallback_active`, `rate_limit.blocks`) with operational signals.

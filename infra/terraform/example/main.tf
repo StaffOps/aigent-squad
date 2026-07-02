@@ -11,19 +11,18 @@ terraform {
 provider "aws" {
   region = var.region
 
-  # Single source of truth for cost/governance tags. Every taggable resource
-  # in all modules inherits these automatically — no need to pass `tags` or
-  # cost_* into each module. Per-resource tags (Name, Component) are still set
-  # on the resource itself and merge on top of these.
+  # Tags applied to every taggable resource in all modules. Only ManagedBy is
+  # set by default; add org-specific tags (cost allocation, environment, etc.)
+  # via var.tags — the chart/infra impose no org-specific tagging scheme.
   default_tags {
-    tags = {
-      CostProject = "AIGENT-SQUAD"
-      CostScope   = "MONITORING"
-      Environment = "PRD"
-      CostCenter  = var.cost_center
-      ManagedBy   = "terraform"
-    }
+    tags = merge({ ManagedBy = "terraform" }, var.tags)
   }
+}
+
+variable "tags" {
+  description = "Extra tags merged into provider default_tags (e.g. cost-allocation tags). Optional."
+  type        = map(string)
+  default     = {}
 }
 
 variable "region" {
@@ -47,11 +46,6 @@ variable "private_subnet_ids" {
 
 variable "eks_worker_security_group_id" {
   type = string
-}
-
-variable "cost_center" {
-  description = "CostCenter tag for Bedrock AIP cost attribution (mandatory)"
-  type        = string
 }
 
 # Must match the ACTUAL namespace + ServiceAccount the supervisor pod runs as.
