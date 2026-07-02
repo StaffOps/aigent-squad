@@ -15,9 +15,9 @@ Order by value/risk. Each layer is an independent deliverable — not big-bang.
 - [ ] Task 8: Tests ≥90% (canary leak → block; PII redaction)
 
 ## Phase 3 — Cost/abuse + input optimization
-- [ ] Task 9: `RateLimiter` + `BudgetGuard` per user/session (Redis), fail-closed on budget
-- [ ] Task 10: `InputScanner` — normalization (unicode/base64/homoglyph/zero-width) + cheap pre-LLM heuristics (cut junk before the invoke cost)
-- [ ] Task 11: Tests ≥90%
+- [x] Task 9: `RateLimiter` + `BudgetGuard` per user/session — **reused** from spec 31 L3 (`src/core/rate_limiter.py` `AdmissionGuard`: per-user sliding-window rate + global daily budget, atomic Lua check-and-reserve/T19d). Reconciled fail-open (availability for rate/budget) vs the guardrail's fail-closed (security) — round-table decision; not reimplemented.
+- [x] Task 10: `InputScanner` (`src/core/input_scanner.py`, L2) — pre-LLM normalization (NFKC → zero-width strip → Cyrillic/Greek homoglyph fold) + cheap heuristics (oversized, control-char density, repeated-char abuse, base64-blob inspection with NFKC re-normalized + word-boundary marker match). Runs at the start of `generic_agent.process_request`, before adapters/context/guardrail. Fail-closed; audit digest-only; `GuardrailBlockedError` reuse. Flag `INPUT_SCANNER_ENABLED` (default ON).
+- [x] Task 11: Tests — `tests/test_input_scanner.py` **88 tests, 100% coverage**. Independent test-author + code-review (APPROVE-WITH-NITS) + security review (APPROVE; HIGH-1 marker casing + MEDIUM-1 decoded NFKC remediated; word-boundary match added to avoid FP).
 
 ## Phase 4 — Multi-language regression gate
 - [ ] Task 12: Attack suite in ≥5 languages (PT/EN/ES/zh/ar) + obfuscations (base64, leetspeak, zero-width, unicode confusables) — becomes a CI gate
@@ -37,7 +37,10 @@ Order by value/risk. Each layer is an independent deliverable — not big-bang.
 | 6 — CanaryGuard | ✅ done | `src/core/canary.py`: per-request unique tokens (128-bit random hex, `CNRY-` prefix) injected into `infra_data` (head+tail); exact **and fuzzy** match (separator-obfuscation resistant — HIGH-1 fix) on model output → `GuardrailBlockedError` (exfiltration signal). Tokens never logged in clear text (sha256[:12] digest only). Gated by `CANARY_ENABLED` (default ON). Wired in `generic_agent.py`. |
 | 7 — OutputFilter | ✅ done | `src/core/output_filter.py`: regex scan for AWS keys (AKIA/ASIA + secret-with-context), private keys (PEM), emails, CPF, credit cards (**Luhn-validated** to drop timestamp/ID false-positives), GitHub/GitLab tokens, generic API secrets. Detection → `GuardrailBlockedError` (fail-closed: block, not redact — Decision 2). Gated by `OUTPUT_FILTER_ENABLED` (default ON). Categories `leak:<pattern>`. |
 | 8 — Tests ≥90% | ✅ done | `tests/test_canary.py` + `tests/test_output_filter.py` + `tests/test_canary_output_integration.py` — **canary 100%, output_filter 98%** (70 tests). Independent test-author + code-review (APPROVE-WITH-NITS) + security review (APPROVE, HIGH-1/MEDIUM-2/MEDIUM-3 remediated: fuzzy canary, AWS-secret proximity, Luhn) per `verification-independence`. |
-| 9–14 | ❌ not started | Phases 3–5 (rate limit, input scanner, multi-language suite, docs) pending |
+| 9 — RateLimiter + BudgetGuard | ✅ reused | Delivered as `AdmissionGuard` in `src/core/rate_limiter.py` (spec 31 L3). Per-user sliding-window rate + global daily budget, Redis-coordinated, atomic Lua check-and-reserve. **Fail-open** (availability for rate/budget; fail-closed reserved for security guardrails — reconciled at spec-31 round-table). |
+| 10 — InputScanner | ✅ done | `src/core/input_scanner.py`: normalize (NFKC + zero-width strip + Cyrillic/Greek→Latin homoglyph fold) + cheap heuristics (oversized, control chars, repeated chars, base64 blob injection markers). Fail-closed on scanner error. Audit with sha256[:12] digest only. Wired at start of `generic_agent.process_request` (before adapters/context/invoke). Gated by `INPUT_SCANNER_ENABLED` (default ON). |
+| 11 — Tests ≥90% | ✅ done | `tests/test_input_scanner.py` — independent test-author per `verification-independence`. |
+| 12–14 | ❌ not started | Phases 4–5 (multi-language attack suite, context reinforcement, docs) pending |
 
 ## Promotion triggers (when to reopen / harden)
 - Guardrail false-positives block legitimate use → add our own detector as an L1 fallback.

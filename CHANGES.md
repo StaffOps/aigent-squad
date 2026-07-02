@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+### Added (Spec 14 Phase 3: input normalization + cheap heuristics — L2)
+- `src/core/input_scanner.py`: `InputScanner` — pre-LLM normalization (Unicode
+  NFKC, zero-width char stripping, Cyrillic/Greek homoglyph→Latin folding) +
+  cheap rejection heuristics (oversized input, excessive control chars, repeated-
+  char abuse, base64 blob inspection for injection markers). Fail-closed on
+  scanner error (Decision 2). Audit log uses sha256[:12] digest only (no raw
+  payload). Gated by `INPUT_SCANNER_ENABLED` env var (default `true`).
+- `src/core/generic_agent.py`: InputScanner wired at the START of
+  `process_request` (before adapters/context/invoke). Normalized text replaces
+  `input_text` for all downstream processing.
+- `src/core/config.py`: new setting `input_scanner_enabled` (default `True`).
+- **Note (Task 9 — reused)**: `RateLimiter`+`BudgetGuard` per user/session
+  already delivered as `AdmissionGuard` in `src/core/rate_limiter.py` (spec 31
+  L3). Fail-open for rate/budget (availability); fail-closed reserved for security
+  guardrails — reconciled at spec-31 round-table.
+
 ### Fixed (Spec 31 T19d: budget check-and-reserve is now atomic)
 - `src/core/rate_limiter.py`: `AdmissionGuard.check_budget` replaced the
   non-atomic GET→compare→INCR with a single Lua `EVAL` check-and-reserve

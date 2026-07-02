@@ -11,6 +11,7 @@ from src.core.agent_config import AgentConfig
 from src.core.bedrock import bedrock
 from src.core.canary import CanaryGuard
 from src.core.guardrail import GuardrailBlockedError
+from src.core.input_scanner import InputScanner
 from src.core.logger import log_request, log_response, log_error
 from src.core.metrics import collect_duration
 from src.core.output_filter import OutputFilter
@@ -49,6 +50,17 @@ class GenericAgent:
                     raise ValueError("Input text cannot be empty")
                 if len(input_text) > 10000:
                     raise ValueError("Input text too long (max 10000 characters)")
+
+                # L2 Input Scanner: normalize + cheap reject BEFORE context
+                # construction and Bedrock invoke (spec 14). The normalized
+                # text replaces input_text for all downstream use.
+                scanner = InputScanner()
+                input_text = scanner.scan(
+                    input_text,
+                    agent_id=self.config.name,
+                    user_id=user_id,
+                    session_id=session_id,
+                )
 
                 # Collect context from adapters (parallel)
                 collect_start = time.time()

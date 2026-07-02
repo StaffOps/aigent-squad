@@ -159,7 +159,19 @@ The expected gain is **troubleshooting/RCA**. Critical path of the differentiato
 21 (learning) after 18                     ← learning (Sonnet extractor → Opus enricher → KB)
 ```
 
-### Backlog (after the critical path)
+### Backlog (DORMANT — do not schedule until a blocker forces it)
+
+> These items are **explicitly deferred to a future phase**. Do NOT surface them
+> as "next steps" or recurring suggestions. Pull an item ONLY when it becomes a
+> hard blocker for other work — otherwise leave it here untouched.
+>
+> - **finops ↔ Athena**: the finops agent's `athena` datasource is denied by
+>   IRSA (`enable_athena_finops=false`). Blocker trigger: someone actually needs
+>   Kubecost/CUR analysis through the agent. Fix then: enable Athena in IRSA (+
+>   CUR target) or drop the datasource.
+> - **Distributed topology (code)**: chart renders it but the supervisor only
+>   routes in-process (needs a RemoteAgent HTTP client). Blocker trigger: a real
+>   need for independent per-agent scaling/isolation. ADR-001 favors in-process.
 
 | Item | Description |
 |------|-------------|

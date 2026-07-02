@@ -38,6 +38,11 @@ class Settings(BaseSettings):
     # Output Filter — PII/secret leak detection (spec 14, L4). Scans model
     # response for credentials, PII, keys before returning. Fail-closed.
     output_filter_enabled: bool = True
+
+    # Input Scanner — pre-LLM normalization + cheap heuristics (spec 14, L2).
+    # Normalizes unicode/homoglyphs, rejects junk before spending a Bedrock
+    # invoke. Fail-closed on scanner error. Runs before context construction.
+    input_scanner_enabled: bool = True
     
     # DynamoDB
     dynamodb_sessions_table: str = "agent-sessions"
