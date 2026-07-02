@@ -154,6 +154,22 @@ module "guardrail" {
 }
 
 # -----------------------------------------------------------------------
+# ElastiCache (Valkey) — cache + rate/budget counters (spec 30/31).
+# Minimal single-node footprint; scale to a replication group for PRD.
+# -----------------------------------------------------------------------
+
+module "elasticache" {
+  source = "../elasticache"
+
+  name_prefix                  = "aigent-squad"
+  vpc_id                       = var.vpc_id
+  subnet_ids                   = var.private_subnet_ids
+  eks_worker_security_group_id = var.eks_worker_security_group_id
+  # node_type / transit_encryption default to the minimal, no-TLS footprint;
+  # override for the HA + security phase.
+}
+
+# -----------------------------------------------------------------------
 # IAM — single IRSA role with all capability policies
 # -----------------------------------------------------------------------
 
@@ -248,6 +264,16 @@ output "guardrail_id" {
 output "guardrail_version" {
   value       = module.guardrail.guardrail_version
   description = "Set env GUARDRAIL_VERSION to this value (spec 14)"
+}
+
+output "cache_endpoint" {
+  value       = module.elasticache.cache_endpoint
+  description = "Set env REDIS_HOST to this value (spec 30/31)"
+}
+
+output "cache_port" {
+  value       = module.elasticache.cache_port
+  description = "Set env REDIS_PORT to this value"
 }
 
 output "bedrock_runtime_endpoint_id" {

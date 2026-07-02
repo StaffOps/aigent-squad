@@ -78,6 +78,14 @@ curl -X POST http://localhost:8000/query \
 
 > Tests require SSH key for `staffops-otel-libs` (private dep). In CI a deploy key is used.
 > Locally, stub the dep: grep it out of requirements, create a minimal `__init__.py` stub.
+>
+> **Pre-push gate (mandatory).** CI runs `lint` → `test` and STOPS at the first
+> failure, so a lint error hides test results. Before every push, run the CI
+> lint command verbatim on the FULL scope — `ruff check src/ tests/` (not just
+> the files you touched; `--fix` auto-resolves F401) — then the tests. The local
+> `otel_helper` stub masks both flaky-dep tests and the real coverage gate, so
+> "passes locally" ≠ "passes CI": confirm with `gh run list` after pushing.
+> Subagent-generated modules/tests commonly leave unused imports — always lint them.
 
 ---
 
