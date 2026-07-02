@@ -29,6 +29,11 @@ async def enrich_deltas(drafts: list[KbDelta], rca: RCAResult) -> list[KbDelta]:
             messages=[{"role": "user", "content": user_msg}],
             system_prompt=ENRICHER_PROMPT,
             temperature=0.3,
+            # spec 11: design.md targets Opus for the enricher (deep pattern
+            # generalization). Phase 1 uses the synthesis tier (Sonnet) — promote
+            # to a dedicated Opus tier only when enrichment-quality metrics show
+            # Sonnet is insufficient (design.md "Enricher Opus↔Sonnet" trigger).
+            role="synthesis",
         )
         start = response.find("{")
         end = response.rfind("}")

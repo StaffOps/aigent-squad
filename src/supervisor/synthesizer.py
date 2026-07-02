@@ -52,6 +52,7 @@ Synthesize a single answer for the user."""
                 messages=[{"role": "user", "content": user_msg}],
                 system_prompt=SYNTHESIZER_PROMPT,
                 temperature=0.3,
+                role="synthesis",  # spec 11: uses Sonnet (synthesis tier)
             )
             return response
 

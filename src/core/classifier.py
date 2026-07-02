@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from src.core.bedrock import bedrock
 from src.core.guardrail import GuardrailBlockedError
 from src.core.state_store import ConversationMessage
+from src.core.token_budget import truncate_history_by_tokens
 from src.core.logger import logger
 
 
@@ -99,6 +100,7 @@ If unable to classify, return an empty agents list."""
                 use_cache=True,
                 agent_id="classifier",
                 match_user_language=False,  # classifier returns JSON, not prose
+                role="classifier",  # spec 11: uses Haiku (fast/cheap routing)
             )
         except GuardrailBlockedError:
             # Fail-closed: a blocked input must NOT silently fall back to
@@ -189,8 +191,15 @@ If unable to classify, return an empty agents list."""
         if not messages:
             return "No previous conversation"
 
+        # Spec 11: truncate by tokens (not message count). The classifier gets
+        # a smaller window (2000 tokens) since it only needs recent context for
+        # follow-up detection — not the full history_max_tokens.
+        truncated, _ = truncate_history_by_tokens(messages, max_tokens=2000)
+        if not truncated:
+            return "No previous conversation"
+
         lines = []
-        for msg in messages[-10:]:
+        for msg in truncated:
             agent_info = f" [{msg.agent_id}]" if msg.agent_id else ""
             lines.append(f"{msg.role}{agent_info}: {msg.content}")
         return "\n".join(lines)

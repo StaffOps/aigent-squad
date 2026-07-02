@@ -13,6 +13,7 @@ from src.core.generic_agent import GenericAgent
 from src.core.adapters import create_adapters
 from src.core.skills import SkillRegistry
 from src.core.triage import should_investigate
+from src.core.token_budget import budget_tracker, TokenBudgetExceeded
 from src.supervisor.synthesizer import synthesizer
 from src.supervisor.investigation import run_investigation
 from src.supervisor.distillation import distill_rca
@@ -70,6 +71,26 @@ class SupervisorAgent:
             log_request("supervisor", user_id, session_id, user_input)
 
             try:
+                # Token budget hard cap (spec 11 T4): refuse before spending if
+                # the session is already over budget. Clear message, no invoke.
+                try:
+                    budget_tracker.check_budget(session_id)
+                except TokenBudgetExceeded as budget_err:
+                    logger.warning("Session token budget exceeded", extra={
+                        "session_id": session_id,
+                        "used": budget_err.used,
+                        "limit": budget_err.limit,
+                    })
+                    return {
+                        "agent": "supervisor",
+                        "response": (
+                            "This session has reached its token budget. "
+                            "Please start a new session to continue."
+                        ),
+                        "confidence": 0.0,
+                        "error": "token_budget_exceeded",
+                    }
+
                 # Forced agent (OpenAI bridge per-agent model): bypass classifier.
                 if force_agent and force_agent in self.agents:
                     direct = ClassifierResult(

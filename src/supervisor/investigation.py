@@ -199,6 +199,7 @@ Produce the RCA JSON."""
         messages=[{"role": "user", "content": user_msg}],
         system_prompt=RCA_SYNTHESIZER_PROMPT,
         temperature=0.2,
+        role="synthesis",  # spec 11: uses Sonnet (synthesis tier)
     )
 
     # Parse JSON

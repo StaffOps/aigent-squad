@@ -6,12 +6,38 @@ class Settings(BaseSettings):
     aws_region: str = "us-east-1"
     bedrock_model_id: str = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"  # Claude Sonnet 4.5 (US inference profile; model requires INFERENCE_PROFILE, not on-demand)
 
+    # Model tiering (spec 11): role → model ID.  Override via env vars
+    # BEDROCK_CLASSIFIER_MODEL_ID, BEDROCK_AGENT_MODEL_ID, BEDROCK_SYNTHESIS_MODEL_ID.
+    bedrock_classifier_model_id: str = "us.anthropic.claude-haiku-4-20250514-v1:0"
+    bedrock_agent_model_id: str = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
+    bedrock_synthesis_model_id: str = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
+
+    # Prompt caching (spec 11): add cache_control to system block.
+    # Disable if the region/model rejects it (graceful degradation).
+    bedrock_prompt_cache_enabled: bool = True
+
+    # Token budget (spec 11): hard cap per session (total input+output tokens).
+    # Default 200k — generous but prevents runaway sessions.
+    session_token_budget: int = 200_000
+
+    # History truncation by tokens (spec 11). Controls how many tokens of chat
+    # history are included in each Bedrock call (not session-wide budget).
+    history_max_tokens: int = 8_000
+
     # Bedrock Guardrail — anti-prompt-injection (spec 14, L1). Fail-closed:
     # when guardrail_enabled and no id is configured, invoke is refused (not
     # bypassed). Provision via infra/terraform/guardrail (outputs id/version).
     guardrail_enabled: bool = True
     guardrail_id: Optional[str] = None
     guardrail_version: str = "DRAFT"
+
+    # Canary Guard — exfiltration detection (spec 14, L5). Injects per-request
+    # tokens into infra_data; if they appear in the output, blocks (exfil signal).
+    canary_enabled: bool = True
+
+    # Output Filter — PII/secret leak detection (spec 14, L4). Scans model
+    # response for credentials, PII, keys before returning. Fail-closed.
+    output_filter_enabled: bool = True
     
     # DynamoDB
     dynamodb_sessions_table: str = "agent-sessions"

@@ -2,6 +2,27 @@
 
 ## [Unreleased]
 
+### Added (Spec 11: Bedrock cost & model tiering — T1–T6 implemented)
+- `src/core/model_tier.py`: config-driven model resolution (`resolve_model(role)` → model ID from settings), per-model pricing table (Haiku/Sonnet/Opus with cache_read rates), `compute_cost()` replacing hardcoded Sonnet pricing, and `estimate_tokens()` for budget/truncation (conservative ~4 chars/token approximation).
+- `src/core/token_budget.py`: `SessionBudgetTracker` (per-session hard cap, configurable via `SESSION_TOKEN_BUDGET`), `TokenBudgetExceeded` exception (fail-hard, not warn), and `truncate_history_by_tokens()` replacing message-count truncation in classifier + generic_agent.
+- `src/core/config.py`: new settings — `BEDROCK_CLASSIFIER_MODEL_ID` (default Haiku), `BEDROCK_AGENT_MODEL_ID` / `BEDROCK_SYNTHESIS_MODEL_ID` (default Sonnet), `BEDROCK_PROMPT_CACHE_ENABLED`, `SESSION_TOKEN_BUDGET` (200k), `HISTORY_MAX_TOKENS` (8000).
+- `src/core/bedrock.py`: `invoke`/`_invoke_sync` accept `role` param ("classifier"/"agent"/"synthesis") → resolves model via `model_tier.resolve_model()`; system block now includes `cache_control: {"type":"ephemeral"}` when caching enabled; graceful degradation on ValidationException (disables cache for process lifetime, no crash); per-model cost metric via `compute_cost()` (accounts for `cache_read_input_tokens`); all existing callers updated with appropriate role.
+- `src/core/classifier.py`: passes `role="classifier"` (→ Haiku); history truncation now by tokens (2000-token window) instead of last-10-messages.
+- `src/core/generic_agent.py`: passes `role="agent"` (→ Sonnet); history truncation by tokens (configurable `history_max_tokens`, default 8000) instead of last-5-messages.
+- `src/supervisor/synthesizer.py`, `src/supervisor/investigation.py`, `src/core/kb/enricher.py`, `src/core/kb/extractor.py`: all pass `role="synthesis"` or `role="agent"` as appropriate.
+
+### Added (Spec 14 Phase 2: exfiltration defense — L5 canary + L4 output filter)
+- `src/core/canary.py`: `CanaryGuard` injects per-request unique tokens (128-bit random, `CNRY-` prefix) into `infra_data` before the model invoke. After invoke, scans the response for any canary token; if found → `GuardrailBlockedError` (exfiltration signal, fail-closed). Tokens never logged in clear text (sha256[:12] digest for audit correlation). Gated by `CANARY_ENABLED` env var (default `true`).
+- `src/core/output_filter.py`: `OutputFilter` scans model response for PII/secrets (AWS access keys, private keys, emails, CPF, credit cards, GitHub/GitLab tokens, generic API secrets) using compiled regex patterns. Detection → `GuardrailBlockedError` (fail-closed: blocks entire response, consistent with Decision 2 — block not redact). Categories reported as `leak:<pattern_name>`. Gated by `OUTPUT_FILTER_ENABLED` env var (default `true`).
+- `src/core/config.py`: new settings `canary_enabled` (default `True`) and `output_filter_enabled` (default `True`), matching `guardrail_enabled` posture.
+- `src/core/generic_agent.py`: canary injection wired after adapter data collection; canary detection + output filter scan wired after Bedrock invoke, before response return. Both raise `GuardrailBlockedError` (existing HTTP 403 mapping, no entrypoint changes needed).
+
+### Review remediations (security + finops + code-review)
+- **Canary (HIGH-1)**: detection is exact **and fuzzy** — the hex suffix is matched even if separators are inserted between chars, defeating "replace '-' with ' '" obfuscation attacks.
+- **OutputFilter false-positives**: `aws_secret_key` now requires proximity to an AWS key-name (drops bare 40-char blobs like SHA-1); `credit_card` is confirmed with a **Luhn** check (drops epoch timestamps / IDs).
+- **finops**: Haiku priced at 4.5 rates ($1/$5/$0.10 per MTok); `compute_cost` now prices cache-**write** tokens at 1.25x (was unpriced) via `cache_creation_input_tokens` from `bedrock.py`.
+- **Token budget wired** (was inert): `record_usage` on every Bedrock call (`_invoke_sync`) + `check_budget` hard-cut at `SupervisorAgent.process_request` entry. Enricher stays on Sonnet (`synthesis` tier); Opus is a documented promotion trigger, not a silent deferral.
+
 ## [0.3.0] - 2026-07-02
 
 First cluster-validated release: the edge gateway + supervisor (spec 31) and the

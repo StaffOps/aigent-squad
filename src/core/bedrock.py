@@ -3,7 +3,7 @@ import boto3
 import json
 import random
 import time
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from botocore.config import Config
 from botocore.exceptions import ClientError
 from src.core.config import settings
@@ -11,6 +11,8 @@ from src.core.logger import logger
 from src.core.metrics import (
     token_counter, estimated_cost, llm_duration, prompt_size_tokens,
 )
+from src.core.model_tier import resolve_model, compute_cost
+from src.core.token_budget import budget_tracker
 from src.core.circuit_breaker import CircuitBreaker
 from src.core.guardrail import guardrail, GuardrailBlockedError
 
@@ -39,6 +41,7 @@ class BedrockClient:
         self.max_retries = 3
         self.base_delay = 1.0
         self.circuit_breaker = CircuitBreaker("bedrock", failure_threshold=5, recovery_timeout=30.0)
+        self._cache_supported: Optional[bool] = None  # lazy-probed on first cached call
 
     @staticmethod
     def _user_text(messages: List[Dict[str, Any]]) -> str:
@@ -74,6 +77,7 @@ class BedrockClient:
         match_user_language: bool = True,
         user_id: str = "unknown",
         session_id: str = "",
+        role: str = "agent",
     ) -> str:
         """Synchronous Bedrock invocation with retry + jitter.
 
@@ -81,10 +85,22 @@ class BedrockClient:
         is evaluated once before any model call, and the output once after a
         successful call. A ``GuardrailBlockedError`` is fail-closed and is not
         retried.
+
+        Args:
+            role: Logical tier ("classifier", "agent", "synthesis") used to
+                resolve the model ID from config (spec 11).
         """
+        # Resolve model by role (spec 11 — config-driven tiering).
+        model_id = resolve_model(role)
+
         if match_user_language:
             system_prompt = f"{system_prompt}\n\n{_LANGUAGE_DIRECTIVE}"
-        system_blocks = [{"type": "text", "text": system_prompt}]
+
+        # Build system block with optional prompt caching (spec 11).
+        system_block: Dict[str, Any] = {"type": "text", "text": system_prompt}
+        if use_cache and settings.bedrock_prompt_cache_enabled and self._is_cache_supported():
+            system_block["cache_control"] = {"type": "ephemeral"}
+        system_blocks = [system_block]
 
         # Layer 1 (INPUT) — evaluate the untrusted user content before spending
         # an invoke. Fail-closed: blocked or unavailable → GuardrailBlockedError.
@@ -107,7 +123,8 @@ class BedrockClient:
         for attempt in range(self.max_retries):
             try:
                 logger.debug("Invoking Bedrock", extra={
-                    "model_id": self.model_id,
+                    "model_id": model_id,
+                    "role": role,
                     "attempt": attempt + 1,
                     "max_tokens": max_tokens,
                     "temperature": temperature
@@ -115,31 +132,48 @@ class BedrockClient:
 
                 llm_start = time.time()
                 response = self.client.invoke_model(
-                    modelId=self.model_id,
+                    modelId=model_id,
                     body=json.dumps(body)
                 )
                 llm_elapsed_ms = (time.time() - llm_start) * 1000
 
                 result = json.loads(response['body'].read())
 
-                input_tokens = result.get('usage', {}).get('input_tokens', 0)
-                output_tokens = result.get('usage', {}).get('output_tokens', 0)
+                usage = result.get('usage', {})
+                input_tokens = usage.get('input_tokens', 0)
+                output_tokens = usage.get('output_tokens', 0)
+                cache_read_tokens = usage.get('cache_read_input_tokens', 0)
+                cache_creation_tokens = usage.get('cache_creation_input_tokens', 0)
 
                 logger.info("Bedrock invocation successful", extra={
-                    "model_id": self.model_id,
+                    "model_id": model_id,
+                    "role": role,
                     "input_tokens": input_tokens,
-                    "output_tokens": output_tokens
+                    "output_tokens": output_tokens,
+                    "cache_read_tokens": cache_read_tokens,
+                    "cache_creation_tokens": cache_creation_tokens,
                 })
 
-                attrs = {"model": self.model_id, "agent_id": agent_id}
+                # Emit metrics with bounded cardinality labels (model family, agent_id, direction).
+                attrs = {"model": model_id, "agent_id": agent_id}
                 token_counter.add(input_tokens, {**attrs, "direction": "input"})
                 token_counter.add(output_tokens, {**attrs, "direction": "output"})
-                cost = (input_tokens * 3 / 1_000_000) + (output_tokens * 15 / 1_000_000)
+
+                # Record session token usage for the budget hard cap (spec 11 T4).
+                # Post-call: this response is returned; the NEXT call over budget
+                # is refused by check_budget at the supervisor entrypoint.
+                if session_id:
+                    budget_tracker.record_usage(session_id, input_tokens, output_tokens)
+
+                # Per-model cost (spec 11 — replaces hardcoded Sonnet pricing).
+                cost = compute_cost(
+                    model_id, input_tokens, output_tokens,
+                    cache_read_tokens=cache_read_tokens,
+                    cache_write_tokens=cache_creation_tokens,
+                )
                 estimated_cost.add(cost, attrs)
 
                 # Efficiency metrics (spec 10): LLM latency + prompt size distribution.
-                # prompt_size_tokens is a histogram of input tokens (p50/p95 → bloat),
-                # distinct from token_counter which is the running spend total.
                 llm_duration.record(llm_elapsed_ms, {"agent_id": agent_id})
                 prompt_size_tokens.record(input_tokens, {"agent_id": agent_id})
 
@@ -159,6 +193,19 @@ class BedrockClient:
 
             except ClientError as e:
                 error_code = e.response['Error']['Code']
+
+                # Prompt caching validation: if the model/region rejects the
+                # cache_control field, disable caching and retry transparently.
+                if error_code == 'ValidationException' and 'cache_control' in str(e):
+                    logger.warning(
+                        "Prompt caching not supported by model/region — disabling",
+                        extra={"model_id": model_id},
+                    )
+                    self._cache_supported = False
+                    # Remove cache_control and retry this attempt (not counted).
+                    system_blocks[0].pop("cache_control", None)
+                    body["system"] = system_blocks
+                    continue
 
                 logger.warning("Bedrock invocation failed", extra={
                     "error_code": error_code,
@@ -188,6 +235,17 @@ class BedrockClient:
 
         raise Exception(f"Failed to invoke Bedrock after {self.max_retries} attempts")
 
+    def _is_cache_supported(self) -> bool:
+        """Check whether prompt caching is supported (lazy, cached result).
+
+        Returns True by default (optimistic). The first ValidationException
+        mentioning cache_control will set this to False for the process lifetime.
+        """
+        if self._cache_supported is None:
+            # Optimistic: assume supported until proven otherwise.
+            self._cache_supported = True
+        return self._cache_supported
+
     async def invoke(
         self,
         messages: List[Dict[str, Any]],
@@ -199,12 +257,17 @@ class BedrockClient:
         match_user_language: bool = True,
         user_id: str = "unknown",
         session_id: str = "",
+        role: str = "agent",
     ) -> str:
         """Async Bedrock invocation with circuit breaker.
 
         A ``GuardrailBlockedError`` (fail-closed security refusal) is re-raised
         WITHOUT recording a circuit-breaker failure — it is a deliberate policy
         decision, not a Bedrock fault, and must not trip the breaker.
+
+        Args:
+            role: Logical tier ("classifier", "agent", "synthesis") for model
+                resolution (spec 11).
         """
         if not self.circuit_breaker.can_execute():
             raise Exception("Bedrock circuit breaker is OPEN")
@@ -212,7 +275,7 @@ class BedrockClient:
         try:
             result = await asyncio.to_thread(
                 self._invoke_sync, messages, system_prompt, max_tokens, temperature,
-                use_cache, agent_id, match_user_language, user_id, session_id,
+                use_cache, agent_id, match_user_language, user_id, session_id, role,
             )
             self.circuit_breaker.record_success()
             return result
