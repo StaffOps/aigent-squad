@@ -18,18 +18,23 @@ of the old README. The premise: the system **didn't build/run** at the time
 | Multi-turn (history) | ✅ unified via agent_base |
 | Cache | ✅ deterministic sha256 key (spec 03) |
 | Observability | ✅ OTel wired, JSONFormatter, PROMETHEUS_URL, custom metrics (spec 03) |
-| Security | ✅ auth, non-root, redis password, prompt delimiters (spec 04) |
-| Tests | ✅ ~85% global coverage, CI gate 80% |
-| Docs | ✅ METRICS.md, SECURITY.md, KNOWLEDGE-BASE.md, HOW-TO |
+| Security (baseline) | ✅ auth, non-root, redis password, prompt delimiters (spec 04) |
+| Security (anti-injection) | ⚠️ spec 14 Phase 1 done (Bedrock Guardrail L1 + fail-closed + audit); Phases 2–5 pending |
+| Edge gateway | ✅ spec 31 cluster-validated (2026-07-01, devops-core): gateway + supervisor in-process, Istio HTTPRoute, IRSA→Bedrock, guardrail, agentsSource git+configmap. Image `0.3.0-dev` on Harbor labs; chart 0.9.0 |
+| Tests | ✅ ~93% global coverage, CI gate 90% |
+| Docs | ✅ MkDocs site (architecture/metrics two-tier), METRICS.md, SECURITY.md, KNOWLEDGE-BASE.md, HOW-TO |
 | Async/Resilience | ✅ full async, circuit breaker, fail-open (spec 06) |
 | Multi-agent | ✅ fan-out, synthesizer, agent-as-tools (spec 17) |
 | RCA | ⚠️ Phase 1 done (single-round); Phase 2 pending (spec 18) |
 | Incident memory | ✅ pgvector KB, extraction, RAG injection (spec 21) |
 | Platform | ✅ config-driven, Helm chart, zero-code agent add (spec 22) |
-| CI/CD | ✅ GitHub Actions, multi-arch, Trivy, OIDC (spec 08) |
+| CI/CD | ✅ GitHub Actions, multi-arch, Trivy scan-before-push, Bandit SAST (spec 08) |
 
-**Suggested real version**: `0.x` (pre-release). The README's "v2.0 / Production
-Ready" is inflated (see `version-management.md`).
+**Suggested real version**: `0.2.0` released; gateway (spec 31) validated in
+devops-core and running as `0.3.0-dev` (image on Harbor labs, chart 0.9.0).
+Cut a stable `0.3.0` (drop `-dev`) once the milestone is committed and the image
+is rebuilt with the app fixes under a stable tag. The README's
+"v2.0 / Production Ready" is inflated (see `version-management.md`).
 
 ---
 
@@ -159,6 +164,8 @@ The expected gain is **troubleshooting/RCA**. Critical path of the differentiato
 | Item | Description |
 |------|-------------|
 | Specialized adapters | Create `GitLabAdapter` (`type: gitlab`) and `RAGAdapter` (`type: rag`) — the generic HttpAdapter doesn't replicate the old gitlab_client's query intelligence (search_code, search_docs, list_projects). Same for RAG (Bedrock Knowledge Bases). |
+| **Distributed topology (code)** | The Helm chart renders a `distributed` topology (supervisor + N specialist Deployments + mcp-server), but the supervisor **only routes in-process** (`SupervisorAgent` instantiates `GenericAgent` in memory; no HTTP call to remote specialists — `close()` is a no-op "agents are in-process"). To make `topology: distributed` functional, implement a `RemoteAgent`/HTTP supervisor client that, when configured, delegates to `http://<release>-<agent>:8001/process` instead of the in-process instance. Until then, `distributed` is infra-scaffold only. ADR-001 favors in-process (inter-agent latency irrelevant vs model cost), so this is deliberately deferred — reopen only if a real need for independent per-agent scaling/isolation emerges. Discovered 2026-07-01 while validating spec 31 in-cluster. |
+| **finops ↔ Athena mismatch** | The `finops` agent declares two datasources — `boto3 ce` (Cost Explorer, works) and `athena` (Kubecost DB). But the IRSA role is provisioned with `enable_athena_finops = false`, so `athena:StartQueryExecution` is denied → the AthenaAdapter fails on every finops query (`AccessDeniedException`), adding latency and a visible error in the response. Two options: (a) enable Athena in the IRSA (`enable_athena_finops = true` + CUR/Kubecost bucket/workgroup/db vars) once a real Athena target exists, or (b) drop the `athena` datasource from the finops agent config until then. Cost Explorer alone already returns real spend (~$191k/30d confirmed 2026-07-01). Discovered 2026-07-01 during fix homologation. Related: the slow path (Athena timeout + Bedrock ≈ 17s) also forced bumping `GATEWAY_FIRST_BYTE_TIMEOUT_SECONDS` 15→30 in the overlay. |
 | Spec 07 | Readiness probes `/healthz` + `/ready` + graceful shutdown (partially done in 06) |
 | Spec 11 | Bedrock model tiering (Haiku in the classifier, Sonnet in the agents) |
 | Spec 22 Phase B | Helm chart (done) — refine with ExternalSecret, NetworkPolicy |

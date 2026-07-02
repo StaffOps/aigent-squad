@@ -263,6 +263,15 @@ User Query: "How many EC2 instances are running?"
 - Manages conversation history
 - Slack integration (optional)
 
+> ⚠️ **Two-tier topology (spec 31)**: as of 2026-06-23 an **edge gateway**
+> (`:8000`, public) fronts the **supervisor** (`:8001`, backend-only,
+> `/internal/*`). The gateway owns edge auth, the worker pool (backpressure),
+> and global rate/budget admission; clients (LibreChat, MCP, Alertmanager,
+> anomaly-detection, Falco) hit the gateway, never the supervisor directly.
+> The diagram below predates this split — see
+> [`docs/site/architecture.md`](docs/site/architecture.md) for the current
+> two-tier topology and the [spec](specs/31-edge-gateway-worker-pool/).
+
 **Specialist Agents**:
 1. **AWS Agent (8001)**: EC2, RDS, S3, Lambda, VPC, IAM
 2. **Kubernetes Agent (8002)**: Pods, nodes, deployments, services
@@ -301,15 +310,13 @@ cp .env.example .env
 ./setup-local.sh
 
 # 4. Verify services
-curl http://localhost:8000/health
+curl http://localhost:8000/ready   # gateway (public front door)
 ```
 
-**Services**:
-- Supervisor: http://localhost:8000
-- AWS Agent: http://localhost:8001
-- Kubernetes Agent: http://localhost:8002
-- FinOps Agent: http://localhost:8003
-- DevOps Agent: http://localhost:8004
+**Services** (two-tier, spec 31):
+- Gateway (public): http://localhost:8000  — `/query`, `/v1/*`, `/jobs/{id}/cancel`
+- Supervisor (backend): http://localhost:8001  — `/internal/*` (gateway-only)
+- MCP Server: http://localhost:8006  (→ gateway)
 - Observability Agent: http://localhost:8005
 - MCP Server: http://localhost:8006
 - Redis: localhost:6379
@@ -370,10 +377,11 @@ Tool-specific files are thin pointers — [`CLAUDE.md`](CLAUDE.md) is just
 
 ## 🧪 Testing
 
-### Test Supervisor
+### Test the gateway
 ```bash
 curl -X POST http://localhost:8000/query \
   -H 'Content-Type: application/json' \
+  -H 'X-Internal-Token: dev-secret-token' \
   -d '{
     "user_input": "How many EC2 instances are running?",
     "user_id": "test-user",

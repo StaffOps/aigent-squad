@@ -68,6 +68,14 @@ variable "sessions_table_arn" {
   type        = string
 }
 
+# ----- Bedrock Guardrail (spec 14 L1) -----
+
+variable "guardrail_arn" {
+  description = "ARN of the Bedrock Guardrail to allow ApplyGuardrail on. Empty = no ApplyGuardrail permission granted (guardrail disabled)."
+  type        = string
+  default     = ""
+}
+
 # ----- FinOps via Athena/CUR (optional, disabled by default) -----
 
 variable "enable_athena_finops" {

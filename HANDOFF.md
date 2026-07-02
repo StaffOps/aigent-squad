@@ -1,7 +1,124 @@
-# Handoff — sessions 2026-06-16 → 2026-06-22
+# Handoff — sessions 2026-06-16 → 2026-07-01
 
 Estado para retomar. O que foi feito, o que ficou pendente, e próximos
 passos priorizados.
+
+---
+
+## Done — session 2026-07-01 (spec 31/29 cluster-validated + 0.3.0-dev)
+
+**The squad is running in a real cluster (devops-core) end-to-end.** First time
+the code left dry-run/docker-compose. Everything below was validated with real
+queries hitting Bedrock + real AWS inventory via IRSA.
+
+### Deployed to devops-core (namespace `staffops`, inProcess topology)
+- **Helmfile install** under `02-KUBE/00-CONFIG/k8s-setup/staffops/` (sibling of
+  the other add-ons): two-doc `helmfile.yaml.gotmpl` (environments + releases) +
+  `aigent-squad/values.yaml.gotmpl`. Follows the `dependency-track` pattern.
+- **Image**: built locally (multi-arch amd64+arm64) with the gateway, pushed to
+  Harbor `harbor.bigdatacorp.com.br/labs/aigent-squad:0.3.0-dev`. The overlay
+  sets `global.image.registry` + `repository` with **no per-service tag** — the
+  version comes from `Chart.appVersion` (0.3.0-dev).
+- **Terraform applied** (12 resources): IRSA role `aigent-squad-irsa` (Bedrock
+  invoke + ApplyGuardrail + DynamoDB + read-only inventory), DynamoDB
+  `agent-sessions`, Bedrock Guardrail (`w11piaof9jp1` v1, PROMPT_ATTACK MEDIUM),
+  2× Bedrock VPC endpoints, 1 Application Inference Profile (cost attribution).
+- **Secrets**: `STAFFOPS_AIGENT_SQUAD` in Secrets Manager (INTERNAL_API_TOKEN +
+  SUPERVISOR_INTERNAL_TOKEN) via ExternalSecret → ClusterSecretStore `aws`.
+- **Routing**: Istio Gateway API (HTTPRoute on `istio-dvps-internal`, listener
+  `https-bdc-app-br`) — TLS terminated at the gateway (Let's Encrypt, verified).
+  The chart supports `routing.type: ingress|gatewayapi` in the same values.
+- **agentsSource**: validated BOTH `configmap` (inline) and `git` (initContainer
+  clones the GitLab agents repo `.../devops/aigent-squad.git`, tokenSecret).
+
+### Fixes found while validating in-cluster
+Chart (helm-charts, bumped to **0.9.0**, first cluster-validated release):
+- ExternalSecret `v1beta1` → `v1` (ESO ≥0.10 dropped v1beta1).
+- In-cluster Redis: disable persistence + emptyDir `/data` (readOnly rootfs
+  tripped `stop-writes-on-bgsave-error`).
+- git-sync clones into `/agents/.repo` (was `/tmp/repo` — readOnly rootfs).
+- `agents[]` default config updated to the spec-22 schema (domain/capabilities/
+  datasources objects) — old string list crashed the supervisor (Pydantic).
+- CostCenter default neutralized (`CHANGE-ME`); real value lives only in the
+  private overlay (org tag policy rejects arbitrary values).
+
+App (staffops-aigent-squad):
+- `Boto3Adapter` builds clients with explicit `region_name=settings.aws_region`
+  (botocore reads AWS_DEFAULT_REGION, not AWS_REGION → NoRegionError). EC2/RDS/CE
+  now return real data.
+- `Classifier._extract_json`: strips ```json fences / preamble before json.loads
+  → structured parse instead of the low-confidence "Fallback parsing" path.
+  Confirmed live: confidence 0.98, correct routing.
+- Terraform: `bedrock-aip` output `arn`, IAM ApplyGuardrail + DescribeTable,
+  example parametrized (ns/SA), CostProject uppercase. `*.auto.tfvars` gitignored
+  (was leaking real VPC/subnets/cost_center).
+
+### Homologated (real queries via the public endpoint)
+- "AWS services I use most" → 695 EC2 / 670 S3 / 100 IAM / 10 RDS (real).
+- "cost trend 30d" → $191,225.98 from Cost Explorer; confidence 0.98.
+- Bumped gateway `FIRST_BYTE_TIMEOUT` 15→30s (finops Athena+Bedrock ≈17s).
+
+### NOT committed yet (single milestone commit pending)
+All the above is on disk, uncommitted (user wants one big commit). Commit-time
+TODO: publish chart 0.9.0 + revert the local-path override in the helmfile;
+neutralize `gateway.image.repository` (still a personal Docker Hub repo in the
+public values); revert overlay `pullPolicy` Always→IfNotPresent; **revoke the
+two PATs pasted in chat** (GitHub ghp_… + GitLab glpat-…).
+
+---
+
+## Done — session 2026-06-22 / 2026-06-23
+
+### Root doc cleanup (spec 24)
+- Deleted stale `VERSIONS.md` + `GENERIC_VERSION.md`; archived
+  `IMPLEMENTATION_HISTORY.md` → `archive/`. Refs updated in README + ROADMAP.
+
+### Spec 14 Phase 1 — Bedrock Guardrail + fail-closed (DONE ✅)
+- `infra/terraform/guardrail/`: `aws_bedrock_guardrail` (PROMPT_ATTACK HIGH
+  multi-language, PII BLOCK, content filters, optional denied topics) + published
+  version; outputs id/version.
+- `src/core/guardrail.py`: `GuardrailClient.apply()` input+output via
+  `apply_guardrail` API; **fail-closed** (block OR unavailable → 403, never
+  bypass); structured audit log (no cleartext payload, sha256 digest).
+- Wired into `bedrock.invoke` (chokepoint for all LLM calls); does NOT trip the
+  circuit breaker. Propagated through classifier/supervisor/investigation → 403
+  at `/internal/process`. 99% cov on guardrail. Independent author + review.
+- Phases 2–5 (canary, output filter, rate/budget L6, input scanner,
+  multi-language suite) still pending.
+
+### Spec 31 — Edge gateway + worker pool (L1–L4 DONE ✅, L5 partial)
+- **L1/L2**: `src/gateway/` — thin FastAPI front door (edge auth, `WorkerPool`
+  backpressure, OpenAI /v1 + /query + /jobs/{id}/cancel). Supervisor became
+  backend-only (`:8001`, `/internal/process` + `/internal/agents`, gateway-only
+  via `SUPERVISOR_INTERNAL_TOKEN`); public routes moved to the gateway.
+- **L3**: `src/core/rate_limiter.py` — `AdmissionGuard` (per-user rate + global
+  daily budget, Redis, **fail-open**) + `estimate_cost`. Enforced at the gateway
+  before forward (429/503 with headers). Budget TOCTOU → hardening T19d.
+- **L4**: chart in `StaffOps/helm-charts` (`aigent-squad` 0.8.0) — gateway +
+  supervisor in the `services` map (KEDA per tier), supervisor NetworkPolicy
+  locked to gateway-only, gateway `networkPolicy.allowFrom` opens it to in-cluster
+  callers (Alertmanager, anomaly-detection, Falco). CostCenter `devops-team`.
+  docker-compose two-tier + mcp-server repointed to the gateway. Both topologies
+  (inProcess + distributed) aligned.
+- **L5 partial**: `docs/site/architecture.md` + `metrics.md` rewritten two-tier.
+  Pending: T21 (k6 load test), T23 (final independent review).
+- Round-table sign-off (dev+security+sre+gitops) settled the 3 design questions.
+- Concurrency model: per-replica pool (fail-open-to-reject) + global Redis
+  rate/budget (fail-open-to-allow), distinct from spec-14 guardrail (fail-closed).
+
+### Shipped (2026-06-23)
+- PR #17 `dev → main` merged → `build.yml` built scan-gated multi-arch image with
+  `src/gateway` → Docker Hub tags `latest` + `ba13399` (the `0.2.0` tag does NOT
+  contain the gateway). helm-charts `main` pushed (chart 0.8.0), CI green.
+- CI fixes found by watching pipelines: ruff F401 in L3 tests; added
+  `fakeredis`+`respx` to `test.yml` (gateway test deps); ct-values pinned both
+  tiers to `autoscaling.kind=none` (no CRD on bare kind).
+
+### Release note
+- No version bump yet. The gateway is a **new tier → MINOR `0.3.0`** (not a
+  PATCH), to be cut once validated in a cluster (per `version-management`).
+  Until then the image `latest`/`sha` carries the gateway; chart `appVersion`
+  stays `0.2.0` with a ⚠️ in the chart README.
 
 ---
 
@@ -121,12 +238,11 @@ passos priorizados.
 
 ---
 
-## Current branch state (`dev`)
+## Current branch state
 
-All the above is committed and pushed to `dev`. **Not yet merged to `main`.**
-Merging `dev → main` will:
-1. Trigger `build.yml` → build Alpine image + push to Docker Hub + Trivy scan.
-2. CI `test.yml` will run lint + pytest (needs `OTEL_LIBS_DEPLOY_KEY` secret).
+`dev` and `main` are in sync as of 2026-06-23 (PR #17 merged). The gateway image
+is on Docker Hub (`latest` + `ba13399`); helm-charts `main` has chart 0.8.0.
+Next work resumes on `dev`.
 
 ---
 
@@ -134,29 +250,37 @@ Merging `dev → main` will:
 
 | # | Item | Notes |
 |---|------|-------|
-| 1 | **Branch protection NOT enforced** | GitHub branch protection + rulesets need GitHub Pro/Team or a public repo (private Free plan → HTTP 403). Today "no direct push" is policy-only; the `guard` job enforces PR-from-dev→main and all CI checks run, but a direct `git push` is still technically possible. Decision deferred (do nothing for now). To enable: upgrade plan or make repo public, then set the required checks in `docs/CI-CD.md`. |
-| 2 | **`build.yml` uses personal Docker Hub** | Image is `karlipegomes/aigent-squad`; migrate to a StaffOps org Docker Hub namespace for consistency. |
-| 3 | **Helm install on a real cluster** | `helm template \| kubectl apply --dry-run` + `ct install` on kind/EKS — needs a cluster. Deferred. |
-| 4 | **LibreChat end-to-end** | Bridge unit-tested only; not validated against a live LibreChat instance. |
-| 5 | **Spec 14 Phase 1** | Security design only — Bedrock Guardrail + fail-closed not implemented. |
+| 1 | **Branch protection NOT enforced** | Needs GitHub Pro/Team or a public repo (private Free → 403). `guard` job + CI checks run, but a direct push to `main` is technically possible. Deferred. |
+| 2 | **`build.yml` uses personal Docker Hub** | Image is `karlipegomes/aigent-squad`; migrate to a StaffOps org namespace. |
+| 3 | **Helm install on a real cluster** | ✅ DONE (2026-07-01) — deployed to devops-core via helmfile (`k8s-setup/staffops/`), image from Harbor labs. `ct install` on kind still not wired, but a real EKS install is validated. |
+| 4 | **LibreChat end-to-end** | Bridge unit-tested + `/v1/models` validated via the public Istio endpoint (HTTP 200, 6 models). Not yet wired to a live LibreChat instance. |
+| 5 | **Spec 31 gateway not cluster-validated** | ✅ DONE (2026-07-01) — gateway + supervisor running in devops-core, end-to-end queries hitting Bedrock. Image `0.3.0-dev` on Harbor. Chart bumped to 0.9.0 (uncommitted). |
+| 6 | **Budget TOCTOU (spec 31 L3)** | `check_budget` GET→compare→INCR not atomic; tracked as T19d (needs EVAL/Lua + real-Redis test; test fakeredis lacks `eval`). |
+| 7 | **Spec 14 Phases 2–5** | Phase 1 (guardrail + fail-closed) done AND running in-cluster (PROMPT_ATTACK MEDIUM); canary/output-filter/rate-budget/input-scanner/multi-language suite pending. |
+| 8 | **Distributed topology (code)** | Chart renders it but supervisor only routes in-process — needs a RemoteAgent HTTP client. Deferred to backlog (ADR-001 favors in-process). See ROADMAP backlog. |
+| 9 | **finops ↔ Athena** | finops agent declares an `athena` datasource but IRSA has `enable_athena_finops=false` → AccessDenied. Enable Athena or drop the datasource. See ROADMAP backlog. |
 
 ---
 
 ## Next specs (priority order)
 
-> Done since last handoff: `dev → main` merged; Apache 2.0; MkDocs site live;
-> CI on `DOCS_DEPLOY_TOKEN` (HTTPS dep + BuildKit secret); CVE cleanup; **spec 10**
-> (efficiency/quality metrics); **first release `v0.2.0`** (tag-driven scan-gated
-> release.yml, image `:0.2.0`, chart 0.7.0 → appVersion 0.2.0); **CI/CD Model A**
-> (`docs/CI-CD.md`: scan-before-publish on build+release, guard, Bandit SAST,
-> Trivy fs dep scan, docs deploy only from main + strict PR build); **spec 30**
-> (datasource cache wired into adapters, `cache.hits/misses` now emitted).
-> Specs 03/04 were already complete (2026-06-14).
+> Done since last handoff: **spec 31/29 cluster-validated on devops-core**
+> (gateway + supervisor in-process, Istio HTTPRoute, IRSA→Bedrock, DynamoDB,
+> guardrail, agentsSource git+configmap); image `0.3.0-dev` on Harbor labs;
+> chart bumped to **0.9.0** with 4 in-cluster fixes; app fixes (region, classifier
+> JSON parse) homologated live. All uncommitted (one milestone commit pending).
 
-1. **Spec 14 Phase 1** — Bedrock Guardrail + fail-closed (security; design only today).
-2. **Spec 11 — bedrock-resilience-cost** — Haiku in the classifier, prompt caching, model tiering (includes `aigent.cache.tokens_saved`).
-3. **Spec 28 — RCA benchmark** (OpenSRE CloudOpsBench pattern) — quality gap.
-4. **Branch protection** — once the GitHub plan allows (see Pending #1).
+1. **Commit the milestone** — one commit across app + helm-charts. Then: publish
+   chart 0.9.0 (chart-releaser), revert the helmfile local-path override to the
+   published chart, neutralize `gateway.image.repository`, revert overlay
+   `pullPolicy` Always→IfNotPresent. **Revoke the two PATs pasted in chat.**
+2. **Cut `0.3.0`** (drop `-dev`) once the milestone is committed + the image is
+   rebuilt with the app fixes under a stable tag.
+3. **Spec 14 Phase 2** — canary tokens + output filter (exfiltration defense).
+4. **Spec 11 — bedrock-resilience-cost** — Haiku classifier, prompt caching, model tiering.
+5. **Distributed topology (code)** + **finops↔Athena** — backlog items surfaced 2026-07-01.
+6. **Spec 28 — RCA benchmark** (OpenSRE CloudOpsBench pattern).
+7. **Branch protection** — once the GitHub plan allows (Pending #1).
 
 ---
 
