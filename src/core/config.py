@@ -8,7 +8,7 @@ class Settings(BaseSettings):
 
     # Model tiering (spec 11): role → model ID.  Override via env vars
     # BEDROCK_CLASSIFIER_MODEL_ID, BEDROCK_AGENT_MODEL_ID, BEDROCK_SYNTHESIS_MODEL_ID.
-    bedrock_classifier_model_id: str = "us.anthropic.claude-haiku-4-20250514-v1:0"
+    bedrock_classifier_model_id: str = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
     bedrock_agent_model_id: str = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
     bedrock_synthesis_model_id: str = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
 

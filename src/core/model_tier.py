@@ -49,7 +49,7 @@ def _model_family(model_id: str) -> str:
     """Extract the short family name from an inference-profile ID.
 
     Examples:
-        "us.anthropic.claude-haiku-4-20250514-v1:0" → "haiku"
+        "us.anthropic.claude-haiku-4-5-20251001-v1:0" → "haiku"
         "us.anthropic.claude-sonnet-4-5-20250929-v1:0" → "sonnet"
         "us.anthropic.claude-opus-4-20250514-v1:0" → "opus"
     """

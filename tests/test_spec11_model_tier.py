@@ -63,7 +63,7 @@ class TestGetPricing:
 
     def test_haiku_pricing(self):
         from src.core.model_tier import get_pricing
-        p = get_pricing("us.anthropic.claude-haiku-4-20250514-v1:0")
+        p = get_pricing("us.anthropic.claude-haiku-4-5-20251001-v1:0")
         assert p.input_per_1m == 1.00
         assert p.output_per_1m == 5.00
         assert p.cache_read_per_1m == 0.10
