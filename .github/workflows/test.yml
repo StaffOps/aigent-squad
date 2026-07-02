@@ -66,7 +66,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --quiet -r requirements.txt
-          pip install pytest pytest-asyncio pytest-cov ruff "fakeredis>=2.36,<3" "respx>=0.22,<0.23"
+          pip install pytest pytest-asyncio pytest-cov ruff "fakeredis[lua]>=2.36,<3" "respx>=0.22,<0.23"
 
       - name: Run tests with coverage gate
         run: pytest tests/ --cov --cov-fail-under=90 --tb=short -q

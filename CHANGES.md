@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+### Fixed (Spec 31 T19d: budget check-and-reserve is now atomic)
+- `src/core/rate_limiter.py`: `AdmissionGuard.check_budget` replaced the
+  non-atomic GET→compare→INCR with a single Lua `EVAL` check-and-reserve
+  (`_BUDGET_RESERVE_LUA`). Concurrent requests near the daily cap can no longer
+  both pass (TOCTOU closed) — verified by a 10-way concurrency test (cap $5, ten
+  $1 reserves → exactly 5 allowed, total never exceeds the cap). Still fail-open
+  (Redis/EVAL error → allow). Haiku estimate pricing aligned to $1/$5 (4.5).
+- CI (`test.yml`) uses `fakeredis[lua]` so the EVAL path is exercised.
+
 ### Added (Spec 11: Bedrock cost & model tiering — T1–T6 implemented)
 - `src/core/model_tier.py`: config-driven model resolution (`resolve_model(role)` → model ID from settings), per-model pricing table (Haiku/Sonnet/Opus with cache_read rates), `compute_cost()` replacing hardcoded Sonnet pricing, and `estimate_tokens()` for budget/truncation (conservative ~4 chars/token approximation).
 - `src/core/token_budget.py`: `SessionBudgetTracker` (per-session hard cap, configurable via `SESSION_TOKEN_BUDGET`), `TokenBudgetExceeded` exception (fail-hard, not warn), and `truncate_history_by_tokens()` replacing message-count truncation in classifier + generic_agent.

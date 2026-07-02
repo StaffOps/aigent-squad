@@ -28,9 +28,9 @@ class TestEstimateCost:
         assert cost == pytest.approx(expected)
 
     def test_haiku_pricing(self):
-        # haiku: in=$0.25/M, out=$1.25/M
+        # haiku: in=$1/M, out=$5/M (Claude Haiku 4.5)
         cost = estimate_cost(input_tokens=2000, max_output_tokens=2000, model="haiku")
-        expected = (2000 * 0.25 + 2000 * 1.25) / 1_000_000
+        expected = (2000 * 1.0 + 2000 * 5.0) / 1_000_000
         assert cost == pytest.approx(expected)
 
     def test_unknown_model_defaults_to_sonnet(self):
@@ -171,9 +171,39 @@ class TestCheckBudget:
     @pytest.mark.asyncio
     async def test_redis_error_fail_open(self):
         mock_redis = AsyncMock()
-        mock_redis.get = AsyncMock(side_effect=ConnectionError("redis down"))
+        mock_redis.eval = AsyncMock(side_effect=ConnectionError("redis down"))
 
         guard = AdmissionGuard(redis_client=mock_redis, daily_budget_usd=50.0)
         allowed, remaining = await guard.check_budget(5.0)
         assert allowed is True
         assert remaining == 50.0
+
+    @pytest.mark.asyncio
+    async def test_eval_unsupported_fails_open(self):
+        # If the Redis backend rejects EVAL, the guard must fail open (allow).
+        mock_redis = AsyncMock()
+        mock_redis.eval = AsyncMock(
+            side_effect=Exception("unknown command 'eval'")
+        )
+        guard = AdmissionGuard(redis_client=mock_redis, daily_budget_usd=50.0)
+        allowed, remaining = await guard.check_budget(5.0)
+        assert allowed is True
+        assert remaining == 50.0
+
+    @pytest.mark.asyncio
+    async def test_atomic_no_overspend_under_concurrency(self):
+        """TOCTOU (spec 31 T19d): N concurrent reserves near the cap must not
+        both pass. With cap=5 and 10 parallel $1 reserves, EXACTLY 5 are allowed
+        — the atomic Lua check-and-reserve prevents overspend."""
+        import asyncio
+        redis_client = fakeredis.aioredis.FakeRedis(decode_responses=True)
+        guard = AdmissionGuard(redis_client=redis_client, daily_budget_usd=5.0)
+
+        results = await asyncio.gather(*[guard.check_budget(1.0) for _ in range(10)])
+        allowed = sum(1 for ok, _ in results if ok)
+        assert allowed == 5  # not 6+ — no TOCTOU overspend
+
+        # Reserved total must not exceed the cap.
+        day = datetime.now(timezone.utc).date().isoformat()
+        val = float(await redis_client.get(f"budget:global:{day}"))
+        assert val == pytest.approx(5.0)

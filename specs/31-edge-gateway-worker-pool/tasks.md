@@ -36,7 +36,7 @@ layers add admission, scaling, validation. Reuses `staffops-chaitops` patterns
 - [ ] T19: (NetworkPolicy already day-1 via T5c)
 - [ ] T19b: Cutover from single-process to two-tier via standard Deployment rolling update — deploy gateway + supervisor side-by-side, switch the Ingress/Service backend to the gateway, then drop the supervisor's public exposure. Rollback = point the Ingress back. (No Argo Rollout — plain rolling update.)
 - [ ] T19c: Rewire `mcp-server/mcp-server.py` default `SUPERVISOR_URL` to the **gateway** `/query` (was the supervisor :8000/query, which no longer exists — supervisor is :8001 `/internal/*` only). Local docker-compose: add gateway service, point mcp-server + LibreChat at it.
-- [ ] T19d: (hardening) Make `AdmissionGuard.check_budget` atomic via an EVAL/Lua check-and-reserve (closes the GET→compare→INCR TOCTOU; code-review 2026-06-22). Deferred from L3 because the test fakeredis lacks `eval`; needs a real-Redis integration test.
+- [x] T19d: (hardening) `AdmissionGuard.check_budget` is now atomic via an EVAL/Lua check-and-reserve (`_BUDGET_RESERVE_LUA`) — closes the GET→compare→INCR TOCTOU (code-review 2026-06-22). Done 2026-07-02: single server-side check-and-reserve; still fail-open on Redis/EVAL error; verified by a 10-way concurrency test (cap $5 → exactly 5 of ten $1 reserves allowed, total never exceeds cap). CI uses `fakeredis[lua]` to exercise EVAL.
 
 ## Phase 5 — Docs + validation
 - [ ] T20: `docs/ARCHITECTURE.md` (or site) — two-tier topology + contract + 3-layer link security + concurrency model (local vs global)
