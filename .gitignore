@@ -48,3 +48,8 @@ htmlcov/
 *.tfstate
 *.tfstate.*
 crash.log
+# Environment-specific variable files (real VPC/subnets/account/cost_center).
+# The committed reference is example/main.tf with neutral defaults only.
+*.auto.tfvars
+*.tfvars
+!example.tfvars

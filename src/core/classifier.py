@@ -109,7 +109,7 @@ If unable to classify, return an empty agents list."""
             return self._keyword_fallback(user_input)
 
         try:
-            result = json.loads(response)
+            result = json.loads(self._extract_json(response))
             agents_raw = result.get("agents", [])
             agents = [
                 AgentMatch(agent=a["agent"], confidence=a.get("confidence", 0.5))
@@ -132,6 +132,29 @@ If unable to classify, return an empty agents list."""
                 agents=[],
                 reasoning="Failed to parse classifier response"
             )
+
+    @staticmethod
+    def _extract_json(response: str) -> str:
+        """Pull the JSON object out of an LLM response.
+
+        Claude often wraps JSON in a ```json fenced block or adds a short
+        preamble despite "JSON only" instructions. Strip that so the structured
+        path parses (avoids falling back to the low-confidence keyword scan).
+        Returns the substring from the first '{' to the last '}'; if none is
+        found, returns the original text (json.loads then raises as before).
+        """
+        text = response.strip()
+        if "```" in text:
+            # Take the content of the first fenced block (``` or ```json).
+            import re as _re
+            m = _re.search(r"```(?:json)?\s*(.*?)```", text, _re.DOTALL)
+            if m:
+                text = m.group(1).strip()
+        start = text.find("{")
+        end = text.rfind("}")
+        if start != -1 and end != -1 and end > start:
+            return text[start:end + 1]
+        return text
 
     def _keyword_fallback(self, user_input: str) -> ClassifierResult:
         """Route by matching routing_keywords from agent configs; returns up to 3 matches."""

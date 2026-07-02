@@ -17,7 +17,7 @@ provider "aws" {
   # on the resource itself and merge on top of these.
   default_tags {
     tags = {
-      CostProject = "aigent-squad"
+      CostProject = "AIGENT-SQUAD"
       CostScope   = "MONITORING"
       Environment = "PRD"
       CostCenter  = var.cost_center
@@ -52,6 +52,20 @@ variable "eks_worker_security_group_id" {
 variable "cost_center" {
   description = "CostCenter tag for Bedrock AIP cost attribution (mandatory)"
   type        = string
+}
+
+# Must match the ACTUAL namespace + ServiceAccount the supervisor pod runs as.
+# The Helm chart names the SA <release>-supervisor (serviceFullname), not the
+# bare release name — so the IRSA trust `sub` must target that exact SA.
+# Defaults are neutral; override per environment (e.g. namespace "staffops").
+variable "k8s_namespace" {
+  type    = string
+  default = "aigent-squad"
+}
+
+variable "k8s_service_account" {
+  type    = string
+  default = "aigent-squad-supervisor"
 }
 
 variable "bedrock_model_profiles" {
@@ -133,6 +147,19 @@ module "dynamodb" {
 }
 
 # -----------------------------------------------------------------------
+# Bedrock Guardrail — anti-prompt-injection (spec 14 L1)
+# -----------------------------------------------------------------------
+
+module "guardrail" {
+  source = "../guardrail"
+
+  name_prefix = "aigent-squad"
+  # PROMPT_ATTACK HIGH can over-block legitimate ops queries; MEDIUM is a
+  # safer default for a consultative read-only assistant. Tune per feedback.
+  prompt_attack_strength = "MEDIUM"
+}
+
+# -----------------------------------------------------------------------
 # IAM — single IRSA role with all capability policies
 # -----------------------------------------------------------------------
 
@@ -146,11 +173,14 @@ module "iam" {
   # IRSA wiring
   eks_oidc_provider_arn = data.aws_iam_openid_connect_provider.eks.arn
   eks_oidc_provider_url = local.oidc_url
-  k8s_namespace         = "aigent-squad"
-  k8s_service_account   = "aigent-squad"
+  k8s_namespace         = var.k8s_namespace
+  k8s_service_account   = var.k8s_service_account
 
   # DynamoDB sessions table (the only write permission)
   sessions_table_arn = module.dynamodb.table_arn
+
+  # Guardrail — allow ApplyGuardrail on the provisioned guardrail (spec 14).
+  guardrail_arn = module.guardrail.guardrail_arn
 
   # FinOps: Cost Explorer is always on (own account). Athena/CUR is off
   # until a CUR target exists (CUR may live in the payer account).
@@ -214,6 +244,16 @@ output "service_account_annotation" {
 output "sessions_table_name" {
   value       = module.dynamodb.table_name
   description = "Set env DYNAMODB_SESSIONS_TABLE to this value"
+}
+
+output "guardrail_id" {
+  value       = module.guardrail.guardrail_id
+  description = "Set env GUARDRAIL_ID to this value (spec 14)"
+}
+
+output "guardrail_version" {
+  value       = module.guardrail.guardrail_version
+  description = "Set env GUARDRAIL_VERSION to this value (spec 14)"
 }
 
 output "bedrock_runtime_endpoint_id" {

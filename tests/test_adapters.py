@@ -98,6 +98,23 @@ async def test_boto3_adapter_collect_ec2():
     mock_client.describe_instances.assert_called_once()
 
 
+@pytest.mark.asyncio
+async def test_boto3_adapter_passes_explicit_region():
+    """Regression: clients must be built with an explicit region_name, not rely
+    on ambient env (AWS_REGION alone isn't read by botocore → NoRegionError)."""
+    adapter = Boto3Adapter(services=["ec2"])
+
+    mock_client = MagicMock()
+    mock_client.describe_instances.return_value = {"Reservations": []}
+
+    with patch("src.core.adapters.boto3.client", return_value=mock_client) as mock_ctor, \
+         patch("src.core.adapters.settings") as mock_settings:
+        mock_settings.aws_region = "us-east-1"
+        await adapter.collect("list instances")
+
+    mock_ctor.assert_called_once_with("ec2", region_name="us-east-1")
+
+
 # --- KubernetesAdapter tests ---
 
 

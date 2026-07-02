@@ -15,6 +15,7 @@ from kubernetes.config import ConfigException
 
 from src.core.agent_config import DatasourceConfig
 from src.core.cache import cache
+from src.core.config import settings
 from src.core.metrics import cache_hits, cache_misses
 
 
@@ -72,6 +73,17 @@ class Boto3Adapter(DatasourceAdapter):
     def _cache_id(self) -> str:
         return "boto3:" + ",".join(sorted(self.services))
 
+    @staticmethod
+    def _client(service: str):
+        """Build a boto3 client with an explicit region.
+
+        botocore resolves the region from AWS_DEFAULT_REGION (not AWS_REGION),
+        so relying on the ambient env is fragile — regional services (ec2, rds,
+        ce) raise NoRegionError when only AWS_REGION is set (e.g. injected by the
+        EKS IRSA webhook). Pass settings.aws_region explicitly instead.
+        """
+        return boto3.client(service, region_name=settings.aws_region)
+
     async def _collect(self, query: str) -> str:
         parts = []
         for svc in self.services:
@@ -83,22 +95,22 @@ class Boto3Adapter(DatasourceAdapter):
 
     def _collect_service(self, svc: str) -> str:
         if svc == "ec2":
-            c = boto3.client("ec2")
+            c = self._client("ec2")
             r = c.describe_instances()
             instances = [i for res in r["Reservations"] for i in res["Instances"]]
             running = sum(1 for i in instances if i["State"]["Name"] == "running")
             return f"[ec2] {len(instances)} instances ({running} running)"
         elif svc == "s3":
-            c = boto3.client("s3")
+            c = self._client("s3")
             buckets = c.list_buckets().get("Buckets", [])
             return f"[s3] {len(buckets)} buckets"
         elif svc == "rds":
-            c = boto3.client("rds")
+            c = self._client("rds")
             dbs = c.describe_db_instances()["DBInstances"]
             summary = ", ".join(f"{d['DBInstanceIdentifier']}({d['DBInstanceStatus']})" for d in dbs[:5])
             return f"[rds] {len(dbs)} instances: {summary}"
         elif svc == "ce":
-            c = boto3.client("ce")
+            c = self._client("ce")
             end = datetime.utcnow().strftime("%Y-%m-%d")
             start = (datetime.utcnow() - timedelta(days=30)).strftime("%Y-%m-%d")
             r = c.get_cost_and_usage(
@@ -109,7 +121,7 @@ class Boto3Adapter(DatasourceAdapter):
             total = sum(float(p["Total"]["UnblendedCost"]["Amount"]) for p in r["ResultsByTime"])
             return f"[ce] last 30d cost: ${total:.2f}"
         elif svc == "iam":
-            c = boto3.client("iam")
+            c = self._client("iam")
             roles = c.list_roles()["Roles"]
             return f"[iam] {len(roles)} roles"
         else:

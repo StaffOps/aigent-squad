@@ -80,6 +80,18 @@ data "aws_iam_policy_document" "bedrock" {
     ]
     resources = ["*"]
   }
+
+  # Apply the anti-prompt-injection guardrail (spec 14 L1). Scoped to the
+  # guardrail ARN when provided; falls back to account guardrails otherwise.
+  dynamic "statement" {
+    for_each = var.guardrail_arn != "" ? [1] : []
+    content {
+      sid       = "ApplyGuardrail"
+      effect    = "Allow"
+      actions   = ["bedrock:ApplyGuardrail"]
+      resources = [var.guardrail_arn]
+    }
+  }
 }
 
 resource "aws_iam_policy" "bedrock" {
@@ -106,6 +118,7 @@ data "aws_iam_policy_document" "dynamodb" {
       "dynamodb:PutItem",
       "dynamodb:GetItem",
       "dynamodb:Query",
+      "dynamodb:DescribeTable",
     ]
     resources = [
       var.sessions_table_arn,
