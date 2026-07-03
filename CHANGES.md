@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+### Added (Spec 14 Phase 5: security docs)
+- `docs/SECURITY.md` §S4 rewritten: defense-in-depth L1–L6 table, STRIDE mapping,
+  fail-closed (L1/L2/L4/L5) vs fail-open (L6), L3 delimitation detail. Replaces the
+  stale "delimitation only / not yet implemented" note. `docs/READ_ONLY_POLICY.md`
+  cross-ref updated (Phases 1–4 shipped, links §S4). Security-reviewed against code.
+- **Known gap documented (homologation 2026-07-03)**: L2 `InputScanner` is wired in
+  the worker (generic) agents but NOT at the supervisor entry — the routing
+  classifier invoke sees raw input (covered by L1, not L2 canonicalization). Fix
+  proposed (wire L2 at `supervisor.process_request`), deferred; L1 is the backstop.
+
+### Changed (Spec 14 Phase 4: hardening from security review)
+- `src/core/input_scanner.py`: strip RTL/Bidi override chars (U+202A–202E, U+2066–
+  2069) in the zero-width pass — visual-direction obfuscation with no legit use.
+
 ### Added (Spec 14 Phase 4: multilingual prompt-injection attack suite — CI gate)
 - `tests/test_attack_suite.py`: deterministic security regression gate (62
   parametrized attack cases, no Bedrock/AWS/cost). Covers 5 languages (PT, EN,

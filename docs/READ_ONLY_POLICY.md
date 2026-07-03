@@ -8,7 +8,9 @@ of the product, enforced in depth (4 layers below).
 > deliberately gated: read-only is the default until an explicit decision to
 > enable execution is made. When/if that happens, it is **conditional on**:
 > (a) the defense-in-depth of `specs/14-security-hardening/` being
-> implemented, and (b) **human-in-the-loop approval** for any mutating action.
+> implemented (Phases 1–4 now shipped — L1–L6, see
+> [`SECURITY.md` §S4](SECURITY.md#prompt-injection-defense--defense-in-depth-s4)),
+> and (b) **human-in-the-loop approval** for any mutating action.
 > Rationale: a read-only agent's worst-case under prompt injection is data
 > exfiltration; an *executing* agent's worst-case is a destructive action — so
 > execution may not ship without those guardrails. See `ADR-001`.

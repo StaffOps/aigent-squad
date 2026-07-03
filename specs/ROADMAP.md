@@ -19,8 +19,8 @@ of the old README. The premise: the system **didn't build/run** at the time
 | Cache | ✅ deterministic sha256 key (spec 03) |
 | Observability | ✅ OTel wired, JSONFormatter, PROMETHEUS_URL, custom metrics (spec 03) |
 | Security (baseline) | ✅ auth, non-root, redis password, prompt delimiters (spec 04) |
-| Security (anti-injection) | ⚠️ spec 14 Phase 1 done (Bedrock Guardrail L1 + fail-closed + audit); Phases 2–5 pending |
-| Edge gateway | ✅ spec 31 cluster-validated (2026-07-01, devops-core): gateway + supervisor in-process, Istio HTTPRoute, IRSA→Bedrock, guardrail, agentsSource git+configmap. Image `0.3.0-dev` on Harbor labs; chart 0.9.0 |
+| Security (anti-injection) | ✅ spec 14 **Phases 1–5 done** (L1 Bedrock Guardrail, L2 InputScanner, L3 context isolation, L4 output filter, L5 canary, L6 rate/budget; multilingual attack-suite CI gate; SECURITY.md defense-in-depth). Homologated in cluster 2026-07-03. **3 entry-point findings OPEN** (A audit gap, B homoglyph-evades-classifier-L1, D oversized→200) — see spec 14 tasks.md |
+| Edge gateway | ✅ spec 31 cluster-validated (2026-07-01, devops-core): gateway + supervisor in-process, Istio HTTPRoute, IRSA→Bedrock, guardrail, agentsSource git+configmap. Image `0.3.0-dev` on Harbor labs (rebuilt 2026-07-03 w/ InputScanner, digest `fbe381fb`); chart 0.9.2 (redis StatefulSet+PVC) |
 | Tests | ✅ ~93% global coverage, CI gate 90% |
 | Docs | ✅ MkDocs site (architecture/metrics two-tier), METRICS.md, SECURITY.md, KNOWLEDGE-BASE.md, HOW-TO |
 | Async/Resilience | ✅ full async, circuit breaker, fail-open (spec 06) |
@@ -30,10 +30,12 @@ of the old README. The premise: the system **didn't build/run** at the time
 | Platform | ✅ config-driven, Helm chart, zero-code agent add (spec 22) |
 | CI/CD | ✅ GitHub Actions, multi-arch, Trivy scan-before-push, Bandit SAST (spec 08) |
 
-**Suggested real version**: `0.2.0` released; gateway (spec 31) validated in
-devops-core and running as `0.3.0-dev` (image on Harbor labs, chart 0.9.0).
-Cut a stable `0.3.0` (drop `-dev`) once the milestone is committed and the image
-is rebuilt with the app fixes under a stable tag. The README's
+**Suggested real version**: `0.3.0` cut (tag `v0.3.0`, chart `0.9.2`). Running as
+`0.3.0-dev` in devops-core (Harbor labs image, rebuilt 2026-07-03 with the
+InputScanner). Post-0.3.0 on `dev`: spec 11 (model tiering), spec 14 Phases 3–5,
+budget TOCTOU fix. **Next bump candidate `0.4.0`**: gate on closing the spec-14
+entry-point findings (A/B/D) so the anti-injection defense is validated end-to-end
+at the supervisor — don't bump while those are open. The README's
 "v2.0 / Production Ready" is inflated (see `version-management.md`).
 
 ---
@@ -100,10 +102,10 @@ closed** (Redis/DynamoDB with no error handling), and is **blind/indefensible**
 | 08 | `ci-cd-pipeline` (GitHub Actions, multi-arch, scan, coverage gate) | ✅ done | 01 |
 | 09 | `otel-instrumentation` (7 services, propagation, Collector) | 🟠 | 02 |
 | 10 | `metrics-and-cost-observability` (RED + tokens/cost $) | 🟠 | 09 |
-| 11 | `bedrock-resilience-cost` (Haiku in the classifier, prompt caching, tiering) | 🟠 | 06 |
+| 11 | `bedrock-resilience-cost` (Haiku in the classifier, prompt caching, tiering) | ✅ done | 06 |
 | 12 | `terraform-infra` (DynamoDB/ElastiCache/ECR/IRSA/Secrets) | 🟠 | — |
 | 13 | `iam-least-privilege` (read-only per agent + explicit deny) | 🟠 | 12 |
-| 14 | `security-hardening` (defense-in-depth anti-prompt-injection: multi-language Bedrock Guardrails, fail-closed, canary/output-filter, rate/budget; read-only as a security posture = competitive differentiator) | ⚠️ Phase 1 done (Guardrail L1 + fail-closed + audit); Phases 2-5 pending | 04 |
+| 14 | `security-hardening` (defense-in-depth anti-prompt-injection: multi-language Bedrock Guardrails, fail-closed, canary/output-filter, rate/budget; read-only as a security posture = competitive differentiator) | ✅ done (Phases 1–5: L1–L6 + attack-suite CI gate + docs); cluster-homologated 2026-07-03; 3 entry-point findings OPEN (A/B/D) | 04 |
 | 15 | `sli-slo-framework` | 🟡 | 10 |
 | 16 | `incident-runbooks` | 🟡 | 06, 07 |
 | 17 | `multi-agent-collaboration` (cross-domain fan-out/fan-in + synthesis, agent-as-tools 1 hop) | ✅ done | 06, 09 |
@@ -176,10 +178,10 @@ The expected gain is **troubleshooting/RCA**. Critical path of the differentiato
 | Item | Description |
 |------|-------------|
 | Specialized adapters | Create `GitLabAdapter` (`type: gitlab`) and `RAGAdapter` (`type: rag`) — the generic HttpAdapter doesn't replicate the old gitlab_client's query intelligence (search_code, search_docs, list_projects). Same for RAG (Bedrock Knowledge Bases). |
-| **Distributed topology (code)** | The Helm chart renders a `distributed` topology (supervisor + N specialist Deployments + mcp-server), but the supervisor **only routes in-process** (`SupervisorAgent` instantiates `GenericAgent` in memory; no HTTP call to remote specialists — `close()` is a no-op "agents are in-process"). To make `topology: distributed` functional, implement a `RemoteAgent`/HTTP supervisor client that, when configured, delegates to `http://<release>-<agent>:8001/process` instead of the in-process instance. Until then, `distributed` is infra-scaffold only. ADR-001 favors in-process (inter-agent latency irrelevant vs model cost), so this is deliberately deferred — reopen only if a real need for independent per-agent scaling/isolation emerges. Discovered 2026-07-01 while validating spec 31 in-cluster. **LOW priority / deferred (2026-07-02): a lot must land before this — 0.3.0 release, spec 14 Phase 2 (security), spec 11 (cost), budget TOCTOU. Do NOT pick up until those ship.** |
+| **Distributed topology (code)** | The Helm chart renders a `distributed` topology (supervisor + N specialist Deployments + mcp-server), but the supervisor **only routes in-process** (`SupervisorAgent` instantiates `GenericAgent` in memory; no HTTP call to remote specialists — `close()` is a no-op "agents are in-process"). To make `topology: distributed` functional, implement a `RemoteAgent`/HTTP supervisor client that, when configured, delegates to `http://<release>-<agent>:8001/process` instead of the in-process instance. Until then, `distributed` is infra-scaffold only. ADR-001 favors in-process (inter-agent latency irrelevant vs model cost), so this is deliberately deferred — reopen only if a real need for independent per-agent scaling/isolation emerges. Discovered 2026-07-01 while validating spec 31 in-cluster. **LOW priority / deferred: the earlier prerequisites (0.3.0 release, spec 14 security, spec 11 cost, budget TOCTOU) have now ALL shipped (2026-07-03) — but distributed topology stays deferred on its own merits: ADR-001 favors in-process (inter-agent latency irrelevant vs model cost). Reopen only if a real need for independent per-agent scaling/isolation emerges.** |
 | **finops ↔ Athena mismatch** | The `finops` agent declares two datasources — `boto3 ce` (Cost Explorer, works) and `athena` (Kubecost DB). But the IRSA role is provisioned with `enable_athena_finops = false`, so `athena:StartQueryExecution` is denied → the AthenaAdapter fails on every finops query (`AccessDeniedException`), adding latency and a visible error in the response. Two options: (a) enable Athena in the IRSA (`enable_athena_finops = true` + CUR/Kubecost bucket/workgroup/db vars) once a real Athena target exists, or (b) drop the `athena` datasource from the finops agent config until then. Cost Explorer alone already returns real spend (~$191k/30d confirmed 2026-07-01). Discovered 2026-07-01 during fix homologation. Related: the slow path (Athena timeout + Bedrock ≈ 17s) also forced bumping `GATEWAY_FIRST_BYTE_TIMEOUT_SECONDS` 15→30 in the overlay. |
 | Spec 07 | Readiness probes `/healthz` + `/ready` + graceful shutdown (partially done in 06) |
-| Spec 11 | Bedrock model tiering (Haiku in the classifier, Sonnet in the agents) |
+| ~~Spec 11~~ | ✅ done — Bedrock model tiering (Haiku classifier, Sonnet agents) + prompt caching + token budget |
 | Spec 22 Phase B | Helm chart (done) — refine with ExternalSecret, NetworkPolicy |
 ```
 
@@ -329,10 +331,10 @@ without waiting for a human). Convergence by voting/confidence, not a fixed roun
 | 09-otel-instrumentation | Not started (partial coverage via otel-helper) |
 | 10-metrics-and-cost-observability | ✅ Phase 1 (2026-06-18) — efficiency (collect/llm duration, prompt size) + quality (rounds) |
 | 30-datasource-cache-layer | ✅ (2026-06-21) — sha256 TTL cache wired into adapters, fail-open; `aigent.cache.hits/misses` now emitted |
-| 11-bedrock-resilience-cost | Not started |
+| 11-bedrock-resilience-cost | ✅ done | Haiku classifier tiering + prompt caching + token budget; Haiku 4.5 pricing corrected |
 | 12-terraform-infra | Delivered outside the numbered spec (see `infra/terraform/`) |
 | 13-iam-least-privilege | Partially delivered in `infra/terraform/iam/` |
-| 14-security-hardening | Spec written; not implemented |
+| 14-security-hardening | ✅ done (Phases 1–5) | L1–L6 + multilingual attack-suite CI gate + SECURITY.md; cluster-homologated 2026-07-03; entry-point findings A/B/D open (see tasks.md) |
 | 15-sli-slo-framework | Not started |
 | 16-incident-runbooks | Not started |
 | 19-config-driven-platform | ❌ Substituted by spec 22 |
