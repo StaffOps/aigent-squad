@@ -1,7 +1,70 @@
-# Handoff — sessions 2026-06-16 → 2026-07-01
+# Handoff — sessions 2026-06-16 → 2026-07-03
 
 Estado para retomar. O que foi feito, o que ficou pendente, e próximos
 passos priorizados.
+
+---
+
+## Done — session 2026-07-02 → 2026-07-03 (spec 14 complete + cluster homologation)
+
+**Milestone: spec 14 (anti-prompt-injection defense-in-depth) is functionally
+complete (Phases 1–5) and homologated in the real cluster.** Plus Redis
+StatefulSet, ElastiCache validate-and-destroy, spec 11, and budget TOCTOU.
+
+### Shipped + committed + CI green (on `dev`)
+- **Spec 11** — model tiering (Haiku classifier / Sonnet agents) + prompt caching
+  + token budget; Haiku 4.5 pricing corrected ($1/$5/$0.10).
+- **Budget TOCTOU (T19d)** — `check_budget` now atomic via Lua `EVAL`
+  check-and-reserve; `fakeredis[lua]` added to CI.
+- **Redis in-cluster** — Deployment → **StatefulSet + PVC** (chart 0.9.2).
+  Homologated: AOF persistence survives pod delete (keys + budget counter
+  reloaded from PVC). Running as `aigent-squad-redis-0`.
+- **ElastiCache** — module applied (Valkey 8.0.1, tested PING/SET/GET from
+  cluster) → **destroyed** (zero cost, confirmed via AWS). Module stays
+  validate-only in `infra/terraform/elasticache/`.
+- **Spec 14 Phase 2** — canary tokens (inject into infra_data + fuzzy detect) +
+  output filter (PII/secret/canary, Luhn on credit cards).
+- **Spec 14 Phase 3** (`59386e8`) — `InputScanner` L2 (NFKC + zero-width/RTL-bidi
+  strip + homoglyph fold + cheap heuristics), wired in `generic_agent`. Task 9
+  reused the spec-31 `AdmissionGuard` (rate+budget). 88 tests, 100% cov.
+- **Spec 14 Phase 4** (`c7b7b61`) — `tests/test_attack_suite.py` deterministic CI
+  gate: 5 languages × obfuscations, 134 pass + 19 xfail-by-design. L3 reviewed
+  (no change — sound). RTL/bidi strip added (security LOW-1).
+- **Spec 14 Phase 5** (`fea17d2`) — `docs/SECURITY.md` §S4 rewritten (L1–L6 +
+  STRIDE + fail-closed/open); `READ_ONLY_POLICY.md` cross-ref; ROADMAP updated.
+
+### Cluster homologation (0.3.0-dev, digest `fbe381fb`, devops-core)
+- Rebuilt image with InputScanner; rollout of supervisor + gateway (2/2 each).
+- **Tag mismatch fixed**: chart appVersion is now the stable `0.3.0`, but local
+  dev runs `0.3.0-dev` on Harbor → overlay pinned `tag: 0.3.0-dev` for
+  gateway+supervisor (committed in `k8s-setup`, `c1c9195`, local only).
+- Attack battery via `/query` — confirmed real flow: `/query` → supervisor →
+  `classifier.classify` (raw, L1 only) → if routed, `generic_agent` (L2+L1).
+  base64→L2 block ✅; homoglyph/zero-width→routed, caught at worker L1 post-L2 ✅
+  (proves L2 value); fullwidth/plain→classifier L1 ✅; repeated-char→L2 ✅.
+
+### 4 OPEN findings from homologation (deferred — security-critical path)
+Documented in `specs/14-security-hardening/tasks.md` (attribution table + detail):
+- **A (MEDIUM)** — `classifier.classify` drops `user_id`/`session_id` → classifier
+  guardrail blocks log empty session (unattributable, breaks audit invariant).
+- **B (MEDIUM)** — homoglyph evades the classifier L1 (routed through, only caught
+  at worker after L2 folded). The supervisor-entry L2 gap, empirically proven.
+- **C (LOW)** — same root as A: classifier invoke tokens not counted vs budget
+  (`bedrock.py:165` skips on empty session).
+- **D (MEDIUM)** — oversized input raises `ValueError` at `generic_agent.py:52`
+  BEFORE the scanner → not a 403, degrades to HTTP 200 fallback; `scanner:oversized`
+  is dead code.
+- Proposed fixes: A+C (propagate ids), B (wire InputScanner at supervisor entry),
+  D (drop redundant ValueError). Pipeline dev→test→security when picked up.
+- **Side observation (not spec-14)**: aws agent echoes raw `<use_mcp_tool>` XML in
+  the response instead of executing — track separately.
+
+### NOT pushed yet
+Two local commits await push approval:
+- app `fea17d2` (docs/specs, → `dev` on GitHub, will run CI)
+- overlay `c1c9195` (→ `main` on GitLab)
+The `k8s-setup` `staffops/anomaly-detection/values.yaml.gotmpl` shows as modified
+but is **not mine** (pre-existing drift) — left untouched.
 
 ---
 
@@ -255,30 +318,33 @@ Next work resumes on `dev`.
 | 3 | **Helm install on a real cluster** | ✅ DONE (2026-07-01) — deployed to devops-core via helmfile (`k8s-setup/staffops/`), image from Harbor labs. `ct install` on kind still not wired, but a real EKS install is validated. |
 | 4 | **LibreChat end-to-end** | Bridge unit-tested + `/v1/models` validated via the public Istio endpoint (HTTP 200, 6 models). Not yet wired to a live LibreChat instance. |
 | 5 | **Spec 31 gateway not cluster-validated** | ✅ DONE (2026-07-01) — gateway + supervisor running in devops-core, end-to-end queries hitting Bedrock. Image `0.3.0-dev` on Harbor. Chart bumped to 0.9.0 (uncommitted). |
-| 6 | **Budget TOCTOU (spec 31 L3)** | `check_budget` GET→compare→INCR not atomic; tracked as T19d (needs EVAL/Lua + real-Redis test; test fakeredis lacks `eval`). |
-| 7 | **Spec 14 Phases 2–5** | Phase 1 (guardrail + fail-closed) done AND running in-cluster (PROMPT_ATTACK MEDIUM); canary/output-filter/rate-budget/input-scanner/multi-language suite pending. |
+| 6 | **Budget TOCTOU (spec 31 L3)** | ✅ DONE (2026-07-02) — atomic Lua `EVAL` check-and-reserve; `fakeredis[lua]` in CI. |
+| 7 | **Spec 14 Phases 2–5** | ✅ DONE (2026-07-02→03) — L1–L6 all shipped, multilingual attack-suite CI gate, SECURITY.md defense-in-depth, cluster-homologated. |
 | 8 | **Distributed topology (code)** | Chart renders it but supervisor only routes in-process — needs a RemoteAgent HTTP client. Deferred to backlog (ADR-001 favors in-process). See ROADMAP backlog. |
 | 9 | **finops ↔ Athena** | finops agent declares an `athena` datasource but IRSA has `enable_athena_finops=false` → AccessDenied. Enable Athena or drop the datasource. See ROADMAP backlog. |
+| 10 | **Spec 14 entry-point findings A/B/D** | Homologation (2026-07-03) found the supervisor/classifier entry is under-instrumented + under-protected: A (classifier drops user_id/session_id → unattributable audit), B (homoglyph evades classifier L1 — worker-only L2), D (oversized ValueError pre-empts scanner → HTTP 200). Fixes proposed, deferred. Detail in spec 14 tasks.md. **Next security work.** |
+| 11 | **Push pending** | app `fea17d2` + overlay `c1c9195` committed locally, awaiting push approval (GitHub `dev` + GitLab `main`). |
 
 ---
 
 ## Next specs (priority order)
 
-> Done since last handoff: **spec 31/29 cluster-validated on devops-core**
-> (gateway + supervisor in-process, Istio HTTPRoute, IRSA→Bedrock, DynamoDB,
-> guardrail, agentsSource git+configmap); image `0.3.0-dev` on Harbor labs;
-> chart bumped to **0.9.0** with 4 in-cluster fixes; app fixes (region, classifier
-> JSON parse) homologated live. All uncommitted (one milestone commit pending).
+> Done since last handoff: **spec 14 complete (Phases 1–5, L1–L6 + attack-suite
+> CI gate + docs)** and cluster-homologated on devops-core; spec 11 (model
+> tiering); budget TOCTOU (Lua atomic); Redis StatefulSet+PVC (chart 0.9.2);
+> ElastiCache validate-and-destroy. Image `0.3.0-dev` rebuilt with InputScanner.
 
-1. **Commit the milestone** — one commit across app + helm-charts. Then: publish
-   chart 0.9.0 (chart-releaser), revert the helmfile local-path override to the
-   published chart, neutralize `gateway.image.repository`, revert overlay
-   `pullPolicy` Always→IfNotPresent. **Revoke the two PATs pasted in chat.**
-2. **Cut `0.3.0`** (drop `-dev`) once the milestone is committed + the image is
-   rebuilt with the app fixes under a stable tag.
-3. **Spec 14 Phase 2** — canary tokens + output filter (exfiltration defense).
-4. **Spec 11 — bedrock-resilience-cost** — Haiku classifier, prompt caching, model tiering.
-5. **Distributed topology (code)** + **finops↔Athena** — backlog items surfaced 2026-07-01.
+1. **Push the two local commits** — app `fea17d2` (→ GitHub `dev`, runs CI) +
+   overlay `c1c9195` (→ GitLab `main`). Confirm CI green after.
+2. **Spec 14 entry-point fixes A/B/D** (Pending #10) — the next security work.
+   Pipeline dev→test→security: propagate `user_id`/`session_id` through the
+   classifier (A+C), wire `InputScanner` at `supervisor.process_request` (B),
+   drop the redundant oversized `ValueError` (D). Re-homologate after.
+3. **Cut `0.4.0`** — gated on closing A/B/D (anti-injection validated end-to-end
+   at the entry point). Don't bump before.
+4. **Side issue** — aws agent leaks `<use_mcp_tool>` XML in the response instead
+   of executing the tool. Investigate separately.
+5. **Distributed topology (code)** + **finops↔Athena** — backlog (deferred).
 6. **Spec 28 — RCA benchmark** (OpenSRE CloudOpsBench pattern).
 7. **Branch protection** — once the GitHub plan allows (Pending #1).
 
