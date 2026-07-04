@@ -1,5 +1,12 @@
 # Audit — AIgent-squad
 
+> ⚠️ **HISTORICAL RECORD (2026-05-30)** — this audit seeded the spec backlog
+> (specs 01–04 and, via `ANALYSIS.md`, 06–31). **All findings below have since
+> been fixed** (Phase 0 closed 2026-06-14; `0.3.0` cluster-validated 2026-07).
+> For the CURRENT state, read `specs/ROADMAP.md` (per-spec status) and
+> `HANDOFF.md` (session state). Kept unchanged as the record of where the
+> project started.
+
 **Date**: 2026-05-30
 **Branch**: `dev`
 **Base commit**: `da53438` (main)

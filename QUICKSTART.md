@@ -6,66 +6,68 @@
 
 ```bash
 # Copy the example
-cp .env.example .env.local
+cp .env.example .env
 
-# Edit with your credentials
-vim .env.local
+# Edit with your settings
+vim .env
 ```
 
 **Minimum required**:
 ```bash
-# AWS (required - for Bedrock)
-# Use ~/.aws/credentials (automatically mounted)
+# AWS (required — for Bedrock)
+# Use ~/.aws/credentials (automatically mounted read-only)
+AWS_REGION=us-east-1
 
-# GitLab (required for DevOps Agent)
+# Auth for all non-health endpoints
+INTERNAL_API_TOKEN=dev-secret-token
+SUPERVISOR_INTERNAL_TOKEN=dev-supervisor-token   # gateway → supervisor link
+
+# Redis
+REDIS_PASSWORD=changeme
+REDIS_SSL=false          # dev only
+
+# GitLab (optional — devops agent)
 GITLAB_TOKEN=glpat-your-read-only-token
-
-# Slack (optional)
-SLACK_BOT_TOKEN=xoxb-...
-SLACK_SIGNING_SECRET=...
 ```
 
-**How to get GitLab Token**:
-1. GitLab → Settings → Access Tokens
-2. Name: `agent-squad-readonly`
-3. Scopes: `read_api`, `read_repository`
-4. Role: `Reporter` (read-only)
+> **Guardrail note**: `GUARDRAIL_ENABLED=true` is the default (fail-closed). For
+> local dev without a provisioned Bedrock Guardrail, either set
+> `GUARDRAIL_ENABLED=false` or provision one via `infra/terraform/guardrail/`
+> and set `GUARDRAIL_ID`/`GUARDRAIL_VERSION`.
 
 ### 2. Run Setup
 
 ```bash
 chmod +x setup-local.sh
 ./setup-local.sh
+
+# or directly:
+docker compose up -d
 ```
 
-The script will:
-- ✅ Check Docker and AWS CLI
-- ✅ Create DynamoDB table (correct schema: pk + sk)
-- ✅ Build all images
-- ✅ Start all 7 services
-- ✅ Automatic health check
+This brings up the two-tier stack: **gateway** (public, :8000) → **supervisor**
+(backend, :8001, in-process specialists) + Redis, DynamoDB Local, PostgreSQL
+(KB), MCP server, and the observability stack (OTel Collector, Prometheus,
+Tempo, Grafana).
 
 ### 3. Test
 
 ```bash
-# Test AWS Agent
-curl -X POST http://localhost:8001/process \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "input_text": "List EC2 instances",
-    "user_id": "test",
-    "session_id": "test123",
-    "chat_history": []
-  }'
+# Health (gateway)
+curl http://localhost:8000/ready
 
-# Test Supervisor (with Classifier)
+# Query via the gateway (classifier auto-routes)
 curl -X POST http://localhost:8000/query \
   -H 'Content-Type: application/json' \
+  -H 'X-Internal-Token: dev-secret-token' \
   -d '{
-    "user_input": "How many EC2 instances?",
+    "user_input": "How many EC2 instances are running?",
     "user_id": "test",
     "session_id": "test123"
   }'
+
+# OpenAI-compatible bridge (LibreChat or any OpenAI client)
+curl -H 'X-Internal-Token: dev-secret-token' http://localhost:8000/v1/models
 ```
 
 ---
@@ -74,15 +76,19 @@ curl -X POST http://localhost:8000/query \
 
 | Service | Port | URL | Health |
 |---------|------|-----|--------|
-| Supervisor | 8000 | http://localhost:8000 | /health |
-| AWS Agent | 8001 | http://localhost:8001 | /health |
-| Kubernetes Agent | 8002 | http://localhost:8002 | /health |
-| FinOps Agent | 8003 | http://localhost:8003 | /health |
-| DevOps Agent | 8004 | http://localhost:8004 | /health |
-| Observability Agent | 8005 | http://localhost:8005 | /health |
-| MCP Server | 8006 | http://localhost:8006 | /health |
-| Redis | 6379 | localhost:6379 | - |
-| DynamoDB Local | 8100 | http://localhost:8100 | - |
+| Gateway (public front door) | 8000 | http://localhost:8000 | `/healthz`, `/ready` |
+| Supervisor (backend-only) | 8001 | http://localhost:8001 | `/healthz`, `/ready` |
+| MCP Server | 8006 | http://localhost:8006 | `/health` |
+| Redis | 6379 | localhost:6379 | — |
+| DynamoDB Local | 8100 | http://localhost:8100 | — |
+| PostgreSQL (KB) | 5432 | localhost:5432 | — |
+| OTel Collector | 4317 | — | — |
+| Prometheus | 9099 | http://localhost:9099 | — |
+| Grafana | 3001 | http://localhost:3001 | — |
+
+> The 5 specialists (aws, kubernetes, finops, devops, observability) run
+> **in-process inside the supervisor** — they have no ports. They are defined by
+> config in `agents/<name>/` (`agent.yaml` + `prompt.md`).
 
 ---
 
@@ -95,49 +101,49 @@ docker compose logs -f
 
 # Specific service
 docker compose logs -f supervisor
-docker compose logs -f aws-agent
+docker compose logs -f gateway
 
-# Last 100 lines
-docker compose logs --tail=100 aws-agent
+# JSON logs formatted
+docker compose logs -f supervisor | jq .
 ```
 
-### Restart
+### Restart / Rebuild
 ```bash
-# Restart specific service (after changing prompt)
-docker compose restart aws-agent
+# After changing an agent prompt or agent.yaml (config-only, no rebuild)
+docker compose restart supervisor
 
-# Restart all
-docker compose restart
+# After changing code
+docker compose up -d --build supervisor gateway
 
-# Rebuild and restart
-docker compose up -d --build aws-agent
-```
-
-### Stop/Start
-```bash
-# Stop everything
+# Stop everything / reset volumes
 docker compose down
-
-# Stop and remove volumes
 docker compose down -v
-
-# Start everything
-docker compose up -d
-
-# Start with logs
-docker compose up
 ```
+
+### Tests + lint (all via Docker — no local Python)
+```bash
+docker run --rm -v "$(pwd):/app" -w /app python:3.11-slim sh -c \
+  "pip install -r requirements.txt -q && pytest --cov=src --cov-fail-under=90"
+
+docker run --rm -v "$(pwd):/app" -w /app python:3.11-slim sh -c \
+  "pip install ruff -q && ruff check src/ tests/"
+```
+
+> Tests require the private `staffops-otel-libs` dep (SSH key / CI deploy key).
+> Locally, stub it: grep it out of requirements and create a minimal
+> `__init__.py` stub. Remember: "passes locally" ≠ "passes CI" — confirm with
+> `gh run list` after pushing.
 
 ### Debug
 ```bash
 # Enter container
-docker compose exec aws-agent sh
+docker compose exec supervisor sh
 
 # View environment variables
-docker compose exec aws-agent env | grep BEDROCK
+docker compose exec supervisor env | grep BEDROCK
 
 # Test Redis
-docker compose exec redis redis-cli ping
+docker compose exec redis redis-cli -a "$REDIS_PASSWORD" ping
 
 # Test DynamoDB
 aws dynamodb list-tables --endpoint-url http://localhost:8100
@@ -147,35 +153,41 @@ aws dynamodb list-tables --endpoint-url http://localhost:8100
 
 ## 🐛 Troubleshooting
 
-### Agent doesn't start
+### Supervisor doesn't start
 ```bash
-# View logs
-docker compose logs aws-agent
+docker compose logs supervisor
 
-# Check if port is free
+# Common cause: invalid agent.yaml (Pydantic fails fast at startup) —
+# check the agents/<name>/agent.yaml schema (see AGENTS.md).
+
+# Check if a port is busy
+lsof -i :8000
 lsof -i :8001
-
-# Rebuild
-docker compose build aws-agent
-docker compose up -d aws-agent
 ```
+
+### 401 on every request
+The gateway is fail-closed: `INTERNAL_API_TOKEN` must be set and sent as
+`X-Internal-Token`. The supervisor additionally requires
+`X-Supervisor-Token` (`SUPERVISOR_INTERNAL_TOKEN`) — only the gateway sends it.
+
+### 403 on legitimate queries
+Spec-14 defense is fail-closed: a Bedrock Guardrail block, InputScanner
+detection, or output-filter match returns 403. For local dev without a
+provisioned guardrail, set `GUARDRAIL_ENABLED=false`.
 
 ### AWS credentials error
 ```bash
-# Check ~/.aws/credentials
 cat ~/.aws/credentials
-
-# Test AWS CLI
 aws sts get-caller-identity
-
-# Check mount in container
-docker compose exec aws-agent ls -la /root/.aws/
+docker compose exec supervisor ls -la /home/nonroot/.aws/ 2>/dev/null || \
+  docker compose exec supervisor env | grep AWS
 ```
+
+> `BEDROCK_MODEL_ID` must be an **inference profile** (`us.` prefix) — the raw
+> model id fails with "on-demand throughput isn't supported".
 
 ### DynamoDB table error
 ```bash
-# Recreate table
-aws dynamodb delete-table --table-name agent-sessions --endpoint-url http://localhost:8100
 aws dynamodb create-table \
   --table-name agent-sessions \
   --attribute-definitions \
@@ -188,123 +200,67 @@ aws dynamodb create-table \
   --endpoint-url http://localhost:8100
 ```
 
-### GitLab integration doesn't work
-```bash
-# Check token
-echo $GITLAB_TOKEN
-
-# Test token
-curl -H "PRIVATE-TOKEN: $GITLAB_TOKEN" \
-  "https://gitlab.com/api/v4/projects/your-organization%2Fdevops"
-
-# View DevOps Agent logs
-docker compose logs -f devops-agent | grep -i gitlab
-```
-
 ---
 
 ## 🔄 Development Workflow
 
-### 1. Modify Prompt
+### 1. Modify an agent (config-only — no code)
 ```bash
-vim src/agents/aws/prompt.md
-docker compose restart aws-agent
-# Test
-curl -X POST http://localhost:8001/process ...
+vim agents/aws/prompt.md          # or agents/aws/agent.yaml
+docker compose restart supervisor
 ```
 
-### 2. Modify Code
+### 2. Add a NEW agent (zero code)
 ```bash
-vim src/agents/aws/agent.py
-docker compose up -d --build aws-agent
-# Test
-curl -X POST http://localhost:8001/process ...
+mkdir agents/security
+vim agents/security/agent.yaml    # name, description, routing_keywords, datasources
+vim agents/security/prompt.md
+docker compose restart supervisor # auto-discovered by AgentRegistry
 ```
+See `docs/HOW-TO-NEW-AGENT.md`.
 
-### 3. View Real-time Logs
-```bash
-docker compose logs -f aws-agent | jq .
-```
-
-### 4. Test Conversation History
+### 3. Test conversation history (multi-turn)
 ```bash
 # First message
 curl -X POST http://localhost:8000/query \
+  -H 'X-Internal-Token: dev-secret-token' -H 'Content-Type: application/json' \
   -d '{"user_input":"Show EC2","user_id":"test","session_id":"abc123"}'
 
-# Follow-up (classifier should keep AWS agent)
+# Follow-up (classifier keeps the aws agent, history comes from DynamoDB)
 curl -X POST http://localhost:8000/query \
+  -H 'X-Internal-Token: dev-secret-token' -H 'Content-Type: application/json' \
   -d '{"user_input":"How many in us-east-1?","user_id":"test","session_id":"abc123"}'
 ```
 
 ---
 
-## 📝 Notes
+## 🔌 Integrations
 
-- **DynamoDB Local**: In-memory data, lost on restart
-- **Redis**: Data persisted in `redis-data` volume
-- **AWS Credentials**: Mounted read-only from `~/.aws`
-- **JSON Logs**: Use `jq` to format: `docker compose logs -f | jq .`
-- **OpenTelemetry**: Console exporter active, traces in logs
+### LibreChat (OpenAI-compatible bridge)
+The gateway speaks OpenAI `/v1` — point LibreChat at
+`http://localhost:8000/v1` with the `X-Internal-Token` header. Models:
+`aigent-squad` (auto-route) or `aigent-squad-<agent>` (force a specialist).
+See `docs/LIBRECHAT.md`.
 
----
-
-## 🚀 Next Steps
-
-1. ✅ Local setup working
-2. Test all 5 agents
-3. Test Supervisor with Classifier
-4. Test conversation history
-5. Test GitLab integration (DevOps Agent)
-6. Test MCP Server with Kiro CLI
-7. Deploy on EKS
-8. Integrate with Slack
-
----
-
-## 🔌 MCP Server (Kiro CLI Integration)
-
-### Setup
-
+### MCP Server
 ```bash
-# Add to ~/.kiro/mcp.json
-{
-  "mcpServers": {
-    "agent-squad": {
-      "url": "http://localhost:8006/query"
-    }
-  }
-}
-```
-
-### Test
-
-```bash
-# Health check
 curl http://localhost:8006/health
 
-# Query
 curl -X POST http://localhost:8006/query \
   -H 'Content-Type: application/json' \
   -d '{"question": "How many EC2 instances?", "user_id": "test"}'
 ```
+See `docs/MCP_INTEGRATION.md`.
 
-### Usage
-
-```bash
-kiro-cli chat
-
-# Ask naturally
-> How many EC2 instances are running?
-# Kiro uses MCP server automatically
-
-> What is the cost of namespace production?
-# Routed to FinOps Agent
-```
-
-See complete documentation: `docs/MCP_INTEGRATION.md`
+### Alertmanager → RCA
+`POST /alerts/incoming` (Alertmanager v2 payload) triggers an investigation;
+optional Slack post-back via `SLACK_WEBHOOK_URL`. See `docs/ALERTING.md`.
 
 ---
 
-**Version**: 2.0  
-**Date**: 2026-02-14
+## 📝 Notes
+
+- **DynamoDB Local**: in-memory data, lost on restart
+- **Redis**: dev requires `REDIS_PASSWORD`; `REDIS_SSL=false` in dev only
+- **AWS Credentials**: mounted read-only from `~/.aws` (dev only — prod uses IRSA)
+- **OpenTelemetry**: OTLP export to the local collector; traces in Tempo/Grafana

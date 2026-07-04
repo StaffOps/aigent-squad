@@ -1,10 +1,16 @@
 # Agent Squad - Multi-Agent System for AWS/Kubernetes Operations
 
-**Version**: 0.x (pre-release)
-**Status**: 🚧 Stabilizing — see `specs/ROADMAP.md`
-**Architecture**: AWS Labs Best Practices
+**Version**: 0.3.0
+**Status**: ✅ Cluster-validated (devops-core, 2026-07) — see `specs/ROADMAP.md`
+**Architecture**: Two-tier (edge gateway → supervisor), in-process specialists, Bedrock-direct
 
-> ⚠️ **Real state**: this project is in **Phase 0 (stabilization)**, not in production. There are known blockers (build, architecture, security, tests) documented in the audit at [`specs/AUDIT.md`](specs/AUDIT.md). The work plan is in [`specs/ROADMAP.md`](specs/ROADMAP.md). Work happens on the `dev` branch.
+> **Real state**: stabilization (Phase 0) and hardening are done — the squad runs
+> end-to-end in a real EKS cluster (gateway + supervisor, IRSA → Bedrock, Istio
+> HTTPRoute) with defense-in-depth anti-prompt-injection (spec 14, L1–L6).
+> Remaining work is tracked in [`specs/ROADMAP.md`](specs/ROADMAP.md) (authoritative)
+> and [`HANDOFF.md`](HANDOFF.md) (session state). The original audit that seeded the
+> spec backlog is kept as a historical record in [`specs/AUDIT.md`](specs/AUDIT.md).
+> Work happens on the `dev` branch.
 
 ---
 
@@ -28,64 +34,47 @@ Agent Squad is a multi-agent system with 1 supervisor + 5 specialist agents for 
 
 ## 🏗️ Architecture
 
-### System Architecture
+### System Architecture (two-tier, spec 31)
 
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                              User Interface                              │
-│                    (Slack / Kiro CLI / HTTP API)                        │
-└────────────────────────────────┬────────────────────────────────────────┘
+        Clients: LibreChat (/v1) · curl (/query) · Alertmanager · MCP Server (8006)
                                  │
                                  ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                          MCP Server (8006)                               │
-│                    HTTP API for external clients                         │
+│                       EDGE GATEWAY (:8000, public)                       │
+│   edge auth · rate limit + daily budget (Redis) · WorkerPool             │
+│   backpressure (503 + Retry-After) · OpenAI /v1 shaping · /jobs cancel   │
 └────────────────────────────────┬────────────────────────────────────────┘
-                                 │
+                                 │ POST /internal/process (SUPERVISOR_INTERNAL_TOKEN)
                                  ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                         Supervisor (8000)                                │
+│                    SUPERVISOR (:8001, backend-only)                      │
 │  ┌──────────────────────────────────────────────────────────────────┐  │
-│  │  1. Receives user query                                          │  │
-│  │  2. Classifier analyzes intent → selects agent                   │  │
-│  │  3. Fetches conversation history (DynamoDB)                      │  │
-│  │  4. Routes to specialist agent via HTTP                          │  │
-│  │  5. Saves response to history                                    │  │
+│  │  InputScanner (L2) → Classifier (Bedrock Haiku) → routes 1–3     │  │
+│  │  agents · fan-out (asyncio.gather) → synthesizer · RCA           │  │
+│  │  investigation · Bedrock Guardrail (fail-closed 403) ·           │  │
+│  │  canary tokens + output filter · per-agent history (DynamoDB)    │  │
 │  └──────────────────────────────────────────────────────────────────┘  │
+│                                                                          │
+│   In-process specialists (GenericAgent, config-driven, NO ports):       │
+│      aws · kubernetes · finops · devops · observability                 │
+│   Each: agents/<name>/agent.yaml + prompt.md → datasource adapters      │
+│   (boto3, kubernetes, http, athena, mcp) + lazy skills                  │
 └────────────────────────────────┬────────────────────────────────────────┘
                                  │
-                 ┌───────────────┼───────────────┐
-                 │               │               │
-        ┌────────▼─────┐  ┌─────▼──────┐  ┌────▼─────────┐
-        │ AWS Agent    │  │ K8s Agent  │  │ FinOps Agent │
-        │   (8001)     │  │   (8002)   │  │    (8003)    │
-        └──────────────┘  └────────────┘  └──────────────┘
-                 │               │               │
-        ┌────────▼─────┐  ┌─────▼──────────────────────┐
-        │ DevOps Agent │  │ Observability Agent        │
-        │   (8004)     │  │      (8005)                │
-        └──────────────┘  └────────────────────────────┘
-                 │
-                 │  All agents use:
-                 ▼
+                                 ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                         Shared Services                                  │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐                 │
-│  │   Bedrock    │  │  DynamoDB    │  │    Redis     │                 │
-│  │ Claude Sonnet│  │ Conversation │  │    Cache     │                 │
-│  │   Sonnet     │  │   History    │  │  (1-60min)   │                 │
-│  └──────────────┘  └──────────────┘  └──────────────┘                 │
-│                                                                          │
-│  ┌──────────────────────────────────────────────────────────────────┐  │
-│  │              Bedrock Knowledge Bases (RAG)                       │  │
-│  │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌────────┐│  │
-│  │  │  FinOps  │ │  DevOps  │ │   AWS    │ │   K8s    │ │  Obs   ││  │
-│  │  │    KB    │ │    KB    │ │    KB    │ │    KB    │ │   KB   ││  │
-│  │  └──────────┘ └──────────┘ └──────────┘ └──────────┘ └────────┘│  │
-│  │                    (OpenSearch in EKS)                           │  │
-│  └──────────────────────────────────────────────────────────────────┘  │
+│  Bedrock (Haiku classifier / Sonnet agents, prompt caching, AIP cost    │
+│  attribution) · DynamoDB (history, 24h TTL) · Redis (datasource cache,  │
+│  rate/budget counters) · PostgreSQL+pgvector (incident-memory KB)       │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
+
+Specialists are **in-process** (spec 02/22): the supervisor instantiates
+`GenericAgent` per config directory — there are no per-agent HTTP services or
+ports. Adding an agent = adding `agents/<name>/agent.yaml` + `prompt.md`
+(zero code, auto-discovered at startup).
 
 ### Agent Communication Flow
 
@@ -119,21 +108,20 @@ User Query: "How many EC2 instances are running?"
 │  │  - Agent-specific history (for AWS agent)             │ │
 │  └────────────────────────────────────────────────────────┘ │
 │                                                              │
-│  Step 3: Route to Agent                                     │
+│  Step 3: Route to Agent (in-process)                        │
 │  ┌────────────────────────────────────────────────────────┐ │
-│  │ HTTP POST http://aws-agent:8001/process               │ │
-│  │ {                                                      │ │
-│  │   "input_text": "How many EC2 instances...",          │ │
-│  │   "user_id": "user123",                               │ │
-│  │   "session_id": "session456",                         │ │
-│  │   "chat_history": [...]                               │ │
-│  │ }                                                      │ │
+│  │ await generic_agent.process_request(                   │ │
+│  │   input_text="How many EC2 instances...",              │ │
+│  │   user_id="user123",                                   │ │
+│  │   session_id="session456",                             │ │
+│  │   chat_history=[...],                                  │ │
+│  │ )   # 1–3 agents in parallel when cross-domain         │ │
 │  └────────────────────────────────────────────────────────┘ │
 └──────────────────────────┬───────────────────────────────────┘
                            │
                            ▼
 ┌─────────────────────────────────────────────────────────────┐
-│ AWS Agent (8001)                                            │
+│ AWS Agent (GenericAgent, in-process)                        │
 │                                                              │
 │  Step 1: Check Cache                                        │
 │  ┌────────────────────────────────────────────────────────┐ │
@@ -187,6 +175,14 @@ User Query: "How many EC2 instances are running?"
 ```
 
 ### Production Deployment (EKS)
+
+> ✅ **Validated deploy (devops-core, 2026-07)**: the real cluster runs the
+> **inProcess topology** — `gateway` + `supervisor` Deployments only (specialists
+> in-process), Istio Gateway API HTTPRoute, IRSA → Bedrock, DynamoDB, Bedrock
+> Guardrail, Redis StatefulSet, agents from ConfigMap or git. The diagram below
+> shows the **aspirational distributed topology** (per-agent pods) which the
+> chart can render but the supervisor does not yet support (see
+> `specs/ROADMAP.md` backlog — deliberately deferred per ADR-001).
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
@@ -257,32 +253,34 @@ User Query: "How many EC2 instances are running?"
 
 ### Components
 
-**Supervisor (Port 8000)**:
-- Orchestrates all specialist agents
-- Intelligent routing via classifier
-- Manages conversation history
-- Slack integration (optional)
+**Edge Gateway (:8000, public — spec 31)**:
+- Edge auth (`X-Internal-Token` or `GATEWAY_API_KEYS` allowlist, fail-closed)
+- WorkerPool backpressure (local semaphore, `503 + Retry-After`)
+- Global admission: per-user rate limit + daily budget (Redis, fail-open)
+- Hosts `/query`, OpenAI `/v1/*`, `/jobs/{id}/cancel`
+- Clients (LibreChat, MCP server, Alertmanager, anomaly-detection) hit the
+  gateway, never the supervisor directly — see
+  [`docs/site/architecture.md`](docs/site/architecture.md)
 
-> ⚠️ **Two-tier topology (spec 31)**: as of 2026-06-23 an **edge gateway**
-> (`:8000`, public) fronts the **supervisor** (`:8001`, backend-only,
-> `/internal/*`). The gateway owns edge auth, the worker pool (backpressure),
-> and global rate/budget admission; clients (LibreChat, MCP, Alertmanager,
-> anomaly-detection, Falco) hit the gateway, never the supervisor directly.
-> The diagram below predates this split — see
-> [`docs/site/architecture.md`](docs/site/architecture.md) for the current
-> two-tier topology and the [spec](specs/31-edge-gateway-worker-pool/).
+**Supervisor (:8001, backend-only)**:
+- `/internal/process` + `/internal/agents`, gated by `SUPERVISOR_INTERNAL_TOKEN`
+- Classifier routing (Bedrock Haiku), fan-out + synthesizer, RCA investigation
+- Anti-prompt-injection defense-in-depth (spec 14, L1–L6): Bedrock Guardrail
+  (fail-closed 403), InputScanner, context isolation, output filter, canary tokens
+- Manages per-agent isolated conversation history (DynamoDB)
 
-**Specialist Agents**:
-1. **AWS Agent (8001)**: EC2, RDS, S3, Lambda, VPC, IAM
-2. **Kubernetes Agent (8002)**: Pods, nodes, deployments, services
-3. **FinOps Agent (8003)**: AWS costs, Kubecost, optimization
-4. **DevOps Agent (8004)**: CI/CD, GitLab, documentation
-5. **Observability Agent (8005)**: Metrics, logs, anomalies, SIEM-like correlation
+**Specialist Agents** (in-process `GenericAgent`, config-driven — no ports):
+1. **aws**: EC2, RDS, S3, Lambda, VPC, IAM
+2. **kubernetes**: Pods, nodes, deployments, services
+3. **finops**: AWS costs (Cost Explorer), Kubecost, optimization
+4. **devops**: CI/CD, GitLab, documentation
+5. **observability**: Metrics, logs, anomalies, SIEM-like correlation
 
 **Infrastructure**:
 - **DynamoDB**: Conversation state (24h TTL)
-- **Redis**: Cache for inventories (1-60min TTL)
-- **Bedrock**: Claude Sonnet 4.5 LLM (via `us.` inference profile)
+- **Redis**: Datasource cache (1-60min TTL) + rate/budget counters + job lifecycle
+- **Bedrock**: model tiering (spec 11) — Haiku classifier / Sonnet agents &
+  synthesis, prompt caching, Application Inference Profiles for cost attribution
 - **Knowledge Base**: incident-memory RAG via PostgreSQL+pgvector (spec 21). The Bedrock Knowledge Bases / OpenSearch path in the diagram above is an aspirational alternative, not the current implementation.
 
 ---
@@ -291,15 +289,15 @@ User Query: "How many EC2 instances are running?"
 
 ### Prerequisites
 - Docker & Docker Compose
-- AWS CLI configured
-- kubectl configured (for Kubernetes Agent)
-- Python 3.12+
+- AWS CLI configured (`~/.aws` mounted read-only in dev)
+- kubectl configured (optional — for the kubernetes agent)
+- No local Python needed — everything (run, tests, lint) goes through Docker
 
 ### Local Development
 
 ```bash
 # 1. Clone repository
-git clone git@github.com:karlipegomes/staffops-aigent-squad.git
+git clone git@github.com:StaffOps/staffops-aigent-squad.git
 cd staffops-aigent-squad
 
 # 2. Configure environment
@@ -317,18 +315,23 @@ curl http://localhost:8000/ready   # gateway (public front door)
 - Gateway (public): http://localhost:8000  — `/query`, `/v1/*`, `/jobs/{id}/cancel`
 - Supervisor (backend): http://localhost:8001  — `/internal/*` (gateway-only)
 - MCP Server: http://localhost:8006  (→ gateway)
-- Observability Agent: http://localhost:8005
-- MCP Server: http://localhost:8006
 - Redis: localhost:6379
 - DynamoDB Local: http://localhost:8100
+- PostgreSQL (KB, optional): localhost:5432
+- Prometheus: http://localhost:9099 · Grafana: http://localhost:3001
 
 ---
 
 ## 📖 Documentation
 
+### Product & Decisions
+- [`docs/prd/aigent-squad.md`](docs/prd/aigent-squad.md) - **PRD**: problem, personas, success metrics, scope (initiative level)
+- [`docs/architecture/decisions/`](docs/architecture/decisions/README.md) - **ADRs** 0001–0006: Bedrock-direct, in-process agents, read-only posture, fail-closed vs fail-open, two-tier gateway, standalone product
+
 ### Specs & Planning (spec-driven — `specs/`)
-- [`specs/AUDIT.md`](specs/AUDIT.md) - Audit of the real state (findings + severity)
-- [`specs/ROADMAP.md`](specs/ROADMAP.md) - Roadmap by phases (Phase 0 = stabilization)
+- [`specs/ROADMAP.md`](specs/ROADMAP.md) - **Authoritative** phased roadmap + real status of every spec
+- [`specs/AUDIT.md`](specs/AUDIT.md) - Historical audit (2026-05-30) that seeded the spec backlog — findings since fixed
+- [`HANDOFF.md`](HANDOFF.md) - Session-by-session state (what shipped, what's pending)
 - [`specs/01-fix-blockers/`](specs/01-fix-blockers/) - Unblock build and broken code
 - [`specs/02-unify-agent-architecture/`](specs/02-unify-agent-architecture/) - Unify agents on the base pattern
 - [`specs/03-fix-cache-observability/`](specs/03-fix-cache-observability/) - Deterministic cache + OTel
@@ -389,17 +392,22 @@ curl -X POST http://localhost:8000/query \
   }'
 ```
 
-### Test Individual Agent
+### Test a specific agent (OpenAI bridge, bypasses the classifier)
 ```bash
-curl -X POST http://localhost:8001/process \
+# List available models (aigent-squad + aigent-squad-<agent> per agent)
+curl -H 'X-Internal-Token: dev-secret-token' http://localhost:8000/v1/models
+
+curl -X POST http://localhost:8000/v1/chat/completions \
   -H 'Content-Type: application/json' \
+  -H 'X-Internal-Token: dev-secret-token' \
   -d '{
-    "input_text": "List EC2 instances",
-    "user_id": "test-user",
-    "session_id": "test-session",
-    "chat_history": []
+    "model": "aigent-squad-aws",
+    "messages": [{"role": "user", "content": "List EC2 instances"}]
   }'
 ```
+
+> Agents are in-process — there is no per-agent port. Use the gateway's
+> `aigent-squad-<agent>` model to force a specific specialist.
 
 ---
 
@@ -457,9 +465,9 @@ See [docs/READ_ONLY_POLICY.md](docs/READ_ONLY_POLICY.md) and
 
 ## 🛠️ Technology Stack
 
-- **Language**: Python 3.12
-- **Framework**: FastAPI
-- **LLM**: AWS Bedrock (Claude) — single model via env `BEDROCK_MODEL_ID` (see `src/core/config.py`)
+- **Language**: Python 3.11 (Alpine runtime image; `python:3.11-slim` for tests)
+- **Framework**: FastAPI (gateway + supervisor)
+- **LLM**: AWS Bedrock (Claude) — model tiering per role (spec 11): `BEDROCK_CLASSIFIER_MODEL_ID` (Haiku) / `BEDROCK_MODEL_ID` (Sonnet), resolved in `src/core/model_tier.py`, config-driven (see `src/core/config.py`)
 - **State**: DynamoDB
 - **Cache**: Redis
 - **Observability**: OpenTelemetry + JSON logging
@@ -543,6 +551,6 @@ Apache 2.0 — See [LICENSE](LICENSE) for details.
 
 ---
 
-**Last Updated**: 2026-06-17
-**Version**: 0.x (pre-release)
-**Status**: 🚧 Stabilizing (Phase 0) — see `specs/ROADMAP.md`
+**Last Updated**: 2026-07-03
+**Version**: 0.3.0
+**Status**: ✅ Cluster-validated (devops-core) — see `specs/ROADMAP.md` for what's next
