@@ -16,6 +16,7 @@ supersedes the old one. New ADRs land here as `NNNN-slug.md`.
 | [0004](0004-fail-closed-security-fail-open-availability.md) | Security layers fail closed (403); availability layers fail open | accepted | 2026-06-22 (recorded 2026-07-03) |
 | [0005](0005-two-tier-edge-gateway.md) | A thin edge gateway fronts the supervisor (two-tier); supervisor becomes backend-only | accepted | 2026-06-22 (recorded 2026-07-03) |
 | [0006](0006-standalone-product-reuse-by-copy.md) | AIgent-squad stays a standalone product; chaitops ecosystem patterns are reused by copy, never by dependency | accepted | 2026-06-02 (recorded 2026-07-03) |
+| [0007](0007-internal-first-vs-oss-product.md) | Internal-first tool vs OSS product — pick a lane (A recommended) | **proposto** | 2026-07-04 |
 
 Backfilled 2026-07-03 from decisions already recorded in spec designs
 (sources cited in each ADR). Product-level "why" lives in

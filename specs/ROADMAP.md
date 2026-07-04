@@ -38,9 +38,25 @@ entry-point findings (A/B/D) so the anti-injection defense is validated end-to-e
 at the supervisor — don't bump while those are open. (README synced to the real
 state on 2026-07-03.)
 
-> **Work order (2026-07-03)**: two parallel tracks — (a) **code**: spec-14 findings
-> A/B/D (gates `0.4.0`); (b) **process**: specs **32 → 33 → 34** (status SSOT →
-> operational review → release runbook). 34 executes for real on the `0.4.0` release.
+> **Work order (updated 2026-07-04, product-first rebalance ~70% value / 30% platform)**:
+> 1. **spec 36** (agent-native dev loop) — do FIRST, multiplies everything after;
+> 2. **quick quality fixes**: finops Athena datasource decision (drop until target
+>    exists — live UX defect), F-001 aws `<use_mcp_tool>` echo, spec-14 findings A/B/D
+>    (gates `0.4.0`);
+> 3. **spec 35 T1** (structural quality gate) then golden sets + RCA scenarios;
+> 4. **spec 18 Phase 1.5** — EVIDENCE-MODEL correlator + **CASE-001 real-RCA proof**;
+> 5. **process track in parallel**: specs 32 → 33 → 34 (34 executes on `0.4.0`);
+> 6. **decision pending**: ADR-0007 (internal-first vs OSS) — prices the interface
+>    choice (LibreChat live vs Slack v2) and the quickstart investment.
+> 7. **direction (D-03, decided + refined 2026-07-04)**: the squad stays REACTIVE
+>    (acts only when triggered; proactive watching = separate product). Core = spec
+>    candidate `38-on-trigger-comprehension` — entity resolution + baseline verdicts
+>    computed in code at trigger time (requirements seed: `docs/BEHAVIOR-BASELINES.md`;
+>    entity #1 = the squad itself). Enters the queue after 35/18-Phase-1.5 (consumes
+>    B-01 adapters + feedback loop); anomaly-detection integration stays OPTIONAL.
+>
+> Full critical-review reasoning: `specs/PRODUCT-REVIEW-2026-07.md` (PR-01..38, §§A–F).
+> Live item tracking: `specs/BACKLOG.md` (findings F-*, product B-*, decisions D-*).
 
 ---
 
@@ -130,6 +146,8 @@ closed** (Redis/DynamoDB with no error handling), and is **blind/indefensible**
 | 32 | `spec-lifecycle-ssot` (**process**: status frontmatter per spec + CI lint script = single source of truth; `specs/README.md` process doc; `specs/BACKLOG.md` for dormant/findings/deferred; HANDOFF overwrite rule; ROADMAP plan-only) | 🔴 **top priority** — spec written 2026-07-03 | — |
 | 33 | `operational-review-loop` (**process**: recurring review — measure ALL promotion triggers (`specs/TRIGGERS.md`), reconcile real Bedrock cost vs ANALYSIS estimates, triage BACKLOG; dated records in `specs/reviews/`; dormant phases promote ONLY with a review citation) | 🔴 **top priority** — spec written 2026-07-03 | 32 |
 | 34 | `release-runbook` (**process**: `RELEASE.md` sequencing dev→main→tag→image→chart→overlay→rollout→homologation→close across the 3 repos; tag/appVersion/overlay coherence rule; credential-hygiene close step) | 🔴 **top priority** — spec written 2026-07-03 | 32, 33 |
+| 35 | `quality-eval-harness` (**product**: T1 structural CI gate — scaffolding leaks/raw errors, deterministic $0; T2 scored golden sets per agent + 3 fixture-fed RCA scenarios mapped to EVIDENCE-MODEL signatures; `aigent.eval.score`; the functional twin of the attack suite) | 🔴 **top priority** — spec written 2026-07-04 | 36; feeds 33/34 |
+| 36 | `agent-native-dev-loop` (**multiplier**: out-of-box local run, `Makefile` canonical verbs, auto-stub for the private dep, committed `.claude/` (settings + skills, AGENTS.md stays canonical), failure-mode playbook, CI runs the same make targets) | 🔴 **do FIRST** — spec written 2026-07-04 | — |
 
 > **ADR-001** ([`ADR-001-bedrock-direct-vs-strands.md`](ADR-001-bedrock-direct-vs-strands.md)): decision to keep Bedrock-direct (not adopt Strands). Reopen signal: agents stop being consultative read-only.
 
@@ -351,6 +369,9 @@ without waiting for a human). Convergence by voting/confidence, not a fixed roun
 | 28-llm-provider-abstraction | Design only |
 | 29-openai-compat-bridge | ✅ Implemented — `/v1` routes now hosted by the gateway (spec 31) |
 | 31-edge-gateway-worker-pool | ✅ done — cluster-validated 2026-07-01; pending T21 (k6) + T23 (final review) |
-| 32-spec-lifecycle-ssot | 📝 spec written (2026-07-03) — 🔴 next up |
+| 32-spec-lifecycle-ssot | 📝 spec written (2026-07-03) — 🔴 process track |
 | 33-operational-review-loop | 📝 spec written (2026-07-03) — 🔴 after 32 |
 | 34-release-runbook | 📝 spec written (2026-07-03) — 🔴 after 32/33; executes on the 0.4.0 release |
+| 35-quality-eval-harness | 📝 spec written (2026-07-04) — 🔴 after 36; T1 gate ships first |
+| 36-agent-native-dev-loop | 📝 spec written (2026-07-04) — 🔴 **do FIRST** (multiplier) |
+| 18 — Phase 1.5 (added 2026-07-04) | 📝 tasks T12–T16 — EVIDENCE-MODEL correlator + CASE-001 real-RCA proof |

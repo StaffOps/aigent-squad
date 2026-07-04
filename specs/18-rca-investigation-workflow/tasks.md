@@ -19,6 +19,38 @@
 ## Ordem sugerida
 T1→T2/T3; T4; T5→T6→T7; T8; T9→T10→T11.
 
+## Fase 1.5 — Evidence-model correlator + real-RCA proof (added 2026-07-04)
+
+> Gap found in the 2026-07-04 product review: `EVIDENCE-MODEL.md` (causal layers,
+> independence test, 14 root-cause signatures — deliberated 2026-06-02 precisely to
+> REPLACE the naive "≥3 signals" rule) was never implemented; T3 above shipped the
+> naive correlator. The differentiator's best design is on paper only. Additionally,
+> no real investigation has ever run end-to-end on a real incident.
+
+- [ ] T12a: **Signal-coverage audit** (PR-02) — map all 33 EVIDENCE-MODEL signals
+      (C1–C8, M1–M13, I1–I8, T1–T4, E1–E4) to what today's adapters can ACTUALLY
+      collect. Known already: observability's only datasource is a static
+      `query=up` (no PromQL-by-symptom, no Loki, no Tempo); devops has no
+      deploy-history query (no ArgoCD). Output: coverage table → scopes the
+      `37-evidence-adapters` candidate (BACKLOG B-01). Do BEFORE T12 — the
+      correlator's value is bounded by collectable evidence
+- [ ] T12: Implement the EVIDENCE-MODEL correlator in `src/core/investigation.py` —
+      `Evidence` dataclass extended (causal_layer, fault_domain, timestamp_precision,
+      derivation_source), `count_independent()` with DERIVATION_PAIRS,
+      `validate_temporal_order()` with per-source tolerances, layer-based
+      `score_confidence()` (Track A/B, contra-evidence blockers)
+- [ ] T13: LLM confidence as ceiling + soft floor (synthesizer can lower with logged
+      justification, never raise) — per EVIDENCE-MODEL §5/§8 (depends on: T12)
+- [ ] T14: Measure the gain — re-run the spec-35 RCA scenario baseline (T9) after T12/T13;
+      record before/after in `evals/results/` (depends on: T12, spec 35 T9)
+- [ ] T15: **Real-RCA existence proof** — wire Alertmanager (or manually replay a real
+      past incident's alert) in devops-core → `/alerts/incoming` → investigation →
+      Slack post-back; write the result up as `docs/CASE-001.md` (symptom, evidence,
+      RCA produced, human verdict on correctness). This is the product's first
+      existence proof — worth more than any further platform work
+- [ ] T16 (independent review): correlator vs EVIDENCE-MODEL spec — signatures, timing
+      tolerances (CloudWatch 120s rule), independence semantics (depends on: T12–T14)
+
 ## Fase 2 — promotion triggers (parcialmente implementada)
 
 Abrir Fase 2 **somente se** algum gatilho for observado em uso real:
