@@ -38,11 +38,10 @@ GITLAB_TOKEN=glpat-your-read-only-token
 ### 2. Run Setup
 
 ```bash
-chmod +x setup-local.sh
-./setup-local.sh
+make up && make smoke
 
-# or directly:
-docker compose up -d
+# or the legacy wrapper (delegates to the same targets):
+./setup-local.sh
 ```
 
 This brings up the two-tier stack: **gateway** (public, :8000) → **supervisor**
@@ -122,17 +121,14 @@ docker compose down -v
 
 ### Tests + lint (all via Docker — no local Python)
 ```bash
-docker run --rm -v "$(pwd):/app" -w /app python:3.11-slim sh -c \
-  "pip install -r requirements.txt -q && pytest --cov=src --cov-fail-under=90"
-
-docker run --rm -v "$(pwd):/app" -w /app python:3.11-slim sh -c \
-  "pip install ruff -q && ruff check src/ tests/"
+make test                              # full suite + 90% gate
+make test-one FILE=tests/test_x.py    # single file
+make lint                              # ruff, CI-verbatim scope
 ```
 
-> Tests require the private `staffops-otel-libs` dep (SSH key / CI deploy key).
-> Locally, stub it: grep it out of requirements and create a minimal
-> `__init__.py` stub. Remember: "passes locally" ≠ "passes CI" — confirm with
-> `gh run list` after pushing.
+> The private `staffops-otel-libs` dep is handled automatically: without repo
+> access, `make test` generates a no-op stub and warns loudly. "Passes locally"
+> ≠ "passes CI" — confirm with `gh run list` after pushing.
 
 ### Debug
 ```bash

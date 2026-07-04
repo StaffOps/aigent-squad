@@ -64,6 +64,14 @@ services:
       - REDIS_PASSWORD=${REDIS_PASSWORD:-changeme}
       - INTERNAL_API_TOKEN=${INTERNAL_API_TOKEN:-dev-secret-token}
       - SUPERVISOR_INTERNAL_TOKEN=${SUPERVISOR_INTERNAL_TOKEN:-dev-internal-token}
+      # Local default OFF (out-of-box run — spec 36): the app default is
+      # fail-closed (true) and with no provisioned GUARDRAIL_ID every invoke
+      # would be refused. Prod (Helm values) keeps fail-closed. To test the
+      # guardrail locally: GUARDRAIL_ENABLED=true + GUARDRAIL_ID from
+      # infra/terraform/guardrail outputs.
+      - GUARDRAIL_ENABLED=${GUARDRAIL_ENABLED:-false}
+      - GUARDRAIL_ID=${GUARDRAIL_ID:-}
+      - GUARDRAIL_VERSION=${GUARDRAIL_VERSION:-DRAFT}
       - POSTGRES_HOST=postgres
       - POSTGRES_PORT=5432
       - POSTGRES_USER=aigent

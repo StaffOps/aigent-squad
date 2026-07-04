@@ -71,24 +71,24 @@ User (LibreChat /v1 · HTTP /query · Alertmanager · MCP :8006)
 
 ---
 
-## Build, test, lint — ALL via Docker
+## Build, test, lint — ALL via Docker, ALL via make (spec 36)
 
 No local Python. `python:3.11-slim` for tests (not 3.12 — pkg_resources/OTel issues).
+The **Makefile is the canonical command surface** — CI runs the same targets.
 
 ```bash
-# Tests + coverage gate (≥90% enforced)
-docker run --rm -v "$(pwd):/app" -w /app python:3.11-slim sh -c \
-  "pip install -r requirements.txt -q && pytest --cov=src --cov-fail-under=90"
-
-# Lint (ruff — rules F, E7, E9)
-docker run --rm -v "$(pwd):/app" -w /app python:3.11-slim sh -c \
-  "pip install ruff -q && ruff check src/ tests/"
+make up          # local two-tier stack + wait for gateway /ready
+make smoke       # health + 1 real query + /v1/models
+make test        # full suite + 90% gate via Docker (auto-stubs the private otel dep)
+make test-one FILE=tests/test_x.py
+make lint        # ruff, CI-verbatim scope
+make down        # stop (V=1 drops volumes)
 
 # Build image
 docker build -t aigent-squad:latest .
 
-# Local stack
-./setup-local.sh     # then: curl http://localhost:8000/ready   (gateway)
+# Legacy wrapper (delegates to make up + smoke)
+./setup-local.sh
 docker compose up    # alternative
 
 # Smoke test
@@ -98,8 +98,9 @@ curl -X POST http://localhost:8000/query \
   -d '{"user_input": "How many EC2 instances are running?", "user_id": "u1", "session_id": "s1"}'
 ```
 
-> Tests require SSH key for `staffops-otel-libs` (private dep). In CI a deploy key is used.
-> Locally, stub the dep: grep it out of requirements, create a minimal `__init__.py` stub.
+> Tests require the private `staffops-otel-libs` dep. In CI a deploy key is used.
+> Locally, `make test` handles it automatically (`scripts/test-local.sh` generates a
+> no-op stub when the repo is unreachable and prints a loud warning).
 >
 > **Pre-push gate (mandatory).** CI runs `lint` → `test` and STOPS at the first
 > failure, so a lint error hides test results. Before every push, run the CI
@@ -108,6 +109,20 @@ curl -X POST http://localhost:8000/query \
 > `otel_helper` stub masks both flaky-dep tests and the real coverage gate, so
 > "passes locally" ≠ "passes CI": confirm with `gh run list` after pushing.
 > Subagent-generated modules/tests commonly leave unused imports — always lint them.
+
+---
+
+## Playbook — common failure modes (spec 36)
+
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| `403` on any query | Fail-closed security (spec 14): guardrail block, InputScanner, or `GUARDRAIL_ENABLED=true` with no `GUARDRAIL_ID` | Local compose defaults guardrail OFF — check env overrides; prod: this is working as designed |
+| `401` on `/query` or `/v1/*` | Edge token mismatch | Header `X-Internal-Token` must equal `INTERNAL_API_TOKEN` (NOT `SUPERVISOR_INTERNAL_TOKEN` — that's the gateway→supervisor link only) |
+| `503 backend_unavailable` | Supervisor down/unreachable | `docker compose logs supervisor` — usual cause: invalid `agent.yaml` (Pydantic fails at startup) |
+| `503 service_overloaded` | WorkerPool full (backpressure) | Self-healing; persistent → raise `GATEWAY_MAX_CONCURRENT` |
+| Empty history / no context | DynamoDB fail-open (by design) | Check `dynamodb-local` health; the query still answers |
+| Passes locally, fails CI | Local run used the otel stub (masks deps/telemetry) | The `make test` warning says so; verdict = `gh run list -L 3` |
+| Bedrock `on-demand throughput isn't supported` | Raw model id used | `BEDROCK_MODEL_ID` must be an inference profile (`us.` prefix) |
 
 ---
 
