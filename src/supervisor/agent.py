@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from opentelemetry import trace
 from src.core.classifier import Classifier, ClassifierResult, AgentMatch
 from src.core.guardrail import GuardrailBlockedError
+from src.core.input_scanner import InputScanner
 from src.core.state_store import storage, ConversationMessage
 from src.core.logger import logger, log_request, log_response, log_error
 from src.core.metrics import request_counter, error_counter, request_duration, fanout_calls, fanout_agents_consulted, fanout_agents_failed
@@ -91,6 +92,20 @@ class SupervisorAgent:
                         "error": "token_budget_exceeded",
                     }
 
+                # L2 Input Scanner at the trust-boundary entry (spec 14 finding B):
+                # normalize (homoglyph fold, zero-width strip) + cheap reject
+                # BEFORE any routing decision — forced agent, investigation, or
+                # classify. Homoglyph obfuscation empirically evaded the
+                # classifier's L1 when scanned only at the worker. Fail-closed:
+                # GuardrailBlockedError propagates → 403. The worker-side scan
+                # in generic_agent stays (no layer trusts the previous one).
+                user_input = InputScanner().scan(
+                    user_input,
+                    agent_id="supervisor",
+                    user_id=user_id,
+                    session_id=session_id,
+                )
+
                 # Forced agent (OpenAI bridge per-agent model): bypass classifier.
                 if force_agent and force_agent in self.agents:
                     direct = ClassifierResult(
@@ -135,7 +150,9 @@ class SupervisorAgent:
                 with tracer.start_as_current_span("classifier.classify"):
                     classification: ClassifierResult = await self.classifier.classify(
                         user_input,
-                        chat_history
+                        chat_history,
+                        user_id=user_id,
+                        session_id=session_id,
                     )
 
                 logger.info("Intent classified", extra={

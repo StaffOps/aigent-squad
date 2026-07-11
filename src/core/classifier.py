@@ -82,9 +82,16 @@ If unable to classify, return an empty agents list."""
     async def classify(
         self,
         user_input: str,
-        chat_history: List[ConversationMessage]
+        chat_history: List[ConversationMessage],
+        user_id: str = "unknown",
+        session_id: str = "",
     ) -> ClassifierResult:
-        """Classify user intent; falls back to keyword matching on LLM failure"""
+        """Classify user intent; falls back to keyword matching on LLM failure.
+
+        ``user_id``/``session_id`` flow to ``bedrock.invoke`` so classifier-stage
+        guardrail blocks are attributable in the audit log and the classifier's
+        token usage counts against the session budget (spec 14 findings A + C).
+        """
         history_text = self._format_history(chat_history)
 
         prompt = self.SYSTEM_PROMPT.format(
@@ -101,6 +108,8 @@ If unable to classify, return an empty agents list."""
                 agent_id="classifier",
                 match_user_language=False,  # classifier returns JSON, not prose
                 role="classifier",  # spec 11: uses Haiku (fast/cheap routing)
+                user_id=user_id,
+                session_id=session_id,
             )
         except GuardrailBlockedError:
             # Fail-closed: a blocked input must NOT silently fall back to

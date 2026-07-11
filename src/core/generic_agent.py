@@ -48,12 +48,13 @@ class GenericAgent:
             try:
                 if not input_text or not input_text.strip():
                     raise ValueError("Input text cannot be empty")
-                if len(input_text) > 10000:
-                    raise ValueError("Input text too long (max 10000 characters)")
 
                 # L2 Input Scanner: normalize + cheap reject BEFORE context
                 # construction and Bedrock invoke (spec 14). The normalized
-                # text replaces input_text for all downstream use.
+                # text replaces input_text for all downstream use. Oversized
+                # input is the scanner's job (scanner:oversized, fail-closed
+                # 403) — a plain ValueError here would degrade to a 200
+                # fallback (finding D).
                 scanner = InputScanner()
                 input_text = scanner.scan(
                     input_text,

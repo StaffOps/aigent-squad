@@ -171,3 +171,54 @@ Implementation is incremental (see tasks.md). Order by value/risk:
 L1 (Guardrail) + fail-closed first (biggest gain), then L4/L5 (exfil), then L2
 (cost optimization), L6 (abuse), and finally the multi-language suite as a
 regression gate.
+
+## Phase 6 — Entry-point hardening (homologation findings A/B/C/D)
+
+The 2026-07-03 cluster homologation proved the supervisor/classifier entry is
+under-instrumented and under-protected (see tasks.md findings table). Three
+targeted changes close all four findings:
+
+### Fix A+C — attribution through the classifier
+
+`Classifier.classify(user_input, chat_history, user_id, session_id)` accepts
+and forwards the identifiers to `bedrock.invoke`. Consequences, with zero new
+logic:
+
+- L1 guardrail blocks at the classifier stage carry `user_id`/`session_id` in
+  the audit event (restores the "every audit event is attributable" invariant).
+- `bedrock.py` budget accounting (`if session_id:`) now sees a non-empty
+  session, so classifier (Haiku) tokens count against the session budget cap
+  (closes the C under-count).
+
+Defaults stay `user_id="unknown"` / `session_id=""` so existing callers and
+tests remain valid; the supervisor is the only production call site and always
+passes real values.
+
+### Fix B — InputScanner (L2) at the supervisor entry
+
+`supervisor.process_request` runs `InputScanner().scan(user_input,
+agent_id="supervisor", ...)` immediately after the budget check and BEFORE the
+`force_agent` branch, `should_investigate`, and `classify`. The normalized text
+replaces `user_input` for everything downstream, so:
+
+- Homoglyph/zero-width obfuscation is folded BEFORE the routing decision —
+  the empirically-proven classifier-L1 evasion is closed at the entry.
+- All three paths (forced agent, RCA investigation, classified routing) get L2.
+- `GuardrailBlockedError` propagates through the existing handler → 403.
+
+The worker-side scan in `generic_agent` stays (defense-in-depth invariant: no
+layer trusts the previous one; normalization is idempotent). Double scanning
+costs microseconds — regex heuristics on ≤10k chars, no I/O.
+
+### Fix D — oversized input is a security rejection, not a ValueError
+
+The `len > 10000 → ValueError` pre-check in `generic_agent.process_request` is
+removed. The InputScanner's `scanner:oversized` heuristic (fail-closed →
+`GuardrailBlockedError` → 403) becomes the single enforcement point, at both
+entries (supervisor + worker). The empty-input `ValueError` stays — it is a
+validation error, not an attack signal.
+
+**Accepted risk:** with `INPUT_SCANNER_ENABLED=false` there is no 10k cap at
+all (previously the ValueError capped it). Deliberate: disabling L2 is an
+explicit operator action, L1 still evaluates the input, and the only exposure
+is token cost. Default is ON.

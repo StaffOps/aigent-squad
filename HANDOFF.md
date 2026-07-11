@@ -1,7 +1,55 @@
-# Handoff — sessions 2026-06-16 → 2026-07-03
+# Handoff — sessions 2026-06-16 → 2026-07-11
 
 Estado para retomar. O que foi feito, o que ficou pendente, e próximos
 passos priorizados.
+
+---
+
+## Done — session 2026-07-11 (spec 14 Phase 6: entry-point findings A/B/C/D CLOSED)
+
+**The 0.4.0 gate work.** Pipeline dev→test→security completed for the four
+homologation findings. Detail in `specs/14-security-hardening/tasks.md` +
+`design.md` (new "Phase 6 — Entry-point hardening" section).
+
+### Shipped (uncommitted, on `dev` working tree)
+- **Fix A+C** — `classifier.classify` accepts + forwards `user_id`/`session_id`
+  to `bedrock.invoke`: classifier-stage guardrail blocks attributable, Haiku
+  classifier tokens now budget-counted. Defaults preserved.
+- **Fix B** — `InputScanner` at `supervisor.process_request` (after budget
+  check, before force_agent/investigate/classify; `agent_id="supervisor"`).
+  Normalized text replaces `user_input` downstream incl. saved history.
+- **Fix D** — oversized `ValueError` removed from `generic_agent`;
+  `scanner:oversized` fail-closed 403 is the single enforcement point.
+- **Tests** — 11 new (`tests/test_spec14_entrypoint.py`, independent author) +
+  `test_generic_agent.py` updated to the new oversized contract.
+- **Security review** — independent, **APPROVE-WITH-NITS**; A/B/C/D confirmed
+  CLOSED with code-path evidence.
+- **Docs** — `docs/SECURITY.md` §S4 "Known gap" → "Entry-point hardening
+  (closed)"; spec 14 tasks.md findings marked CLOSED + review record.
+
+### New follow-up findings from the review (OPEN, in spec 14 tasks.md)
+- **E (MEDIUM)** — synthesizer + `_synthesize_rca` invoke Bedrock with empty
+  `session_id` → unattributable OUTPUT blocks + Sonnet synthesis tokens escape
+  the budget; investigation books evidence to a `-inv-` bucket `check_budget`
+  never reads.
+- **F (MEDIUM)** — `/alerts/incoming` → `run_investigation` bypasses entry L2;
+  raw alert-derived symptom reaches RCA synthesis (only raw L1). Fix: scan the
+  symptom at the top of `run_investigation`.
+- Decide: fold E/F into the `0.4.0` gate or ship 0.4.0 with A/B/D closed and
+  track E/F for 0.4.x.
+
+### Also this session
+- Pushed the 4 pending commits (`9bda015`→`63f1d5c`) to GitHub `dev` — CI green
+  (Test + SAST). The GitLab overlay commit `c1c9195` push status: still pending
+  (not in this repo).
+- Full suite before fixes: 674 passed / 93.91% cov. Re-run with the 11 new
+  tests: pending at handoff-write time (background).
+
+### Next
+1. Commit the Phase-6 work (awaiting approval) + push + CI.
+2. Re-homologate the attack battery in the cluster (homoglyph must now block at
+   the supervisor entry, oversized must 403) → then cut `0.4.0` (or fold E/F in).
+3. Findings E/F, aws-agent `<use_mcp_tool>` XML leak, finops↔Athena.
 
 ---
 

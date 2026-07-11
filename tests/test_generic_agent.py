@@ -8,6 +8,7 @@ from unittest.mock import patch, AsyncMock
 from src.core.adapters import DatasourceAdapter
 from src.core.agent_config import AgentConfig
 from src.core.generic_agent import GenericAgent
+from src.core.guardrail import GuardrailBlockedError
 from src.core.state_store import ConversationMessage
 
 
@@ -88,13 +89,17 @@ class TestEmptyInputRaisesValueError:
 
 
 @pytest.mark.asyncio
-class TestTooLongInputRaisesValueError:
+class TestTooLongInputBlockedByScanner:
     @patch("src.core.generic_agent.bedrock")
-    async def test_too_long_input_raises_value_error(self, mock_bedrock):
-        """10001 chars → ValueError."""
+    async def test_too_long_input_raises_guardrail_blocked(self, mock_bedrock):
+        """10001 chars → scanner:oversized, fail-closed 403 (spec 14 finding D).
+
+        Previously a plain ValueError, which the supervisor mapped to a 200
+        fallback instead of a security refusal.
+        """
         agent = GenericAgent(config=_make_config(), prompt="p", adapters=[])
 
-        with pytest.raises(ValueError, match="too long"):
+        with pytest.raises(GuardrailBlockedError) as exc_info:
             await agent.process_request(
                 input_text="x" * 10001,
                 user_id="u",
@@ -102,6 +107,7 @@ class TestTooLongInputRaisesValueError:
                 chat_history=[],
             )
 
+        assert "scanner:oversized" in exc_info.value.categories
         mock_bedrock.invoke.assert_not_called()
 
 

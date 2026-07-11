@@ -41,34 +41,74 @@ inside the supervisor pod. Attribution below is from audit logs correlated by tr
 | repeated-char | 403 | L2 worker | `scanner:repeated_chars` |
 | oversized (11k) | **200** | — (degraded) | `ValueError` at `generic_agent.py:52` before scanner |
 
-**Finding A — Audit gap (MEDIUM, OPEN):** `classifier.classify(user_input, chat_history)`
+**Finding A — Audit gap (MEDIUM, CLOSED 2026-07-11):** `classifier.classify(user_input, chat_history)`
 neither accepts nor forwards `user_id`/`session_id`, so its `bedrock.invoke(agent_id="classifier")`
 defaults to `""`/`"unknown"`. Classifier-stage guardrail blocks log an empty `session_id`
 (`agent=classifier sess=`) — not correlatable to a user/request. Violates the spec-14 audit
 invariant (security blocks must be traceable).
 
-**Finding B — Homoglyph evades classifier L1 (MEDIUM, OPEN):** empirically confirms the
+**Finding B — Homoglyph evades classifier L1 (MEDIUM, CLOSED 2026-07-11):** empirically confirms the
 supervisor-L2 gap. A Cyrillic-homoglyph "ignore all previous instructions" passed the
 classifier's L1 (was routed to `aws`) and was only caught at the worker after L2 folded it
 to Latin. Fullwidth is caught raw (Bedrock normalizes), homoglyph is not. An attack targeting
 the *routing decision* (no worker execution needed) would evade. Fix: wire `InputScanner` at
 `supervisor.process_request` before `classify`.
 
-**Finding C — Budget under-count (LOW, OPEN):** same root as A. `bedrock.py:165`
+**Finding C — Budget under-count (LOW, CLOSED 2026-07-11):** same root as A. `bedrock.py:165`
 (`if session_id: budget_tracker.record_usage(...)`) skips budget accounting when session is
 empty, so the per-request classifier (Haiku) invoke tokens never count against the session
 budget cap.
 
-**Finding D — Oversized degrades to 200 (MEDIUM, OPEN):** `generic_agent.py:50-52` raises a
+**Finding D — Oversized degrades to 200 (MEDIUM, CLOSED 2026-07-11):** `generic_agent.py:50-52` raises a
 plain `ValueError` for `len>10000` BEFORE the InputScanner (line 56). `ValueError` is not a
 `GuardrailBlockedError` → not mapped to 403 → supervisor returns a 200 fallback. The
 InputScanner's own `scanner:oversized` (fail-closed 403) is therefore dead code. Inconsistent
 with repeated-char (403); the oversized payload also burned a classifier invoke first.
 
-**Proposed fixes (deferred, security-critical path — pipeline dev→test→security):**
-- Fix A+C: `classifier.classify` accepts + forwards `user_id`/`session_id` to `bedrock.invoke`; supervisor passes them.
-- Fix B: wire `InputScanner` at `supervisor.process_request` (before classify).
-- Fix D: drop the redundant oversized `ValueError` (let `InputScanner` handle it fail-closed); keep empty check. Caveat: if `INPUT_SCANNER_ENABLED=false`, oversized would go unchecked — evaluate.
+**Fixes shipped 2026-07-11 (Phase 6 — pipeline dev→test→security, all CLOSED):**
+- Fix A+C ✅: `classifier.classify(user_input, chat_history, user_id, session_id)` forwards both
+  to `bedrock.invoke`; supervisor passes real ids. Classifier-stage guardrail blocks are now
+  attributable AND classifier (Haiku) tokens count against the session budget (`bedrock.py`
+  `if session_id:` now sees a non-empty session). Defaults preserved for legacy callers.
+- Fix B ✅: `InputScanner().scan(user_input, agent_id="supervisor", ...)` at
+  `supervisor.process_request`, after the budget check and BEFORE force_agent /
+  should_investigate / classify. Normalized text replaces `user_input` downstream (including
+  saved history — desirable: raw obfuscated text can't resurrect via history replay).
+  Worker-side scan stays (defense-in-depth). Entry-stage audit events use `agent=supervisor`.
+- Fix D ✅: oversized `ValueError` removed from `generic_agent`; `scanner:oversized`
+  (fail-closed 403) is the single enforcement point at both entries. Empty-input check kept.
+  Accepted risk (design.md Phase 6): `INPUT_SCANNER_ENABLED=false` removes the 10k cap entirely
+  (default ON, L1 still evaluates, exposure = token cost).
+- Verification: 11 new tests in `tests/test_spec14_entrypoint.py` (independent author) —
+  attribution, scan-before-routing ordering, normalized-text propagation, forced-path
+  coverage, oversized→403 e2e through the real server. `tests/test_generic_agent.py` updated
+  to the new oversized contract. Independent security review: **APPROVE-WITH-NITS**, A/B/C/D
+  confirmed CLOSED with code-path evidence.
+
+### Follow-up findings from the Phase-6 security review (2026-07-11, OPEN)
+
+**Finding E (MEDIUM, OPEN) — synthesis/investigation invokes unattributed + unbudgeted.**
+Same root as A/C, different call sites: `synthesizer.py` and `investigation.py:_synthesize_rca`
+call `bedrock.invoke` with default `agent_id="unknown"`, `session_id=""` → OUTPUT-stage guardrail
+blocks on synthesized text log un-correlatable events, and Sonnet synthesis tokens skip
+`budget_tracker.record_usage`. Also: investigation books evidence tokens to
+`{session_id}-inv-{id}` — a different budget bucket than the one `check_budget` enforces, so RCA
+largely escapes the session cap. Fix: thread `user_id`/`session_id` through
+`synthesizer.synthesize` and `run_investigation`; account against the parent session.
+
+**Finding F (MEDIUM, OPEN) — `/alerts/incoming` bypasses entry-stage L2.**
+`handle_alert_payload` → `run_investigation` directly (never `process_request`), so the
+alert-derived symptom (built from Alertmanager annotations/labels — attacker-influenceable via
+templated pod names/log excerpts) reaches `_synthesize_rca` un-normalized; only raw L1 evaluates
+it there (the exact homoglyph-evades-raw-L1 mechanism of finding B). Compensated by route auth +
+worker L1+L2 on evidence queries. Fix: `InputScanner().scan(symptom, agent_id="alertmanager", ...)`
+at the top of `run_investigation` (covers any future caller too).
+
+**Minor (LOW/NIT, noted):** alert handler's `except Exception` swallows `GuardrailBlockedError`
+as a generic warning (audit already emitted — acceptable; log as security event ideally); with
+scanner disabled no size cap anywhere (accepted, documented); `_normalize` not byte-idempotent
+(pass-2 NFKC may re-compose — no bypass, cosmetic history divergence); entry/worker audit digests
+differ for obfuscated inputs (correlate by session/trace, not digest).
 
 **Side observation (not a spec-14 finding):** the `aws` agent response echoes raw
 `<use_mcp_tool>...</use_mcp_tool>` XML in the body instead of executing the tool — tool-call
