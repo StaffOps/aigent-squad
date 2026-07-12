@@ -146,6 +146,19 @@ single choke point for `/alerts/incoming`, the `agent.py` investigate path (idem
 defense-in-depth), and any future caller. Fail-closed → `GuardrailBlockedError` → 403; normalized
 symptom propagates downstream. Tests: `tests/test_spec14_ef.py`.
 
+**E1/F cluster re-homologation (2026-07-12, image digest `e3e5948`).** Rebuilt + rolled out;
+base 8-vector `/query` battery still 8/8 (no regression). Then POSTed a 2-alert Alertmanager
+payload to `/alerts/incoming` (both firing, unique fingerprints):
+- base64-blob symptom → `input_scanner_block agent_id="investigation" reason="base64_injection"
+  marker_found="ignore all"` → `Alert investigation failed (scanner:base64_injection)`. **Proves
+  the L2 scanner now runs at the investigation entry** — this path had zero L2 before Fix F.
+- homoglyph symptom → normalized at entry (`input_length=265`, folded to Latin) → fan-out agents'
+  guardrail blocks `content:PROMPT_ATTACK` → `Alert investigation failed`. Raw homoglyph would
+  have evaded raw L1 pre-fix.
+- Both alerts: webhook `HTTP 200 triggered:0` — **no RCA produced, all audited** (correct
+  fail-closed for a batch webhook). E2's `-inv-<id>` evidence budget bucket observed as expected
+  (carved to 0.4.1).
+
 **Minor (LOW/NIT, noted):** alert handler's `except Exception` swallows `GuardrailBlockedError`
 as a generic warning (audit already emitted — acceptable; log as security event ideally); with
 scanner disabled no size cap anywhere (accepted, documented); `_normalize` not byte-idempotent

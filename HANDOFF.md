@@ -73,9 +73,18 @@ homologation findings. Detail in `specs/14-security-hardening/tasks.md` +
    - Tests: `tests/test_spec14_ef.py` (6, independent author). Suite **691 passed /
      94.24%**, lint clean. Self-reviewed for security; **independent security review
      + cluster re-homologation of E1/F still pending** before the tag.
-4. **Next: commit E1/F (awaiting approval) → rebuild image → re-homologate the alert
-   path + fan-out attribution in-cluster → cut `0.4.0`.** Then: aws-agent
-   `<use_mcp_tool>` XML leak, finops↔Athena.
+4. ✅ **E1/F committed + pushed + cluster-homologated** (2026-07-12).
+   - Commit `be32491` → GitHub `dev`, CI green (Test + SAST).
+   - Image rebuilt with E1/F → Harbor `labs/aigent-squad:0.3.0-dev` digest
+     `sha256:e3e5948`; rolled out gateway+supervisor (2/2).
+   - Re-homologation: base 8-vector battery still 8/8 (no regression). `/alerts/incoming`
+     with base64+homoglyph symptoms → `input_scanner_block agent=investigation` (base64) +
+     folded-then-guardrail-blocked (homoglyph); webhook `HTTP 200 triggered:0`, no RCA,
+     all audited. **Fix F proven: the alert path now has entry-stage L2.** Evidence in
+     `specs/14-security-hardening/tasks.md`.
+5. **0.4.0 gate FULLY MET** — A/B/C/D + E1/F closed and cluster-homologated; E2 carved to
+   0.4.1. **Next: cut `0.4.0`** (via the `release` skill — dev→main→tag→chart→cluster;
+   needs go-ahead). Then: aws-agent `<use_mcp_tool>` XML leak, finops↔Athena, finding E2.
 
 > Local-access note: this machine's `aws` cli is 2.6.1 (2022) — emits `v1alpha1`
 > ExecCredential that kubectl 1.34 rejects. A shim in scratchpad rewrites it to
