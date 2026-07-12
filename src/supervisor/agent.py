@@ -303,7 +303,9 @@ class SupervisorAgent:
                 else:
                     ok.append((a.agent, r.content))
 
-            final_response = await synthesizer.synthesize(user_input, ok, failed)
+            final_response = await synthesizer.synthesize(
+                user_input, ok, failed, user_id=user_id, session_id=session_id,
+            )
 
             # Fan-out metrics
             fanout_calls.add(1)

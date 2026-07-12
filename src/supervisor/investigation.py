@@ -8,6 +8,7 @@ from otel_helper import get_tracer
 
 from src.core.bedrock import bedrock
 from src.core.guardrail import GuardrailBlockedError
+from src.core.input_scanner import InputScanner
 from src.core.investigation import (
     Evidence, RCAResult, InvestigationState,
     build_timeline, correlate,
@@ -24,6 +25,13 @@ tracer = get_tracer(__name__)
 
 # Cost cap (configurable via env)
 MAX_AGENTS_PER_INVESTIGATION = int(os.getenv("RCA_MAX_AGENTS", "5"))
+
+# Entry-stage L2 scanner (spec 14 Finding F): investigations can be triggered
+# outside process_request (e.g. /alerts/incoming builds a symptom from
+# attacker-influenceable Alertmanager labels), so the entry scanner is applied
+# here as the single choke point for every caller. Idempotent on the
+# already-scanned process_request path (defense-in-depth).
+_scanner = InputScanner()
 
 RCA_SYNTHESIZER_PROMPT = """You are an RCA (Root Cause Analysis) synthesizer.
 
@@ -62,6 +70,11 @@ async def run_investigation(
     4. Build timeline + correlate
     5. Synthesize RCA via Bedrock
     """
+    # Finding F: normalize + scan the symptom before it reaches any agent or the
+    # RCA synthesizer. Fail-closed → GuardrailBlockedError propagates to 403.
+    symptom = _scanner.scan(
+        symptom, agent_id="investigation", user_id=user_id, session_id=session_id,
+    )
     state = InvestigationState(symptom=symptom)
     log_request("investigation", user_id, session_id, symptom)
     investigation_started.add(1)
@@ -118,8 +131,10 @@ async def run_investigation(
         # Build timeline + correlate
         timeline = build_timeline(state.evidence)
 
-        # Synthesize
-        rca = await _synthesize_rca(symptom, state.evidence, timeline)
+        # Synthesize (Finding E1: attribute + budget the synthesis Sonnet call)
+        rca = await _synthesize_rca(
+            symptom, state.evidence, timeline, user_id=user_id, session_id=session_id,
+        )
 
         log_response("investigation", user_id, session_id, len(rca.hypothesis), 0.0)
 
@@ -166,7 +181,13 @@ def _parse_evidence(text: str, source_agent: str) -> list[Evidence]:
     )]
 
 
-async def _synthesize_rca(symptom: str, evidence: list[Evidence], timeline: list[Evidence]) -> RCAResult:
+async def _synthesize_rca(
+    symptom: str,
+    evidence: list[Evidence],
+    timeline: list[Evidence],
+    user_id: str = "unknown",
+    session_id: str = "",
+) -> RCAResult:
     """Single Bedrock call to fuse evidence into RCAResult."""
     rag_block = await inject_similar_cases(symptom)
 
@@ -200,6 +221,9 @@ Produce the RCA JSON."""
         system_prompt=RCA_SYNTHESIZER_PROMPT,
         temperature=0.2,
         role="synthesis",  # spec 11: uses Sonnet (synthesis tier)
+        agent_id="rca-synthesizer",
+        user_id=user_id,
+        session_id=session_id,
     )
 
     # Parse JSON

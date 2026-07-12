@@ -46,10 +46,41 @@ homologation findings. Detail in `specs/14-security-hardening/tasks.md` +
   tests: pending at handoff-write time (background).
 
 ### Next
-1. Commit the Phase-6 work (awaiting approval) + push + CI.
-2. Re-homologate the attack battery in the cluster (homoglyph must now block at
-   the supervisor entry, oversized must 403) → then cut `0.4.0` (or fold E/F in).
-3. Findings E/F, aws-agent `<use_mcp_tool>` XML leak, finops↔Athena.
+1. ✅ Committed + pushed (`7a37808` → GitHub `dev`, CI green: Test 1m30s + SAST).
+2. ✅ Re-homologated in devops-core (2026-07-11). Rebuilt multi-arch image with the
+   Phase-6 fixes → Harbor `labs/aigent-squad:0.3.0-dev` digest `sha256:657d9a35`;
+   rolled out gateway+supervisor (2/2). Attack battery via `/query`: **8/8 vectors
+   block, all attributable** (real session_id) — homoglyph/zero-width now blocked
+   pre-route (folded at supervisor entry → classifier guardrail), oversized now 403
+   (`scanner:oversized`). A/B/C/D confirmed CLOSED in-cluster. Evidence table in
+   `specs/14-security-hardening/tasks.md` ("Cluster re-homologation"). Repro script:
+   scratchpad `homolog.py`.
+3. ✅ **Findings E1 + F CLOSED** (2026-07-11, uncommitted on `dev` working tree).
+   - **F** — `_scanner.scan(symptom, agent_id="investigation")` at the top of
+     `run_investigation` (`investigation.py`): single choke point covering
+     `/alerts/incoming` (was un-normalized → only raw L1) + the investigate path
+     (idempotent re-scan) + future callers. Fail-closed → 403; normalized symptom
+     propagates. The `/alerts` batch handler's `except Exception` turns a block into
+     "no RCA for that alert" (audit already emitted) — correct fail-closed for a
+     batch webhook.
+   - **E1** — `synthesizer.synthesize` + `_synthesize_rca` now forward
+     `agent_id`/`user_id`/`session_id` to `bedrock.invoke` (attribution +
+     synthesis-token budget). Call sites `agent.py:_fan_out` + `run_investigation`
+     pass the real session.
+   - **E2** carved to **0.4.1** (evidence fan-out books to the `-inv-` budget bucket;
+     needs decoupling budget-session from history-session — not mechanical). Detail
+     in `specs/14-security-hardening/tasks.md`.
+   - Tests: `tests/test_spec14_ef.py` (6, independent author). Suite **691 passed /
+     94.24%**, lint clean. Self-reviewed for security; **independent security review
+     + cluster re-homologation of E1/F still pending** before the tag.
+4. **Next: commit E1/F (awaiting approval) → rebuild image → re-homologate the alert
+   path + fan-out attribution in-cluster → cut `0.4.0`.** Then: aws-agent
+   `<use_mcp_tool>` XML leak, finops↔Athena.
+
+> Local-access note: this machine's `aws` cli is 2.6.1 (2022) — emits `v1alpha1`
+> ExecCredential that kubectl 1.34 rejects. A shim in scratchpad rewrites it to
+> `v1beta1`; cluster access also required mapping the SSO admin role (done by user
+> mid-session). Upgrading the aws cli removes the need for the shim.
 
 ---
 
