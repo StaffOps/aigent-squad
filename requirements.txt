@@ -22,8 +22,8 @@ pydantic==2.10.5
 pydantic-settings==2.7.0
 pyyaml==6.0.2
 
-# OpenTelemetry — via staffops-otel-libs helper (from git repo)
-otel-helper @ git+https://github.com/karlipegomes/staffops-otel-libs.git@main#subdirectory=python
+# OpenTelemetry — via otel-libs helper (public git repo, no auth needed)
+otel-helper @ git+https://github.com/StaffOps/otel-libs.git@main#subdirectory=python
 
 # Monitoring
 prometheus-client==0.21.1
