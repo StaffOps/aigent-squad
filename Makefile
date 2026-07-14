@@ -1,7 +1,7 @@
 # Canonical command surface (spec 36). Every golden path is a target here;
 # AGENTS.md/QUICKSTART reference these instead of raw commands. CI calls the
 # same targets (same-harness principle — spec 23 extended to the entrypoint).
-.PHONY: up down smoke test test-one test-ci lint eval specs-status help
+.PHONY: up down smoke test test-one test-ci lint eval specs-status install-hooks help
 
 help: ## List targets
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-14s %s\n", $$1, $$2}'
@@ -34,8 +34,13 @@ lint: ## Ruff, CI-verbatim scope (run via Docker if no local ruff)
 	docker run --rm -v "$$(pwd):/app" -w /app python:3.11-slim \
 	  sh -c "pip install -q ruff && ruff check src/ tests/"
 
-eval: ## Quality eval T2 (spec 35) — not implemented yet
-	@echo "spec 35 pending — see specs/35-quality-eval-harness/"; exit 1
+eval: ## Quality eval T2 (spec 35) — golden sets + LLM judge, real Bedrock cost (~$1-3)
+	./scripts/eval-local.sh
 
 specs-status: ## Spec status lint (spec 32) — not implemented yet
 	@echo "spec 32 pending — see specs/32-spec-lifecycle-ssot/"; exit 1
+
+install-hooks: ## One-time opt-in: enforce "docs ship with code" via a pre-commit hook (.githooks/)
+	git config core.hooksPath .githooks
+	chmod +x .githooks/pre-commit
+	@echo "✅ pre-commit hook installed (core.hooksPath=.githooks). Bypass per-commit: git commit --no-verify"

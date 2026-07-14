@@ -257,6 +257,12 @@ class TestCollectionErrorHonestyInstruction:
 
         assert "[mcp:k8s-mcp] error: boom" in context_text
         assert "Do not invent root causes" in context_text
+        # F-004 refinement (found 2026-07-14 via spec 35's own eval harness):
+        # the model was honest about a collection failure but quoted the raw
+        # "[svc] error: ..." line verbatim inside the answer, which ResponseQ
+        # ualityGuard (spec 35 T1) then correctly blocked as a raw-error leak
+        # — a real answer denied by an over-literal reading of "say so plainly".
+        assert "do not quote" in context_text.lower()
 
 
 @pytest.mark.asyncio

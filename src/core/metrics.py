@@ -224,3 +224,10 @@ quality_violations = meter.create_counter(
     description="Structural quality defects detected in agent responses (tool-scaffolding leaks, raw adapter errors) — labels: agent_id, category",
     unit="1",
 )
+
+# === Spec 35: Eval harness (T2 scored, make eval) ===
+eval_score = meter.create_histogram(
+    name="aigent.eval.score",
+    description="Per-question eval score emitted by `make eval` (0-1, mechanical checks + judge rubric combined) — labels: suite, agent_id",
+    unit="1",
+)

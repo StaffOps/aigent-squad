@@ -44,19 +44,36 @@ criteria — needs infra_data-vs-response comparison logic that risks false posi
 legitimately paraphrased numbers; not attempted this pass, tracked as open, not silently
 dropped.
 
-## Phase 2 — Golden sets + runner (T2 scored)
+## Phase 2 — Golden sets + runner (T2 scored) — ✅ DONE 2026-07-14
 
-- [ ] T4: `evals/` layout + schemas — `golden/<agent>.yaml` (question, must-contain,
-      must-not-contain, routing), `rca/<scenario>.yaml`, `results/`
-- [ ] T5: Curate golden sets for the 5 agents (10–20 Qs each), constrained to CURRENT
-      datasources — capability gaps found while writing go to BACKLOG as product
-      findings (this task IS the capability matrix audit) (depends on: T4)
-- [ ] T6: Eval runner — mechanical checks first; LLM judge (Haiku, temp 0, versioned
-      rubric) for the open-ended residue; emits `evals/results/<date>.json` + diff vs
-      baseline + `aigent.eval.score {suite, agent_id}`; exposed as `make eval`
-      (depends on: T4, spec 36 T4)
-- [ ] T7: Record the first baseline + tolerance band; document in `evals/README.md`
-      (depends on: T5, T6)
+- [x] T4: `evals/` layout + schemas — `evals/golden/<agent>.yaml` (question,
+      `must_contain_regex`, `must_not_contain_regex`, `routing_expected`),
+      `evals/judge_prompt.md` (versioned rubric), `evals/results/`.
+      `rca/<scenario>.yaml` deferred to Phase 3 (not needed until T8/T9).
+- [x] T5: Curated golden sets for all 5 agents (35 questions total: aws 9,
+      finops 7, kubernetes 9, devops 5, observability 5 — slightly under the
+      10-20/agent target for devops/observability, whose real local
+      datasources are weak — see each file's header). Constrained to CURRENT
+      datasources; capability gaps intentionally included as honesty probes
+      (e.g. finops has no Kubecost data since F-002, observability's only
+      real query is a single Prometheus `up` check despite broader routing
+      keywords — both now documented in `docs/site/agents/overview.md` too).
+- [x] T6: `evals/runner.py` — mechanical checks first (floor: a mechanical
+      failure zeroes the question regardless of judge score), Haiku judge
+      (temp 0, `evals/judge_prompt.md`) for the coherence/actionability
+      residue. Emits `evals/results/<date>.json` + diff vs
+      `evals/results/baseline.json` + `aigent.eval.score {suite, agent_id}`.
+      `make eval` → `scripts/eval-local.sh` (mirrors `scripts/smoke.sh`'s
+      Docker/network conventions).
+- [x] T7: First baseline recorded (`evals/results/baseline.json`,
+      2026-07-14) — real run against the local stack + real Bedrock/AWS
+      creds. Documented in `evals/README.md`, including an honest account of
+      a real bug the FIRST run found (raw adapter-error text leaking
+      verbatim past F-004's honesty instruction, fixed same session — see
+      `generic_agent.py`) and known golden-set calibration rough edges
+      (mostly `routing_expected` too rigid against investigation-triggering
+      phrasing) left for the next iteration rather than chased with more
+      real spend. Tolerance band: `TOLERANCE = 0.15` in `runner.py`.
 
 ## Phase 3 — RCA scenarios (the differentiator gets a score)
 
