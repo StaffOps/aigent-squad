@@ -6,11 +6,15 @@ Agents are the specialists. Each agent is responsible for one domain, collects r
 
 | Agent | Domain | Datasources |
 |-------|--------|-------------|
-| `aws` | EC2, RDS, S3, IAM, networking | `boto3` (describe/list/get) |
-| `kubernetes` | Pods, deployments, services, events | `kubernetes` API + MCP |
-| `finops` | Cost analysis, savings plans, attribution | `boto3` (Cost Explorer) |
+| `aws` | EC2, RDS, S3, IAM | `boto3` (describe/list/get) |
+| `kubernetes` | Pods, namespaces, nodes, Helm, Istio mesh (via Kiali) | `mcp` (kube-mcp, full read-only tool catalog) |
+| `finops` | Cost analysis (Cost Explorer spend only, no per-namespace/Kubecost breakdown) | `boto3` (Cost Explorer) |
 | `devops` | CI/CD, GitLab, pipelines, deployments | `http` (GitLab API, docs portal) |
-| `observability` | Metrics, logs, traces, alerting | `http` (VictoriaMetrics, Loki, Grafana) |
+| `observability` | Target-up status only today (routing keywords cover more than the datasource does — see `evals/golden/observability.yaml`) | `http` (single Prometheus `up` query) |
+
+Datasources above reflect what each agent can ACTUALLY answer today, not
+the aspirational domain description — see `evals/golden/<agent>.yaml` for
+the per-agent capability probes this is checked against (spec 35).
 
 ## Routing
 

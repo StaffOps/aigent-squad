@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# Enforces AGENTS.md's "Docs ship with code" workflow rule: a commit that
+# touches src/ or an agent's config/prompt must also touch at least one
+# docs/spec/tracking file in the SAME commit. Installed via `make
+# install-hooks` (opt-in — see AGENTS.md; this script is tracked in
+# .githooks/, not .git/hooks/, so it survives clones and is reviewable).
+set -euo pipefail
+
+staged=$(git diff --cached --name-only --diff-filter=ACMR)
+
+code_touched=$(echo "$staged" | grep -E '^(src/|agents/[^/]+/(agent\.yaml|prompt\.md)$)' || true)
+docs_touched=$(echo "$staged" | grep -E '^(docs/|HANDOFF\.md$|README\.md$|specs/.*\.md$|evals/(golden|judge_prompt)\.md$|evals/golden/.*\.yaml$)' || true)
+
+if [ -n "$code_touched" ] && [ -z "$docs_touched" ]; then
+  echo "❌ pre-commit: code changed but no docs/spec file is staged in this commit."
+  echo ""
+  echo "   Changed:"
+  echo "$code_touched" | sed 's/^/     /'
+  echo ""
+  echo "   AGENTS.md workflow rule: \"Docs ship with code\" — update docs/,"
+  echo "   HANDOFF.md, or the relevant specs/<NN>/*.md in the same commit."
+  echo ""
+  echo "   If this specific commit genuinely needs no doc changes:"
+  echo "     git commit --no-verify"
+  exit 1
+fi
+
+exit 0

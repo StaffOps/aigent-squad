@@ -334,7 +334,11 @@ Current work: close the spec-14 homologation findings (A/B/D — see
 - **Spec-driven**: update `specs/<NN>/design.md` BEFORE implementing
 - **Tests ship with code**: ≥90% coverage, Docker-measured, independent author
 - **Metrics ship with code**: new feature = new `aigent.*` metric in `metrics.py` + `docs/METRICS.md`
-- **Docs ship with code**: update relevant `docs/` files in the same change
+- **Docs ship with code**: update relevant `docs/` files in the same change.
+  Opt-in enforcement: `make install-hooks` installs a pre-commit hook
+  (`.githooks/pre-commit`) that blocks a commit touching `src/` or an
+  agent's `agent.yaml`/`prompt.md` without a docs/spec file in the same
+  commit (bypass per-commit: `git commit --no-verify`)
 - **Mark tasks**: update `tasks.md` with completion dates; explicitly defer unfinished items
 - **Conventional commits**: `feat/fix/docs/test/refactor/chore(scope): description`
 - **Stage explicitly**: `git add <specific files>` — never `git add .`
