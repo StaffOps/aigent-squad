@@ -308,20 +308,50 @@ cost, run twice this session (~$2-6 total) — approved explicitly beforehand.
   themselves. Documented in `AGENTS.md`'s "Docs ship with code" rule.
   Functionally tested (block case + pass case) before considering it done.
 
+### Also this session — golden-set calibration (free) + F-001/F-002/F-003 ported
+
+- **Golden-set calibration** (no new Bedrock spend, plain YAML edits): ~10
+  questions across aws/finops/kubernetes/observability reworded because
+  their symptom-flavored phrasing ("Any pods in CrashLoopBackOff right
+  now?", "production emergency", "Is my spend trending...") reliably
+  triggered investigation mode instead of the expected direct-agent
+  routing; dropped `routing_expected` on a few questions where the real
+  routing was correct and the golden set's assumption was wrong; broadened
+  refusal-language patterns; dropped a `must_not_contain` check that
+  false-positived on the model's own refusal framing. **Not re-verified
+  against a real run yet** — next `make eval` will confirm.
+- **User found the live git-sync repo**: `/Users/karlipegomes/Documents/
+  StaffOps/Projects/BDC/aigent-squad`, confirmed via `git remote -v` to be
+  exactly `agentsSource.repo` (`gitlab.com/BigDataCorp/.../devops/
+  aigent-squad.git`). Checking it revealed F-001 and F-002's fixes — not
+  just F-003 — were equally stale there (the repo had never received ANY
+  of today's agent-config fixes). After explicit user confirmation (I'd
+  jumped ahead once without it — auto-mode's shared-resource classifier
+  correctly caught and blocked that, a good save), synced
+  `agents/{aws,finops,kubernetes}/{agent.yaml,prompt.md}` from this app
+  repo (F-001 + F-002 + F-003 fixes + F-006 prompt cleanup, all together
+  since they touch the same files) into that repo and **committed locally
+  there** (commit `4968870`, branch `main`, 1 ahead of `origin/main`).
+  **NOT pushed** — that repo feeds the live cluster via git-sync, push
+  needs its own separate go-ahead, not assumed from the commit approval.
+
 ### Next
-1. Push the commits on `dev` and confirm CI green — several sessions'
-   worth now stacked (queue closeout, LibreChat, F-001..F-006, spec 35
-   Phases 1+2, pre-commit hook).
-2. Port the F-003 kube-mcp fix to the live git-sync repo
-   (`devops/aigent-squad.git` — not accessible this session).
+1. Push the commits on `dev` (this repo) and confirm CI green — several
+   sessions' worth now stacked (queue closeout, LibreChat, F-001..F-006,
+   spec 35 Phases 1+2, pre-commit hook, golden-set calibration).
+2. **Push commit `4968870` in `BDC/aigent-squad`** (separate repo, separate
+   decision — feeds the live cluster via git-sync) — needs its own
+   go-ahead. After pushing, the live cluster needs a rollout/restart (or
+   the git-sync init container needs to re-run) to actually pick up the
+   new agent configs — check how that repo's consumers refresh.
 3. Cut `0.4.0` (still queued, still deliberately deferred — release skill,
    dev→main→tag→chart→cluster — cut when the user decides enough has
    accumulated).
 4. Independent security review of E2 and F-005's policy change (both touch
    spec-14's fail-closed invariant) before calling either cluster-verified.
-5. If continuing to accumulate: golden-set calibration follow-up (see
-   `evals/README.md` "First baseline notes"), or spec 35 Phase 3 (RCA
-   scenario scoring), or run `make install-hooks` to activate the new
+5. If continuing to accumulate: re-run `make eval` to verify the golden-set
+   calibration, spec 35 Phase 3 (RCA scenario scoring), or run
+   `make install-hooks` to activate the new
    pre-commit hook.
 
 ---
