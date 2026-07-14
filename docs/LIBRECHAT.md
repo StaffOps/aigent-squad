@@ -1,19 +1,25 @@
 # LibreChat Integration
 
 AIgent-squad exposes an **OpenAI-compatible API** (`/v1/models`,
-`/v1/chat/completions`), so [LibreChat](https://www.librechat.ai/) — or any
-OpenAI-compatible client — can talk to the squad **directly**, with no extra
-gateway. (Spec: [`specs/29-openai-compat-bridge/`](https://github.com/StaffOps/staffops-aigent-squad/tree/main/specs/29-openai-compat-bridge).)
+`/v1/chat/completions`) on the edge gateway, so [LibreChat](https://www.librechat.ai/)
+— or any OpenAI-compatible client — can talk to the squad **directly**, with
+no separate translation service to run or maintain. (Spec:
+[`specs/29-openai-compat-bridge/`](https://github.com/StaffOps/staffops-aigent-squad/tree/main/specs/29-openai-compat-bridge).)
 
 ## How it works
 
 ```
-LibreChat ──OpenAI /v1/chat/completions──> Supervisor (:8000)
-                                              └─ classifier → agents → synthesis
+LibreChat ──OpenAI /v1/chat/completions──> Gateway (:8000) ──/internal/process──> Supervisor (:8001)
+                                                                                     └─ classifier → agents → synthesis
 ```
 
-The bridge is a thin translation layer over the existing supervisor — same
-routing, fan-out, and RCA investigation as the native `/query` endpoint.
+Since spec 31 (edge gateway), the OpenAI-compatible `/v1` routes live on the
+**gateway** (`src/gateway/main.py`), not the supervisor — the supervisor is
+backend-only (`/internal/*`, reachable only from the gateway). The bridge
+itself is a thin translation layer (`src/supervisor/openai_compat.py`) over
+the same routing, fan-out, and RCA investigation as the native `/query`
+endpoint; the gateway just adds edge auth, admission control, and worker-pool
+backpressure in front of it.
 
 ## Models
 
@@ -30,19 +36,39 @@ routing, fan-out, and RCA investigation as the native `/query` endpoint.
 
 (Per-agent models are derived from the registry — they match your enabled agents.)
 
-## Setup
+## Setup — local LibreChat against the real cluster (default, recommended)
 
-1. **Run the squad** with an `INTERNAL_API_TOKEN` set (the bridge is
-   authenticated — fail-closed, no token = 401).
+The squad itself doesn't need to run anywhere near LibreChat — only
+`mongo` + `librechat` run locally, pointed at the real devops-core gateway
+(`https://aigent-squad.bdc.app.br`). No Helm chart, no in-cluster LibreChat
+deployment: same call `staffops-chaitops` made for its own LibreChat
+(docker-compose only; a K8s migration is explicitly deferred there until a
+real trigger — `TODO.md` §1). `infra/librechat/librechat.yaml`'s `baseURL` is
+hardcoded to the real cluster (LibreChat doesn't template that particular
+field — only `apiKey`/`headers` values get `${VAR}` interpolation).
 
-2. **Point LibreChat at the bridge.** Use
-   [`infra/librechat/librechat.yaml`](https://github.com/StaffOps/staffops-aigent-squad/blob/main/infra/librechat/librechat.yaml) as a
-   starting point — it registers the squad as a custom endpoint and forwards the
-   token in the `X-Internal-Token` header. Set `AIGENT_SQUAD_API_KEY` to the
-   squad's `INTERNAL_API_TOKEN`.
+1. Fetch the real gateway token (never the local `dev-secret-token`) and bring
+   the two services up:
+   ```bash
+   export LIBRECHAT_AIGENT_SQUAD_API_KEY=$(aws secretsmanager get-secret-value \
+     --secret-id STAFFOPS_AIGENT_SQUAD --query SecretString --output text \
+     --region us-east-1 | python3 -c "import json,sys; print(json.load(sys.stdin)['internal-api-token'])")
+   docker compose up -d mongo librechat
+   ```
+2. Open `http://localhost:3080`, register the first account (becomes admin —
+   LibreChat's own bootstrap; if no SMTP is configured the verification email
+   never arrives — mark it verified directly: `docker compose exec mongo
+   mongosh LibreChat --eval 'db.users.updateOne({email:"you@x.com"},
+   {$set:{emailVerified:true}})'`).
+3. Pick a model: `aigent-squad` to let the squad decide, or
+   `aigent-squad-<agent>` to ask one specialist directly. `GET /api/models`
+   (LibreChat's own API) confirms the `AIgent-Squad` custom endpoint fetched
+   the live model list from the real gateway.
 
-3. **Pick a model** in the LibreChat UI: `aigent-squad` to let the squad decide,
-   or `aigent-squad-<agent>` to ask one specialist directly.
+To point LibreChat at a **fully-local** squad instead (`make up` running
+gateway+supervisor too), edit `baseURL` in `infra/librechat/librechat.yaml` to
+`http://gateway:8000/v1` and use `INTERNAL_API_TOKEN`'s local default instead
+of the real secret.
 
 ## Try it without LibreChat (curl)
 

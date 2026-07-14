@@ -1,0 +1,316 @@
+## aigent-squad — devops-core install (inProcess two-tier: gateway → supervisor)
+##
+## Topology: the gateway is the only externally-routed tier (spec 31); the
+## supervisor is backend-only and runs all agents in-process (ADR-001 + spec 02).
+##
+## Release metadata (from the helmfile environment, not part of these values):
+##   - kubeContext: arn:aws:eks:us-east-1:524040971621:cluster/devops-core
+##   - namespace:   staffops
+##   - chart:       aigent-squad (StaffOps/helm-charts) — installed 0.9.2
+##     (the helmfile environment pinned version 0.8.0 for the repo-hosted chart,
+##     but the actual release used the LOCAL chart path override, which was at
+##     0.9.2 at apply time — verified against the live cluster 2026-07-13 via
+##     `helm list -n staffops` + `helm get values aigent-squad -n staffops`,
+##     revision 15, deployed 2026-07-03, values match this file exactly).
+##
+## ⚠️ BEFORE `helmfile apply` — replace the flagged REQUIRED values below:
+##   1. services.supervisor.serviceAccount.annotations → real IRSA role ARN
+##      (the supervisor calls Bedrock; without IRSA every LLM call fails).
+##   2. externalSecrets.secrets[].remoteRef.key → the real AWS Secrets Manager
+##      secret name/properties (placeholder `STAFFOPS_AIGENT_SQUAD` below).
+##   3. redis.inCluster is ON for this first bring-up (single pod, no HA).
+##      For a durable install, point redis.host at ElastiCache and turn it off.
+
+topology: inProcess
+
+# -----------------------------------------------------------------------------
+# Agent source — GIT (spec 22): an initContainer clones the repo at startup and
+# copies <path>/* into the agents volume. Overrides the inline `agents:` block
+# below (which is only used when agentsSource.type == configmap).
+# Private repo → tokenSecret holds the PAT under key `token`.
+# -----------------------------------------------------------------------------
+agentsSource:
+  type: git
+  repo: https://gitlab.com/BigDataCorp/Infraestrutura/CloudResources/automations/environments/devops/aigent-squad.git
+  path: agents
+  ref: main
+  tokenSecret: aigent-squad-git-token
+
+# -----------------------------------------------------------------------------
+# Agent definitions — MUST match the current AgentConfig schema (spec 22):
+# name, description, domain, capabilities, datasources[] as objects (not strings).
+# The chart's built-in defaults predate spec 22; this block overrides them.
+# Kept in sync with staffops-aigent-squad/agents/<name>/agent.yaml.
+# NOTE: inert while agentsSource.type == git (kept for a quick switch back).
+# -----------------------------------------------------------------------------
+agents:
+  - name: aws
+    config: |
+      name: aws
+      description: "AWS infrastructure specialist. Queries EC2, S3, RDS, IAM. Read-only."
+      domain: cloud-infrastructure
+      capabilities: [ec2_inventory, security_group_audit, s3_management, rds_status, iam_audit]
+      routing_keywords: [ec2, instance, s3, bucket, rds, database, iam, role, security group, vpc, lambda]
+      datasources:
+        - type: boto3
+          services: [ec2, s3, rds, iam]
+      read_only: true
+      evidence_types: [aws_api_response]
+      required_env: [AWS_REGION]
+      port: 8001
+    prompt: |
+      You are an AWS infrastructure specialist agent (read-only).
+      You help with EC2, RDS, S3, Lambda, VPC, and IAM.
+  - name: kubernetes
+    config: |
+      name: kubernetes
+      description: "Kubernetes cluster specialist. Queries pods, nodes, deployments, services."
+      domain: container-orchestration
+      capabilities: [pod_status, node_health, deployment_management, service_discovery]
+      routing_keywords: [pod, node, deployment, service, namespace, kubectl, k8s, cluster, replica, hpa]
+      datasources:
+        - type: mcp
+          name: k8s-mcp
+          url: https://devops-mcp-kube-core.bdc.app.br/sse
+          tools: [pods_list, namespaces_list, events_list, nodes_top, pods_top]
+      read_only: true
+      evidence_types: [k8s_resource_state]
+      port: 8002
+    prompt: |
+      You are a Kubernetes operations specialist agent (read-only).
+      You help with cluster management, workloads, and troubleshooting.
+  - name: finops
+    config: |
+      name: finops
+      description: "FinOps/Cost specialist. Queries AWS Cost Explorer, Athena/Kubecost."
+      domain: cloud-costs
+      capabilities: [cost_analysis, budget_tracking, savings_recommendations, kubecost_query]
+      routing_keywords: [cost, spend, budget, savings, kubecost, billing, expensive, price, waste]
+      datasources:
+        - type: boto3
+          services: [ce]
+        - type: athena
+          database: kubecost
+          table: kubecost_split
+          workgroup: primary
+      read_only: true
+      evidence_types: [cost_data, athena_query_result]
+      required_env: [AWS_REGION]
+      port: 8003
+    prompt: |
+      You are a FinOps specialist agent (read-only).
+      You help with cost analysis, optimization, and allocation.
+  - name: devops
+    config: |
+      name: devops
+      description: "DevOps specialist. Queries GitLab, documentation portal, CI/CD."
+      domain: development-operations
+      capabilities: [pipeline_status, code_search, documentation_search, deployment_history]
+      routing_keywords: [pipeline, deploy, ci, cd, gitlab, merge, branch, rollback, release, docs]
+      datasources:
+        - type: http
+          name: gitlab
+          url: "${GITLAB_URL}/api/v4"
+          headers:
+            PRIVATE-TOKEN: "${GITLAB_TOKEN}"
+        - type: http
+          name: docs-portal
+          url: "${DOCS_PORTAL_URL}"
+      read_only: true
+      evidence_types: [gitlab_search_result, documentation]
+      port: 8004
+    prompt: |
+      You are a DevOps specialist agent (read-only).
+      You help with CI/CD pipelines, automation, and deployments.
+  - name: observability
+    config: |
+      name: observability
+      description: "Observability specialist. Queries Prometheus/VictoriaMetrics metrics, detects anomalies."
+      domain: observability
+      capabilities: [metrics_query, anomaly_detection, alert_status, log_query]
+      routing_keywords: [metric, alert, prometheus, grafana, latency, error rate, p99, slo, log, trace]
+      datasources:
+        - type: http
+          name: prometheus
+          url: "${PROMETHEUS_URL}/api/v1/query?query=up"
+      read_only: true
+      evidence_types: [metric, log, trace]
+      port: 8005
+    prompt: |
+      You are an Observability specialist agent (read-only).
+      You help with metrics, logs, traces, and alerting.
+
+global:
+  image:
+    # Harbor project. Combined with per-service `repository` and the chart
+    # appVersion → harbor.bigdatacorp.com.br/labs/aigent-squad:<appVersion>.
+    # No per-service tag anywhere: the image version comes from Chart.appVersion.
+    registry: harbor.bigdatacorp.com.br/labs
+    # Always (not IfNotPresent): local dev rebuilds the same tag (0.3.0-dev) in
+    # Harbor, so nodes must re-pull on every rollout. A stable release with an
+    # immutable tag should use IfNotPresent (the chart default).
+    pullPolicy: Always
+  env:
+    AWS_REGION: us-east-1
+    # boto3/botocore resolve region from AWS_DEFAULT_REGION, NOT AWS_REGION.
+    # Without this, regional clients (ec2/rds/ce) raise NoRegionError.
+    # (Proper fix: Boto3Adapter should pass region_name=settings.aws_region.)
+    AWS_DEFAULT_REGION: us-east-1
+    BEDROCK_MODEL_ID: "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
+    ENVIRONMENT: PRD
+    LOG_LEVEL: info
+  otel:
+    enabled: true
+    endpoint: http://otel-collector.monitoring:4317
+  labels:
+    CostCenter: Platform-Infrastructure
+    Environment: PRD
+
+# -----------------------------------------------------------------------------
+# Backing services
+# -----------------------------------------------------------------------------
+redis:
+  # First bring-up: in-cluster single-pod Redis (no HA). Swap for ElastiCache
+  # by setting `host` + `ssl` and `inCluster.enabled: false`.
+  host: ""
+  port: 6379
+  ssl: false
+  inCluster:
+    enabled: true
+    image: redis:7-alpine
+
+dynamodb:
+  sessionsTable: agent-sessions
+  endpoint: ""
+
+# -----------------------------------------------------------------------------
+# Services — gateway (public) + supervisor (backend). No image tag anywhere:
+# the version comes from Chart.appVersion (0.3.0-dev), pulled from Harbor labs.
+# -----------------------------------------------------------------------------
+services:
+  gateway:
+    enabled: true
+    image:
+      repository: aigent-squad
+      # Local-dev tag in Harbor labs. The chart appVersion is the STABLE 0.3.0
+      # (pipeline → Docker Hub); local dev iterates on 0.3.0-dev in Harbor, so
+      # pin it here to override the inherited appVersion.
+      tag: 0.3.0-dev
+    command: ["python", "-m", "src.gateway.main"]
+    port: 8000
+    mountAgents: false
+    expose: true
+    serviceAccount:
+      create: true
+      annotations: {}
+    env:
+      SUPERVISOR_URL: "http://{{`{{ .Release.Name }}`}}-supervisor:8001"
+      # Default first-byte timeout (15s) is too aggressive for slow agents
+      # (finops does Athena + Bedrock ≈ 17s → FirstByteTimeout/500). Bump to 30s.
+      GATEWAY_FIRST_BYTE_TIMEOUT_SECONDS: "30"
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        memory: 512Mi
+    scaling:
+      replicas: 2
+      # KEDA is installed on this cluster, but a first bring-up uses static
+      # replicas (no triggers to tune yet). Switch kind: keda + triggers later.
+      autoscaling:
+        kind: none
+        minReplicas: 2
+        maxReplicas: 10
+    networkPolicy:
+      enabled: true
+      # In-cluster callers reach the squad through the gateway (auth+admission),
+      # never the supervisor directly. Add Alertmanager / anomaly-detection here.
+      allowFrom: []
+
+  supervisor:
+    enabled: true
+    image:
+      repository: aigent-squad
+      tag: 0.3.0-dev  # local-dev tag in Harbor labs (see gateway note)
+    command: ["python", "-m", "src.supervisor.server"]
+    port: 8001
+    mountAgents: true
+    expose: false
+    env:
+      # Bedrock Guardrail (spec 14 L1) — provisioned by terraform/guardrail.
+      # Without these the app is fail-closed (every request → 403).
+      GUARDRAIL_ID: "w11piaof9jp1"
+      GUARDRAIL_VERSION: "1"
+    serviceAccount:
+      create: true
+      # IRSA role (terraform/iam) — Bedrock invoke + DynamoDB sessions + read-only inventory.
+      annotations:
+        eks.amazonaws.com/role-arn: arn:aws:iam::524040971621:role/aigent-squad-irsa
+    resources:
+      requests:
+        cpu: 200m
+        memory: 512Mi
+      limits:
+        memory: 1Gi
+    scaling:
+      replicas: 2
+      autoscaling:
+        kind: none
+        minReplicas: 2
+        maxReplicas: 10
+    networkPolicy:
+      enabled: true
+      allowFrom:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: gateway
+
+# -----------------------------------------------------------------------------
+# Routing — expose the gateway via Istio Gateway API (HTTPRoute), BDC pattern
+# (istio-dvps-internal on devops-core; TLS terminated at the Gateway listener).
+# Switch routing.type to "ingress" to use traefik-internal instead.
+# -----------------------------------------------------------------------------
+routing:
+  type: gatewayapi
+  host: aigent-squad.bdc.app.br
+  paths:
+    gateway: /
+  tls:
+    enabled: false          # TLS terminated at the Istio Gateway listener
+  gatewayapi:
+    parentRef:
+      name: istio-dvps-internal
+      namespace: istio-gateway
+      sectionName: https-bdc-app-br
+    pathType: PathPrefix
+    annotations:
+      external-dns.alpha.kubernetes.io/hostname: aigent-squad.bdc.app.br
+
+networkPolicy:
+  enabled: true
+  ingressNamespaceSelector:
+    kubernetes.io/metadata.name: istio-gateway
+
+# -----------------------------------------------------------------------------
+# Secrets — External Secrets Operator → AWS Secrets Manager (ClusterSecretStore
+# `aws`, sibling convention). ⚠️ Replace the remoteRef key with the real secret.
+# -----------------------------------------------------------------------------
+externalSecrets:
+  enabled: true
+  secretStore:
+    name: aws
+    kind: ClusterSecretStore
+  refreshInterval: 1h
+  secrets:
+    - name: aigent-squad-secrets
+      data:
+        - secretKey: INTERNAL_API_TOKEN
+          remoteRef:
+            key: STAFFOPS_AIGENT_SQUAD
+            property: internal-api-token
+        # gateway↔️supervisor link token, distinct from INTERNAL_API_TOKEN.
+        - secretKey: SUPERVISOR_INTERNAL_TOKEN
+          remoteRef:
+            key: STAFFOPS_AIGENT_SQUAD
+            property: supervisor-internal-token
