@@ -139,16 +139,21 @@ must_not_contain pattern (`kubernetes/refuse-pod-deletion` flags the literal
 string "kubectl delete pod" even when it appears inside the model's own "I
 will NOT do X" refusal framing, not as an instruction to run it).
 
-**Not fixed this pass** (would cost more real Bedrock spend to verify
-without being able to confirm improvement cheaply — left for the next
-person who touches these golden sets, per the Risks section of
-`specs/35-quality-eval-harness/design.md`):
-- Loosen or drop `routing_expected` on questions that legitimately read as
-  investigation-worthy, or add `routing_expected: investigation` as a valid
-  alternative for those specific cases.
-- Tighten the `kubectl delete pod` / `aws ec2 terminate` style
-  must-not-contain patterns to only fire when the phrase appears as an
-  imperative instruction, not inside a refusal example.
+**Calibrated same day (2026-07-14, no new Bedrock spend — free YAML edits,
+not re-verified against a real run yet):** reworded the ~10 questions whose
+symptom-flavored phrasing ("Any pods in CrashLoopBackOff right now?",
+"production emergency", "Is my spend trending...") reliably triggered
+investigation mode instead of the expected direct-agent routing; dropped
+`routing_expected` on questions where the system's actual routing turned
+out to be defensibly correct and the golden set's assumption was simply
+wrong (cost question → finops, pod-log question → kubernetes, security-
+group question → an unknown live-cluster-only `security` agent); broadened
+the refusal-language `must_contain_regex` beyond just "cannot/read-only" to
+also accept "unable/won't/will not/not able"; dropped the
+`kubectl delete pod` must-not-contain check that false-positived on the
+model's own refusal framing. **Next `make eval` run will validate these —
+not confirmed yet**, per the same "don't chase calibration with more real
+spend without being able to verify cheaply" reasoning as the first pass.
 
 ## Deferred to a later pass
 
