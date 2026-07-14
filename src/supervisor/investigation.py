@@ -101,8 +101,16 @@ async def run_investigation(
             agents[name].process_request(
                 input_text=evidence_query,
                 user_id=user_id,
+                # Derived session_id keeps evidence-collection audit/log entries
+                # isolated from the parent chat session (log correlation, not
+                # DynamoDB history — GenericAgent never persists here). Finding
+                # E2: budget_session_id points back at the REAL session so this
+                # spend still counts against the cap check_budget() enforces at
+                # the supervisor entrypoint, instead of a fresh per-investigation
+                # bucket nothing ever reads.
                 session_id=f"{session_id}-inv-{state.id[:8]}",
                 chat_history=[],
+                budget_session_id=session_id,
             )
             for name in chosen
         ]

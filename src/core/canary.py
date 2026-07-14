@@ -2,8 +2,24 @@
 
 Injects per-request unique, cryptographically unpredictable tokens into
 ``infra_data`` before the model invoke. After the invoke, scans the model's
-response for any injected canary. If found, the model leaked context verbatim
-— an exfiltration signal — and the response is refused (fail-closed).
+response for any injected canary. If found: audited as an exfiltration
+signal AND redacted from the response, which is then returned to the user
+(NOT blocked).
+
+Redact-and-continue, not block (revised 2026-07-13, F-005 — a deliberate
+product/security decision, not the spec-14 default posture for the other
+layers): live testing found a real, non-trivial false-positive rate on
+ordinary benign responses — Bedrock's own learned habit of appending a
+"Session:"/"Trace:" footer to thorough answers, grabbing the canary token
+(the only opaque-hex value in context) to fill it, no injection or malicious
+intent involved. Hard-blocking denied a legitimate answer every time this
+fired. Redaction keeps the audit signal (still logged, still visible to
+security monitoring) without denying real answers on a false positive — the
+token itself is single-use and worthless once it's out of the response text,
+so redacting it costs nothing from a security standpoint. A genuine
+exfiltration attempt is still caught and still loses its payload (the leaked
+context is stripped before the user sees it); what changes is that the REST
+of a legitimate, otherwise-fine answer is no longer denied along with it.
 
 Design choices:
 - Tokens are per-request 128-bit cryptographically random hex strings (via
@@ -14,8 +30,6 @@ Design choices:
 - Tokens are NEVER logged in clear text (same invariant as guardrail payloads).
   Only a sha256[:12] digest is logged for correlation.
 - Multiple canaries are injected (head/tail) to detect partial leaks.
-- Reuses ``GuardrailBlockedError`` so existing entrypoints (HTTP 403 mapping)
-  work unchanged.
 """
 from __future__ import annotations
 
@@ -25,7 +39,6 @@ import secrets
 from typing import List, Tuple
 
 from src.core.config import settings
-from src.core.guardrail import GuardrailBlockedError
 from src.core.logger import logger
 
 # Prefix aids internal correlation; the entropy is in the random suffix.
@@ -64,13 +77,13 @@ def _digest(token: str) -> str:
 
 
 class CanaryGuard:
-    """Inject canary tokens into context; detect them in model output.
+    """Inject canary tokens into context; detect + redact them in model output.
 
     Usage (inside GenericAgent.process_request):
         guard = CanaryGuard()
         infra_data, tokens = guard.inject(infra_data)
         ...  # invoke model
-        guard.detect(response_text, tokens, agent_id, user_id, session_id)
+        response_text = guard.detect(response_text, tokens, agent_id, user_id, session_id)
     """
 
     def __init__(self) -> None:
@@ -90,10 +103,26 @@ class CanaryGuard:
 
         tokens = [_generate_token() for _ in range(_NUM_CANARIES)]
 
-        # Embed canaries as data-context markers. They look like internal
-        # correlation IDs — innocuous to the model but detectable on output.
-        head_marker = f"[session-ref: {tokens[0]}]"
-        tail_marker = f"[trace-ref: {tokens[1]}]"
+        # Embed canaries as HTML-comment-style annotations, not a "[field:
+        # value]" line. Found live (2026-07-13, F-005): a "[session-ref: ...]"
+        # / later "[internal-marker: ...]" line — even paired with an explicit
+        # "never repeat this" instruction placed OUTSIDE <infra_data> in
+        # generic_agent.py's context template — still got echoed verbatim as
+        # a self-invented "Session Reference"/"Trace" footer in ~25% of real
+        # trials (Claude Sonnet, aws agent). The model wasn't copying the
+        # marker's own wording — it was pattern-matching "opaque hex string
+        # near the top/bottom of a data block" to its learned prior that
+        # professional technical responses cite a correlation/session ID, and
+        # synthesized its own label regardless of what the field was called or
+        # what the instruction said. An HTML-comment shape reads as inert
+        # backstage tooling noise (not a display field) to models trained
+        # heavily on code/markup, which should weaken that prior. This does
+        # NOT change the security model for a real exfiltration attempt: the
+        # exact+fuzzy detection below is unaffected by marker wording, and an
+        # adversarial injection still has to override the instruction
+        # hierarchy regardless of how the canary is formatted.
+        head_marker = f"<!-- internal-telemetry-id, do not output: {tokens[0]} -->"
+        tail_marker = f"<!-- internal-telemetry-id, do not output: {tokens[1]} -->"
 
         injected = f"{head_marker}\n{infra_data}\n{tail_marker}"
         return injected, tokens
@@ -105,33 +134,43 @@ class CanaryGuard:
         agent_id: str = "unknown",
         user_id: str = "unknown",
         session_id: str = "",
-    ) -> None:
-        """Scan model response for canary tokens. Raise on detection.
+    ) -> str:
+        """Scan model response for canary tokens. Audit + redact on detection.
 
         If any injected token appears in the response, it means the model
-        reproduced context verbatim — an exfiltration signal. Fail-closed:
-        raises ``GuardrailBlockedError`` (mapped to HTTP 403 by entrypoints).
+        reproduced context verbatim — audited as an exfiltration signal, and
+        the leaked value is redacted from the response (see module docstring
+        for why this is redact-and-continue, not block, as of 2026-07-13).
 
-        Does nothing if disabled or if no tokens were injected.
+        Returns the response unchanged if disabled, no tokens were injected,
+        or nothing leaked; otherwise returns the response with the leaked
+        value(s) replaced by ``[redacted]``.
         """
         if not self.enabled or not tokens:
-            return
+            return response
 
         for token in tokens:
-            # Exact match first (cheap), then fuzzy (catches separator-based
-            # obfuscation that defeats a literal substring search — HIGH-1).
-            if token in response or _fuzzy_pattern(token).search(response):
+            pattern = _fuzzy_pattern(token)
+            # Exact match first (cheap) to decide whether to audit; the
+            # actual redaction always goes through the fuzzy pattern since it
+            # is a superset (catches separator-obfuscated leaks too — HIGH-1).
+            if token in response or pattern.search(response):
                 self._audit(
                     agent_id=agent_id,
                     user_id=user_id,
                     session_id=session_id,
                     token_digest=_digest(token),
                 )
-                raise GuardrailBlockedError(
-                    reason="blocked",
-                    source="OUTPUT",
-                    categories=["exfiltration:canary_leak"],
+                # _fuzzy_pattern only spans the hex suffix, not the "CNRY-"
+                # prefix — redact that too (with the same separator
+                # tolerance) so no residue signals "a canary was here" to
+                # whoever reads the response.
+                response = pattern.sub("[redacted]", response)
+                response = re.sub(
+                    re.escape(_CANARY_PREFIX[:-1]) + _SEP + r"\[redacted\]",
+                    "[redacted]", response, flags=re.IGNORECASE,
                 )
+        return response
 
     @staticmethod
     def _audit(

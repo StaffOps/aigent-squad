@@ -8,7 +8,7 @@ Agents are the specialists. Each agent is responsible for one domain, collects r
 |-------|--------|-------------|
 | `aws` | EC2, RDS, S3, IAM, networking | `boto3` (describe/list/get) |
 | `kubernetes` | Pods, deployments, services, events | `kubernetes` API + MCP |
-| `finops` | Cost analysis, savings plans, attribution | `boto3` (Cost Explorer) + `athena` |
+| `finops` | Cost analysis, savings plans, attribution | `boto3` (Cost Explorer) |
 | `devops` | CI/CD, GitLab, pipelines, deployments | `http` (GitLab API, docs portal) |
 | `observability` | Metrics, logs, traces, alerting | `http` (VictoriaMetrics, Loki, Grafana) |
 

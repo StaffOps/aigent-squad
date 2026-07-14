@@ -193,10 +193,10 @@ The expected gain is **troubleshooting/RCA**. Critical path of the differentiato
 > as "next steps" or recurring suggestions. Pull an item ONLY when it becomes a
 > hard blocker for other work — otherwise leave it here untouched.
 >
-> - **finops ↔ Athena**: the finops agent's `athena` datasource is denied by
->   IRSA (`enable_athena_finops=false`). Blocker trigger: someone actually needs
->   Kubecost/CUR analysis through the agent. Fix then: enable Athena in IRSA (+
->   CUR target) or drop the datasource.
+> - **finops ↔ Athena**: ✅ resolved (2026-07-13) — dropped the `athena`
+>   datasource from `agents/finops/agent.yaml` (option b). Re-enable trigger:
+>   someone actually needs Kubecost/CUR analysis through the agent — then set
+>   `enable_athena_finops=true` in IRSA + a real CUR target.
 > - **Distributed topology (code)**: chart renders it but the supervisor only
 >   routes in-process (needs a RemoteAgent HTTP client). Blocker trigger: a real
 >   need for independent per-agent scaling/isolation. ADR-001 favors in-process.
@@ -205,7 +205,7 @@ The expected gain is **troubleshooting/RCA**. Critical path of the differentiato
 |------|-------------|
 | Specialized adapters | Create `GitLabAdapter` (`type: gitlab`) and `RAGAdapter` (`type: rag`) — the generic HttpAdapter doesn't replicate the old gitlab_client's query intelligence (search_code, search_docs, list_projects). Same for RAG (Bedrock Knowledge Bases). |
 | **Distributed topology (code)** | The Helm chart renders a `distributed` topology (supervisor + N specialist Deployments + mcp-server), but the supervisor **only routes in-process** (`SupervisorAgent` instantiates `GenericAgent` in memory; no HTTP call to remote specialists — `close()` is a no-op "agents are in-process"). To make `topology: distributed` functional, implement a `RemoteAgent`/HTTP supervisor client that, when configured, delegates to `http://<release>-<agent>:8001/process` instead of the in-process instance. Until then, `distributed` is infra-scaffold only. ADR-001 favors in-process (inter-agent latency irrelevant vs model cost), so this is deliberately deferred — reopen only if a real need for independent per-agent scaling/isolation emerges. Discovered 2026-07-01 while validating spec 31 in-cluster. **LOW priority / deferred: the earlier prerequisites (0.3.0 release, spec 14 security, spec 11 cost, budget TOCTOU) have now ALL shipped (2026-07-03) — but distributed topology stays deferred on its own merits: ADR-001 favors in-process (inter-agent latency irrelevant vs model cost). Reopen only if a real need for independent per-agent scaling/isolation emerges.** |
-| **finops ↔ Athena mismatch** | The `finops` agent declares two datasources — `boto3 ce` (Cost Explorer, works) and `athena` (Kubecost DB). But the IRSA role is provisioned with `enable_athena_finops = false`, so `athena:StartQueryExecution` is denied → the AthenaAdapter fails on every finops query (`AccessDeniedException`), adding latency and a visible error in the response. Two options: (a) enable Athena in the IRSA (`enable_athena_finops = true` + CUR/Kubecost bucket/workgroup/db vars) once a real Athena target exists, or (b) drop the `athena` datasource from the finops agent config until then. Cost Explorer alone already returns real spend (~$191k/30d confirmed 2026-07-01). Discovered 2026-07-01 during fix homologation. Related: the slow path (Athena timeout + Bedrock ≈ 17s) also forced bumping `GATEWAY_FIRST_BYTE_TIMEOUT_SECONDS` 15→30 in the overlay. |
+| ~~finops ↔ Athena mismatch~~ | ✅ done (2026-07-13) — option (b): dropped the `athena` datasource from `agents/finops/agent.yaml`; `boto3 ce` (Cost Explorer) already returns real spend (~$191k/30d confirmed 2026-07-01). Re-enable path (a) stays available: `enable_athena_finops = true` + CUR/Kubecost bucket/workgroup/db vars in `infra/terraform/iam` once a real Athena target exists. `GATEWAY_FIRST_BYTE_TIMEOUT_SECONDS` stays at 30 (no regression risk from reverting it). |
 | ~~Spec 07~~ | ✅ done (2026-06-17) — `/healthz` + `/ready` + graceful shutdown |
 | ~~Spec 11~~ | ✅ done — Bedrock model tiering (Haiku classifier, Sonnet agents) + prompt caching + token budget |
 | Spec 22 Phase B | Helm chart (done; 0.9.x cluster-validated) — refine with ExternalSecret, NetworkPolicy |

@@ -3,22 +3,21 @@
 Tests against the BEHAVIOR CONTRACT:
 - inject() when enabled → returns modified string containing 2 tokens + original data
 - inject() when disabled → returns original string, empty token list
-- detect() with clean response → no exception
-- detect() with token present → raises GuardrailBlockedError
-- detect() when disabled → no exception even if token present
-- detect() with empty token list → no exception
+- detect() with clean response → returns response unchanged
+- detect() with token present → returns response with the token redacted
+  (NOT a raise — redact-and-continue since 2026-07-13, F-005; see
+  src/core/canary.py module docstring for why)
+- detect() when disabled → returns response unchanged even if token present
+- detect() with empty token list → returns response unchanged
 - Tokens are unpredictable: two calls produce different tokens
 - _audit() called on detection (structured fields, no cleartext token)
-- Fail-closed: detector error does not silently pass
 
 NOTE: otel_helper stub used (no real OTel SDK in test env).
 """
 import hashlib
-import pytest
 from unittest.mock import patch
 
 from src.core.canary import CanaryGuard, _generate_token, _digest
-from src.core.guardrail import GuardrailBlockedError
 
 
 # ---------------------------------------------------------------------------
@@ -117,6 +116,24 @@ class TestInjectEnabled:
         _, tokens_b = guard.inject("data")
         assert set(tokens_a) != set(tokens_b)
 
+    def test_marker_is_html_comment_style_not_a_labeled_field(self):
+        """F-005 (2026-07-13): a "[session-ref: ...]"/"[internal-marker: ...]"
+        labeled-field style marker got echoed verbatim as a self-invented
+        "Session:"/"Trace:" footer by real Bedrock responses (~13-25% of live
+        trials), even paired with an explicit anti-repeat instruction — the
+        model wasn't copying the label, it was pattern-matching "identifier
+        near a data block" to a learned habit of citing reference IDs. An
+        HTML-comment shape reads as backstage tooling noise instead."""
+        guard = _make_guard(enabled=True)
+        result, tokens = guard.inject("data")
+        for token in tokens:
+            comment = f"<!-- internal-telemetry-id, do not output: {token} -->"
+            assert comment in result
+        # Regression guard: don't reintroduce the labeled-field wording that
+        # measurably encouraged citation-style echoing.
+        assert "session-ref" not in result.lower()
+        assert "[internal-marker" not in result.lower()
+
 
 # ---------------------------------------------------------------------------
 # CanaryGuard.inject — disabled
@@ -143,33 +160,26 @@ class TestInjectDisabled:
 
 
 class TestDetectClean:
-    def test_no_exception_on_clean_response(self):
+    def test_returns_response_unchanged_on_clean_response(self):
         guard = _make_guard(enabled=True)
         _, tokens = guard.inject("infra data")
 
-        # Response does not contain any token — should pass silently
-        guard.detect(
-            "Here is a helpful answer about your pods.",
-            tokens,
-            agent_id="test-agent",
-            user_id="user-1",
-            session_id="sess-1",
+        clean = "Here is a helpful answer about your pods."
+        result = guard.detect(
+            clean, tokens, agent_id="test-agent", user_id="user-1", session_id="sess-1",
         )
+        assert result == clean
 
-    def test_no_exception_with_partial_token_match(self):
-        """A substring of a token should NOT trigger detection."""
+    def test_partial_token_match_not_redacted(self):
+        """A substring of a token should NOT trigger detection/redaction."""
         guard = _make_guard(enabled=True)
         _, tokens = guard.inject("data")
 
         # Use only the first 10 chars of a token (partial match)
         partial = tokens[0][:10]
-        guard.detect(
-            f"Some response mentioning {partial} but not the full token.",
-            tokens,
-            agent_id="a",
-            user_id="u",
-            session_id="s",
-        )
+        response = f"Some response mentioning {partial} but not the full token."
+        result = guard.detect(response, tokens, agent_id="a", user_id="u", session_id="s")
+        assert result == response
 
 
 # ---------------------------------------------------------------------------
@@ -178,51 +188,41 @@ class TestDetectClean:
 
 
 class TestDetectLeak:
-    def test_raises_guardrail_blocked_error_on_token_in_response(self):
+    def test_redacts_token_in_response(self):
         guard = _make_guard(enabled=True)
         _, tokens = guard.inject("data")
 
-        with pytest.raises(GuardrailBlockedError) as exc_info:
-            guard.detect(
-                f"The model leaked: {tokens[0]} in its response",
-                tokens,
-                agent_id="aws",
-                user_id="user-1",
-                session_id="sess-1",
-            )
+        result = guard.detect(
+            f"The model leaked: {tokens[0]} in its response",
+            tokens, agent_id="aws", user_id="user-1", session_id="sess-1",
+        )
 
-        err = exc_info.value
-        assert err.reason == "blocked"
-        assert err.source == "OUTPUT"
-        assert "exfiltration:canary_leak" in err.categories
+        assert tokens[0] not in result
+        assert "[redacted]" in result
+        assert "The model leaked:" in result  # rest of the response survives
 
-    def test_raises_on_second_token_leak(self):
+    def test_redacts_second_token_leak(self):
         guard = _make_guard(enabled=True)
         _, tokens = guard.inject("data")
 
-        with pytest.raises(GuardrailBlockedError):
-            guard.detect(
-                f"Response contains tail token: {tokens[1]}",
-                tokens,
-                agent_id="a",
-                user_id="u",
-                session_id="s",
-            )
+        result = guard.detect(
+            f"Response contains tail token: {tokens[1]}",
+            tokens, agent_id="a", user_id="u", session_id="s",
+        )
+        assert tokens[1] not in result
+        assert "[redacted]" in result
 
-    def test_raises_when_both_tokens_present(self):
+    def test_redacts_both_tokens_when_both_present(self):
         guard = _make_guard(enabled=True)
         _, tokens = guard.inject("data")
 
-        with pytest.raises(GuardrailBlockedError) as exc_info:
-            guard.detect(
-                f"Both leaked: {tokens[0]} and {tokens[1]}",
-                tokens,
-                agent_id="a",
-                user_id="u",
-                session_id="s",
-            )
-
-        assert "exfiltration:canary_leak" in exc_info.value.categories
+        result = guard.detect(
+            f"Both leaked: {tokens[0]} and {tokens[1]}",
+            tokens, agent_id="a", user_id="u", session_id="s",
+        )
+        assert tokens[0] not in result
+        assert tokens[1] not in result
+        assert result.count("[redacted]") == 2
 
 
 # ---------------------------------------------------------------------------
@@ -231,7 +231,7 @@ class TestDetectLeak:
 
 
 class TestDetectDisabled:
-    def test_no_exception_even_with_token_in_response(self):
+    def test_response_unchanged_even_with_token_in_response(self):
         """Feature flag off → canary detection is a no-op."""
         guard = _make_guard(enabled=True)
         _, tokens = guard.inject("data")
@@ -239,14 +239,9 @@ class TestDetectDisabled:
         # Now disable
         guard.enabled = False
 
-        # Should NOT raise even though token is in response
-        guard.detect(
-            f"Leaked token: {tokens[0]}",
-            tokens,
-            agent_id="a",
-            user_id="u",
-            session_id="s",
-        )
+        response = f"Leaked token: {tokens[0]}"
+        result = guard.detect(response, tokens, agent_id="a", user_id="u", session_id="s")
+        assert result == response
 
 
 # ---------------------------------------------------------------------------
@@ -255,15 +250,11 @@ class TestDetectDisabled:
 
 
 class TestDetectEmptyTokens:
-    def test_no_exception_with_empty_token_list(self):
+    def test_response_unchanged_with_empty_token_list(self):
         guard = _make_guard(enabled=True)
-        guard.detect(
-            "Any response content",
-            [],  # no tokens injected
-            agent_id="a",
-            user_id="u",
-            session_id="s",
-        )
+        response = "Any response content"
+        result = guard.detect(response, [], agent_id="a", user_id="u", session_id="s")
+        assert result == response
 
 
 # ---------------------------------------------------------------------------
@@ -277,14 +268,13 @@ class TestAudit:
         guard = _make_guard(enabled=True)
         _, tokens = guard.inject("data")
 
-        with pytest.raises(GuardrailBlockedError):
-            guard.detect(
-                f"Leaked: {tokens[0]}",
-                tokens,
-                agent_id="test-agent",
-                user_id="user-42",
-                session_id="sess-99",
-            )
+        guard.detect(
+            f"Leaked: {tokens[0]}",
+            tokens,
+            agent_id="test-agent",
+            user_id="user-42",
+            session_id="sess-99",
+        )
 
         mock_logger.warning.assert_called_once()
         call_kwargs = mock_logger.warning.call_args
@@ -303,14 +293,13 @@ class TestAudit:
         guard = _make_guard(enabled=True)
         _, tokens = guard.inject("data")
 
-        with pytest.raises(GuardrailBlockedError):
-            guard.detect(
-                f"Leaked: {tokens[0]}",
-                tokens,
-                agent_id="a",
-                user_id="u",
-                session_id="s",
-            )
+        guard.detect(
+            f"Leaked: {tokens[0]}",
+            tokens,
+            agent_id="a",
+            user_id="u",
+            session_id="s",
+        )
 
         # Serialize the entire call args to string and verify no token
         call_str = str(mock_logger.warning.call_args)
@@ -322,14 +311,13 @@ class TestAudit:
         guard = _make_guard(enabled=True)
         _, tokens = guard.inject("data")
 
-        with pytest.raises(GuardrailBlockedError):
-            guard.detect(
-                f"Leaked: {tokens[0]}",
-                tokens,
-                agent_id="a",
-                user_id="u",
-                session_id="s",
-            )
+        guard.detect(
+            f"Leaked: {tokens[0]}",
+            tokens,
+            agent_id="a",
+            user_id="u",
+            session_id="s",
+        )
 
         extra = mock_logger.warning.call_args.kwargs.get("extra") or mock_logger.warning.call_args[1].get("extra")
         expected_digest = hashlib.sha256(tokens[0].encode()).hexdigest()[:12]
@@ -346,27 +334,38 @@ class TestAudit:
 
 
 class TestFuzzyDetection:
-    """HIGH-1: canary must be caught even if separators are inserted to defeat
-    a literal substring match (obfuscation bypass)."""
+    """HIGH-1: canary must be caught (and redacted) even if separators are
+    inserted to defeat a literal substring match (obfuscation bypass)."""
 
     def test_detect_token_with_spaces_inserted(self):
         guard = _make_guard(enabled=True)
         _, tokens = guard.inject("data")
         hex_suffix = tokens[0][len("CNRY-"):]
         obfuscated = " ".join(hex_suffix)  # 'a b c d ...'
-        with pytest.raises(GuardrailBlockedError):
-            guard.detect(f"here is the ref: {obfuscated}", tokens)
+        result = guard.detect(f"here is the ref: {obfuscated}", tokens)
+        assert "[redacted]" in result
+        assert hex_suffix not in result
 
     def test_detect_token_with_dashes_inserted(self):
         guard = _make_guard(enabled=True)
         _, tokens = guard.inject("data")
         hex_suffix = tokens[1][len("CNRY-"):]
         obfuscated = "-".join(hex_suffix)
-        with pytest.raises(GuardrailBlockedError):
-            guard.detect(f"leaked {obfuscated}", tokens)
+        result = guard.detect(f"leaked {obfuscated}", tokens)
+        assert "[redacted]" in result
 
     def test_clean_response_not_falsely_flagged_by_fuzzy(self):
         guard = _make_guard(enabled=True)
         _, tokens = guard.inject("data")
         # Unrelated hex-like content must not match another token's fuzzy pattern.
-        guard.detect("deadbeef cafe 1234 normal answer", tokens)
+        response = "deadbeef cafe 1234 normal answer"
+        result = guard.detect(response, tokens)
+        assert result == response
+
+    def test_prefix_residue_also_redacted(self):
+        """No "CNRY-[redacted]" residue — that would still signal a canary
+        was here to whoever reads the response."""
+        guard = _make_guard(enabled=True)
+        _, tokens = guard.inject("data")
+        result = guard.detect(f"leaked: {tokens[0]}", tokens)
+        assert "CNRY" not in result

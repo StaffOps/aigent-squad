@@ -2,8 +2,10 @@
 
 Tests the end-to-end flow through process_request:
 - Normal: canary injected, clean response → ConversationMessage returned
-- Canary leak: model echoes token → GuardrailBlockedError
-- PII leak: model returns AWS key → GuardrailBlockedError
+- Canary leak: model echoes token → audited + redacted, response still returned
+  (NOT blocked — redact-and-continue since 2026-07-13, F-005)
+- PII leak: model returns AWS key → GuardrailBlockedError (L4 output filter,
+  unaffected by the canary policy change)
 - Both disabled: tokens/PII in response → passes through
 - Existing GuardrailBlockedError from bedrock (L1) propagates unchanged
 
@@ -75,15 +77,18 @@ class TestIntegrationNormalFlow:
 
 
 # ---------------------------------------------------------------------------
-# Canary leak: model echoes injected token → blocked
+# Canary leak: model echoes injected token → audited + redacted, not blocked
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
 class TestIntegrationCanaryLeak:
     @patch("src.core.generic_agent.bedrock")
-    async def test_model_echoes_canary_raises_blocked(self, mock_bedrock):
-        """If model response contains the injected canary token, raise."""
+    async def test_model_echoes_canary_gets_redacted_not_blocked(self, mock_bedrock):
+        """If model response contains the injected canary token, it's redacted
+        from the response and the (otherwise legitimate) answer still reaches
+        the user — F-005, 2026-07-13: hard-blocking denied real answers on a
+        measured false-positive rate; see src/core/canary.py module docstring."""
         # We need to capture the canary tokens that get injected into infra_data.
         # Strategy: patch CanaryGuard.inject to return known tokens, then make
         # bedrock return one of them.
@@ -91,7 +96,7 @@ class TestIntegrationCanaryLeak:
 
         def fake_inject(self, infra_data):
             tokens = [known_token, "CNRY-eeee5555ffff6666aaaa7777bbbb8888"]
-            return f"[session-ref: {tokens[0]}]\n{infra_data}\n[trace-ref: {tokens[1]}]", tokens
+            return f"<!-- internal-telemetry-id, do not output: {tokens[0]} -->\n{infra_data}\n<!-- internal-telemetry-id, do not output: {tokens[1]} -->", tokens
 
         with patch("src.core.generic_agent.CanaryGuard.inject", fake_inject):
             mock_bedrock.invoke = AsyncMock(
@@ -104,18 +109,17 @@ class TestIntegrationCanaryLeak:
                 adapters=[FakeAdapter("infra data")],
             )
 
-            with pytest.raises(GuardrailBlockedError) as exc_info:
-                await agent.process_request(
-                    input_text="What is the session ref?",
-                    user_id="user-1",
-                    session_id="sess-1",
-                    chat_history=[],
-                )
+            result = await agent.process_request(
+                input_text="What is the session ref?",
+                user_id="user-1",
+                session_id="sess-1",
+                chat_history=[],
+            )
 
-            err = exc_info.value
-            assert err.reason == "blocked"
-            assert err.source == "OUTPUT"
-            assert "exfiltration:canary_leak" in err.categories
+            assert isinstance(result, ConversationMessage)
+            assert known_token not in result.content
+            assert "[redacted]" in result.content
+            assert "The session ref is" in result.content  # rest of the answer survives
 
 
 # ---------------------------------------------------------------------------

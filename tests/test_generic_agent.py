@@ -232,6 +232,60 @@ class TestHistoryFormattedInContext:
 
 
 @pytest.mark.asyncio
+class TestCollectionErrorHonestyInstruction:
+    """generic_agent.py context template must tell the model not to fabricate
+    diagnostics around a datasource collection failure (found 2026-07-13: the
+    kubernetes agent narrated a full fake troubleshooting report around a raw
+    MCP connection error instead of stating the data was unavailable)."""
+
+    @patch("src.core.generic_agent.bedrock")
+    async def test_context_instructs_against_fabricating_on_collection_error(self, mock_bedrock):
+        mock_bedrock.invoke = AsyncMock(return_value="answer")
+
+        agent = GenericAgent(config=_make_config(), prompt="p", adapters=[FakeAdapter("[mcp:k8s-mcp] error: boom")])
+
+        await agent.process_request(
+            input_text="what's in the devops namespace?",
+            user_id="u",
+            session_id="s",
+            chat_history=[],
+        )
+
+        call_args = mock_bedrock.invoke.call_args
+        messages_content = call_args.kwargs.get("messages") or call_args[1].get("messages") or call_args[0][0]
+        context_text = str(messages_content)
+
+        assert "[mcp:k8s-mcp] error: boom" in context_text
+        assert "Do not invent root causes" in context_text
+
+
+@pytest.mark.asyncio
+class TestCanaryMarkerNonRepetitionInstruction:
+    """generic_agent.py context template must tell the model never to surface
+    a canary's internal-telemetry-id annotation (F-005, 2026-07-13)."""
+
+    @patch("src.core.generic_agent.bedrock")
+    async def test_context_instructs_against_echoing_internal_telemetry_id(self, mock_bedrock):
+        mock_bedrock.invoke = AsyncMock(return_value="answer")
+
+        agent = GenericAgent(config=_make_config(), prompt="p", adapters=[])
+
+        await agent.process_request(
+            input_text="how many EC2 instances are running?",
+            user_id="u",
+            session_id="s",
+            chat_history=[],
+        )
+
+        call_args = mock_bedrock.invoke.call_args
+        messages_content = call_args.kwargs.get("messages") or call_args[1].get("messages") or call_args[0][0]
+        context_text = str(messages_content)
+
+        assert "internal-telemetry-id" in context_text
+        assert "Session:" in context_text  # named explicitly as a forbidden footer style
+
+
+@pytest.mark.asyncio
 class TestSkillInjection:
     """Lazy skill injection into the system prompt (spec 26)."""
 

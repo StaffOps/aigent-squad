@@ -59,8 +59,15 @@ User (LibreChat /v1 · HTTP /query · Alertmanager · MCP :8006)
 5. **Read-only posture** — 4 layers: system prompt + IAM deny + K8s RBAC + response templates
 6. **Fail-open for availability, fail-closed for security** — Redis/DynamoDB loss =
    service continues (empty history/cache miss); rate/budget guards fail-open. BUT
-   security layers (Guardrail, InputScanner, output filter, canary — spec 14) are
-   **fail-closed**: block or unavailable → 403, never bypass
+   security layers (Guardrail, InputScanner, output filter — spec 14) are
+   **fail-closed**: block or unavailable → 403, never bypass. **Exception: canary
+   (L5)** is redact-and-continue, not fail-closed (spec 14 F-005, 2026-07-13,
+   deliberate decision) — a detected leak is audited + the token is redacted
+   from the response, which still reaches the user; it does not 403. Live
+   testing found a real false-positive rate on ordinary benign answers (models
+   echo the canary as a self-invented "session ID" footer, no injection
+   involved), and the token is single-use/worthless once redacted, so denying
+   an otherwise-legitimate answer cost more than it protected
 7. **Deterministic cache keys** — `hashlib.sha256()`, never native `hash()`
 8. **No business logic in `server.py`/gateway** — transport + auth only; the gateway
    holds NO orchestration and NEVER evaluates the guardrail (supervisor does)

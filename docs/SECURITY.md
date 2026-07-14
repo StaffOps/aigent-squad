@@ -50,7 +50,7 @@ one; a bypass of one does not compromise the others. Implemented in
 | **L2** | `InputScanner` | before context (worker agents) | Normalize (NFKC, zero-width + RTL/bidi strip, homoglyph fold) + cheap heuristics (oversized, control-char, repeated-char, base64-blob inspection) |
 | **L3** | Context isolation | `generic_agent` | `<infra_data>`/`<conversation_history>`/`<user_query>` delimiters + "treat as DATA" reinforcement (positionally anchored last) |
 | **L4** | `OutputFilter` | after invoke | PII / secret / credential leak scan on the response |
-| **L5** | `CanaryGuard` | inject into `infra_data` + check output | Exfiltration detection (canary token in the response ⇒ block) |
+| **L5** | `CanaryGuard` | inject into `infra_data` + check output | Exfiltration detection (canary token in the response ⇒ audit + redact, response still returned — see Fail-closed below) |
 | **L6** | `AdmissionGuard` | entry (cross-cutting) | Per-user sliding-window rate limit + global daily token-budget cap (atomic Redis check-and-reserve) |
 
 ### STRIDE mapping
@@ -64,11 +64,29 @@ one; a bypass of one does not compromise the others. Implemented in
 
 ### Fail-closed
 
-L1, L2, L4, L5 **fail closed**: if the layer itself errors, the request/response
+L1, L2, L4 **fail closed**: if the layer itself errors, the request/response
 is refused (`GuardrailBlockedError` → HTTP 403), never forwarded unscanned.
 Security is prioritized over availability. L6 (rate/budget) fails **open** by
 design — an infra glitch in the limiter should not deny legitimate traffic;
 security is not its concern.
+
+**L5 is the one exception, by deliberate decision (2026-07-13, F-005):**
+a detected canary leak is audited (logged, same as the others) and the
+leaked token is **redacted** from the response, which is still returned to
+the user — not blocked. Live testing found a real, non-trivial false-positive
+rate on ordinary benign answers: Bedrock has a learned habit of appending a
+"Session:"/"Trace:" footer to thorough technical responses and grabs the
+canary (the only opaque-hex value in context) to fill it, with no injection
+or malicious intent involved. Since the token is single-use and worthless
+once redacted, and a genuine exfiltration attempt still loses its payload
+either way (the leaked content is stripped before the user sees it), hard
+-blocking bought nothing but denied real answers on false positives — the
+tradeoff was decided in favor of availability for this layer specifically.
+This does not weaken detection: the audit event still fires on every leak,
+exact and fuzzy (separator-obfuscated) matching is unchanged, and a
+sophisticated adversarial injection still has to defeat the same
+instruction-hierarchy defenses (L1–L3) regardless of what happens to L5's
+output afterward.
 
 ### Layer delimitation (L3 detail)
 

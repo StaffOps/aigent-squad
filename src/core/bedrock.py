@@ -78,6 +78,7 @@ class BedrockClient:
         user_id: str = "unknown",
         session_id: str = "",
         role: str = "agent",
+        budget_session_id: Optional[str] = None,
     ) -> str:
         """Synchronous Bedrock invocation with retry + jitter.
 
@@ -89,6 +90,12 @@ class BedrockClient:
         Args:
             role: Logical tier ("classifier", "agent", "synthesis") used to
                 resolve the model ID from config (spec 11).
+            budget_session_id: session key charged for token-budget accounting.
+                Defaults to ``session_id``. Callers that fan out sub-calls under
+                a derived session_id (e.g. RCA evidence collection, isolated for
+                history/audit — spec 14 finding E2) pass the parent's real
+                session_id here so spend still counts against the cap that
+                ``check_budget`` enforces at the entrypoint.
         """
         # Resolve model by role (spec 11 — config-driven tiering).
         model_id = resolve_model(role)
@@ -162,8 +169,12 @@ class BedrockClient:
                 # Record session token usage for the budget hard cap (spec 11 T4).
                 # Post-call: this response is returned; the NEXT call over budget
                 # is refused by check_budget at the supervisor entrypoint.
-                if session_id:
-                    budget_tracker.record_usage(session_id, input_tokens, output_tokens)
+                # budget_session_id (finding E2) decouples this from session_id so
+                # fan-out sub-calls under a derived session key still book against
+                # the parent session's cap.
+                charged_session_id = budget_session_id or session_id
+                if charged_session_id:
+                    budget_tracker.record_usage(charged_session_id, input_tokens, output_tokens)
 
                 # Per-model cost (spec 11 — replaces hardcoded Sonnet pricing).
                 cost = compute_cost(
@@ -258,6 +269,7 @@ class BedrockClient:
         user_id: str = "unknown",
         session_id: str = "",
         role: str = "agent",
+        budget_session_id: Optional[str] = None,
     ) -> str:
         """Async Bedrock invocation with circuit breaker.
 
@@ -268,6 +280,7 @@ class BedrockClient:
         Args:
             role: Logical tier ("classifier", "agent", "synthesis") for model
                 resolution (spec 11).
+            budget_session_id: see ``_invoke_sync`` (spec 14 finding E2).
         """
         if not self.circuit_breaker.can_execute():
             raise Exception("Bedrock circuit breaker is OPEN")
@@ -276,6 +289,7 @@ class BedrockClient:
             result = await asyncio.to_thread(
                 self._invoke_sync, messages, system_prompt, max_tokens, temperature,
                 use_cache, agent_id, match_user_language, user_id, session_id, role,
+                budget_session_id,
             )
             self.circuit_breaker.record_success()
             return result

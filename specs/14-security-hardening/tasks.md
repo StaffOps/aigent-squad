@@ -126,15 +126,46 @@ forwards `agent_id="rca-synthesizer"` + ids; call sites `agent.py` (`_fan_out`) 
 `run_investigation` pass the real session. Non-empty session ⇒ `bedrock.py` `if session_id:`
 budget accounting now fires for synthesis. Tests: `tests/test_spec14_ef.py` (independent author).
 
-**Finding E2 (MEDIUM, OPEN — carved to 0.4.1).** The investigation fan-out books evidence-
+**Finding E2 (MEDIUM, CLOSED 2026-07-13).** The investigation fan-out booked evidence-
 collection tokens to `session_id=f"{session_id}-inv-{id}"` (investigation.py fan-out) — a different
-budget bucket than the parent session `check_budget` enforces, so RCA *evidence* largely escapes
-the session cap. Unlike E1/F this is NOT mechanical: the `-inv-` key doubles as the history-isolation
-key (keeps RCA evidence Q&A out of the user's chat history), so budget and history are coupled in one
-`session_id` param. Proper fix decouples budget-session from history-session (a distinct budget key
-threaded through `process_request`/`bedrock.invoke`/`budget_tracker`). Deferred to 0.4.1 as its own
-tracked item — does not gate 0.4.0 (E1 already attributes+budgets the synthesis call; only evidence
-collection remains under-counted, bounded by `RCA_MAX_AGENTS`).
+(and per-investigation-unique, since `state.id` changes every call) budget bucket than the parent
+session `check_budget` enforces, so RCA *evidence* collection largely escaped the session cap.
+**Fix shipped:** a distinct `budget_session_id` param now threads through
+`GenericAgent.process_request` → `BedrockClient.invoke`/`_invoke_sync` → `budget_tracker.record_usage`,
+decoupled from `session_id` (kept for log/audit correlation — `GenericAgent.process_request` does not
+itself persist to DynamoDB history, so the "-inv-" key's only real effect pre-fix was audit-log
+labeling + the accidental budget bucket). `run_investigation`'s fan-out now passes
+`budget_session_id=session_id` (the real parent session) alongside the derived `session_id`, so
+evidence-collection spend counts against the cap `check_budget()` reads at the supervisor entrypoint.
+Tests: `tests/test_spec14_e2.py` (5 cases: GenericAgent forwarding, BedrockClient charge target with/
+without `budget_session_id`, end-to-end fan-out → parent-session assertion). Self-reviewed; independent
+security review + cluster re-homologation still pending before considering this fully verified in prod.
+
+**Finding F-005 (MEDIUM, CLOSED 2026-07-13) — L5 canary false-positives on
+ordinary benign responses; policy changed to redact-and-continue.** Found while
+testing LibreChat end-to-end against the real cluster: real (non-attack) queries —
+"how many EC2 instances", "what CI/CD pipelines exist" — tripped `canary_leak` → 403.
+Root cause (confirmed via live Bedrock trials against the unfixed code): the model has
+a learned habit of appending a "Session:"/"Trace:" footer to thorough technical
+answers, and grabs the canary token (the only opaque-hex value in context) to fill it
+— helpfulness, not injection. An explicit "never repeat this" instruction placed
+*inside* the injected marker did nothing (the anti-injection framing tells the model
+everything in `<infra_data>` is inert data, so an instruction embedded there is
+neutralized too). **Fix, two parts:**
+1. Reformatted the marker in `src/core/canary.py` from a labeled field
+   (`[session-ref: ...]`) to an HTML-comment annotation
+   (`<!-- internal-telemetry-id, do not output: ... -->`) + moved the anti-repeat
+   instruction to the system-level context template (`generic_agent.py`, outside
+   `<infra_data>`) — 0/14 leaks in the final, correctly-instrumented live trials.
+   (An earlier mid-investigation "25%→13%" leak-rate claim was retracted: those
+   comparison runs used a stale Docker image that predated the fix under test, so
+   they weren't actually measuring it — caught and corrected before closing.)
+2. **Policy change (user decision):** `CanaryGuard.detect()` no longer raises on a
+   leak — it audits (unchanged) and redacts the token from the response, which is
+   still returned. This is a deliberate exception to spec-14's fail-closed default
+   for security layers, scoped to L5 only (Guardrail/InputScanner/OutputFilter are
+   unchanged, still fail-closed). `AGENTS.md` invariant #6 and `docs/SECURITY.md`
+   §S4 updated to document it. Full detail: `specs/BACKLOG.md` F-005.
 
 **Finding F (MEDIUM, CLOSED 2026-07-11) — `/alerts/incoming` bypassed entry-stage L2.**
 `handle_alert_payload` → `run_investigation` directly (never `process_request`), so the
