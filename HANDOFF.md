@@ -1,7 +1,207 @@
-# Handoff — sessions 2026-06-16 → 2026-07-11
+# Handoff — sessions 2026-06-16 → 2026-07-13
 
 Estado para retomar. O que foi feito, o que ficou pendente, e próximos
 passos priorizados.
+
+---
+
+## Done — session 2026-07-13 (follow-up queue: F-001, F-002, spec-14 E2 — uncommitted)
+
+**Worked the 3-item follow-up queue left after the 0.4.0 gate closed** (release
+itself deferred — user chose to clear the queue first). All three fixed,
+tested (`make test-one` + full `make test` 696 passed / 94.25% cov), linted
+clean. Nothing committed yet — pending user review/approval.
+
+- **F-001 (aws `<use_mcp_tool>` XML leak) — root cause found + fixed.**
+  `agents/aws/agent.yaml` declares no `type: mcp` datasource (only `boto3`) —
+  no `aws-mcp-server`/`cost-mcp-server` is actually deployed (config.py's
+  `aws-mcp` entry is an unprovisioned placeholder, unlike kubernetes' real
+  `k8s-mcp` → `bdc.app.br`). `prompt.md` nonetheless told the model to "use
+  MCP servers directly", so it hallucinated Cline/Roo-style `<use_mcp_tool>`
+  XML (Bedrock tool-use API is never wired — `bedrock.py` sets no `tools`).
+  **Fix:** removed the "Available MCPs" section + "query via MCP" line from
+  `agents/aws/prompt.md`. spec 35 T1 regression fixture still pending (harness
+  not built).
+- **F-002 (finops↔Athena AccessDenied) — fixed per the recorded decision.**
+  Dropped the `athena` datasource from `agents/finops/agent.yaml` (kept
+  `boto3 ce`, which already returns real spend). Updated
+  `docs/site/agents/overview.md`, `specs/BACKLOG.md`, `specs/ROADMAP.md`
+  (dormant note + backlog table) to reflect the resolution. Re-enable path
+  documented: `enable_athena_finops=true` + CUR vars once a real target exists.
+- **Spec-14 Finding E2 (budget/history session decoupling) — CLOSED.**
+  Root cause: RCA evidence-collection fan-out (`run_investigation`) booked
+  Bedrock spend under `session_id=f"{session_id}-inv-{state.id[:8]}"` — a
+  fresh, per-investigation-unique budget bucket `check_budget()` never reads,
+  so evidence tokens practically escaped the session cap. Fix: new
+  `budget_session_id` param threaded through `GenericAgent.process_request` →
+  `BedrockClient.invoke`/`_invoke_sync` → `budget_tracker.record_usage`,
+  decoupled from `session_id` (kept for log/audit correlation only —
+  `GenericAgent.process_request` never persists history to DynamoDB itself).
+  `run_investigation`'s fan-out now passes `budget_session_id=session_id` (the
+  real parent session). Tests: `tests/test_spec14_e2.py` (5 cases, self-authored
+  — not independent-author per the spec-14 process). Detail + status in
+  `specs/14-security-hardening/tasks.md`.
+- **Not done:** independent security review of the E2 fix, cluster
+  re-homologation, spec 35 T1 fixtures for F-001/F-002 (harness doesn't exist
+  yet), and the `0.4.0` release cut itself (still queued, per user's explicit
+  choice this session).
+
+### Also this session — LibreChat (real cluster) + 2 more live findings (F-003, F-004) + F-005 open
+
+**Started as "enable LibreChat", ended up surfacing three more real defects**
+via actual end-to-end testing against the live `devops-core` cluster (not just
+local docker-compose). `kubectl`/`helm` context on this machine is already
+`devops-core` — used read-only throughout (`helm list`, `helm get values`,
+`kubectl logs`, `kubectl exec ... python3` for connectivity checks) plus one
+read-only AWS Secrets Manager fetch (`STAFFOPS_AIGENT_SQUAD`, never printed).
+
+- **`infra/values/`** — user pasted the real applied Helm values (`values.yaml`)
+  + the helmfile environment snapshot (`var.yaml`) for the `aigent-squad`
+  release. Verified byte-for-byte match against `helm get values aigent-squad
+  -n staffops` (rev 15, chart 0.9.2) — confirmed accurate, not stale. Inlined
+  `var.yaml`'s `aigent_squad_host` into `values.yaml` (was a `{{ .Values.* }}`
+  gotmpl placeholder) and deleted `var.yaml` per instruction; its other
+  context (kubeContext, namespace, real chart version vs. the helmfile's stale
+  pinned `0.8.0`) preserved as a comment block.
+- **LibreChat decision — real Helm addition, then walked back to local-only.**
+  Explored a full custom Helm chart (found LibreChat's own official upstream
+  chart + confirmed `redirect-containers-to-harbor` Kyverno policy + a live
+  `traefik-internal` IngressClass would have made this easy) and wrote a plan
+  — then user asked me to check `StaffOps/chaitops` first. Its `TODO.md`
+  explicitly lists "Helm chart | Migração para K8s" under *deliberately
+  blocked, don't work until a real trigger* — chaitops runs its own LibreChat
+  via plain docker-compose only. User decided: same approach here, but even
+  leaner — **LibreChat runs local (`mongo` + `librechat` only), pointed at the
+  squad already running in the real cluster**, no Helm/chart work at all.
+  - `infra/librechat/librechat.yaml`: fixed the stale `supervisor:8000` →
+    fixed again to the real cluster's public gateway
+    (`https://aigent-squad.bdc.app.br/v1`), hardcoded (LibreChat does NOT
+    template `baseURL` — only `apiKey`/`headers` get `${VAR}` interpolation;
+    confirmed empirically after a failed attempt, and matches chaitops's own
+    hardcoded `baseURL` in its equivalent file).
+  - `docker-compose.yaml`: added `mongo` + `librechat` services. `librechat`'s
+    `depends_on` is `mongo` only (NOT `gateway` — the squad stays in the real
+    cluster, nothing local needed beyond these two). Healthcheck fixed to
+    `wget` (no `curl` in the LibreChat image). Real token pulled into
+    `LIBRECHAT_AIGENT_SQUAD_API_KEY` via `aws secretsmanager get-secret-value`
+    (kept separate from `INTERNAL_API_TOKEN` so an unset value here never
+    breaks `make up`'s unrelated full-local-stack flow).
+  - **Verified end-to-end against the real cluster**: registered a test user
+    via LibreChat's REST API (manually flipped `emailVerified` in Mongo — no
+    SMTP locally), `GET /api/models` confirmed LibreChat fetched the live
+    `AIgent-Squad` model list from the real gateway. LibreChat's own
+    `/api/ask/:endpoint` chat-send route wasn't reverse-engineered via curl
+    (LibreChat internal API quirk, not a sign of anything broken) — the
+    user can now just use the browser UI at `http://localhost:3080`.
+  - `docs/LIBRECHAT.md` rewritten for this flow (was already stale pre-spec-31,
+    fixed once, then rewritten again for the local-against-real-cluster
+    default).
+- **F-003 (kubernetes agent `k8s-mcp` pointed at a dead hostname) — found +
+  fixed in this app repo, NOT yet live.** While testing LibreChat's
+  kubernetes-agent path for real, got back a fabricated-sounding "diagnostic
+  report" wrapping `[mcp:k8s-mcp] error: unhandled errors in a TaskGroup (1
+  sub-exception)`. Root cause, confirmed via live `kubectl`/`kubectl exec`
+  investigation: `agents/kubernetes/agent.yaml` pointed at
+  `https://devops-mcp-kube-core.bdc.app.br/sse`, which now 404s (Traefik
+  default cert — no matching IngressRoute; the real Ingress is
+  `mcp-kube.bdc.app.br` → Service `kube-mcp` in namespace `mcp-servers`).
+  **Fix:** repointed at the in-cluster Service DNS
+  (`http://kube-mcp.mcp-servers.svc.cluster.local:8080/sse`) — the supervisor
+  runs in the same cluster, so this also avoids the external-ingress hop
+  going forward regardless of hostname churn. User then asked for "full MCP
+  access" — confirmed live via `session.list_tools()` that `kube-mcp`'s own
+  protocol surface has **no mutating tools at all** (only
+  list/get/log/top/view — 23 tools total), and that RBAC is enforced at the
+  MCP server's own ServiceAccount, not the app-level YAML allowlist — so
+  widened `tools:` to the full catalog. **Not live**: the deployed cluster's
+  agent configs come from a separate GitLab repo
+  (`devops/aigent-squad.git`, git-sync init container), not this app repo —
+  not accessible this session, needs porting (tracked, task/backlog F-003).
+  Side note: the live cluster also has a 6th agent, `security`, not present
+  in this app repo's `agents/` — a sync-drift signal, not investigated.
+- **F-004 (adapter errors → fabricated diagnostics) — found + fixed.** Same
+  discovery as F-003 exposed a *systemic* pattern: every adapter type
+  (`Boto3Adapter`, `KubernetesAdapter`, `HttpAdapter`, `AthenaAdapter`,
+  `McpAdapter`) returns raw `f"[svc] error: {e}"` text as if it were valid
+  `infra_data` on failure (by design — one datasource failing shouldn't kill
+  collection), but nothing told the model how to treat that. The elaborate
+  "world-class expert" agent prompts then narrate a full invented
+  troubleshooting report around it. **Fix:** one instruction added to the
+  *shared* context template in `src/core/generic_agent.py` (used by every
+  agent) — state collection errors plainly, never invent root cause/remediation
+  for data not actually collected. Test:
+  `tests/test_generic_agent.py::TestCollectionErrorHonestyInstruction`. Full
+  suite re-run clean after this change: 697 passed / 94.25% cov.
+- **F-005 (CLOSED) — spec-14 L5 canary false-positives on ordinary verbose
+  answers.** Investigated properly this session (not deferred a third time):
+  wrote throwaway repro scripts (`docker run` against the real
+  `aigent-squad-supervisor` image, real AWS/Bedrock creds, real
+  `Boto3Adapter` data) to run the aws agent's real pipeline and capture the
+  exact raw response around each block. **Confirmed root cause**: the model
+  has a learned habit of ending "thorough" technical answers with a
+  "Session:"/"Trace:"/"Reference:" footer, and grabs the canary token — the
+  only opaque-hex value visible in its context — to fill it. Pure
+  helpfulness, zero injection or malicious intent involved. Two format
+  mitigations, in order:
+  1. An explicit "never repeat this value" clause placed *inside* the
+     injected marker text — did nothing. The anti-prompt-injection framing
+     tells the model everything inside `<infra_data>` is inert DATA, so an
+     instruction embedded there is *also* just data to it — self-defeating
+     by construction.
+  2. Reformatted the marker (`[session-ref: ...]` → HTML-comment annotation
+     `<!-- internal-telemetry-id, do not output: ... -->`) + moved the
+     instruction to the *system-level* context template (`generic_agent.py`,
+     outside `<infra_data>`) — 0/14 leaks in the final, correctly-tested live
+     trials.
+  - **Methodology correction, logged for honesty**: mid-session "leak rate"
+    figures (25%→13%) reported to the user were **retracted** — those repro
+    runs used a stale `docker run` image that predated the code edits under
+    test (forgot to mount the live `src/`), so they weren't measuring the fix
+    at all, just re-sampling the original bug twice. Caught this, fixed the
+    mount, re-ran (0/14 clean) before closing the finding. Flagged explicitly
+    to the user rather than quietly correcting it.
+  - **Policy decision — asked the user directly, they chose B**: redact-and-
+    continue instead of hard-block. `CanaryGuard.detect()` now returns the
+    response with any leaked token replaced by `[redacted]` (audit log still
+    fires) instead of raising `GuardrailBlockedError`. This is a deliberate,
+    informed deviation from spec-14's fail-closed default for security
+    layers — for L5 specifically, not the others (Guardrail/InputScanner/
+    OutputFilter stay fail-closed). Rationale: the canary token is single-use
+    and worthless once redacted, so denying a real answer on a benign false
+    positive cost more than it protected.
+  - Updated `AGENTS.md` invariant #6 and `docs/SECURITY.md` §S4 (L5 row +
+    "Fail-closed" section) to document the exception.
+  - Tests rewritten for the new contract: `tests/test_canary.py` (most of
+    `TestDetectLeak`/`TestFuzzyDetection`/etc.), `tests/test_canary_output_
+    integration.py::TestIntegrationCanaryLeak`, new
+    `tests/test_generic_agent.py::TestCanaryMarkerNonRepetitionInstruction`.
+    Full suite: 700 passed / 94.25% cov, lint clean.
+  - Detail: `specs/BACKLOG.md` F-005, `specs/14-security-hardening/tasks.md`.
+- All five findings recorded in `specs/BACKLOG.md` (F-001 through F-005).
+
+### Next
+1. User to review everything uncommitted this session — `git status`:
+   `AGENTS.md`, `agents/aws/prompt.md`, `agents/finops/agent.yaml`,
+   `agents/kubernetes/agent.yaml`, `docker-compose.yaml`,
+   `docs/LIBRECHAT.md`, `docs/SECURITY.md`, `docs/site/agents/overview.md`,
+   `infra/librechat/librechat.yaml`, `specs/14-security-hardening/tasks.md`,
+   `specs/BACKLOG.md`, `specs/ROADMAP.md`, `src/core/bedrock.py`,
+   `src/core/canary.py`, `src/core/generic_agent.py`,
+   `src/supervisor/investigation.py`, `tests/test_canary.py`,
+   `tests/test_canary_output_integration.py`, `tests/test_generic_agent.py`,
+   `tests/test_spec14_e2.py` (new), `infra/values/` (new — real values.yaml +
+   comment block, `var.yaml` deleted). Also untracked `.claude/agents/`
+   (unrelated, pre-existing, not touched this session). **Flag in particular**:
+   the F-005 canary policy change (block → redact-and-continue) is a real
+   security-posture change, not a bug fix — read it deliberately, not just
+   skim the diff.
+2. Commit (needs explicit go-ahead — not done automatically), push, confirm CI.
+3. Port the F-003 kube-mcp fix to the live git-sync repo
+   (`devops/aigent-squad.git` — not accessible this session).
+4. Cut `0.4.0` (still queued — release skill, dev→main→tag→chart→cluster).
+5. Independent security review of E2 (and ideally F-005's policy change too,
+   given it touches spec-14's fail-closed invariant) before calling either
+   cluster-verified.
 
 ---
 
