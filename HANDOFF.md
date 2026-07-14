@@ -1,4 +1,4 @@
-# Handoff — sessions 2026-06-16 → 2026-07-13
+# Handoff — sessions 2026-06-16 → 2026-07-14
 
 Estado para retomar. O que foi feito, o que ficou pendente, e próximos
 passos priorizados.
@@ -179,29 +179,91 @@ read-only AWS Secrets Manager fetch (`STAFFOPS_AIGENT_SQUAD`, never printed).
   - Detail: `specs/BACKLOG.md` F-005, `specs/14-security-hardening/tasks.md`.
 - All five findings recorded in `specs/BACKLOG.md` (F-001 through F-005).
 
+**Committed** (3 commits on `dev`, not pushed): `d96d98a` (security/quality
+fixes: E2 + F-001..F-005), `e64a660` (LibreChat local setup + infra/values),
+`04539d2` (HANDOFF summary).
+
+### Also this session (2026-07-14) — spec 35 Phase 1 + prompt cleanup (F-006)
+
+User asked to "accumulate more improvements" before cutting `0.4.0` (still
+deliberately deferred) rather than push/release immediately. Picked the two
+candidates offered: the quality structural gate (spec 35, highest ROI —
+would have caught F-001/F-002/F-003 automatically) and cleaning up the
+verbose agent prompts (a root-cause contributor to F-001/F-005).
+
+- **Spec 35 Phase 1 (T1 structural gate) — DONE.** `specs/35-quality-eval-
+  harness/` already had a full `requirements.md`/`design.md`/`tasks.md`
+  (written 2026-07-04, nothing implemented). Design decision resolved during
+  planning: `design.md` says T1 works via "a regex over the final response,"
+  which implies real production code, not just tests — so a request scoped
+  to "add tests" would have missed the point. Shipped:
+  - `src/core/response_quality.py` (`ResponseQualityGuard`) — new L4-sibling
+    guard, same shape as `OutputFilter`. Scans every response for
+    tool-scaffolding tags (`<use_mcp_tool>`, `<tool_call>`,
+    `<function_calls>`, `<invoke>`) and raw adapter/infra error signatures
+    (our own `[svc] error:`/`[mcp:...] error:` prefix, Python tracebacks,
+    `botocore.exceptions.*`, boto3's `An error occurred (...) when calling`,
+    anyio's `unhandled errors in a TaskGroup`). **Block, not redact** —
+    unlike F-005's canary decision, neither defect class is ever legitimate
+    content, so there's no benign-false-positive case to preserve
+    availability for. Wired into `GenericAgent.process_request` (same slot
+    as `OutputFilter`). Config: `response_quality_enabled` (default `true`).
+  - Metric: `aigent.quality.violations` (labels `agent_id`, `category`),
+    documented in `docs/METRICS.md`.
+  - Tests: `tests/test_response_quality.py` (21 unit tests, guard behavior,
+    100% cov) + `tests/test_response_quality_regression.py` (6 tests — the
+    actual regression proof: mocked-Bedrock `GenericAgent.process_request`
+    reproducing the EXACT live-observed text for F-001, F-002, F-003, plus
+    a false-positive sanity check that a legitimate "your policy denies
+    access because..." advisory answer is NOT flagged). Full suite: 727
+    passed, 94.35% cov, lint clean.
+  - `specs/35-quality-eval-harness/tasks.md` T1-T3 marked done; groundedness
+    checking (needs infra_data-vs-response comparison, more false-positive
+    risk) explicitly deferred to Phase 2, not silently dropped. Phase 2/3
+    (golden sets, LLM judge, RCA scenario scoring) untouched — real Bedrock
+    cost, out of scope for this pass.
+- **Prompt cleanup (F-006) — DONE.** Trimmed `agents/{aws,finops,kubernetes}/
+  prompt.md`: removed the "15+ years / world-class / certified expert"
+  framing and the emoji-severity-graded multi-section example-response
+  templates, kept all substantive content (read-only rules, domain
+  knowledge, collaboration hints, behavior rules, one positive/negative
+  example each). Added an explicit "don't add a session/trace footer" line
+  (direct F-005 callback). finops also stopped overclaiming Kubecost
+  capability it doesn't have since F-002 dropped that datasource — the
+  prompt now says plainly when it lacks the data for something (e.g.
+  historical trend) instead of fabricating an answer. Also fixed a stray
+  Portuguese line in the old aws prompt ("Você domina COMPLETAMENTE") and an
+  orphaned/duplicated fragment in the old kubernetes prompt (copy-paste
+  artifact, unrelated content stitched in after the "Mission" section) —
+  both were pre-existing bugs unrelated to the hype-trimming goal, fixed
+  while in the file.
+  - **Live-verified against real Bedrock** (same `docker run` harness used
+    for F-005, mounting live `src/`+`agents/`, real AWS/Bedrock creds):
+    responses on identical queries dropped from 1200-1550 chars pre-cleanup
+    to 89-379 chars post-cleanup — 3-4x shorter, same factual content, more
+    honest about data limits (finops: "I don't have historical comparison
+    data... so I cannot show you a trend" instead of inventing one). 0/8
+    canary redactions in a follow-up batch (down from a real non-zero rate
+    pre-cleanup) — the calmer prompt style measurably reduces the F-005
+    footer-fabrication tendency, though this wasn't the primary goal and
+    isn't claimed as a full fix (the redact-and-continue mechanism is the
+    actual guarantee).
+- Recorded as F-006 in `specs/BACKLOG.md`; F-001/F-002 status updated to
+  ✅ CLOSED (their spec-35 T1 regression fixtures now exist).
+
 ### Next
-1. User to review everything uncommitted this session — `git status`:
-   `AGENTS.md`, `agents/aws/prompt.md`, `agents/finops/agent.yaml`,
-   `agents/kubernetes/agent.yaml`, `docker-compose.yaml`,
-   `docs/LIBRECHAT.md`, `docs/SECURITY.md`, `docs/site/agents/overview.md`,
-   `infra/librechat/librechat.yaml`, `specs/14-security-hardening/tasks.md`,
-   `specs/BACKLOG.md`, `specs/ROADMAP.md`, `src/core/bedrock.py`,
-   `src/core/canary.py`, `src/core/generic_agent.py`,
-   `src/supervisor/investigation.py`, `tests/test_canary.py`,
-   `tests/test_canary_output_integration.py`, `tests/test_generic_agent.py`,
-   `tests/test_spec14_e2.py` (new), `infra/values/` (new — real values.yaml +
-   comment block, `var.yaml` deleted). Also untracked `.claude/agents/`
-   (unrelated, pre-existing, not touched this session). **Flag in particular**:
-   the F-005 canary policy change (block → redact-and-continue) is a real
-   security-posture change, not a bug fix — read it deliberately, not just
-   skim the diff.
-2. Commit (needs explicit go-ahead — not done automatically), push, confirm CI.
-3. Port the F-003 kube-mcp fix to the live git-sync repo
+1. Push the 4 commits on `dev` (3 from earlier + this session's spec-35/F-006
+   work, not yet committed as of this HANDOFF write) and confirm CI green.
+2. Port the F-003 kube-mcp fix to the live git-sync repo
    (`devops/aigent-squad.git` — not accessible this session).
-4. Cut `0.4.0` (still queued — release skill, dev→main→tag→chart→cluster).
-5. Independent security review of E2 (and ideally F-005's policy change too,
-   given it touches spec-14's fail-closed invariant) before calling either
-   cluster-verified.
+3. Cut `0.4.0` (still queued, still deliberately deferred — release skill,
+   dev→main→tag→chart→cluster — cut when the user decides enough has
+   accumulated).
+4. Independent security review of E2 and F-005's policy change (both touch
+   spec-14's fail-closed invariant) before calling either cluster-verified.
+5. Spec 35 Phase 2 (golden sets + LLM judge + RCA scenario scoring) — real
+   Bedrock cost, `make eval` — natural next candidate if more "accumulate
+   improvements" rounds continue before `0.4.0`.
 
 ---
 
