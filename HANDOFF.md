@@ -251,9 +251,67 @@ verbose agent prompts (a root-cause contributor to F-001/F-005).
 - Recorded as F-006 in `specs/BACKLOG.md`; F-001/F-002 status updated to
   ✅ CLOSED (their spec-35 T1 regression fixtures now exist).
 
+### Also this session (2026-07-14, continued) — spec 35 Phase 2 + pre-commit hook
+
+Continued "accumulate improvements": user picked spec 35 Phase 2 (golden
+sets + LLM judge) as the next candidate after Phase 1 shipped. Real Bedrock
+cost, run twice this session (~$2-6 total) — approved explicitly beforehand.
+
+- **`evals/` T2 harness — DONE.** `evals/golden/<agent>.yaml` (35 curated
+  questions across the 5 agents: aws 9, finops 7, kubernetes 9, devops 5,
+  observability 5 — devops/observability lighter because their real local
+  datasources are weak, documented honestly in each file), `evals/judge_
+  prompt.md` (versioned Haiku rubric), `evals/runner.py` (mechanical checks
+  as the floor — a failure zeroes the question regardless of judge score —
+  then Haiku judge for coherence/actionability), `scripts/eval-local.sh` +
+  `make eval` (was stubbed "not implemented" in the Makefile already).
+  `aigent.eval.score` metric added.
+- **First real run found and fixed a genuine bug same-day.** The eval
+  surfaced the kubernetes agent's MCP calls consistently failing locally
+  (expected — `kube-mcp.mcp-servers.svc.cluster.local` only resolves inside
+  the real cluster, documented in the golden set header) — but the
+  resulting "honest" answer (F-004's fix) quoted the raw
+  `[mcp:k8s-mcp] error: unhandled errors in a TaskGroup` line verbatim
+  inside a code block, which the SAME session's new `ResponseQualityGuard`
+  (spec 35 T1) correctly flagged as a raw-error leak and 403-blocked —
+  denying an otherwise-honest, correct answer. Root cause: F-004's "say so
+  plainly" instruction didn't say "don't quote the raw line." Fixed in
+  `generic_agent.py`, live-verified (a targeted repro showed the model
+  switch from quoting `[mcp:k8s-mcp] error: ...` verbatim to "I couldn't
+  reach the Kubernetes data source right now"), test updated. First baseline
+  RE-recorded after the fix (the pre-fix run kept for the record at
+  `evals/results/2026-07-14-pre-f004-refinement.json`).
+- **First baseline recorded, honestly documented rough edges.** Scores
+  0.3-0.9 per agent (`evals/results/baseline.json`) — mostly explained by
+  `routing_expected` being too rigid in this first draft (several questions
+  phrased around troubleshooting symptoms legitimately route to
+  `investigation` mode instead of a single agent — a defensible system
+  choice, not a bug) plus one likely over-broad must-not-contain pattern.
+  Documented in `evals/README.md` rather than chased with more real Bedrock
+  spend — left as follow-up for whoever next touches the golden sets.
+  `specs/35-quality-eval-harness/tasks.md` Phase 2 (T4-T7) marked done.
+- **Docs freshness pass** (prompted by the user asking "is mkdocs up to
+  date?" mid-session — it wasn't): `docs/site/reference/metrics.md` was
+  missing today's two new metrics — added. `docs/site/agents/overview.md`
+  had stale/overclaiming datasource descriptions (kubernetes listed as
+  "kubernetes API + MCP" when it's MCP-only; observability listed as
+  "Metrics, logs, traces, alerting" / "VictoriaMetrics, Loki, Grafana" when
+  the real datasource is a single Prometheus `up` query) — fixed to match
+  reality, cross-referenced to the new `evals/golden/*.yaml` capability
+  probes.
+- **Pre-commit hook added** (explicit user request: "always update docs").
+  `.githooks/pre-commit` blocks a commit touching `src/` or an agent's
+  `agent.yaml`/`prompt.md` without a docs/spec file staged in the same
+  commit (bypass: `git commit --no-verify`). Opt-in via `make install-hooks`
+  (new Makefile target) — NOT auto-installed; setting `core.hooksPath` is a
+  git-config change, which I don't do without the user running it
+  themselves. Documented in `AGENTS.md`'s "Docs ship with code" rule.
+  Functionally tested (block case + pass case) before considering it done.
+
 ### Next
-1. Push the 4 commits on `dev` (3 from earlier + this session's spec-35/F-006
-   work, not yet committed as of this HANDOFF write) and confirm CI green.
+1. Push the commits on `dev` and confirm CI green — several sessions'
+   worth now stacked (queue closeout, LibreChat, F-001..F-006, spec 35
+   Phases 1+2, pre-commit hook).
 2. Port the F-003 kube-mcp fix to the live git-sync repo
    (`devops/aigent-squad.git` — not accessible this session).
 3. Cut `0.4.0` (still queued, still deliberately deferred — release skill,
@@ -261,9 +319,10 @@ verbose agent prompts (a root-cause contributor to F-001/F-005).
    accumulated).
 4. Independent security review of E2 and F-005's policy change (both touch
    spec-14's fail-closed invariant) before calling either cluster-verified.
-5. Spec 35 Phase 2 (golden sets + LLM judge + RCA scenario scoring) — real
-   Bedrock cost, `make eval` — natural next candidate if more "accumulate
-   improvements" rounds continue before `0.4.0`.
+5. If continuing to accumulate: golden-set calibration follow-up (see
+   `evals/README.md` "First baseline notes"), or spec 35 Phase 3 (RCA
+   scenario scoring), or run `make install-hooks` to activate the new
+   pre-commit hook.
 
 ---
 
