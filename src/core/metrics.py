@@ -217,3 +217,10 @@ alerts_postback = meter.create_counter(
     description="Slack post-back attempts (RCA result returned to channel)",
     unit="1",
 )
+
+# === Spec 35: Response quality (T1 structural gate) ===
+quality_violations = meter.create_counter(
+    name="aigent.quality.violations",
+    description="Structural quality defects detected in agent responses (tool-scaffolding leaks, raw adapter errors) — labels: agent_id, category",
+    unit="1",
+)

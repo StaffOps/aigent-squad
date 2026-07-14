@@ -69,6 +69,12 @@ context bloat (efficiency-cost steering).
 | `aigent.investigation.evidence_count` | Histogram | — | Evidence items per investigation |
 | `aigent.investigation.rounds` | Histogram | — | Rounds completed per investigation (vs cost cap; 1 today, single-round) |
 
+## Quality — Structural Gate (spec 35 T1)
+
+| Metric | Type | Labels | Description |
+|--------|------|--------|-------------|
+| `aigent.quality.violations` | Counter | `agent_id`, `category` | Structural quality defects blocked (`ResponseQualityGuard`) — tool-scaffolding leaks (`tool_scaffolding`) and raw adapter/infra error text (`raw_adapter_error`, `raw_traceback`, `raw_botocore_exception`, `raw_boto3_error_string`, `raw_taskgroup_exception`) reaching the user verbatim. The F-001/F-002/F-003 defect classes, now a metric instead of a manual discovery. |
+
 ## Knowledge Base (spec 21)
 
 | Metric | Type | Labels | Description |

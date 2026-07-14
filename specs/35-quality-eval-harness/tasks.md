@@ -3,17 +3,46 @@
 > After spec 36 (make targets exist). T1 lands first — it gates the two known defect
 > classes before their fixes even ship. Verification pipeline per `specs/README.md`.
 
-## Phase 1 — T1 structural gate (deterministic, $0)
+## Phase 1 — T1 structural gate (deterministic, $0) — ✅ DONE 2026-07-14
 
-- [ ] T1: Defect-class fixture corpus — reproduce the two shipped classes as fixtures:
-      tool-scaffolding leak (`<use_mcp_tool>` debris) and raw adapter error surfaced
-      (`AccessDenied`, `Traceback`, `botocore.exceptions`) — suite must FAIL on pre-fix
-      behavior (regression proof, attack-suite method)
-- [ ] T2: `tests/test_response_quality.py` — mocked-Bedrock pipeline per agent asserting:
-      no scaffolding tokens, no raw error strings in user-facing content, response
-      contract fields present, no empty/duplicated context blocks (depends on: T1)
-- [ ] T3: Wire into the existing CI 90% gate (offline, deterministic — spec 23 rules)
-      (depends on: T2)
+- [x] T1: Defect-class fixture corpus — `tests/test_response_quality_regression.py`
+      reproduces the exact live-observed text for the three shipped classes: F-001
+      (aws `<use_mcp_tool>` XML), F-002 (finops raw boto3 `AccessDeniedException`
+      string), F-003 (kubernetes raw MCP `TaskGroup` exception). Regression proof is
+      structural (new patterns exist and fire on the reproduced shapes), not a literal
+      git-bisect replay — the pre-fix commits are already merged from earlier the same
+      session.
+- [x] T2 — implemented as **`src/core/response_quality.py`
+      (`ResponseQualityGuard`) + `tests/test_response_quality.py`**: a new production
+      guard (not just a test file — see design note below) scans every agent response
+      for tool-scaffolding tags (`<use_mcp_tool>`, `<tool_call>`, `<function_calls>`,
+      `<invoke>`) and raw adapter/infra error signatures (our own `[svc] error:` /
+      `[mcp:...] error:` prefix, `Traceback (most recent call last):`,
+      `botocore.exceptions.*`, boto3's `An error occurred (...Exception) when calling`,
+      anyio's `unhandled errors in a TaskGroup`). Fail-closed (block, reuses
+      `GuardrailBlockedError`) — unlike `CanaryGuard` (L5, redact-and-continue since
+      F-005), neither defect class is ever legitimate content, so there's no
+      benign-false-positive case to preserve availability for. Wired into
+      `GenericAgent.process_request` in the same slot as `OutputFilter` (L4).
+      `tests/test_response_quality_regression.py` proves it end-to-end via
+      `GenericAgent.process_request` with a mocked Bedrock response, for all 5 agents'
+      config shape. Design decision: `design.md`'s own justification ("a regex over the
+      final response... catches both, free, on every push") implies the check must run
+      in production, not just CI — a pure test-only implementation would not have
+      protected the real cluster the next time a prompt regresses.
+- [x] T3: Automatic — `pytest tests/` (both `scripts/test-local.sh` and CI's
+      `test.yml`) already discovers every file under `tests/`, so the two new files
+      join the 90% gate with no separate wiring. Full suite: 727 passed, 94.35% cov
+      (response_quality.py itself: 100% cov), lint clean.
+
+**Metric**: `aigent.quality.violations` (labels: `agent_id`, `category`) — documented in
+`docs/METRICS.md` §"Quality — Structural Gate (spec 35 T1)".
+
+**Deferred to Phase 1 follow-up / Phase 2**: the groundedness dimension (numeric
+claims/resource IDs must appear in `infra_data`) listed in `design.md`'s acceptance
+criteria — needs infra_data-vs-response comparison logic that risks false positives on
+legitimately paraphrased numbers; not attempted this pass, tracked as open, not silently
+dropped.
 
 ## Phase 2 — Golden sets + runner (T2 scored)
 

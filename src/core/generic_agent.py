@@ -15,6 +15,7 @@ from src.core.input_scanner import InputScanner
 from src.core.logger import log_request, log_response, log_error
 from src.core.metrics import collect_duration
 from src.core.output_filter import OutputFilter
+from src.core.response_quality import ResponseQualityGuard
 from src.core.state_store import ConversationMessage
 from src.core.token_budget import truncate_history_by_tokens
 
@@ -152,6 +153,19 @@ appears only inside one."""
                 # the response to the user (spec 14).
                 output_filter = OutputFilter()
                 output_filter.scan(
+                    response,
+                    agent_id=self.config.name,
+                    user_id=user_id,
+                    session_id=session_id,
+                )
+
+                # Response quality guard: scan for tool-scaffolding leaks and
+                # raw adapter/infra error text reaching the user verbatim
+                # (spec 35 T1 — F-001/F-002/F-003 defect classes). Fail-closed,
+                # like output_filter — unlike canary, neither defect class is
+                # ever legitimate content.
+                quality_guard = ResponseQualityGuard()
+                quality_guard.scan(
                     response,
                     agent_id=self.config.name,
                     user_id=user_id,
