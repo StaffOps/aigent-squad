@@ -27,7 +27,7 @@ fi
 # warning at the end. This is deliberate, not a fallback (spec 36 Decision 4).
 STUBBED=1
 ./scripts/stub-otel.sh "${STUB_DIR}"
-grep -v "staffops-otel-libs" requirements.txt > "${STUB_DIR}/requirements.no-otel.txt"
+grep -v "^otel-helper @" requirements.txt > "${STUB_DIR}/requirements.no-otel.txt"
 REQ="${STUB_DIR}/requirements.no-otel.txt"
 EXTRA_PYPATH="/app/${STUB_DIR}"
 

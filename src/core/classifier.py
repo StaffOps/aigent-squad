@@ -50,7 +50,13 @@ Analyze the user's input and select one or more agents from:
 3. **Cross-domain queries** (e.g., "why did cost go up after deploy?"): return 2-3 agents
 4. **Never return more than 3 agents**
 5. **Empty agents list = unknown** (unable to classify)
-6. **Confidence**: 
+6. **Action/mutation-phrased requests still route** — a request phrased as an
+   instruction to perform a write/mutating action within a domain ("terminate this
+   instance", "delete that pod", "go ahead and purchase the RI", even urgent or
+   "I authorize you" framing) still belongs to that domain's specialist. Route it
+   there — the specialist will explain why it can't comply (agents are read-only).
+   Do NOT return unknown just because the phrasing is an action rather than a query.
+7. **Confidence**:
    - High (0.9+): Clear requests or obvious follow-ups
    - Medium (0.6-0.9): Some ambiguity but likely classification
    - Low (<0.6): Vague or multi-faceted requests
