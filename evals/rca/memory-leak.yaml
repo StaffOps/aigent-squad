@@ -1,0 +1,41 @@
+# Spec 35 Phase 3 (T8) — RCA scenario #2: memory leak (Track B)
+# Maps to specs/EVIDENCE-MODEL.md signature #2 (Track B — continuous MECHANISM
+# with no explicit CHANGE: M6 monotonic growth + M5 OOMKill + I4 restarts,
+# growth NOT proportional to traffic -> HIGH confidence).
+
+id: memory-leak
+symptom: >
+  recommendation-service pods keep restarting throughout the day. No
+  recent deploy. Please investigate the root cause.
+
+expected_root_cause: >
+  A memory leak in recommendation-service — memory grows monotonically
+  (not proportional to flat request traffic) until it hits the container
+  limit and gets OOMKilled, then resets and repeats (sawtooth pattern).
+expected_keywords: ['(?i)memory|leak|oom']
+expected_confidence_min: media   # EVIDENCE-MODEL Track B guards satisfied -> HIGH
+
+fixtures:
+  devops: |
+    No deployments to recommendation-service in the last 7 days. No config
+    or ConfigMap changes in the same window.
+  kubernetes: |
+    Pod recommendation-service-7d9f8-xk2p1: OOMKilled 4 times in the last 6
+    hours (events: reason=OOMKilling, container exceeded memory limit
+    512Mi, timestamps 2026-07-14T09:10:00Z, 11:45:00Z, 14:02:00Z,
+    16:38:00Z). All 3 replicas show the same pattern independently. No
+    node MemoryPressure condition (other pods on the same nodes are
+    healthy) — this is specific to recommendation-service, not the node.
+  observability: |
+    container_memory_working_set_bytes for recommendation-service shows
+    monotonic growth from ~180Mi to ~510Mi over roughly 2h30m on each
+    cycle (deriv() > 0 continuously, no plateaus or drops), then resets to
+    ~180Mi immediately after each OOMKill — a repeating sawtooth pattern.
+    Request rate (spanmetrics) for recommendation-service is flat at
+    ~50 req/s throughout the entire period (no correlation between traffic
+    and the memory growth rate) — growth is NOT proportional to traffic.
+  aws: |
+    No relevant AWS-side signal — recommendation-service does not depend on
+    RDS/ElastiCache for this workload.
+  finops: |
+    No cost-relevant signal for this investigation.

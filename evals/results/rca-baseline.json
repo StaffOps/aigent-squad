@@ -1,0 +1,33 @@
+{
+  "timestamp": "2026-07-15T03:13:15.966482+00:00",
+  "avg_score": 1.0,
+  "scenarios": [
+    {
+      "id": "dependency-outage",
+      "score": 1.0,
+      "passed": true,
+      "confidence": "alta",
+      "hypothesis": "RDS failover of orders-payments-db caused payments-service to fail readiness probes and be removed from service mesh routing, making it unreachable to orders-service and blocking checkout completion.",
+      "evidence_count": 16,
+      "failures": []
+    },
+    {
+      "id": "deploy-regression",
+      "score": 1.0,
+      "passed": true,
+      "confidence": "alta",
+      "hypothesis": "Deployment of commit a1b2c3d ('refactor payment validation') introduced a NullPointerException in PaymentValidator.validate() due to missing null-safety checks, causing 34% of checkout requests to fail immediately.",
+      "evidence_count": 16,
+      "failures": []
+    },
+    {
+      "id": "memory-leak",
+      "score": 1.0,
+      "passed": true,
+      "confidence": "alta",
+      "hypothesis": "O recommendation-service possui um memory leak ativo que causa crescimento monot\u00f4nico de mem\u00f3ria de ~180Mi para ~510Mi em ciclos de ~2h30m, excedendo o limite configurado de 512Mi e resultando em OOMKills recorrentes.",
+      "evidence_count": 21,
+      "failures": []
+    }
+  ]
+}

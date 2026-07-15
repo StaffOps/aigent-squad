@@ -75,14 +75,72 @@ dropped.
       phrasing) left for the next iteration rather than chased with more
       real spend. Tolerance band: `TOLERANCE = 0.15` in `runner.py`.
 
-## Phase 3 — RCA scenarios (the differentiator gets a score)
+**Calibration verified, baseline re-promoted (2026-07-14, second real run)** — after
+the golden-set reword pass (commit `b0e6f98`), re-ran `make eval` against real
+Bedrock to confirm the calibration actually worked rather than trusting it
+untested: aws 0.411→0.611, finops 0.329→0.471, kubernetes 0.533→0.567,
+observability 0.36→0.82, devops 0.88→0.86 (noise, within tolerance). Clear,
+real improvement — `evals/results/2026-07-14.json` promoted to
+`evals/results/baseline.json` (previous baseline kept as
+`evals/results/2026-07-14-first-calibration-baseline-superseded.json`, not
+deleted). 7 mechanical failures remain, down from the first run; read the
+failure list and it's no longer golden-set noise — 5 of the 7 are the SAME
+"refuse a mutating action" pattern across two independently-reworded phrasings,
+which pointed at a real classifier defect, not a wording problem. Filed as
+**F-007** (`specs/BACKLOG.md`) — the Haiku classifier routes mutation-phrased
+requests ("please terminate this instance now") to `unknown` instead of the
+domain agent, so the domain agent's own crafted refusal never fires; candidate
+fix identified (classifier `SYSTEM_PROMPT` guideline), not yet implemented —
+needs another real-Bedrock verification round, held for go-ahead rather than
+spent unilaterally. The other 2 residual failures (`finops/no-kubecost-fabrication`,
+`finops/idle-resource-collaboration`) are still `routing_expected` rigidity
+against investigation-triggering phrasing — same class as the first pass,
+left as-is (diminishing returns on further chasing without new signal).
 
-- [ ] T8: 3 fixture-fed scenarios mapped to EVIDENCE-MODEL signatures — #1 deploy
-      regression, #2 memory leak (Track B), #3 dependency outage — expected root cause
-      + confidence per the model's rules (depends on: T4)
-- [ ] T9: Score the RCA flow end-to-end on the 3 scenarios; record baseline. This
-      baseline is the BEFORE for spec 18 Phase 1.5 (EVIDENCE-MODEL correlator) —
-      re-run after to measure the gain (depends on: T6, T8)
+## Phase 3 — RCA scenarios (the differentiator gets a score) — ✅ DONE 2026-07-15
+
+- [x] T8: 3 fixture-fed scenarios mapped to EVIDENCE-MODEL signatures (specs/
+      EVIDENCE-MODEL.md signatures #1/#2/#3) — `evals/rca/{deploy-regression,
+      memory-leak,dependency-outage}.yaml`. Design decision 3 (design.md): the
+      pipeline runs for real (classifier is bypassed — `run_investigation()` is
+      called directly with `relevant_agent_names` implicit — fan-out/correlate/
+      synthesize all hit real Bedrock); only the *world* is fixed — a new
+      `FixtureAdapter(DatasourceAdapter)` (`evals/rca_runner.py`) returns a
+      canned string regardless of query, swapped in for each agent's real
+      adapters while keeping the agent's real config/prompt/skill_registry from
+      the live `AgentRegistry`. Each scenario's fixtures are written as what a
+      real adapter WOULD have returned (ISO8601 timestamps, explicit signal
+      language) so the model's own evidence-JSON extraction has real signal to
+      work with, not summarized-for-it data.
+- [x] T9: Scored end-to-end, real Bedrock (`make eval-rca` → `scripts/
+      eval-rca-local.sh` → `evals/rca_runner.py`). Score = mechanical only
+      (root-cause keyword regex match on the hypothesis + confidence >=
+      expected_confidence_min; no LLM judge for RCA — the hypothesis text +
+      confidence level was signal enough for a 3-scenario baseline, unlike
+      T2's need for a judge on coherence/actionability). **Baseline recorded
+      2026-07-15** (`evals/results/rca-baseline.json`): all 3 scenarios
+      **score=1.0, confidence=alta**, with substantive, correct hypotheses —
+      e.g. deploy-regression: "Deployment of commit a1b2c3d ('refactor payment
+      validation') introduced a NullPointerException in
+      PaymentValidator.validate() due to missing null-safety checks...";
+      dependency-outage correctly inverted causality to the RDS failover, not
+      orders-service itself. This is a strong baseline for the CURRENT
+      simplified correlator (`src/core/investigation.py::correlate()` — Phase-1
+      "count distinct (source_agent, signal_type) pairs", not yet the full
+      causal-layer EVIDENCE-MODEL). Re-run after spec 18 Phase 1.5 ships to
+      measure the gain — a 1.0 baseline means that gain will show up as
+      *hypothesis/evidence quality* (fewer evidence items needed, more precise
+      causal-layer attribution), not as a score delta on these 3 fixtures; if
+      spec 18 Phase 1.5 wants a harder acceptance bar, the fixture set should
+      grow (e.g. a scenario designed to trip the naive correlator's known flaw
+      — counting correlated effects as independent confirmation — see
+      EVIDENCE-MODEL.md's opening line).
+      Note found in passing (not a defect, just recorded): the memory-leak
+      scenario's hypothesis came back in Portuguese despite an English symptom
+      — the model's language-matching heuristic (`match_user_language`) picked
+      up on something in context; harmless for this eval (mechanical regex
+      matched Portuguese "memory leak"/"OOMKills" fine), not investigated
+      further.
 
 ## Phase 4 — Integration + close
 

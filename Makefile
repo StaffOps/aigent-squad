@@ -37,6 +37,9 @@ lint: ## Ruff, CI-verbatim scope (run via Docker if no local ruff)
 eval: ## Quality eval T2 (spec 35) — golden sets + LLM judge, real Bedrock cost (~$1-3)
 	./scripts/eval-local.sh
 
+eval-rca: ## RCA scenario eval T8/T9 (spec 35 Phase 3) — fixture-fed, real Bedrock cost (~$0.50-1.50)
+	./scripts/eval-rca-local.sh
+
 specs-status: ## Spec status lint (spec 32) — not implemented yet
 	@echo "spec 32 pending — see specs/32-spec-lifecycle-ssot/"; exit 1
 
