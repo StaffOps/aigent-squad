@@ -22,8 +22,8 @@ datasources:
   # the SAME cluster as kube-mcp, so this avoids an unnecessary round-trip
   # through the public ingress (extra latency + an extra failure domain).
   # Discovered 2026-07-13: the external hostname this previously pointed at
-  # (devops-mcp-kube-core.bdc.app.br) 404s with Traefik's default cert — the
-  # Ingress was renamed to mcp-kube.bdc.app.br at some point; the in-cluster
+  # 404'd with the ingress controller's default cert — the Ingress had been
+  # renamed at some point after the URL was first configured. The in-cluster
   # Service name is stable either way and is the right target for an
   # in-cluster caller regardless of what the external hostname is this week.
   - type: mcp

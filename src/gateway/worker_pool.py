@@ -1,7 +1,9 @@
 """Gateway worker pool — bounded local concurrency + backpressure (spec 31, L2).
 
-Pattern adapted from `staffops-chaitops` `agent-api/app/worker_pool.py`
-(BDC-internal, reuse authorized). Differences from the reference:
+Pattern adapted from a sibling internal project (`staffops-chaitops`
+`agent-api/app/worker_pool.py`, reuse authorized within the org — see
+`steering/licensing-clean-room.md` for the third-party-vs-internal reuse
+distinction). Differences from the reference:
   - A two-timeout model (first-byte + idle-stream) on top of the overall job
     timeout, tuned for a Bedrock-backed workload (round-table 2026-06-22).
   - Job lifecycle is fail-open: a Redis outage degrades to log-only, never

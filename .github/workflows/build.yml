@@ -41,8 +41,6 @@ jobs:
           load: true
           push: false
           tags: ${{ env.DOCKERHUB_IMAGE }}:${{ steps.sha.outputs.short }}
-          secrets: |
-            github_token=${{ secrets.DOCS_DEPLOY_TOKEN }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -66,8 +64,6 @@ jobs:
           tags: |
             ${{ env.DOCKERHUB_IMAGE }}:latest
             ${{ env.DOCKERHUB_IMAGE }}:${{ steps.sha.outputs.short }}
-          secrets: |
-            github_token=${{ secrets.DOCS_DEPLOY_TOKEN }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

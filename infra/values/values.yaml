@@ -1,17 +1,14 @@
-## aigent-squad — devops-core install (inProcess two-tier: gateway → supervisor)
+## aigent-squad — example install (inProcess two-tier: gateway → supervisor)
 ##
 ## Topology: the gateway is the only externally-routed tier (spec 31); the
 ## supervisor is backend-only and runs all agents in-process (ADR-001 + spec 02).
 ##
-## Release metadata (from the helmfile environment, not part of these values):
-##   - kubeContext: arn:aws:eks:us-east-1:524040971621:cluster/devops-core
-##   - namespace:   staffops
-##   - chart:       aigent-squad (StaffOps/helm-charts) — installed 0.9.2
-##     (the helmfile environment pinned version 0.8.0 for the repo-hosted chart,
-##     but the actual release used the LOCAL chart path override, which was at
-##     0.9.2 at apply time — verified against the live cluster 2026-07-13 via
-##     `helm list -n staffops` + `helm get values aigent-squad -n staffops`,
-##     revision 15, deployed 2026-07-03, values match this file exactly).
+## This is an ILLUSTRATIVE EXAMPLE derived from a real production deployment
+## (org-identifying values — account ID, internal hostnames, registry —
+## replaced with placeholders 2026-07-15 for the public repo; see
+## `docs/architecture/decisions/0007-internal-first-vs-oss-product.md`).
+## Every `<PLACEHOLDER>` / `example.com` / `your-*` value below needs a real
+## replacement before this is usable as-is.
 ##
 ## ⚠️ BEFORE `helmfile apply` — replace the flagged REQUIRED values below:
 ##   1. services.supervisor.serviceAccount.annotations → real IRSA role ARN
@@ -31,7 +28,7 @@ topology: inProcess
 # -----------------------------------------------------------------------------
 agentsSource:
   type: git
-  repo: https://gitlab.com/BigDataCorp/Infraestrutura/CloudResources/automations/environments/devops/aigent-squad.git
+  repo: https://gitlab.example.com/your-org/aigent-squad-agents.git
   path: agents
   ref: main
   tokenSecret: aigent-squad-git-token
@@ -71,7 +68,7 @@ agents:
       datasources:
         - type: mcp
           name: k8s-mcp
-          url: https://devops-mcp-kube-core.bdc.app.br/sse
+          url: https://your-k8s-mcp-server.example.com/sse
           tools: [pods_list, namespaces_list, events_list, nodes_top, pods_top]
       read_only: true
       evidence_types: [k8s_resource_state]
@@ -143,9 +140,9 @@ agents:
 global:
   image:
     # Harbor project. Combined with per-service `repository` and the chart
-    # appVersion → harbor.bigdatacorp.com.br/labs/aigent-squad:<appVersion>.
+    # appVersion → <your-registry>/labs/aigent-squad:<appVersion>.
     # No per-service tag anywhere: the image version comes from Chart.appVersion.
-    registry: harbor.bigdatacorp.com.br/labs
+    registry: <your-registry>/labs
     # Always (not IfNotPresent): local dev rebuilds the same tag (0.3.0-dev) in
     # Harbor, so nodes must re-pull on every rollout. A stable release with an
     # immutable tag should use IfNotPresent (the chart default).
@@ -246,7 +243,7 @@ services:
       create: true
       # IRSA role (terraform/iam) — Bedrock invoke + DynamoDB sessions + read-only inventory.
       annotations:
-        eks.amazonaws.com/role-arn: arn:aws:iam::524040971621:role/aigent-squad-irsa
+        eks.amazonaws.com/role-arn: arn:aws:iam::<AWS_ACCOUNT_ID>:role/aigent-squad-irsa
     resources:
       requests:
         cpu: 200m
@@ -267,25 +264,25 @@ services:
               app.kubernetes.io/component: gateway
 
 # -----------------------------------------------------------------------------
-# Routing — expose the gateway via Istio Gateway API (HTTPRoute), BDC pattern
-# (istio-dvps-internal on devops-core; TLS terminated at the Gateway listener).
+# Routing — expose the gateway via Istio Gateway API (HTTPRoute), org-specific pattern
+# (istio-internal-gateway on devops-core; TLS terminated at the Gateway listener).
 # Switch routing.type to "ingress" to use traefik-internal instead.
 # -----------------------------------------------------------------------------
 routing:
   type: gatewayapi
-  host: aigent-squad.bdc.app.br
+  host: aigent-squad.example.com
   paths:
     gateway: /
   tls:
     enabled: false          # TLS terminated at the Istio Gateway listener
   gatewayapi:
     parentRef:
-      name: istio-dvps-internal
+      name: istio-internal-gateway
       namespace: istio-gateway
-      sectionName: https-bdc-app-br
+      sectionName: https-example-com
     pathType: PathPrefix
     annotations:
-      external-dns.alpha.kubernetes.io/hostname: aigent-squad.bdc.app.br
+      external-dns.alpha.kubernetes.io/hostname: aigent-squad.example.com
 
 networkPolicy:
   enabled: true

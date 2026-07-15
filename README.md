@@ -16,7 +16,7 @@
 
 ## 🎯 Overview
 
-Agent Squad is a multi-agent system with 1 supervisor + 5 specialist agents for AWS/Kubernetes operations, designed for ChatOps integration with Slack and proactive monitoring.
+Agent Squad is a multi-agent system with 1 supervisor + 6 specialist agents for AWS/Kubernetes operations, designed for ChatOps integration with Slack and proactive monitoring.
 
 **Key Features**:
 - 🤖 Intelligent classifier-based routing
