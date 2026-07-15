@@ -5,6 +5,69 @@ passos priorizados.
 
 ---
 
+## Done — session 2026-07-15 continued further (D-01 executed, D-02 shipped)
+
+Continuing the ordered queue from the previous entry ("go now to D-01, then
+D-02"):
+
+- **D-01 (OSS) executed**, not just decided: scrubbed real org-identifying
+  values from tracked config — `infra/values/values.yaml` (AWS account ID,
+  GitLab org URL, dead MCP hostname, `harbor.bigdatacorp.com.br`,
+  `*.bdc.app.br`, `istio-dvps-internal`), `infra/librechat/librechat.yaml`,
+  `agents/kubernetes/agent.yaml` comment, `src/gateway/worker_pool.py`
+  comment (reworded per `steering/licensing-clean-room.md` — internal-org
+  reuse across a sibling project is a different, allowed category from
+  third-party copying, so the provenance note was kept, just genericized).
+  Wrote `CONTRIBUTING.md`. Found and fixed B-28 (vestigial `github_token`
+  Docker build secret — confirmed via `grep "git+" requirements.txt` that
+  `otel-helper` was the only `git+` dep needing it, and that dep no longer
+  needs a token since it went public; removed from `Dockerfile` +
+  `build.yml` + `release.yml`, `docker build .` still succeeds). Fixed
+  README's stale "5 specialist agents" → 6. Filed B-29 (zero-AWS demo mode)
+  scoped but explicitly NOT built — needs a design decision (fixture-driven
+  fake Bedrock vs. "zero provisioning, bring your own Bedrock key") first.
+  Committed + pushed to `dev`, CI green.
+
+- **D-02 shipped**: minimal optional LibreChat + in-cluster MongoDB
+  sub-chart, `helm-charts` repo, `charts/aigent-squad` → **0.9.4**.
+  `templates/librechat.yaml`: single-pod Mongo `StatefulSet` (no HA/auth,
+  same posture as `redis.inCluster`) + a LibreChat `Deployment` pre-wired to
+  the release's own gateway Service (`baseURL` auto-computed via
+  `dig "gateway" "port" 8000 .Values.services` + `serviceFullname` unless
+  overridden). API key resolves `librechat.apiKey` →
+  `apiKeySecretName` → automatic reuse of `externalSecrets.secrets[]` when
+  `externalSecrets.enabled=true` — all three paths verified via
+  `helm template` (the third needed a real populated `--set
+  externalSecrets.secrets[0]...` to prove the `range` actually fires; an
+  empty-default check alone would have been a false negative). Two bugs
+  hit and fixed during templating: (1) a self-referencing
+  `checksum/config: {{ include (print $.Template.BasePath "/librechat.yaml") . | sha256sum }}`
+  annotation infinite-looped since the file includes its own Deployment —
+  replaced with `checksum/baseurl` on just the one varying string; (2) an
+  undefined `$root` in the `envFrom` block (this file's top-level context
+  IS already root, unlike `servicemonitor.yaml` which explicitly redefines
+  it) — fixed to plain `.Values`. **Also found and fixed**, while in this
+  file, a real loose end from the *previous* HANDOFF entry: the
+  `/metrics` trailing-slash fix on `servicemonitor.yaml` had been made and
+  verified live but never actually committed — 0.9.3 shipped without it.
+  Folded into the same 0.9.4 cut rather than orphaning it. `helm lint`
+  clean, `helm template` renders, chart-releaser confirmed green
+  (`gh run list`), pulled and confirmed live at 0.9.4
+  (`helm search repo staffops/aigent-squad --versions`). Companion doc:
+  app repo's `docs/site/reference/helm.md` updated + pushed to `dev`.
+  `specs/BACKLOG.md`'s D-01/D-02 decision rows marked resolved (struck
+  through, matching the D-03 pattern).
+
+- **Still open, unchanged from last entry**: B-25 (Harbor-vs-Docker-Hub,
+  narrowed not closed), B-27 (personal Docker Hub, deliberate), B-29 (demo
+  mode, scoped not built), specs 32+33 (not started), spec 06/17/18 T11
+  (not started), spec 18 Phase 1.5 (explicitly skipped), and **item 6 from
+  the original mega-directive** — flagged "muito importante, segundo na
+  sequência" but no specific backlog item was ever named; still genuinely
+  ambiguous, needs the user to clarify before it can be worked.
+
+---
+
 ## Done — session 2026-07-15 continued (post-0.4.0 queue: B-25/26/27, D-01/D-02 scoped, /metrics live-verified)
 
 User asked "what's left" after 0.4.0, then dispatched a big ordered batch:

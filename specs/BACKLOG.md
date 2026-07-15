@@ -58,8 +58,8 @@
 
 | ID | Decision | Where |
 |----|----------|-------|
-| D-01 | Internal-first vs OSS product | ADR-0007 (proposto; A recommended) |
-| D-02 | Interface: LibreChat live vs Slack v2 (choose ONE) | PRD open questions; priced by D-01 |
+| ~~D-01~~ | ✅ **DECIDED 2026-07-15**: **Option B — OSS product**. ADR-0007 accepted; concrete follow-through done same day (BDC/org references scrubbed from tracked config, `CONTRIBUTING.md` written, B-28 vestigial build secret removed). Remaining Option-B consequence not yet built: B-29 (zero-AWS demo mode, scoped not built — needs its own design decision) | ADR-0007 (accepted, Option B) |
+| ~~D-02~~ | ✅ **DECIDED 2026-07-15**: LibreChat, as a minimal **optional chart addon** (`librechat.enabled`, default `false`) — not Slack v2, and not a hardened multi-user deployment. Single-pod MongoDB `StatefulSet` (no HA/auth, same posture as `redis.inCluster`), pre-wired to the release's own gateway. Shipped in `helm-charts` chart `0.9.4` | `helm-charts@5490d42`, `docs/site/reference/helm.md` |
 | ~~D-03~~ | ✅ **DECIDED 2026-07-04 (refined same day)**: the squad is REACTIVE by design — acts only when triggered; proactive watching = separate product (anomaly-detection's territory, integration optional). Core = **on-trigger comprehension**: entity resolution + baseline verdicts when triggered | PRODUCT-REVIEW §F + `docs/BEHAVIOR-BASELINES.md` |
 
 ## Dormant (do NOT resurface until the blocker-trigger fires)
