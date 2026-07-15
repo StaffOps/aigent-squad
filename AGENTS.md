@@ -367,3 +367,4 @@ because the team is deliberately accumulating more improvements first (see
 | Architecture decisions (ADR index) | `docs/architecture/decisions/README.md` |
 | Bedrock design decision | `specs/ADR-001-bedrock-direct-vs-strands.md` (= ADR-0001) |
 | Deploy to K8s | `helm-charts/charts/aigent-squad` (sibling repo) |
+| Cut a release | `RELEASE.md` (spec 34) — 8-phase runbook, cross-repo |
