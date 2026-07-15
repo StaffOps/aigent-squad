@@ -141,10 +141,12 @@
 ## Phase 5 — Rollout `[k8s-setup]`
 
 1. `cd staffops && helmfile -e default -l name=aigent-squad diff` — **if this
-   errors** (as of 2026-07-15 it does: `helm-diff` 3.10.0 plugin incompatible
-   with the installed Helm v4.2.3 CLI, `--validate`/`--dry-run` flag
-   conflict — separate unresolved tooling issue), fall back to `helmfile
-   build`. Be precise about what that fallback actually proves: `helmfile
+   errors** with a `--validate`/`--dry-run` flag-group conflict, your local
+   `helm-diff` plugin predates Helm v4 support: `helm plugin update diff`
+   (fixed locally 2026-07-15 this way, upstream added v4 support in
+   `helm-diff` 3.15.10 — see `specs/BACKLOG.md` B-26). If updating the
+   plugin isn't possible right now, fall back to `helmfile build`. Be
+   precise about what that fallback actually proves: `helmfile
    build` only confirms the CURRENTLY COMMITTED values render without a
    syntax error — it does NOT by itself prove there's no delta from what's
    ACTUALLY DEPLOYED. To get that second guarantee, diff the rendered output

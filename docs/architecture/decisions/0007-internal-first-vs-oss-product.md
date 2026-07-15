@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | **proposto** (decision owner: Carlos Felipe Gomes — undecided) |
+| **Status** | **aceito** (2026-07-15) — **Option B: OSS product** |
 | **Date** | 2026-07-04 |
 | **Deciders** | Carlos Felipe Gomes |
 | **Related to** | `docs/prd/aigent-squad.md` (open questions), `docs/COMPETITIVE-ANALYSIS.md`, spec 36 (dev loop), ADR-0006 (standalone product) |
@@ -28,7 +28,26 @@ the most expensive option: OSS overhead with zero OSS upside.
 
 ## Decision
 
-**Pending.** Two candidate resolutions, with a recommendation:
+**Decided 2026-07-15: Option B (OSS product).** Real-state check against
+Option B's own consequence list, same day:
+- `otel-helper` private dependency — **already resolved** (commit `d8dc822`,
+  earlier the same session arc: the library moved to a public org repo,
+  `pip install` needs no auth).
+- Spec 35 (quality eval harness) as the public quality bar — **shipped**
+  (2026-07-15, same session).
+- Still open (tracked in `specs/BACKLOG.md`): zero-AWS-provisioning demo mode
+  (guardrail off + seeded fixtures, no real Bedrock/AWS creds needed to try
+  it), org-owned Docker Hub namespace (B-27 — staying on the personal account
+  for now, no org account exists yet), `CONTRIBUTING.md` + issue triage, and
+  scrubbing real-org references (`.bdc.app.br` hostnames, "BDC-internal"
+  comments) from `infra/values/values.yaml`, `infra/librechat/librechat.yaml`,
+  `agents/kubernetes/agent.yaml`, `src/gateway/worker_pool.py`, and several
+  spec/doc files — real infra examples stay as internal reference material
+  (matches the existing `infra/terraform/example/` neutral-defaults pattern),
+  not deleted, just not literally present in the public-facing tree.
+
+Two candidate resolutions were considered, with a recommendation (kept for
+the record):
 
 - **Option A — Internal-first (recommended for now)**: declare BDC the sole
   target for the next phase. Consequences: drop OSS overhead from the critical
