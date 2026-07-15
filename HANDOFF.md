@@ -42,11 +42,40 @@ Nothing pushed; app-repo changes uncommitted, `k8s-setup` changes uncommitted.
   SSO token expiry mid-run (container's mounted SSO cache had a dead refresh
   token even though the host CLI still resolved credentials) — user ran
   `aws sso login`, re-ran clean.
-- **Next / open**: nothing currently blocking. Docker stack was torn down
-  after the RCA run. Spec 35 Phase 4 (T10/T11 — docs + independent-author
-  review) still open. Commit/push decisions (this repo's `dev`, `BDC/
-  aigent-squad`'s `main`, `BDC/k8s-setup`'s values migration) all deferred,
-  per the user's standing "accumulate more improvements before 0.4.0" call.
+- **Continued same session — commits + spec 35 Phase 4 + F-007 residual fix**:
+  - Committed everything above: 4 commits in this repo (`0c02adf` F-007 +
+    test-local.sh fix, `be2d1cf` security review fixes, `eccc46e` RCA
+    harness, `5844f63` docs/baseline promotion); 1 commit in `BDC/k8s-setup`
+    (`7127fca`, gitignore the real values file). `BDC/aigent-squad` had
+    nothing new. **Nothing pushed anywhere.**
+  - Spec 35 T10 (partial): `docs/METRICS.md` + site version document
+    `aigent.eval.score`'s `suite="rca"` label; wired the metric into
+    `evals/rca_runner.py` (was only scoring to JSON before, not OTel).
+    TRIGGERS.md rows explicitly deferred — that file doesn't exist yet,
+    it's spec 33 T1's own deliverable (a much larger sweep), not spec 35's
+    to create.
+  - Spec 35 T11: independent review via a fresh-context subagent — 5
+    findings (Low to Medium-High), none fixed, all recorded in
+    `specs/BACKLOG.md` ("T11 independent review findings" row). Worth a
+    look before trusting the eval numbers too far, especially finding 4
+    (RCA causal-direction check is looser than the scenario's own stated
+    intent) and finding 5 (a real 6th `security` agent has zero eval
+    coverage and is misdocumented as not existing in this repo).
+  - F-007's residual case fixed: root cause was `src/core/triage.py`'s
+    keyword heuristic (not the classifier) — "failing" forced the RCA flow
+    even for a clear mutation request. New `MUTATION_REQUEST_KEYWORDS`
+    override, narrow and evidence-checked against all 7 golden refusal
+    questions. Live-verified via the classifier log (`selected_agent: aws`,
+    not `investigation`) — could not capture a full clean HTTP response in
+    the same session because the local supervisor container hung under real
+    AWS API calls (looks like pre-existing unbounded boto3 retry behavior,
+    unrelated to this fix — not investigated further).
+- **Next / open**: commit the F-007 triage fix + T10 docs + T11 findings
+  (not yet committed as of this entry). Decide whether/when to act on the
+  5 T11 findings. Docker stack torn down. Push decisions (this repo's `dev`,
+  `BDC/aigent-squad`'s `main`, `BDC/k8s-setup`'s values migration) all
+  deferred, per the user's standing "accumulate more improvements before
+  0.4.0" call.
 
 ## Done — session 2026-07-14 continued (independent review + eval re-verification, F-007 filed)
 

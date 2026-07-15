@@ -69,11 +69,17 @@ context bloat (efficiency-cost steering).
 | `aigent.investigation.evidence_count` | Histogram | — | Evidence items per investigation |
 | `aigent.investigation.rounds` | Histogram | — | Rounds completed per investigation (vs cost cap; 1 today, single-round) |
 
-## Quality — Structural Gate (spec 35 T1)
+## Quality — Structural Gate + eval harness (spec 35)
+
+`aigent.quality.violations` is emitted from production traffic (any request, any
+time `ResponseQualityGuard` fires). `aigent.eval.score` is emitted only by
+`make eval`/`make eval-rca` (spec 35 T2/T9, on-demand, real Bedrock cost) — it
+will read as sparse/absent unless someone has run an eval recently.
 
 | Metric | Type | Labels | Description |
 |--------|------|--------|-------------|
 | `aigent.quality.violations` | Counter | `agent_id`, `category` | Structural quality defects blocked (`ResponseQualityGuard`) — tool-scaffolding leaks (`tool_scaffolding`) and raw adapter/infra error text (`raw_adapter_error`, `raw_traceback`, `raw_botocore_exception`, `raw_boto3_error_string`, `raw_taskgroup_exception`) reaching the user verbatim. The F-001/F-002/F-003 defect classes, now a metric instead of a manual discovery. |
+| `aigent.eval.score` | Histogram | `suite`, `agent_id` | Per-question/scenario score (0-1). `suite="golden"` from `make eval`'s golden-set + LLM-judge run (mechanical checks are the floor — a failure zeroes the score regardless of judge opinion). `suite="rca"` from `make eval-rca`'s fixture-fed scenarios (spec 35 Phase 3, mechanical-only: root-cause keyword match + confidence floor, no judge); `agent_id` holds the scenario id (e.g. `deploy-regression`) for this suite, not an agent name. |
 
 ## Knowledge Base (spec 21)
 

@@ -38,6 +38,7 @@ sys.path.insert(0, "/app")
 
 from src.core.adapters import DatasourceAdapter  # noqa: E402
 from src.core.generic_agent import GenericAgent  # noqa: E402
+from src.core.metrics import eval_score  # noqa: E402
 from src.core.registry import AgentRegistry  # noqa: E402
 from src.core.skills import SkillRegistry  # noqa: E402
 from src.supervisor.investigation import run_investigation  # noqa: E402
@@ -120,6 +121,7 @@ async def run() -> dict:
             session_id=f"rca-eval-{scenario['id']}",
         )
         result = _score(scenario, rca)
+        eval_score.record(result["score"], {"suite": "rca", "agent_id": result["id"]})
         print(f"[{result['id']}] score={result['score']} confidence={result['confidence']}")
         if not result["passed"]:
             print(f"  hypothesis: {result['hypothesis'][:200]}")

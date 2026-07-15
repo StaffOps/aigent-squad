@@ -144,11 +144,34 @@ left as-is (diminishing returns on further chasing without new signal).
 
 ## Phase 4 — Integration + close
 
-- [ ] T10: `docs/METRICS.md` (+`aigent.eval.score`) and TRIGGERS.md rows (quality
-      regression thresholds) — feeds specs 33/34 (depends on: T7, T9)
-- [ ] T11 (independent author): review/extend suites against the contract — especially
-      that T1 fails on the reproduced defect classes and T2 scores are reproducible
-      within tolerance (depends on: T3, T9)
+- [x] T10 (partial, 2026-07-15): `docs/METRICS.md` + `docs/site/reference/metrics.md`
+      updated — `aigent.eval.score` now documents both `suite="golden"` (T2) and
+      `suite="rca"` (T9) label values; `evals/rca_runner.py` wired to actually emit
+      the metric (was previously scored only to the result JSON, not to OTel).
+      **TRIGGERS.md rows explicitly DEFERRED, not done**: `specs/TRIGGERS.md` does
+      not exist yet — it is spec 33's own T1 deliverable (a full sweep across specs
+      11/17/18/21/25/26 + EVIDENCE-MODEL + VISION, not just spec 35), which hasn't
+      started. Creating it here would preempt spec 33's own template/structure
+      decisions (design.md Decision 2). Re-visit this task when spec 33 T1 lands.
+- [x] T11 (independent author, 2026-07-15): reviewed via a fresh subagent with no
+      prior context on this work (`code-review` type). Findings (none fixed yet —
+      review-only, tracked in `specs/BACKLOG.md` "T11 independent review findings"):
+      (1) Low — the T1 "fails pre-fix, passes after" proof is real in substance but
+      split across two test files rather than one disable→re-run inside
+      `process_request`; (2) Low-Medium — `evals/runner.py` has no guard for a
+      missing/renamed `response` field (silently scores as empty-but-passing) and
+      no range clamp on judge coherence/actionability scores; (3) Medium — several
+      `must_not_contain_regex` patterns in `evals/golden/*.yaml` use `.{0,N}`
+      without `(?s)`/DOTALL, so a fabricated value on its own markdown line evades
+      detection; (4) Medium-High — `evals/rca_runner.py`'s `expected_keywords` is a
+      single-OR-match with no causal-direction check, so `dependency-outage.yaml`
+      (whose own header says it "guards against invert causality") could score 1.0
+      on a causality-inverted hypothesis — confirmed the CURRENT baseline hypothesis
+      is correctly-directed (not a live bug), but the check itself doesn't enforce
+      it; (5) Medium — `agents/security/agent.yaml` is a real 6th registered agent
+      (existed since 2026-06-14) that `evals/golden/aws.yaml` and `evals/README.md`
+      incorrectly claim isn't in this repo — zero T2 golden-set coverage for it.
+      Baseline files independently re-verified as real runs, not hand-edited.
 
 ## Order
 T1→T2→T3 (ship first); T4→T5/T8; T6→T7/T9; T10; T11 closes.
