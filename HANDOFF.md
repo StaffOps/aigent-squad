@@ -5,6 +5,73 @@ passos priorizados.
 
 ---
 
+## Done — session 2026-07-15 continued (0.4.0 CUT — spec 34 written + executed for real)
+
+User: "acho que podemos fazer, agora que foi td" (let's cut 0.4.0, now that
+everything's done). Asked how — informal precedent (like 0.2.0/0.3.0) vs
+doing spec 34 (release runbook) properly first. **User chose spec 34
+first.**
+
+- **Wrote `RELEASE.md`** (spec 34 T1-T6): 8-phase cross-repo runbook
+  (Pre-flight → Merge → Tag+image → Chart → Overlay → Rollout →
+  Homologation → Close), sequencing EXISTING CI, no new automation. Two
+  referenced-but-missing files (`steering/version-management.md`,
+  `specs/README.md`/`scripts/specs_status.py`) handled honestly — documented
+  the gap and used the real local substitute instead of blocking on specs
+  32/33 that don't exist.
+- **Dry-run validated** against the real 0.3.0 cycle (HANDOFF 2026-07-01/03)
+  — zero orphan actions, but surfaced 3 real untracked gaps, now in
+  `specs/BACKLOG.md`: B-25 (Harbor vs Docker Hub image-publish split — every
+  cycle used Harbor only, Docker Hub path never exercised), B-26 (`helmfile
+  diff`/`apply` broken locally, helm-diff plugin vs Helm v4 CLI), B-27
+  (chart's `image.repository` still a personal Docker Hub account, a
+  2026-07-01 TODO that fell through the cracks).
+- **Independent review** (fresh-context subagent) found 8 issues, all fixed
+  same day — a misattributed dry-run table row, two gaps that only existed
+  in RELEASE.md prose with no BACKLOG anchor, an overstated claim, the
+  credential-hygiene step buried between two inactive steps (moved to
+  position 1), an under-specified coherence rule (now says which artifact
+  wins on divergence), a "renders cleanly" vs "confirmed unchanged"
+  conflation, and imprecise reuse of "fail-closed" for a job with no real
+  branch-protection backing it.
+- **Executed T7 for real** (Phases 0-2 + 7 of `RELEASE.md`):
+  1. Phase 0: rewrote `CHANGES.md` — the `[Unreleased]` section had been
+     silently accumulating spec 11 + spec 14 Phases 2-5 content since the
+     0.3.0 tag (2026-07-02) without ever being cut. Consolidated everything
+     since 0.3.0 (spec 14 complete, spec 11, spec 35 complete, spec 36,
+     F-001 through F-007, spec 34 itself) into a proper `[0.4.0]` entry.
+  2. Phase 1: PR `dev→main` already existed (#19, open since 2026-07-02,
+     auto-tracking `dev` — GitHub had kept it current). Updated title/body,
+     all checks green (guard/test/SAST/docs), merged.
+  3. Phase 2: `git tag v0.4.0` + push → `release.yml` green (1m37s, cache-
+     warm from `build.yml`'s same-commit run on the `main` merge) →
+     **GitHub Release published** → verified the published image
+     (`karlipegomes/aigent-squad:0.4.0`) actually contains this milestone's
+     code (pulled it, imported `response_quality.ungrounded_numeric_claims`
+     — today's groundedness feature — confirmed present).
+  4. Phases 3-5 (chart bump/publish, overlay revert, rollout FROM the new
+     Docker Hub tag) **deliberately NOT executed** — the cluster already
+     runs this exact code via the separate Harbor path (redeployed +
+     homologated earlier the same session). Reconciling the two paths is
+     B-25, an explicit open decision, not something to force silently
+     inside this cutover.
+  5. Phase 6 (homologation) already happened against the Harbor-deployed
+     cluster before the tag was even cut (same session, earlier).
+  6. Phase 7 (close): credential hygiene checked (nothing cycle-specific to
+     revoke — `gh auth token`/AWS SSO are the operator's own long-lived
+     creds), `CHANGES.md` cut, `specs/ROADMAP.md` "Suggested real version"
+     → `0.4.0`, `AGENTS.md` Status line updated, spec 34's own `tasks.md`
+     marked. HANDOFF-overwrite / spec-33-review steps stay not-yet-active
+     (specs 32/33 unshipped) — this file stays append-only for now.
+- **Result**: `v0.4.0` is real — tagged, GitHub Release published, image on
+  Docker Hub (public), PR merged to `main`. First time this project's
+  documented release mechanics have been exercised end-to-end for real.
+- **Next / open**: B-25 (Harbor-vs-Docker-Hub reconciliation — does the
+  cluster ever actually move to the Docker Hub tag, or does Harbor stay the
+  deliberate cluster-facing path forever?), B-26 (helm-diff/Helm-v4 fix),
+  B-27 (chart's personal `image.repository`). Next real roadmap item: spec
+  18 Phase 1.5 (EVIDENCE-MODEL correlator).
+
 ## Done — session 2026-07-15 continued (real cluster deploy + homologation, spec 35 closed)
 
 User declared the devops-core cluster is both prod AND the team's only lab

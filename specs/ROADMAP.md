@@ -30,18 +30,19 @@ of the old README. The premise: the system **didn't build/run** at the time
 | Platform | ✅ config-driven, Helm chart, zero-code agent add (spec 22) |
 | CI/CD | ✅ GitHub Actions, multi-arch, Trivy scan-before-push, Bandit SAST (spec 08) |
 
-**Suggested real version**: `0.3.0` cut (tag `v0.3.0`, chart `0.9.2`). Running as
-`0.3.0-dev` in devops-core (Harbor labs image, rebuilt + redeployed 2026-07-15 —
-digest `e94a901`, includes F-007 classifier+triage fix, spec-14 E2/F-005
-independent-review hardening, spec 35 Phases 3+4 incl. the groundedness
-dimension, and the new `security` agent's golden-set coverage; homologated live
-against the public gateway endpoint same day). Post-0.3.0 on `dev`: spec 11
-(model tiering, done), spec 14 Phases 3–5 (done). **`0.4.0` gate status
-corrected 2026-07-15** — this section previously said findings A/B/D were still
-open; they were actually CLOSED 2026-07-11 (see `specs/14-security-hardening/
-tasks.md`), stale doc, not a real blocker. `0.4.0` remains uncut only because
-the user has deliberately chosen to keep accumulating improvements first, not
-because of an open gate.
+**Suggested real version**: `0.4.0` cut 2026-07-15 (tag `v0.4.0`, GitHub Release
+published, image `karlipegomes/aigent-squad:0.4.0` on Docker Hub — spec 34's
+`RELEASE.md` executed for real, Phases 0-2: pre-flight, PR `dev→main` #19
+merged, tag pushed, `release.yml` green, image content verified to contain
+this milestone's code). Cluster (devops-core) still runs via the separate
+Harbor path (`labs/aigent-squad:0.3.0-dev`, digest `e94a901`, redeployed +
+homologated 2026-07-15, same code content as the 0.4.0 tag) — RELEASE.md
+Phases 3-5 (chart bump/publish, overlay revert to the published chart, a
+rollout actually sourced FROM the new Docker Hub tag) are explicitly
+deferred, tracked as `specs/BACKLOG.md` B-25 (the Harbor-vs-Docker-Hub split
+was never reconciled in any prior cycle either — not new to this one).
+Post-0.4.0 on `dev`: spec 18 Phase 1.5 (EVIDENCE-MODEL correlator) is the
+next real roadmap item.
 
 > **Work order (updated 2026-07-04, product-first rebalance ~70% value / 30% platform)**:
 > 1. **spec 36** (agent-native dev loop) — do FIRST, multiplies everything after; ✅ done

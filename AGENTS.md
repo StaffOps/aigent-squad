@@ -8,10 +8,14 @@ Multi-agent AI platform for AWS/Kubernetes operations: **edge gateway + supervis
 (1 process, 6 in-process specialists) + MCP server**. Config-driven, Bedrock-direct,
 read-only by default, defense-in-depth anti-prompt-injection (spec 14).
 
-> **Status**: `0.3.0` released and cluster-validated (devops-core, 2026-07) — gateway +
-> supervisor end-to-end with IRSA→Bedrock, Guardrail, DynamoDB. Specs 11 (model tiering),
-> 14 (security L1–L6), and 35 (quality eval harness) shipped; re-homologated in-cluster
-> 2026-07-15 (image digest `e94a901`). Work on branch `dev`. Never push to `main`.
+> **Status**: `0.4.0` released 2026-07-15 (tag `v0.4.0`, GitHub Release, image
+> `karlipegomes/aigent-squad:0.4.0` on Docker Hub — spec 34's `RELEASE.md` executed for
+> real, Phases 0-2). Specs 11 (model tiering), 14 (security L1–L6, all findings closed),
+> 35 (quality eval harness, complete), and 36 (dev loop) shipped. The devops-core cluster
+> runs the same code via a separate path (Harbor `labs/aigent-squad:0.3.0-dev`, digest
+> `e94a901`, homologated live 2026-07-15) — the two publish paths were never reconciled,
+> tracked as `specs/BACKLOG.md` B-25. Work on branch `dev`. Never push to `main` — go
+> through a PR (see `RELEASE.md` for the release flow specifically).
 > Real status per spec in `specs/ROADMAP.md`; session state in `HANDOFF.md`.
 > `specs/AUDIT.md` is the historical 2026-05-30 audit (findings fixed — kept as record).
 
