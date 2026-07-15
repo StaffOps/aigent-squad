@@ -19,7 +19,7 @@ of the old README. The premise: the system **didn't build/run** at the time
 | Cache | ✅ deterministic sha256 key (spec 03) |
 | Observability | ✅ OTel wired, JSONFormatter, PROMETHEUS_URL, custom metrics (spec 03) |
 | Security (baseline) | ✅ auth, non-root, redis password, prompt delimiters (spec 04) |
-| Security (anti-injection) | ✅ spec 14 **Phases 1–5 done** (L1 Bedrock Guardrail, L2 InputScanner, L3 context isolation, L4 output filter, L5 canary, L6 rate/budget; multilingual attack-suite CI gate; SECURITY.md defense-in-depth). Homologated in cluster 2026-07-03. **3 entry-point findings OPEN** (A audit gap, B homoglyph-evades-classifier-L1, D oversized→200) — see spec 14 tasks.md |
+| Security (anti-injection) | ✅ spec 14 **Phases 1–6 done** (L1 Bedrock Guardrail, L2 InputScanner, L3 context isolation, L4 output filter, L5 canary, L6 rate/budget; multilingual attack-suite CI gate; SECURITY.md defense-in-depth). Homologated in cluster 2026-07-03; entry-point findings A/B/C/D CLOSED 2026-07-11; E1/E2/F/F-005 CLOSED 2026-07-13 — see spec 14 tasks.md |
 | Edge gateway | ✅ spec 31 cluster-validated (2026-07-01, devops-core): gateway + supervisor in-process, Istio HTTPRoute, IRSA→Bedrock, guardrail, agentsSource git+configmap. Image `0.3.0-dev` on Harbor labs (rebuilt 2026-07-03 w/ InputScanner, digest `fbe381fb`); chart 0.9.2 (redis StatefulSet+PVC) |
 | Tests | ✅ ~93% global coverage, CI gate 90% |
 | Docs | ✅ MkDocs site (architecture/metrics two-tier), METRICS.md, SECURITY.md, KNOWLEDGE-BASE.md, HOW-TO |
@@ -31,20 +31,27 @@ of the old README. The premise: the system **didn't build/run** at the time
 | CI/CD | ✅ GitHub Actions, multi-arch, Trivy scan-before-push, Bandit SAST (spec 08) |
 
 **Suggested real version**: `0.3.0` cut (tag `v0.3.0`, chart `0.9.2`). Running as
-`0.3.0-dev` in devops-core (Harbor labs image, rebuilt 2026-07-03 with the
-InputScanner). Post-0.3.0 on `dev`: spec 11 (model tiering), spec 14 Phases 3–5,
-budget TOCTOU fix. **Next bump candidate `0.4.0`**: gate on closing the spec-14
-entry-point findings (A/B/D) so the anti-injection defense is validated end-to-end
-at the supervisor — don't bump while those are open. (README synced to the real
-state on 2026-07-03.)
+`0.3.0-dev` in devops-core (Harbor labs image, rebuilt + redeployed 2026-07-15 —
+digest `e94a901`, includes F-007 classifier+triage fix, spec-14 E2/F-005
+independent-review hardening, spec 35 Phases 3+4 incl. the groundedness
+dimension, and the new `security` agent's golden-set coverage; homologated live
+against the public gateway endpoint same day). Post-0.3.0 on `dev`: spec 11
+(model tiering, done), spec 14 Phases 3–5 (done). **`0.4.0` gate status
+corrected 2026-07-15** — this section previously said findings A/B/D were still
+open; they were actually CLOSED 2026-07-11 (see `specs/14-security-hardening/
+tasks.md`), stale doc, not a real blocker. `0.4.0` remains uncut only because
+the user has deliberately chosen to keep accumulating improvements first, not
+because of an open gate.
 
 > **Work order (updated 2026-07-04, product-first rebalance ~70% value / 30% platform)**:
-> 1. **spec 36** (agent-native dev loop) — do FIRST, multiplies everything after;
-> 2. **quick quality fixes**: finops Athena datasource decision (drop until target
->    exists — live UX defect), F-001 aws `<use_mcp_tool>` echo, spec-14 findings A/B/D
->    (gates `0.4.0`);
-> 3. **spec 35 T1** (structural quality gate) then golden sets + RCA scenarios;
+> 1. **spec 36** (agent-native dev loop) — do FIRST, multiplies everything after; ✅ done
+> 2. **quick quality fixes**: finops Athena datasource decision ✅ done, F-001 aws
+>    `<use_mcp_tool>` echo ✅ done, spec-14 findings A/B/D ✅ CLOSED 2026-07-11 (not an
+>    open `0.4.0` gate — see the corrected note above);
+> 3. **spec 35** (structural quality gate, golden sets, RCA scenarios, groundedness) —
+>    ✅ all phases done 2026-07-15;
 > 4. **spec 18 Phase 1.5** — EVIDENCE-MODEL correlator + **CASE-001 real-RCA proof**;
+>    not started — next real item on this list;
 > 5. **process track in parallel**: specs 32 → 33 → 34 (34 executes on `0.4.0`);
 > 6. **decision pending**: ADR-0007 (internal-first vs OSS) — prices the interface
 >    choice (LibreChat live vs Slack v2) and the quickstart investment.
@@ -125,7 +132,7 @@ closed** (Redis/DynamoDB with no error handling), and is **blind/indefensible**
 | 11 | `bedrock-resilience-cost` (Haiku in the classifier, prompt caching, tiering) | ✅ done | 06 |
 | 12 | `terraform-infra` (DynamoDB/ElastiCache/ECR/IRSA/Secrets) | 🟠 | — |
 | 13 | `iam-least-privilege` (read-only per agent + explicit deny) | 🟠 | 12 |
-| 14 | `security-hardening` (defense-in-depth anti-prompt-injection: multi-language Bedrock Guardrails, fail-closed, canary/output-filter, rate/budget; read-only as a security posture = competitive differentiator) | ✅ done (Phases 1–5: L1–L6 + attack-suite CI gate + docs); cluster-homologated 2026-07-03; 3 entry-point findings OPEN (A/B/D) | 04 |
+| 14 | `security-hardening` (defense-in-depth anti-prompt-injection: multi-language Bedrock Guardrails, fail-closed, canary/output-filter, rate/budget; read-only as a security posture = competitive differentiator) | ✅ done (Phases 1–6: L1–L6 + attack-suite CI gate + docs); cluster-homologated 2026-07-03; all findings (A/B/C/D/E1/E2/F/F-005) CLOSED | 04 |
 | 15 | `sli-slo-framework` | 🟡 | 10 |
 | 16 | `incident-runbooks` | 🟡 | 06, 07 |
 | 17 | `multi-agent-collaboration` (cross-domain fan-out/fan-in + synthesis, agent-as-tools 1 hop) | ✅ done | 06, 09 |
@@ -146,7 +153,7 @@ closed** (Redis/DynamoDB with no error handling), and is **blind/indefensible**
 | 32 | `spec-lifecycle-ssot` (**process**: status frontmatter per spec + CI lint script = single source of truth; `specs/README.md` process doc; `specs/BACKLOG.md` for dormant/findings/deferred; HANDOFF overwrite rule; ROADMAP plan-only) | 🔴 **top priority** — spec written 2026-07-03 | — |
 | 33 | `operational-review-loop` (**process**: recurring review — measure ALL promotion triggers (`specs/TRIGGERS.md`), reconcile real Bedrock cost vs ANALYSIS estimates, triage BACKLOG; dated records in `specs/reviews/`; dormant phases promote ONLY with a review citation) | 🔴 **top priority** — spec written 2026-07-03 | 32 |
 | 34 | `release-runbook` (**process**: `RELEASE.md` sequencing dev→main→tag→image→chart→overlay→rollout→homologation→close across the 3 repos; tag/appVersion/overlay coherence rule; credential-hygiene close step) | 🔴 **top priority** — spec written 2026-07-03 | 32, 33 |
-| 35 | `quality-eval-harness` (**product**: T1 structural CI gate — scaffolding leaks/raw errors, deterministic $0; T2 scored golden sets per agent + 3 fixture-fed RCA scenarios mapped to EVIDENCE-MODEL signatures; `aigent.eval.score`; the functional twin of the attack suite) | 🔴 **top priority** — spec written 2026-07-04 | 36; feeds 33/34 |
+| 35 | `quality-eval-harness` (**product**: T1 structural CI gate — scaffolding leaks/raw errors/ungrounded resource IDs, deterministic $0; T2 scored golden sets per agent + 3 fixture-fed RCA scenarios mapped to EVIDENCE-MODEL signatures; groundedness dimension; `aigent.eval.score`; the functional twin of the attack suite) | ✅ done (all 4 phases, 2026-07-15) — T11 independent review findings also fixed same day; TRIGGERS.md rows deferred to spec 33 | 36; feeds 33/34 |
 | 36 | `agent-native-dev-loop` (**multiplier**: out-of-box local run, `Makefile` canonical verbs, auto-stub for the private dep, committed `.claude/` (settings + skills, AGENTS.md stays canonical), failure-mode playbook, CI runs the same make targets) | 🔴 **do FIRST** — spec written 2026-07-04 | — |
 
 > **ADR-001** ([`ADR-001-bedrock-direct-vs-strands.md`](ADR-001-bedrock-direct-vs-strands.md)): decision to keep Bedrock-direct (not adopt Strands). Reopen signal: agents stop being consultative read-only.
@@ -359,7 +366,7 @@ without waiting for a human). Convergence by voting/confidence, not a fixed roun
 | 11-bedrock-resilience-cost | ✅ done (2026-07-02) — Haiku classifier tiering + prompt caching + token budget; Haiku 4.5 pricing corrected |
 | 12-terraform-infra | Delivered outside the numbered spec (see `infra/terraform/`; applied to devops-core 2026-07-01) |
 | 13-iam-least-privilege | Partially delivered in `infra/terraform/iam/` (IRSA applied 2026-07-01) |
-| 14-security-hardening | ✅ done (Phases 1–5) — L1–L6 + multilingual attack-suite CI gate + SECURITY.md; cluster-homologated 2026-07-03; entry-point findings A/B/D open (see tasks.md) |
+| 14-security-hardening | ✅ done (Phases 1–6) — L1–L6 + multilingual attack-suite CI gate + SECURITY.md; cluster-homologated 2026-07-03; all findings (A/B/C/D/E1/E2/F/F-005) CLOSED (see tasks.md) |
 | 15-sli-slo-framework | Not started |
 | 16-incident-runbooks | Not started |
 | 19-config-driven-platform | ❌ Substituted by spec 22 |
@@ -372,6 +379,6 @@ without waiting for a human). Convergence by voting/confidence, not a fixed roun
 | 32-spec-lifecycle-ssot | 📝 spec written (2026-07-03) — 🔴 process track |
 | 33-operational-review-loop | 📝 spec written (2026-07-03) — 🔴 after 32 |
 | 34-release-runbook | 📝 spec written (2026-07-03) — 🔴 after 32/33; executes on the 0.4.0 release |
-| 35-quality-eval-harness | 📝 spec written (2026-07-04) — 🔴 after 36; T1 gate ships first |
+| 35-quality-eval-harness | ✅ done (2026-07-15) — T1–T4/T8–T11 shipped, groundedness dimension closed the last open acceptance criterion; TRIGGERS.md rows deferred to spec 33 T1 |
 | 36-agent-native-dev-loop | 📝 spec written (2026-07-04) — 🔴 **do FIRST** (multiplier) |
 | 18 — Phase 1.5 (added 2026-07-04) | 📝 tasks T12–T16 — EVIDENCE-MODEL correlator + CASE-001 real-RCA proof |

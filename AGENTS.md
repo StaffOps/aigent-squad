@@ -5,12 +5,13 @@
 > Detailed rules live in [`steering/`](steering/); plans in [`specs/`](specs/).
 
 Multi-agent AI platform for AWS/Kubernetes operations: **edge gateway + supervisor
-(1 process, 5 in-process specialists) + MCP server**. Config-driven, Bedrock-direct,
+(1 process, 6 in-process specialists) + MCP server**. Config-driven, Bedrock-direct,
 read-only by default, defense-in-depth anti-prompt-injection (spec 14).
 
 > **Status**: `0.3.0` released and cluster-validated (devops-core, 2026-07) — gateway +
-> supervisor end-to-end with IRSA→Bedrock, Guardrail, DynamoDB. Specs 11 (model tiering)
-> and 14 (security L1–L6) shipped. Work on branch `dev`. Never push to `main`.
+> supervisor end-to-end with IRSA→Bedrock, Guardrail, DynamoDB. Specs 11 (model tiering),
+> 14 (security L1–L6), and 35 (quality eval harness) shipped; re-homologated in-cluster
+> 2026-07-15 (image digest `e94a901`). Work on branch `dev`. Never push to `main`.
 > Real status per spec in `specs/ROADMAP.md`; session state in `HANDOFF.md`.
 > `specs/AUDIT.md` is the historical 2026-05-30 audit (findings fixed — kept as record).
 
@@ -40,7 +41,7 @@ User (LibreChat /v1 · HTTP /query · Alertmanager · MCP :8006)
   ┌──────┴──────────────────────────────┐
   │ In-process specialists (no ports)   │
   │  aws · kubernetes · finops          │
-  │  devops · observability             │
+  │  devops · observability · security  │
   └─────────────────────────────────────┘
          │
   Redis (datasource cache 1–60min TTL · rate/budget · jobs)
@@ -52,7 +53,7 @@ User (LibreChat /v1 · HTTP /query · Alertmanager · MCP :8006)
 
 1. **Classifier always routes** — routing is a Bedrock call, never manual `if/else`
 2. **Per-agent isolated history** — DynamoDB `pk=user#session`, `sk=agent#timestamp`
-3. **GenericAgent pattern** — all 5 specialists inherit `Agent`, implement `async process_request(...)`
+3. **GenericAgent pattern** — all 6 specialists inherit `Agent`, implement `async process_request(...)`
 4. **Model tiering from config, never hardcoded** (spec 11) — `src/core/model_tier.py`
    resolves role→model: `BEDROCK_CLASSIFIER_MODEL_ID` (Haiku) / `BEDROCK_MODEL_ID`
    (agents) / `BEDROCK_SYNTHESIS_MODEL_ID`; misconfig fails loudly at startup
@@ -143,7 +144,7 @@ src/
     supervisor_client.py← httpx client + preflight to the supervisor backend
     auth.py             ← Edge auth (INTERNAL_API_TOKEN / GATEWAY_API_KEYS, fail-closed)
   core/
-    generic_agent.py    ← Config-driven agent (all 5 specialists use this)
+    generic_agent.py    ← Config-driven agent (all 6 specialists use this)
     bedrock.py          ← Bedrock chokepoint: guardrail, retry, tokens, prompt caching
     model_tier.py       ← Role→model resolver + per-model pricing (spec 11)
     token_budget.py     ← Per-session token budget (hard cap, spec 11)
@@ -177,7 +178,7 @@ src/
     server.py           ← Slack entrypoint (rewrite planned in Phase 3)
 
 agents/                 ← Config-driven agent definitions (agent.yaml + prompt.md)
-  aws/ · kubernetes/ · finops/ · devops/ · observability/
+  aws/ · kubernetes/ · finops/ · devops/ · observability/ · security/
 
 skills/                 ← Lazy-loaded markdown knowledge (SKILL.md with YAML frontmatter)
 
@@ -302,11 +303,15 @@ in `docs/METRICS.md`.
 | 0 | Stabilization (fix blockers, unify architecture, harden security) | ✅ Complete |
 | 1 | Quality + docs (tests ~93% w/ 90% gate, cost metrics, MkDocs site, CI/CD) | ✅ Complete |
 | 2 | Deploy (Helm chart 0.9.x, EKS/IRSA, gateway two-tier) | ✅ Cluster-validated (devops-core, 2026-07; `0.3.0`) |
-| 2.5 | Hardening (spec 14 L1–L6, spec 11 tiering, budget TOCTOU) | ✅ Shipped; 3 entry-point findings (A/B/D) OPEN — gate for `0.4.0` |
+| 2.5 | Hardening (spec 14 L1–L6, spec 11 tiering, budget TOCTOU) | ✅ Shipped; all findings (A/B/C/D/E1/E2/F/F-005) CLOSED |
 | 3+ | Features (Slack v2, multi-round RCA, distributed topology, RAG bench) | ⏳ Next — see `specs/ROADMAP.md` |
 
-Current work: close the spec-14 homologation findings (A/B/D — see
-`specs/14-security-hardening/tasks.md`), then cut `0.4.0`.
+Current work: spec 14 and spec 35 (quality eval harness) are both fully
+shipped and cluster-homologated (devops-core, `0.3.0-dev`, digest `e94a901`,
+2026-07-15). `0.4.0` is not gated on anything technical — it stays uncut
+because the team is deliberately accumulating more improvements first (see
+`HANDOFF.md` for the live session state). Next real item: spec 18 Phase 1.5
+(EVIDENCE-MODEL correlator).
 
 ---
 

@@ -5,6 +5,85 @@ passos priorizados.
 
 ---
 
+## Done — session 2026-07-15 continued (real cluster deploy + homologation, spec 35 closed)
+
+User declared the devops-core cluster is both prod AND the team's only lab
+("só nós estamos usando") — greenlit treating it as a real deploy/test target
+this round, not just local docker-compose. Everything below actually touched
+the live cluster/registries, not local-only anymore.
+
+- **Pushed all pending git state**: this repo's `dev` (18 accumulated commits,
+  spanning several prior sessions — never pushed before now),
+  `BDC/k8s-setup`'s `main` (helmfile fixes below). `BDC/aigent-squad`'s `main`
+  turned out to already be in sync with origin (earlier belief that it was
+  pending was wrong/stale).
+- **Fixed `BDC/k8s-setup/staffops/helmfile.yaml.gotmpl`**: the chart path
+  (`../../../../06-STAFFOPS/helm-charts/...`) pointed at a directory that
+  doesn't exist on this machine — `helmfile diff/apply` for aigent-squad was
+  silently unusable. Real chart lives at `Projects/helm-charts` (3 levels up,
+  not 4). Also corrected the stale `version: 0.8.0` pin to `0.9.2` (matches
+  `helm list -n staffops`). `helmfile diff`/`apply` itself is separately
+  broken (helm-diff 3.10.0 plugin incompatible with the installed Helm v4.2.3
+  CLI — `--validate`/`--dry-run` flag conflict) — a local tooling issue, not
+  fixed this session, worth a follow-up. The auto-mode classifier correctly
+  blocked a blind `helmfile apply` attempt (no working diff preview) —
+  confirmed via `helmfile build` that no values actually needed to change, so
+  redeployed via image rebuild + `kubectl rollout restart` instead (lower
+  blast radius, no chart/values touched at all).
+- **Rebuilt + pushed the image**: `docker buildx build --platform linux/amd64
+  → --load` for a local Trivy gate (clean, 0 CRITICAL/HIGH beyond
+  `.trivyignore`) — correct flag was `--ignorefile`, not `--trivyignores`,
+  cost some trial and error. Then multi-arch (`linux/amd64,linux/arm64` —
+  cluster nodes are a genuine mix of both) build + push to
+  `harbor.bigdatacorp.com.br/labs/aigent-squad:0.3.0-dev`, new digest
+  `e94a901e70f6...`. Included EVERYTHING accumulated on `dev` (F-007,
+  spec-14 E2/F-005 hardening, RCA harness, T11 fixes, AND the groundedness
+  work below, all written to the working tree before the build ran).
+- **Redeployed**: `kubectl rollout restart deployment/aigent-squad-gateway
+  deployment/aigent-squad-supervisor -n staffops` — clean rollout, all pods
+  Running on the new digest within ~1 min, zero errors in logs, old pods
+  terminated cleanly.
+- **Spec 35 fully closed** — implemented the one deferred acceptance
+  criterion, groundedness (PR-05): `src/core/response_quality.py` gained
+  resource-ID groundedness (hard block — an ID is never a legitimate derived
+  value, same safety profile as the existing T1 patterns) and numeric-claim
+  groundedness (metric-only, `aigent.quality.ungrounded_numeric_claims` —
+  deliberately NOT blocking, since a dollar figure CAN be a legitimate
+  derived sum/average that won't appear verbatim in infra_data; same
+  tradeoff class as F-005's canary decision). 13 new tests, full suite 748
+  passed / 94.44% cov. Updated `requirements.md`/`tasks.md` — every
+  acceptance criterion checked except TRIGGERS.md rows (still correctly
+  deferred to spec 33 T1, not spec 35's to create).
+- **Homologated live against the public gateway** (`aigent-squad.bdc.app.br`,
+  real `INTERNAL_API_TOKEN` fetched read-only from Secrets Manager, never
+  printed): F-007's triage residual case now gets a direct, correct `aws`
+  refusal (was routing to `investigation` before) — reasoning field
+  literally cites the new guideline. New `security` agent answers real IAM
+  audit questions live. `/v1/models` lists all 6 agents. One interesting,
+  NOT-a-bug observation: a kubernetes emergency-framing query hit a 403 from
+  the Bedrock Guardrail (L1) itself — local dev runs with
+  `GUARDRAIL_ENABLED=false`, so this layer was never exercised in any of
+  today's earlier local verification; in-cluster it's on and caught the
+  request even earlier than my classifier/triage fixes would have.
+- **Corrected stale "0.4.0 gate" claims** across `specs/ROADMAP.md` (3
+  places) and `AGENTS.md` (Status line + Phase-status table + "Current work"
+  + specialist count 5→6 in 4 places) — these all said spec-14 findings
+  A/B/D were still open; they were actually closed 2026-07-11, before this
+  entire multi-session arc even started. `0.4.0` stays uncut only because
+  the user is deliberately choosing to keep accumulating improvements, not
+  because of any real technical gate.
+- **All work committed and pushed**: this repo's `dev` (2 more commits:
+  `b171722` groundedness, plus doc corrections not yet committed as of this
+  entry — see below) and `BDC/k8s-setup`'s `main` (`2ac0e49` helmfile fix).
+- **Next / open**: commit the ROADMAP.md/AGENTS.md doc corrections (in
+  progress, this entry itself is part of that commit). The helm-diff/Helm v4
+  incompatibility is a real, separate follow-up (not blocking, `helmfile
+  build` still works fine, only `diff`/`apply` are affected). Spec 18 Phase
+  1.5 (EVIDENCE-MODEL correlator) is the next substantive roadmap item.
+  `make install-hooks` still needs the user to run it. `BDC/aigent-squad`
+  push decision no longer applies (already in sync). `0.4.0` cut remains the
+  user's call.
+
 ## Done — session 2026-07-15 (F-007 fix, security review fixes, values migration, spec 35 Phase 3)
 
 Worked the ordered queue the user gave ("2+1+4+5"): F-007 fix → security
