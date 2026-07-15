@@ -81,6 +81,16 @@ app = FastAPI(title="AIgent-squad Gateway", version=__version__, lifespan=lifesp
 # OTLP push (traces/logs/metrics via the collector) AND this direct-scrape
 # endpoint on the SAME MeterProvider. Unauthenticated by design, matching
 # the /healthz, /ready convention below — metrics carry no user data.
+#
+# Known Starlette Mount quirk (verified live, not a bug here): a bare GET
+# /metrics (no trailing slash) 307-redirects to /metrics/ — this is
+# Mount's own default routing behavior for the exact mount path, and
+# disabling it (redirect_slashes=False) makes /metrics 404 instead
+# (Mount then ONLY answers /metrics/), which is worse. Real scrapers
+# (Prometheus's Go http.Client, curl -L) follow 307 transparently, method
+# preserved — harmless. The ServiceMonitor template targets /metrics/
+# directly (trailing slash) to skip the hop in the one place it's
+# actually worth avoiding.
 app.mount("/metrics", metrics_app())
 
 

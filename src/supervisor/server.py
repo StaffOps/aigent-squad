@@ -51,11 +51,11 @@ async def lifespan(app):
 
 app = FastAPI(title="Supervisor Service", lifespan=lifespan)
 
-# Prometheus scrape endpoint (otel-helper v0.2.0+) — same rationale as
-# src/gateway/main.py. Deliberate exception to the "supervisor /internal/*
-# only" trust boundary (AGENTS.md invariant #10): metrics scraping is
-# infra-level, not a user-facing API, same class as /healthz + /ready which
-# are already unauthenticated for the same reason.
+# Prometheus scrape endpoint — see src/gateway/main.py's identical mount for
+# the full rationale (OTLP+Prometheus dual export, why it's unauthenticated,
+# and the known bare-"/metrics"-307s-to-"/metrics/" Starlette Mount quirk).
+# Deliberate exception to the /internal/*-only trust boundary (AGENTS.md
+# invariant #10) — infra-level scrape target, same class as /healthz+/ready.
 app.mount("/metrics", metrics_app())
 
 

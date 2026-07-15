@@ -5,6 +5,65 @@ passos priorizados.
 
 ---
 
+## Done — session 2026-07-15 continued (post-0.4.0 queue: B-25/26/27, D-01/D-02 scoped, /metrics live-verified)
+
+User asked "what's left" after 0.4.0, then dispatched a big ordered batch:
+B-25 (Harbor=lab-only, Docker Hub=real destination, confirmed), B-26 (fixed:
+`helm plugin update diff` → 3.15.10, adds Helm v4 support), B-27 (staying
+personal Docker Hub account, no org account yet), specs 32+33 to be written
+(queued), spec 18 Phase 1.5 skipped for now, D-01 decided (**OSS**, ADR-0007
+accepted — real gaps checked against its own consequence list, one is real:
+`.bdc.app.br`/"BDC-internal" references still in tracked files), D-02
+scoped (optional minimal LibreChat+Mongo in the chart, default off — design
+still queued), specs 06/17/18 T11 queued, and **item 7 flagged as the
+immediate priority**: `otel-helper` updated to v0.2.0, wire `/metrics` +
+`ServiceMonitor`.
+
+- **Item 7 done, live-verified with the REAL (non-stubbed) dependency** —
+  not just unit tests against the local otel stub:
+  - `otel-helper` pinned to `v0.2.0` (was floating `@main`). That version's
+    `configure_metrics()` can run OTLP push + a Prometheus `/metrics`
+    exporter on the SAME `MeterProvider` (`OTEL_METRICS_EXPORTER=
+    otlp,prometheus`).
+  - `metrics_app()` mounted at `/metrics` on both `src/gateway/main.py` and
+    `src/supervisor/server.py` (unauthenticated by design, same class as
+    `/healthz`/`/ready` — deliberate exception to the supervisor's
+    `/internal/*`-only boundary for the supervisor's case).
+  - `scripts/stub-otel.sh` gained a `metrics_app()` stub — otherwise every
+    local test run would fail to import either app.
+  - **Real gotcha found during live verification** (rebuilt both images
+    with the real v0.2.0 installed, brought up the local stack, curl'd
+    directly — not through the stub): a bare `GET /metrics` 307-redirects
+    to `/metrics/` (Starlette `Mount`'s own routing rule). Tried
+    `redirect_slashes=False` to "fix" it — made it WORSE (plain 404, no
+    fallback). Reverted, documented as expected/harmless (real scrapers +
+    `curl -L` follow 307s transparently) instead of over-engineering a fix
+    for a non-problem.
+  - **Helm chart side** (`StaffOps/helm-charts`, pushed to `main` directly —
+    confirmed that repo's real convention is direct push, unlike this
+    repo's dev→main PR flow — chart bumped 0.9.2→0.9.3, published via
+    chart-releaser, verified live via `helm search repo --versions`):
+    `global.otel.metricsPrometheusScrape` (default `true`) sets the same
+    env vars; new `serviceMonitor.*` values block (default `false`) +
+    `templates/servicemonitor.yaml`, one `ServiceMonitor` per enabled
+    service, **path `/metrics/`** (trailing slash, deliberate — skips the
+    redirect hop on every real scrape, unlike ad-hoc `curl`).
+  - Found (not fixed, filed as **B-28**): `Dockerfile`'s `github_token`
+    build secret is vestigial now — `otel-helper` was the only `git+`
+    dependency needing it, and it's been on a public repo since
+    2026-07-14. Relevant to D-01 (OSS): an external contributor building
+    the image today needs a token for no real reason.
+- **Also fixed same round**: B-26 (`helm-diff` plugin upgraded, confirmed
+  `helmfile diff` runs clean again) — closed. ADR-0007 accepted (Option B,
+  OSS) with an honest gap-check against its own consequence list.
+- **Next**: specs 32+33 (queued, not started), D-01 follow-through (scrub
+  `.bdc.app.br` references from tracked files, `CONTRIBUTING.md`, zero-AWS
+  demo mode, B-28 Dockerfile secret cleanup), D-02 (design the optional
+  LibreChat+Mongo sub-chart), specs 06/17/18 T11 (formal smoke). All
+  tracked as tasks, not yet started as of this entry.
+
+---
+
 ## Done — session 2026-07-15 continued (0.4.0 CUT — spec 34 written + executed for real)
 
 User: "acho que podemos fazer, agora que foi td" (let's cut 0.4.0, now that
