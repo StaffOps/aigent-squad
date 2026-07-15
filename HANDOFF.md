@@ -70,12 +70,31 @@ Nothing pushed; app-repo changes uncommitted, `k8s-setup` changes uncommitted.
     the same session because the local supervisor container hung under real
     AWS API calls (looks like pre-existing unbounded boto3 retry behavior,
     unrelated to this fix — not investigated further).
-- **Next / open**: commit the F-007 triage fix + T10 docs + T11 findings
-  (not yet committed as of this entry). Decide whether/when to act on the
-  5 T11 findings. Docker stack torn down. Push decisions (this repo's `dev`,
+- **Continued same session — all 5 T11 findings fixed + re-verified**: user
+  said "corrija" (fix them). All 5 fixed (see `specs/BACKLOG.md` "T11
+  independent review findings" row for detail per finding): consolidated
+  T1 regression proof into one test; `evals/runner.py` guards empty
+  responses + clamps judge scores + applies DOTALL; `evals/rca_runner.py`
+  gained a `forbidden_keywords` causal-direction check; `agents/security`
+  (a real, previously-undocumented 6th agent) got its own golden set and
+  the false "isn't in this repo" claims were corrected. Live re-verification
+  (2 real `make eval` runs + 1 `make eval-rca` run, needed 2 `aws sso login`
+  refreshes mid-session — the SSO token kept expiring under sustained real
+  Bedrock/boto3 load) caught a BONUS false-positive: 2 golden questions'
+  `must_not_contain_regex` checks flagged the agent's own refusal
+  explaining the correct CLI command for someone WITH permissions — same
+  class already fixed once for `kubectl delete pod`; dropped both. Final
+  promoted baseline: aws 0.611→0.811, finops 0.471→0.671, kubernetes
+  0.567→0.8, devops 0.86→0.9, observability 0.82→0.78 (noise), security
+  0.86 (new) — 0 mechanical failures anywhere except finops' 2 pre-existing,
+  already-documented `routing_expected` cases (unrelated to this fix).
+  All committed (2 commits: `35adec9` triage fix + T10/T11 setup, `bdb2c84`
+  the 5 fixes + re-verification). Docker stack torn down.
+- **Next / open**: nothing blocking. Push decisions (this repo's `dev`,
   `BDC/aigent-squad`'s `main`, `BDC/k8s-setup`'s values migration) all
   deferred, per the user's standing "accumulate more improvements before
-  0.4.0" call.
+  0.4.0" call. `make install-hooks` still needs the user to run it
+  themselves.
 
 ## Done — session 2026-07-14 continued (independent review + eval re-verification, F-007 filed)
 
