@@ -37,6 +37,15 @@ class Settings(BaseSettings):
     # deliberate exception to the other layers' fail-closed default; see
     # src/core/canary.py module docstring).
     canary_enabled: bool = True
+    # Repeated detections within the SAME session escalate from redact to
+    # hard-block (independent review 2026-07-14, F-005 follow-up): the
+    # redact-and-continue policy is a soft oracle an attacker could probe
+    # for exfiltration/obfuscation techniques (each detection tells them
+    # their payload survived to the model's output, without ever hard-
+    # failing). A one-off benign false positive essentially never repeats
+    # this many times in one session; sustained detections are a real
+    # signal, not noise, so escalate to fail-closed.
+    canary_escalation_threshold: int = 3
 
     # Output Filter — PII/secret leak detection (spec 14, L4). Scans model
     # response for credentials, PII, keys before returning. Fail-closed.

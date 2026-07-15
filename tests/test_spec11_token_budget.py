@@ -92,6 +92,27 @@ class TestSessionBudgetTracker:
         tracker = SessionBudgetTracker()
         assert tracker.max_tokens == 99999
 
+    def test_record_usage_thread_safe_under_concurrent_fanout(self):
+        """Regression (independent review 2026-07-14, spec-14 E2 follow-up):
+        record_usage() is called from real OS threads (bedrock._invoke_sync
+        runs via asyncio.to_thread) — investigation fan-out has multiple
+        agents recording usage for the SAME budget_session_id concurrently.
+        A read-modify-write without a lock loses increments. 50 threads x
+        100 tokens must sum to exactly 5000, not less."""
+        import threading
+        from src.core.token_budget import SessionBudgetTracker
+
+        tracker = SessionBudgetTracker(max_tokens_per_session=10**9)
+        threads = [
+            threading.Thread(target=tracker.record_usage, args=("sess-race", 50, 50))
+            for _ in range(50)
+        ]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        assert tracker.get_usage("sess-race") == 50 * 100
+
 
 class TestTokenBudgetExceeded:
     """TokenBudgetExceeded exception has correct attributes and message."""

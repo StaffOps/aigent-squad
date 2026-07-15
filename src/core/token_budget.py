@@ -7,6 +7,7 @@ the history fits within a token window, preserving the most recent context.
 """
 from __future__ import annotations
 
+import threading
 from typing import List, Tuple
 
 from src.core.config import settings
@@ -38,12 +39,20 @@ class SessionBudgetTracker:
     DynamoDB or Redis — this local tracker provides fast fail-fast protection
     within a single replica's lifetime. Worst case (replica restart): the budget
     resets for that replica, but the session TTL (24h) bounds total exposure.
+
+    ``record_usage`` is called from ``BedrockClient._invoke_sync``, which runs
+    on a real OS thread via ``asyncio.to_thread`` (spec 11) — under
+    investigation fan-out, multiple agents record usage for the SAME
+    ``budget_session_id`` concurrently from different threads. A lock guards
+    the read-modify-write so concurrent increments aren't lost (found in
+    independent review 2026-07-14, spec-14 E2 follow-up).
     """
 
     def __init__(self, max_tokens_per_session: int | None = None):
         self._max = max_tokens_per_session or settings.session_token_budget
         # session_id → cumulative tokens consumed
         self._usage: dict[str, int] = {}
+        self._lock = threading.Lock()
 
     @property
     def max_tokens(self) -> int:
@@ -72,17 +81,20 @@ class SessionBudgetTracker:
         on the next attempt rather than mid-response.
         """
         total = input_tokens + output_tokens
-        self._usage[session_id] = self.get_usage(session_id) + total
+        with self._lock:
+            cumulative = self._usage.get(session_id, 0) + total
+            self._usage[session_id] = cumulative
         logger.debug("Session token usage recorded", extra={
             "session_id": session_id,
             "added": total,
-            "cumulative": self._usage[session_id],
+            "cumulative": cumulative,
             "budget": self._max,
         })
 
     def reset(self, session_id: str) -> None:
         """Reset budget tracking for a session (e.g. on session end)."""
-        self._usage.pop(session_id, None)
+        with self._lock:
+            self._usage.pop(session_id, None)
 
 
 # Module-level singleton for in-process tracking.

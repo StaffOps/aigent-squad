@@ -36,9 +36,11 @@ from __future__ import annotations
 import hashlib
 import re
 import secrets
+import threading
 from typing import List, Tuple
 
 from src.core.config import settings
+from src.core.guardrail import GuardrailBlockedError
 from src.core.logger import logger
 
 # Prefix aids internal correlation; the entropy is in the random suffix.
@@ -66,14 +68,40 @@ def _fuzzy_pattern(token: str) -> re.Pattern[str]:
 
     Matches the raw hex chars with optional separators between each — so
     'a1b2...' also matches 'a 1 b 2', 'a-1-b-2', 'a.1.b.2', zero-width joined.
+    Deliberately covers the hex suffix ALONE (not the "CNRY-" prefix): the
+    real leaks found live (F-005) never echo the prefix at all — the model
+    invents its own label ("Session:", "Trace:") around the bare hex — so
+    requiring the prefix in the primary detection pattern would make
+    detection weaker, not stronger. Prefix residue is a separate, secondary
+    cleanup — see ``_fuzzy_prefix_pattern``.
     """
     hex_suffix = token[len(_CANARY_PREFIX):]
     return re.compile(_SEP.join(re.escape(c) for c in hex_suffix), re.IGNORECASE)
 
 
+def _fuzzy_prefix_pattern() -> re.Pattern[str]:
+    """Build a regex matching an obfuscated "CNRY" prefix immediately before
+    an already-redacted marker (e.g. "C N R Y - [redacted]", "C-N-R-Y-
+    [redacted]") so obfuscating the prefix itself can't leave residue behind
+    that still signals "a canary was here" (independent review 2026-07-14,
+    F-005 follow-up — the original cleanup only matched a literal,
+    non-obfuscated "CNRY" immediately before "[redacted]")."""
+    prefix_letters = _CANARY_PREFIX[:-1]  # "CNRY", drop the trailing "-"
+    fuzzy_prefix = _SEP.join(re.escape(c) for c in prefix_letters)
+    return re.compile(fuzzy_prefix + _SEP + r"\[redacted\]", re.IGNORECASE)
+
+
 def _digest(token: str) -> str:
     """Non-reversible short digest for audit logging (never log the token)."""
     return hashlib.sha256(token.encode()).hexdigest()[:12]
+
+
+# Cross-request counter: how many times each session has triggered a canary
+# detection. Module-level (not per-CanaryGuard-instance, since a fresh
+# CanaryGuard() is created per process_request call) — same simple in-memory,
+# single-replica-scoped pattern as SessionBudgetTracker.
+_detection_counts: dict[str, int] = {}
+_detection_counts_lock = threading.Lock()
 
 
 class CanaryGuard:
@@ -145,30 +173,60 @@ class CanaryGuard:
         Returns the response unchanged if disabled, no tokens were injected,
         or nothing leaked; otherwise returns the response with the leaked
         value(s) replaced by ``[redacted]``.
+
+        Escalation (independent review 2026-07-14, F-005 follow-up):
+        redact-and-continue is itself a soft oracle — an attacker could probe
+        different exfiltration/obfuscation payloads and read "was it
+        redacted?" off the response as a success signal, never once hitting
+        a hard failure. Repeated detections in the SAME session are no
+        longer "occasional model habit" territory (that false positive
+        essentially never repeats), so once a session crosses
+        ``settings.canary_escalation_threshold`` detections, this raises
+        ``GuardrailBlockedError`` (fail-closed) instead of returning a
+        redacted response — capping how many free probes a single session
+        gets.
         """
         if not self.enabled or not tokens:
             return response
 
+        leaked = False
         for token in tokens:
             pattern = _fuzzy_pattern(token)
             # Exact match first (cheap) to decide whether to audit; the
             # actual redaction always goes through the fuzzy pattern since it
             # is a superset (catches separator-obfuscated leaks too — HIGH-1).
             if token in response or pattern.search(response):
+                leaked = True
                 self._audit(
                     agent_id=agent_id,
                     user_id=user_id,
                     session_id=session_id,
                     token_digest=_digest(token),
                 )
-                # _fuzzy_pattern only spans the hex suffix, not the "CNRY-"
-                # prefix — redact that too (with the same separator
-                # tolerance) so no residue signals "a canary was here" to
-                # whoever reads the response.
                 response = pattern.sub("[redacted]", response)
-                response = re.sub(
-                    re.escape(_CANARY_PREFIX[:-1]) + _SEP + r"\[redacted\]",
-                    "[redacted]", response, flags=re.IGNORECASE,
+                # Clean up any "CNRY[-]" residue left immediately before the
+                # marker we just inserted — fuzzy-tolerant so an obfuscated
+                # prefix ("C N R Y -") is caught too, not just a literal one.
+                response = _fuzzy_prefix_pattern().sub("[redacted]", response)
+
+        if leaked and session_id:
+            with _detection_counts_lock:
+                count = _detection_counts.get(session_id, 0) + 1
+                _detection_counts[session_id] = count
+            if count > settings.canary_escalation_threshold:
+                logger.warning(
+                    "canary escalation: session exceeded repeated-detection threshold",
+                    extra={
+                        "audit": True,
+                        "event": "canary_escalation_block",
+                        "agent_id": agent_id,
+                        "user_id": user_id,
+                        "session_id": session_id,
+                        "count": count,
+                    },
+                )
+                raise GuardrailBlockedError(
+                    reason="blocked", source="OUTPUT", categories=["canary_repeated_detection"],
                 )
         return response
 

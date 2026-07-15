@@ -17,7 +17,10 @@ NOTE: otel_helper stub used (no real OTel SDK in test env).
 import hashlib
 from unittest.mock import patch
 
+import pytest
+
 from src.core.canary import CanaryGuard, _generate_token, _digest
+import src.core.canary as canary_module
 
 
 # ---------------------------------------------------------------------------
@@ -30,6 +33,18 @@ def _make_guard(enabled: bool = True) -> CanaryGuard:
     guard = CanaryGuard.__new__(CanaryGuard)
     guard.enabled = enabled
     return guard
+
+
+@pytest.fixture(autouse=True)
+def _reset_escalation_counts():
+    """The per-session escalation counter (independent review 2026-07-14,
+    F-005 follow-up) is module-level shared state by design (must persist
+    across the fresh CanaryGuard() created per request) — reset it between
+    tests so unrelated tests reusing the same session_id ("s", "sess-1")
+    don't trip each other's escalation threshold."""
+    canary_module._detection_counts.clear()
+    yield
+    canary_module._detection_counts.clear()
 
 
 # ---------------------------------------------------------------------------
@@ -369,3 +384,44 @@ class TestFuzzyDetection:
         _, tokens = guard.inject("data")
         result = guard.detect(f"leaked: {tokens[0]}", tokens)
         assert "CNRY" not in result
+
+    def test_repeated_detection_in_same_session_escalates_to_block(self):
+        """Regression (independent review 2026-07-14, F-005 follow-up):
+        redact-and-continue is a soft oracle for probing exfiltration
+        techniques — after settings.canary_escalation_threshold detections
+        in the SAME session, detect() must raise GuardrailBlockedError
+        instead of quietly redacting again."""
+        from src.core.guardrail import GuardrailBlockedError
+
+        guard = _make_guard(enabled=True)
+        for _ in range(3):
+            _, tokens = guard.inject("data")
+            guard.detect(f"leaked: {tokens[0]}", tokens, session_id="probe-session")
+
+        _, tokens = guard.inject("data")
+        with pytest.raises(GuardrailBlockedError):
+            guard.detect(f"leaked: {tokens[0]}", tokens, session_id="probe-session")
+
+    def test_repeated_detection_across_different_sessions_does_not_escalate(self):
+        """A different session_id per detection must NOT accumulate toward
+        another session's threshold."""
+        guard = _make_guard(enabled=True)
+        for i in range(5):
+            _, tokens = guard.inject("data")
+            result = guard.detect(f"leaked: {tokens[0]}", tokens, session_id=f"sess-{i}")
+            assert "[redacted]" in result
+
+    def test_obfuscated_prefix_residue_also_redacted(self):
+        """Regression (independent review 2026-07-14, F-005 follow-up): the
+        prefix cleanup must tolerate separators WITHIN "CNRY" itself, not
+        just between the prefix and the hex suffix — otherwise an attacker
+        who obfuscates the whole token (prefix included) leaves "C N R Y -"
+        residue behind even after the hex suffix is redacted."""
+        guard = _make_guard(enabled=True)
+        _, tokens = guard.inject("data")
+        hex_suffix = tokens[0][len("CNRY-"):]
+        obfuscated_full = "C N R Y - " + " ".join(hex_suffix)
+        result = guard.detect(f"leaked: {obfuscated_full}", tokens)
+        assert "CNRY" not in result
+        assert "C N R Y" not in result
+        assert hex_suffix not in result

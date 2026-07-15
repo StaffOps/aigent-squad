@@ -108,6 +108,22 @@ async def test_handle_alert_payload_triggers_investigation(_mock_dup):
 
 @pytest.mark.asyncio
 @patch("src.supervisor.alert_handler.is_duplicate", return_value=False)
+async def test_handle_alert_payload_forwards_fingerprint_to_run_fn(_mock_dup):
+    """Regression (independent review 2026-07-14, spec-14 E2 follow-up):
+    server.py's run_investigation_fn needs the alert fingerprint to build a
+    non-empty budget_session_id — session_id="" silently skipped budget
+    tracking entirely (bedrock.py's `charged_session_id or session_id` falls
+    through to a falsy empty string)."""
+    rca = RCAResult(hypothesis="X", confidence="alta")
+    run_fn = AsyncMock(return_value=rca)
+    payload = make_payload(fingerprint="fp-xyz")
+    await handle_alert_payload(payload, run_fn, None)
+    run_fn.assert_awaited_once()
+    assert run_fn.call_args.kwargs.get("fingerprint") == "fp-xyz"
+
+
+@pytest.mark.asyncio
+@patch("src.supervisor.alert_handler.is_duplicate", return_value=False)
 async def test_handle_alert_payload_calls_slack_postback_when_provided(_mock_dup):
     rca = RCAResult(hypothesis="X", confidence="alta")
     run_fn = AsyncMock(return_value=rca)
