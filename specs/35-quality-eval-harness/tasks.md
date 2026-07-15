@@ -173,6 +173,17 @@ left as-is (diminishing returns on further chasing without new signal).
       incorrectly claim isn't in this repo — zero T2 golden-set coverage for it.
       Baseline files independently re-verified as real runs, not hand-edited.
 
+**All 5 T11 findings fixed same day (2026-07-15)** — see `specs/BACKLOG.md`
+"T11 independent review findings" row for the full detail per finding.
+Re-verified with 2 more real runs (`make eval`, `make eval-rca`): golden-set
+baseline promoted (aws 0.611→0.811, finops 0.471→0.671, kubernetes
+0.567→0.8, devops 0.86→0.9, observability 0.82→0.78 noise, security 0.86
+new); RCA baseline re-confirmed 3/3 scenarios still score 1.0 with the new
+causal-direction check active. A bonus false-positive class was caught live
+during this re-verification (2 `must_not_contain_regex` checks flagging the
+agent's own helpful explanation of a CLI command, not an instruction to run
+it) and fixed the same way as the precedent `kubectl delete pod` case.
+
 ## Order
 T1→T2→T3 (ship first); T4→T5/T8; T6→T7/T9; T10; T11 closes.
 

@@ -14,6 +14,15 @@ expected_root_cause: >
   (and other callers of payments-service) to time out — orders-service
   itself is not at fault, this is an upstream dependency outage.
 expected_keywords: ['(?i)payments-service|depend|rds|failover|upstream']
+# T11 review fix (2026-07-15): the loose expected_keywords OR-match doesn't
+# verify causal direction — a hypothesis that inverts causality (blames
+# orders-service's OWN fault instead of its payments-service dependency)
+# could still match "payments-service" and pass. This scenario's whole
+# point is guarding against exactly that inversion (see header above), so
+# enforce it: fail if the hypothesis pins the root cause ON orders-service
+# itself.
+forbidden_keywords:
+  - '(?i)orders-service.{0,60}(root cause|is the cause|caused (the|this)|itself is|own (bug|issue|fault|problem|exhaustion|leak)|is at fault|is responsible|is to blame)'
 expected_confidence_min: media
 
 fixtures:

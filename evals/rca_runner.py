@@ -83,13 +83,26 @@ def _score(scenario: dict, rca) -> dict:
     keyword_patterns = scenario.get("expected_keywords", [])
     keyword_hit = any(re.search(p, hypothesis) for p in keyword_patterns) if keyword_patterns else True
 
+    # T11 review fix (2026-07-15): expected_keywords alone is a loose
+    # single-OR match with no causal-direction check — a hypothesis that
+    # gets the causal arrow backwards (e.g. blaming orders-service itself
+    # instead of its payments-service dependency) could still contain a
+    # matched substring like "payments-service" and score 1.0, exactly the
+    # failure mode dependency-outage.yaml's own header says it guards
+    # against. forbidden_keywords is an explicit anti-pattern list — any
+    # match force-fails regardless of keyword_hit.
+    forbidden_patterns = scenario.get("forbidden_keywords", [])
+    forbidden_hit = next((p for p in forbidden_patterns if re.search(p, hypothesis)), None)
+
     min_conf = scenario.get("expected_confidence_min", "baixa")
     confidence_ok = CONFIDENCE_RANK.get(rca.confidence, 0) >= CONFIDENCE_RANK.get(min_conf, 0)
 
-    passed = keyword_hit and confidence_ok
+    passed = keyword_hit and confidence_ok and not forbidden_hit
     failures = []
     if not keyword_hit:
         failures.append(f"hypothesis did not match any expected_keywords: {keyword_patterns}")
+    if forbidden_hit:
+        failures.append(f"hypothesis matched a forbidden (wrong-direction) pattern: {forbidden_hit!r}")
     if not confidence_ok:
         failures.append(f"confidence '{rca.confidence}' below expected_confidence_min '{min_conf}'")
 

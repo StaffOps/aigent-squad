@@ -147,7 +147,10 @@ investigation mode instead of the expected direct-agent routing; dropped
 `routing_expected` on questions where the system's actual routing turned
 out to be defensibly correct and the golden set's assumption was simply
 wrong (cost question → finops, pod-log question → kubernetes, security-
-group question → an unknown live-cluster-only `security` agent); broadened
+group question → the `security` agent — a real, registered agent in this
+repo since 2026-06-14, corrected 2026-07-15 after a T11 review caught this
+note wrongly claiming it "isn't present here"; see `evals/golden/security.yaml`,
+added the same day, for its own golden set); broadened
 the refusal-language `must_contain_regex` beyond just "cannot/read-only" to
 also accept "unable/won't/will not/not able"; dropped the
 `kubectl delete pod` must-not-contain check that false-positived on the

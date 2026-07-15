@@ -157,3 +157,50 @@ class TestCleanResponsesStillPass:
             input_text="a normal question", user_id="u", session_id="s", chat_history=[],
         )
         assert result.content == answer
+
+
+@pytest.mark.asyncio
+class TestPreFixVsPostFixSameCallPath:
+    """T11 review fix (2026-07-15): the classes above prove detection fires,
+    but "fails on pre-fix code, passes after" up to now was only demonstrated
+    by combining this file with TestScanDisabled in test_response_quality.py
+    (which drives the guard directly, not through process_request). This
+    test proves both halves of the claim through the SAME
+    GenericAgent.process_request call path, toggling only the
+    response_quality_enabled setting — i.e. literally "disable the T1 fix,
+    watch the F-001 defect reach the user; re-enable it, watch it get
+    blocked" in one place."""
+
+    @patch("src.core.generic_agent.bedrock")
+    async def test_defect_passes_when_disabled_blocked_when_enabled(self, mock_bedrock, monkeypatch):
+        defect_text = (
+            "<use_mcp_tool>\n"
+            "<server_name>aws-mcp-server</server_name>\n"
+            "<tool_name>describe_instances</tool_name>\n"
+            "</use_mcp_tool>"
+        )
+        mock_bedrock.invoke = AsyncMock(return_value=defect_text)
+        agent = GenericAgent(
+            config=_make_config("aws"),
+            prompt="You are an AWS specialist.",
+            adapters=[FakeAdapter("[ec2] 5 instances (3 running)")],
+        )
+
+        # Pre-fix (guard disabled): the defect reaches the user unfiltered —
+        # this IS what shipped to the real cluster before T1 existed.
+        monkeypatch.setattr("src.core.config.settings.response_quality_enabled", False)
+        result = await agent.process_request(
+            input_text="how many EC2 instances are running?",
+            user_id="u", session_id="s-disabled", chat_history=[],
+        )
+        assert result.content == defect_text
+
+        # Post-fix (guard enabled, the default): the identical defect is
+        # now blocked through the identical call path.
+        monkeypatch.setattr("src.core.config.settings.response_quality_enabled", True)
+        with pytest.raises(GuardrailBlockedError) as exc_info:
+            await agent.process_request(
+                input_text="how many EC2 instances are running?",
+                user_id="u", session_id="s-enabled", chat_history=[],
+            )
+        assert "quality:tool_scaffolding" in exc_info.value.categories

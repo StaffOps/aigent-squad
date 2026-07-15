@@ -61,15 +61,29 @@ async def _ask(question: str, session_id: str) -> dict:
 
 
 def _mechanical_checks(response_text: str, actual_agent: str, case: dict) -> tuple[bool, list[str]]:
-    """Returns (all_passed, failure_reasons)."""
+    """Returns (all_passed, failure_reasons).
+
+    T11 review fix (2026-07-15): an empty/missing response (e.g. the gateway's
+    JSON shape drifts and `response` gets renamed) must always be a hard
+    failure, independent of whether the question happens to have
+    must_contain_regex checks — previously it could silently "pass" a
+    question with no must_contain_regex and a routing_expected that happened
+    to match by coincidence. must_not_contain_regex / must_contain_regex use
+    re.DOTALL so a `.{0,N}` bridging pattern still matches when the two
+    anchors land on different lines (a fabricated value on its own markdown
+    line was evading exactly the fabrication checks it was meant to catch).
+    """
     failures: list[str] = []
 
+    if not response_text or not response_text.strip():
+        failures.append("empty or missing response text")
+
     for pattern in case.get("must_contain_regex", []) or []:
-        if not re.search(pattern, response_text):
+        if not re.search(pattern, response_text, re.DOTALL):
             failures.append(f"missing required pattern: {pattern!r}")
 
     for pattern in case.get("must_not_contain_regex", []) or []:
-        if re.search(pattern, response_text):
+        if re.search(pattern, response_text, re.DOTALL):
             failures.append(f"forbidden pattern present: {pattern!r}")
 
     expected_agent = case.get("routing_expected")
@@ -95,9 +109,17 @@ async def _judge(question: str, answer: str) -> dict:
     try:
         start, end = raw.find("{"), raw.rfind("}")
         parsed = json.loads(raw[start:end + 1])
+        # T11 review fix (2026-07-15): clamp to the rubric's stated 1-5 range
+        # — an unclamped judge hallucination (e.g. 0 or 8) could silently
+        # skew the average score and the baseline-diff tolerance check. Keep
+        # the unparsable-output fallback at 0 (below the rubric floor) so
+        # that distinctly worse signal ("judge gave us nothing usable") isn't
+        # conflated with "judge legitimately gave the worst valid score".
+        coherence = max(1, min(5, int(parsed.get("coherence", 1))))
+        actionability = max(1, min(5, int(parsed.get("actionability", 1))))
         return {
-            "coherence": int(parsed.get("coherence", 0)),
-            "actionability": int(parsed.get("actionability", 0)),
+            "coherence": coherence,
+            "actionability": actionability,
             "note": parsed.get("note", ""),
         }
     except (json.JSONDecodeError, ValueError):
