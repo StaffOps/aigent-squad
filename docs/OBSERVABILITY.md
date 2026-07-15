@@ -6,9 +6,14 @@
 App (otel-helper) → OTel Collector → Tempo (traces)
                                    → Prometheus (metrics)
                                    → Grafana (visualization)
+App (otel-helper) → /metrics (Prometheus direct scrape, 2026-07-15+)
 ```
 
-All telemetry flows through the **OTel Collector**. No direct backend exports.
+Traces and logs flow exclusively through the **OTel Collector**. Metrics
+have two paths, both active by default and BOTH sourced from the same
+`MeterProvider` (not a fork/duplicate pipeline): pushed to the collector
+(above) AND exposed on each service's own `/metrics` endpoint for direct
+Prometheus/VictoriaMetrics scrape — see "Metrics" below.
 
 ## Configuration
 
@@ -20,13 +25,24 @@ All telemetry flows through the **OTel Collector**. No direct backend exports.
 
 ## otel-helper integration
 
-The private `otel-helper` library configures:
+`otel-helper` (public repo, `pip install` needs no auth — moved off the old
+private `staffops-otel-libs` fork 2026-07-14, pinned to `v0.2.0` since
+2026-07-15) configures:
 - Traces: `AlwaysOnSampler` (collector decides retention)
-- Metrics: FastAPI + httpx auto-instrumentation
+- Metrics: FastAPI + httpx auto-instrumentation; v0.2.0+ can run the OTLP
+  push exporter and a Prometheus `/metrics` exporter on the same
+  `MeterProvider` simultaneously (`OTEL_METRICS_EXPORTER=otlp,prometheus`,
+  the default — see "Metrics" below)
 - Logs: JSON structured with trace correlation
 - Exemplars: enabled (metric → trace linking)
 
-Installed at build time via `git+ssh` (requires ssh-agent with GitHub key).
+Installed at build time via `git+https` (public repo — no deploy key/SSH
+needed anymore). **The Dockerfile still mounts a `github_token` build
+secret for this install step** — verified `otel-helper` is the only `git+`
+line in `requirements.txt`, so that secret is now vestigial (it was
+required back when this package lived in a private repo). Not removed here
+— tracked as a cleanup item, not this doc's job to silently drop a working
+build step.
 
 ## Traces
 

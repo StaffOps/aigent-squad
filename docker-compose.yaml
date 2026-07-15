@@ -52,6 +52,13 @@ services:
     environment:
       - SERVICE_NAME=aigent-squad-supervisor
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      # Run BOTH exporters on the same MeterProvider (otel-helper v0.2.0+):
+      # OTLP push through the collector (unchanged) AND the /metrics endpoint
+      # mounted on the app itself (src/gateway/main.py, src/supervisor/server.py)
+      # for direct Prometheus/VictoriaMetrics scrape. METRICS_PORT=0 disables
+      # otel-helper's OWN standalone listener since we mount metrics_app() instead.
+      - OTEL_METRICS_EXPORTER=otlp,prometheus
+      - OTEL_HELPER_METRICS_PORT=0
       - ENVIRONMENT=LOCAL
       - AGENTS_DIR=/app/agents
       - AWS_REGION=${AWS_REGION:-us-east-1}
@@ -113,6 +120,13 @@ services:
     environment:
       - SERVICE_NAME=aigent-squad-gateway
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      # Run BOTH exporters on the same MeterProvider (otel-helper v0.2.0+):
+      # OTLP push through the collector (unchanged) AND the /metrics endpoint
+      # mounted on the app itself (src/gateway/main.py, src/supervisor/server.py)
+      # for direct Prometheus/VictoriaMetrics scrape. METRICS_PORT=0 disables
+      # otel-helper's OWN standalone listener since we mount metrics_app() instead.
+      - OTEL_METRICS_EXPORTER=otlp,prometheus
+      - OTEL_HELPER_METRICS_PORT=0
       - ENVIRONMENT=LOCAL
       - SUPERVISOR_URL=http://supervisor:8001
       - SUPERVISOR_INTERNAL_TOKEN=${SUPERVISOR_INTERNAL_TOKEN:-dev-internal-token}

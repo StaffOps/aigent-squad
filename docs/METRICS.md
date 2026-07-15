@@ -143,3 +143,13 @@ Future dashboards (TODO):
 - Grafana: http://localhost:3001
 - Prometheus (raw): http://localhost:9099
 - Traces (Tempo via Grafana Explore)
+- **Direct scrape** (2026-07-15, `otel-helper` v0.2.0+): every service also
+  exposes `/metrics` (Prometheus text format) on its own port —
+  `gateway:8000/metrics`, `supervisor:8001/metrics`. Unauthenticated by
+  design (infra-level, same class as `/healthz`/`/ready`). This runs
+  alongside the existing OTLP push to the collector (both exporters share
+  one `MeterProvider`), not instead of it — controlled by
+  `OTEL_METRICS_EXPORTER=otlp,prometheus` (default). In the Helm chart, pair
+  with `serviceMonitor.enabled=true` (off by default — requires the
+  Prometheus Operator CRD) to get a `ServiceMonitor` per service. See
+  `docs/site/reference/helm.md`.

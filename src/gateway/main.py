@@ -1,4 +1,4 @@
-from otel_helper import setup_telemetry
+from otel_helper import metrics_app, setup_telemetry
 
 # CRITICAL (spec 31 / round-table): setup_telemetry MUST run before any project
 # import that creates tracers/meters at module load (e.g. src.core.metrics).
@@ -73,6 +73,15 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="AIgent-squad Gateway", version=__version__, lifespan=lifespan)
+
+# Prometheus scrape endpoint (otel-helper v0.2.0+): mounted on the app's own
+# port rather than otel-helper's standalone listener, since that listener
+# can't bind under multi-worker servers — set OTEL_METRICS_EXPORTER=
+# otlp,prometheus and OTEL_HELPER_METRICS_PORT=0 to run both the existing
+# OTLP push (traces/logs/metrics via the collector) AND this direct-scrape
+# endpoint on the SAME MeterProvider. Unauthenticated by design, matching
+# the /healthz, /ready convention below — metrics carry no user data.
+app.mount("/metrics", metrics_app())
 
 
 class QueryRequest(BaseModel):

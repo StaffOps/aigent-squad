@@ -4,7 +4,7 @@ The `staffops/aigent-squad` chart deploys the full AIgent-squad stack on Kuberne
 It supports two topologies controlled by a single `topology` value and targets EKS
 with AWS Bedrock, ElastiCache, and DynamoDB as backing services.
 
-**Chart version**: `0.6.0`  
+**Chart version**: `0.9.3`  
 **Repository**: `https://staffops.github.io/helm-charts/`  
 **Image**: `karlipegomes/aigent-squad:latest` (Docker Hub, multi-arch `amd64` + `arm64`)
 
@@ -76,6 +76,13 @@ helm install aigent-squad staffops/aigent-squad \
 |-----|---------|-------------|
 | `global.probes.liveness.path` | `/healthz` | Liveness probe path |
 | `global.probes.readiness.path` | `/ready` | Readiness probe path |
+
+### Observability (chart 0.9.3+)
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `global.otel.metricsPrometheusScrape` | `true` | Also expose `/metrics` on each service's own port for direct Prometheus/VictoriaMetrics scrape, in addition to the existing OTLP push through the collector (`otel-helper` v0.2.0+ runs both exporters on the same MeterProvider). |
+| `serviceMonitor.enabled` | `false` | Create a Prometheus Operator `ServiceMonitor` per enabled service. Requires the CRD to already exist on the cluster — off by default since that isn't guaranteed. |
 
 ### Redis
 

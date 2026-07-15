@@ -42,6 +42,17 @@ class TestHealthz:
         assert resp.json()["status"] == "ok"
 
 
+# ─── /metrics (otel-helper v0.2.0+ Prometheus scrape endpoint) ────────
+
+
+class TestMetrics:
+    def test_metrics_mounted_and_reachable(self, client):
+        """Unauthenticated by design (infra-level scrape target, same class
+        as /healthz + /ready) — no edge-auth override needed for this one."""
+        resp = client.get("/metrics")
+        assert resp.status_code == 200
+
+
 # ─── /ready ──────────────────────────────────────────────────────────
 
 

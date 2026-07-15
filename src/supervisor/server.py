@@ -1,4 +1,4 @@
-from otel_helper import setup_telemetry
+from otel_helper import metrics_app, setup_telemetry
 
 # CRITICAL: setup_telemetry MUST run before any project import that creates
 # tracers/meters at module load time (e.g., src.core.metrics).
@@ -50,6 +50,13 @@ async def lifespan(app):
 
 
 app = FastAPI(title="Supervisor Service", lifespan=lifespan)
+
+# Prometheus scrape endpoint (otel-helper v0.2.0+) — same rationale as
+# src/gateway/main.py. Deliberate exception to the "supervisor /internal/*
+# only" trust boundary (AGENTS.md invariant #10): metrics scraping is
+# infra-level, not a user-facing API, same class as /healthz + /ready which
+# are already unauthenticated for the same reason.
+app.mount("/metrics", metrics_app())
 
 
 class QueryRequest(BaseModel):
