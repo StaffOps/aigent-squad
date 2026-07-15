@@ -173,6 +173,7 @@ appears only inside one."""
                     agent_id=self.config.name,
                     user_id=user_id,
                     session_id=session_id,
+                    infra_data=infra_data,
                 )
 
                 duration_ms = (time.time() - start_time) * 1000

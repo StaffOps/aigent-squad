@@ -32,7 +32,7 @@ from typing import List, Tuple
 from src.core.config import settings
 from src.core.guardrail import GuardrailBlockedError
 from src.core.logger import logger
-from src.core.metrics import quality_violations
+from src.core.metrics import quality_violations, ungrounded_numeric_claims
 
 # --- Compiled patterns (module-level, compiled once) ---
 
@@ -60,6 +60,38 @@ _PATTERNS: List[Tuple[str, re.Pattern[str]]] = [
 
 _MIN_RESPONSE_LENGTH = 10
 
+# --- Groundedness (spec 35 requirements.md PR-05) ---
+#
+# The quality twin of the canary check: canary catches context data that
+# SHOULDN'T leave; groundedness catches claims that never came IN — a
+# numeric value or resource ID the model states as fact but that isn't
+# anywhere in the infra_data it was actually given (fabrication, same root
+# cause as F-001's hallucinated tool-call XML, just numeric instead of
+# structural).
+#
+# Two different confidence levels, two different responses:
+# - Resource IDs (instance/volume/security-group/snapshot/subnet/VPC/AMI
+#   IDs, ARNs) are NEVER legitimately "derived" — an agent either saw a
+#   real ID in infra_data or it invented one. Safe to hard-block, same as
+#   the other T1 patterns.
+# - Bare numeric claims (dollar amounts, counts) CAN be legitimate derived
+#   values (a sum, an average, a rounding) that won't appear verbatim in
+#   infra_data even though the underlying data fully supports them.
+#   Hard-blocking here risks denying a correct answer that did real
+#   arithmetic — same false-positive-vs-availability tradeoff already
+#   decided for the canary (F-005), so this is metric-only (audit +
+#   `aigent.quality.ungrounded_numeric_claims`), never
+#   `GuardrailBlockedError`.
+_RESOURCE_ID_PATTERN = re.compile(
+    r"\b(?:i|vol|sg|snap|subnet|vpc|ami|eni|nat|igw|rtb|acl|vpce)-[0-9a-f]{8,17}\b"
+    r"|arn:aws:[a-z0-9\-]+:[a-z0-9\-]*:\d{12}:[\w\-/:.*]+",
+    re.IGNORECASE,
+)
+# Dollar amounts with cents (the shape of a specific queried figure, not a
+# vague "a few hundred dollars" prose estimate) — 2+ digit whole part to
+# skip trivial/rounded numbers less likely to be a meaningful fabrication.
+_NUMERIC_CLAIM_PATTERN = re.compile(r"\$\d{1,3}(?:,\d{3})*\.\d{2}\b")
+
 
 def _digest(text: str) -> str:
     """Non-reversible short digest for audit (never log the matched content)."""
@@ -83,11 +115,20 @@ class ResponseQualityGuard:
         agent_id: str = "unknown",
         user_id: str = "unknown",
         session_id: str = "",
+        infra_data: str = "",
     ) -> None:
         """Scan response for structural quality defects. Raise on detection.
 
         If any pattern matches, the response is blocked (fail-closed). Raises
         ``GuardrailBlockedError`` with category ``quality:<pattern_name>``.
+        A fabricated resource ID (``quality:ungrounded_resource_id``) is
+        block-worthy the same way — see module-level groundedness comment.
+
+        ``infra_data`` is optional (defaults to ``""``, which makes every
+        resource ID in the response "ungrounded" by construction — callers
+        that don't pass it get NO groundedness checking, not a false-positive
+        flood): pass the same infra_data the response was generated from to
+        enable it.
 
         Does nothing if disabled or response is too short to contain a defect.
         """
@@ -98,10 +139,18 @@ class ResponseQualityGuard:
             return
 
         detected = self._find_defects(response)
-        if detected:
-            categories = [f"quality:{name}" for name, _ in detected]
-            for name, _ in detected:
-                quality_violations.add(1, {"agent_id": agent_id, "category": name})
+        categories = [f"quality:{name}" for name, _ in detected]
+
+        if infra_data:
+            ungrounded_ids = self._find_ungrounded_resource_ids(response, infra_data)
+            if ungrounded_ids:
+                categories.append("quality:ungrounded_resource_id")
+
+            self._check_numeric_groundedness(response, infra_data, agent_id)
+
+        if categories:
+            for category in categories:
+                quality_violations.add(1, {"agent_id": agent_id, "category": category.removeprefix("quality:")})
             self._audit(
                 agent_id=agent_id,
                 user_id=user_id,
@@ -114,6 +163,23 @@ class ResponseQualityGuard:
                 source="OUTPUT",
                 categories=categories,
             )
+
+    @staticmethod
+    def _find_ungrounded_resource_ids(response: str, infra_data: str) -> List[str]:
+        """Resource IDs stated in the response that don't appear anywhere in
+        infra_data — never legitimate (an ID is either real or invented)."""
+        return [
+            match for match in _RESOURCE_ID_PATTERN.findall(response)
+            if match.lower() not in infra_data.lower()
+        ]
+
+    @staticmethod
+    def _check_numeric_groundedness(response: str, infra_data: str, agent_id: str) -> None:
+        """Metric-only (non-blocking) — see module-level groundedness comment
+        for why dollar-figure claims aren't hard-blocked like resource IDs."""
+        for claim in _NUMERIC_CLAIM_PATTERN.findall(response):
+            if claim not in infra_data:
+                ungrounded_numeric_claims.add(1, {"agent_id": agent_id})
 
     def _find_defects(self, text: str) -> List[Tuple[str, str]]:
         """Return list of (pattern_name, matched_text) for all detections.

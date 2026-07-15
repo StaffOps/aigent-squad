@@ -231,3 +231,16 @@ eval_score = meter.create_histogram(
     description="Per-question eval score emitted by `make eval` (0-1, mechanical checks + judge rubric combined) — labels: suite, agent_id",
     unit="1",
 )
+
+# === Spec 35: Groundedness (requirements.md PR-05) ===
+# Numeric claims are metric-only (non-blocking) — unlike resource-ID
+# groundedness (folded into quality_violations, fail-closed, since a
+# resource ID is never legitimately "computed"), a dollar figure or count
+# CAN be a legitimate derived value (sum, average, rounding) that won't
+# appear verbatim in infra_data — hard-blocking risks denying correct
+# arithmetic. See src/core/response_quality.py for the full reasoning.
+ungrounded_numeric_claims = meter.create_counter(
+    name="aigent.quality.ungrounded_numeric_claims",
+    description="Numeric claims in a response with no matching source in collected infra_data — signal only, NOT blocking (see response_quality.py) — labels: agent_id",
+    unit="1",
+)

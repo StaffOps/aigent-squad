@@ -54,32 +54,45 @@ under `evals/results/`) so spec 33 reviews can trend them.
 
 ## Acceptance Criteria
 
-- [ ] `evals/` layout: `golden/<agent>.yaml` (question, must-contain / must-not-contain,
+- [x] `evals/` layout: `golden/<agent>.yaml` (question, must-contain / must-not-contain,
       routing expectation), `rca/<scenario>.yaml` (symptom, fixture evidence, expected
       root cause + confidence), `results/` (dated, versioned).
-- [ ] **T1 structural suite** (`tests/test_response_quality.py`): mocked-Bedrock
+- [x] **T1 structural suite** (`tests/test_response_quality.py`): mocked-Bedrock
       pipeline runs per agent; asserts NO tool-scaffolding tokens, NO raw adapter error
       strings (`AccessDenied`, `Traceback`, `botocore.exceptions…`) in user-facing
       content, contract fields present. Deterministic, offline, joins the 90% CI gate.
-- [ ] **T2 runner** (`make eval`): executes golden sets against the real local stack
+- [x] **T2 runner** (`make eval`): executes golden sets against the real local stack
       (or configured endpoint), scores must-contain/must-not/routing mechanically, and
       uses an LLM judge (Haiku, temperature 0) ONLY for the open-ended quality rubric —
       judge prompts + rubric versioned in `evals/`.
-- [ ] ≥3 RCA scenarios implemented with fixture evidence mapped to EVIDENCE-MODEL
+- [x] ≥3 RCA scenarios implemented with fixture evidence mapped to EVIDENCE-MODEL
       signatures (#1 deploy regression, #2 memory leak, #3 dependency outage).
-- [ ] Baseline + tolerance recorded after the first full run; `make eval` prints the
+- [x] Baseline + tolerance recorded after the first full run; `make eval` prints the
       diff vs baseline; spec 34 homologation references it.
-- [ ] Per-agent golden sets curated for the 5 agents (10–20 Qs each); questions must be
-      answerable by the datasources the agent ACTUALLY has (finops = CE-only until the
-      Athena decision) — the eval doubles as the honest per-agent capability matrix.
-- [ ] **Groundedness dimension** (PR-05): numeric claims and resource IDs in an answer
-      must appear in the collected `infra_data` — T1 checks it mechanically on mocked
-      pipelines (fixture numbers vs response numbers); T2 scores it on live runs. The
-      quality twin of the canary check: canary catches data that SHOULDN'T leave,
-      groundedness catches claims that never came IN.
-- [ ] Metric: `aigent.eval.score` (labels: `suite`, `agent_id`) emitted by the T2
+- [x] Per-agent golden sets curated (now 6 agents — `security` added 2026-07-15, a real
+      agent the original T5 pass missed entirely); devops/observability/security stay
+      below the 10–20/agent target since their real datasources are genuinely this
+      narrow today — documented per-file, not silently padded with unanswerable
+      questions. Questions constrained to what the agent ACTUALLY has (finops =
+      CE-only until the Athena decision) — the eval doubles as the honest per-agent
+      capability matrix.
+- [x] **Groundedness dimension** (PR-05, 2026-07-15): `src/core/response_quality.py`
+      — resource IDs (instance/volume/SG/snapshot/subnet/VPC/AMI IDs, ARNs) stated in
+      a response that don't appear in the collected `infra_data` are hard-blocked
+      (`quality:ungrounded_resource_id`), same as the other T1 defect classes — an ID
+      is never legitimately "derived". Numeric dollar-amount claims are metric-only
+      (`aigent.quality.ungrounded_numeric_claims`), NOT blocking — a derived
+      sum/average/rounding can legitimately not appear verbatim in infra_data, so
+      hard-blocking risked denying correct arithmetic (same tradeoff class as F-005's
+      canary redact-and-continue decision). `tests/test_response_quality_groundedness.py`
+      (13 cases). The quality twin of the canary check: canary catches data that
+      SHOULDN'T leave, groundedness catches claims that never came IN.
+- [x] Metric: `aigent.eval.score` (labels: `suite`, `agent_id`) emitted by the T2
       runner, documented in `docs/METRICS.md`.
 - [ ] Results feed spec 33: TRIGGERS.md gains rows for quality regression thresholds.
+      **Still deferred** — `specs/TRIGGERS.md` doesn't exist yet; it's spec 33 T1's own
+      deliverable (a sweep across many specs, not just this one). Not spec 35's to
+      create; re-visit when spec 33 T1 lands.
 
 ## Out of scope
 

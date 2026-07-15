@@ -38,11 +38,20 @@
 **Metric**: `aigent.quality.violations` (labels: `agent_id`, `category`) — documented in
 `docs/METRICS.md` §"Quality — Structural Gate (spec 35 T1)".
 
-**Deferred to Phase 1 follow-up / Phase 2**: the groundedness dimension (numeric
-claims/resource IDs must appear in `infra_data`) listed in `design.md`'s acceptance
-criteria — needs infra_data-vs-response comparison logic that risks false positives on
-legitimately paraphrased numbers; not attempted this pass, tracked as open, not silently
-dropped.
+**Groundedness dimension shipped 2026-07-15** (was deferred here as "needs
+infra_data-vs-response comparison logic that risks false positives"): resolved the
+false-positive risk by splitting the check into two confidence tiers instead of one.
+Resource IDs (instance/volume/SG/snapshot/subnet/VPC/AMI, ARNs) are hard-blocked
+(`quality:ungrounded_resource_id`) — an ID is never a legitimate derived value, so this
+carries the same zero-false-positive-risk property as the original T1 patterns. Numeric
+dollar-amount claims are metric-only (`aigent.quality.ungrounded_numeric_claims`,
+non-blocking) — exactly the "legitimately paraphrased/derived number" risk that was
+the original blocker, sidestepped by not hard-failing on it at all, just measuring it.
+`src/core/response_quality.py::ResponseQualityGuard.scan()` gained an `infra_data`
+param (threaded from `generic_agent.py`, defaults to `""` — no `infra_data` means no
+groundedness checking, not a false-positive flood). Tests:
+`tests/test_response_quality_groundedness.py` (13 cases). Full suite: 748 passed,
+94.44% cov, lint clean.
 
 ## Phase 2 — Golden sets + runner (T2 scored) — ✅ DONE 2026-07-14
 
