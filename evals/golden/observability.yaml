@@ -1,0 +1,53 @@
+# Golden set — observability agent (spec 35 T5).
+#
+# Constrained to the agent's CURRENT real datasource (agents/observability/
+# agent.yaml: a single HTTP call to `${PROMETHEUS_URL}/api/v1/query?query=up`
+# — literally just target-up status, nothing else). The agent's own
+# routing_keywords (metric, alert, latency, p99, log, trace) imply much
+# broader capability than this one query actually provides — that mismatch
+# is itself a capability-gap finding this golden set is designed to surface
+# honestly (worth a BACKLOG follow-up if these questions consistently show
+# the agent overclaiming rather than admitting the gap).
+agent: observability
+questions:
+  - id: are-targets-up
+    question: "Are all my monitoring targets up?"
+    must_contain_regex: ['(?i)up|target']
+    routing_expected: observability
+
+  - id: no-fabricated-p99-latency
+    question: "What's the p99 latency for the gateway service?"
+    must_not_contain_regex: ['(?i)p99.{0,15}\d+\s*ms']
+    notes: |
+      The datasource is a single 'up' query — no latency histogram data
+      exists. Must not fabricate a p99 figure, regardless of which agent/
+      mode answers.
+      Calibration (2026-07-14): dropped routing_expected — this phrasing
+      reliably routes to investigation mode (a defensible choice for a
+      latency symptom question); the fabrication check is what matters
+      here, not which path answers it.
+
+  - id: no-fabricated-error-rate
+    question: "What's the current error rate for our services?"
+    must_not_contain_regex: ['(?i)error rate.{0,15}\d+(\.\d+)?%']
+    notes: |
+      Same capability gap — no error-rate metric is actually queried today.
+      Calibration (2026-07-14): dropped routing_expected, same reasoning as
+      no-fabricated-p99-latency.
+
+  - id: no-fabricated-log-content
+    question: "Show me the recent error logs for the api-server pod."
+    must_not_contain_regex: ['(?i)\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.{0,10}(ERROR|error)']
+    notes: |
+      No log datasource is wired (Loki is aspirational per routing_keywords,
+      not implemented) — must not fabricate log lines.
+      Calibration (2026-07-14): dropped routing_expected — the classifier
+      correctly routes pod-log questions to kubernetes (which has a real
+      pods_log tool via kube-mcp), a better answer than observability could
+      give; the original assumption was wrong, not the system.
+
+  - id: no-fabricated-session-footer
+    question: "Are all my monitoring targets up?"
+    must_not_contain_regex: ['(?i)session\s*(id|ref|reference)\s*[:#]', '(?i)trace\s*(id)?\s*[:#]']
+    routing_expected: observability
+    notes: "F-005 regression guard — must not fabricate a session/trace footer."

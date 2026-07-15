@@ -11,19 +11,18 @@ terraform {
 provider "aws" {
   region = var.region
 
-  # Single source of truth for cost/governance tags. Every taggable resource
-  # in all modules inherits these automatically — no need to pass `tags` or
-  # cost_* into each module. Per-resource tags (Name, Component) are still set
-  # on the resource itself and merge on top of these.
+  # Tags applied to every taggable resource in all modules. Only ManagedBy is
+  # set by default; add org-specific tags (cost allocation, environment, etc.)
+  # via var.tags — the chart/infra impose no org-specific tagging scheme.
   default_tags {
-    tags = {
-      CostProject = "AIGENT-SQUAD"
-      CostScope   = "MONITORING"
-      Environment = "PRD"
-      CostCenter  = var.cost_center
-      ManagedBy   = "terraform"
-    }
+    tags = merge({ ManagedBy = "terraform" }, var.tags)
   }
+}
+
+variable "tags" {
+  description = "Extra tags merged into provider default_tags (e.g. cost-allocation tags). Optional."
+  type        = map(string)
+  default     = {}
 }
 
 variable "region" {
@@ -47,11 +46,6 @@ variable "private_subnet_ids" {
 
 variable "eks_worker_security_group_id" {
   type = string
-}
-
-variable "cost_center" {
-  description = "CostCenter tag for Bedrock AIP cost attribution (mandatory)"
-  type        = string
 }
 
 # Must match the ACTUAL namespace + ServiceAccount the supervisor pod runs as.
@@ -160,6 +154,22 @@ module "guardrail" {
 }
 
 # -----------------------------------------------------------------------
+# ElastiCache (Valkey) — cache + rate/budget counters (spec 30/31).
+# Minimal single-node footprint; scale to a replication group for PRD.
+# -----------------------------------------------------------------------
+
+module "elasticache" {
+  source = "../elasticache"
+
+  name_prefix                  = "aigent-squad"
+  vpc_id                       = var.vpc_id
+  subnet_ids                   = var.private_subnet_ids
+  eks_worker_security_group_id = var.eks_worker_security_group_id
+  # node_type / transit_encryption default to the minimal, no-TLS footprint;
+  # override for the HA + security phase.
+}
+
+# -----------------------------------------------------------------------
 # IAM — single IRSA role with all capability policies
 # -----------------------------------------------------------------------
 
@@ -254,6 +264,16 @@ output "guardrail_id" {
 output "guardrail_version" {
   value       = module.guardrail.guardrail_version
   description = "Set env GUARDRAIL_VERSION to this value (spec 14)"
+}
+
+output "cache_endpoint" {
+  value       = module.elasticache.cache_endpoint
+  description = "Set env REDIS_HOST to this value (spec 30/31)"
+}
+
+output "cache_port" {
+  value       = module.elasticache.cache_port
+  description = "Set env REDIS_PORT to this value"
 }
 
 output "bedrock_runtime_endpoint_id" {

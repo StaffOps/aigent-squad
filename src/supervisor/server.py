@@ -149,13 +149,19 @@ async def reject_kb_item(item_id: str):
 @app.post("/alerts/incoming", dependencies=[Depends(require_token)])
 async def alerts_incoming(payload: AlertmanagerPayload):
     """Receive Alertmanager webhook (v2). Triggers investigation per unique firing alert."""
-    async def _run_inv(symptom: str, agents=None):
+    async def _run_inv(symptom: str, agents=None, fingerprint: str = ""):
         from src.supervisor.investigation import run_investigation
+        # Finding (2026-07-14 review, E2 follow-up): session_id="" made
+        # bedrock.py's `charged_session_id = budget_session_id or session_id`
+        # fall through to "" (falsy), so record_usage() was never called at
+        # all — alert-triggered investigations spent Bedrock tokens with NO
+        # budget cap. Give each unique alert (deduped by fingerprint) its own
+        # stable budget bucket instead.
         return await run_investigation(
             symptom=symptom,
             agents=supervisor.agents,
             user_id="alertmanager",
-            session_id="",
+            session_id=f"alertmanager-{fingerprint}" if fingerprint else "alertmanager-unknown",
         )
 
     result = await handle_alert_payload(

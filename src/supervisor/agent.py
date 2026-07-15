@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from opentelemetry import trace
 from src.core.classifier import Classifier, ClassifierResult, AgentMatch
 from src.core.guardrail import GuardrailBlockedError
+from src.core.input_scanner import InputScanner
 from src.core.state_store import storage, ConversationMessage
 from src.core.logger import logger, log_request, log_response, log_error
 from src.core.metrics import request_counter, error_counter, request_duration, fanout_calls, fanout_agents_consulted, fanout_agents_failed
@@ -13,6 +14,7 @@ from src.core.generic_agent import GenericAgent
 from src.core.adapters import create_adapters
 from src.core.skills import SkillRegistry
 from src.core.triage import should_investigate
+from src.core.token_budget import budget_tracker, TokenBudgetExceeded
 from src.supervisor.synthesizer import synthesizer
 from src.supervisor.investigation import run_investigation
 from src.supervisor.distillation import distill_rca
@@ -70,6 +72,40 @@ class SupervisorAgent:
             log_request("supervisor", user_id, session_id, user_input)
 
             try:
+                # Token budget hard cap (spec 11 T4): refuse before spending if
+                # the session is already over budget. Clear message, no invoke.
+                try:
+                    budget_tracker.check_budget(session_id)
+                except TokenBudgetExceeded as budget_err:
+                    logger.warning("Session token budget exceeded", extra={
+                        "session_id": session_id,
+                        "used": budget_err.used,
+                        "limit": budget_err.limit,
+                    })
+                    return {
+                        "agent": "supervisor",
+                        "response": (
+                            "This session has reached its token budget. "
+                            "Please start a new session to continue."
+                        ),
+                        "confidence": 0.0,
+                        "error": "token_budget_exceeded",
+                    }
+
+                # L2 Input Scanner at the trust-boundary entry (spec 14 finding B):
+                # normalize (homoglyph fold, zero-width strip) + cheap reject
+                # BEFORE any routing decision — forced agent, investigation, or
+                # classify. Homoglyph obfuscation empirically evaded the
+                # classifier's L1 when scanned only at the worker. Fail-closed:
+                # GuardrailBlockedError propagates → 403. The worker-side scan
+                # in generic_agent stays (no layer trusts the previous one).
+                user_input = InputScanner().scan(
+                    user_input,
+                    agent_id="supervisor",
+                    user_id=user_id,
+                    session_id=session_id,
+                )
+
                 # Forced agent (OpenAI bridge per-agent model): bypass classifier.
                 if force_agent and force_agent in self.agents:
                     direct = ClassifierResult(
@@ -114,7 +150,9 @@ class SupervisorAgent:
                 with tracer.start_as_current_span("classifier.classify"):
                     classification: ClassifierResult = await self.classifier.classify(
                         user_input,
-                        chat_history
+                        chat_history,
+                        user_id=user_id,
+                        session_id=session_id,
                     )
 
                 logger.info("Intent classified", extra={
@@ -265,7 +303,9 @@ class SupervisorAgent:
                 else:
                     ok.append((a.agent, r.content))
 
-            final_response = await synthesizer.synthesize(user_input, ok, failed)
+            final_response = await synthesizer.synthesize(
+                user_input, ok, failed, user_id=user_id, session_id=session_id,
+            )
 
             # Fan-out metrics
             fanout_calls.add(1)

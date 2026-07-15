@@ -2,6 +2,158 @@
 
 ## [Unreleased]
 
+_Nothing yet — this section starts fresh after the [0.4.0] cut._
+
+## [0.4.0] - 2026-07-15
+
+Everything since the `0.3.0` tag (2026-07-02): spec 11 (model tiering) and
+spec 14 Phases 2-6 (defense-in-depth complete, all findings closed) shipped
+within days of the 0.3.0 cut and were never cut into a release themselves —
+consolidated here rather than losing that history. Plus two weeks of live
+defect-fixing (F-001 through F-007), spec 35 (quality eval harness,
+complete), spec 36 (agent-native dev loop), spec 34 (this release's own
+runbook), and a full re-homologation against the real cluster.
+
+### Security — spec 14 Phases 2-6, defense-in-depth complete, ALL findings closed
+- **L5 canary** (`src/core/canary.py`): per-request random tokens injected
+  into `infra_data`; exact+fuzzy leak detection. **Redact-and-continue since
+  F-005** (2026-07-13, not fail-closed like the other layers) — live testing
+  found ordinary Bedrock responses false-positive on a self-invented
+  "session ID" footer; a leaked token is single-use/worthless once redacted,
+  so denying an otherwise-correct answer cost more than it protected. Hardened
+  2026-07-15: obfuscated-prefix redaction gap closed, and repeated detections
+  in the same session now escalate to a hard block (closes the "soft oracle"
+  an attacker could probe with zero real cost).
+- **L4 output filter** (`src/core/output_filter.py`): PII/secret detection
+  (AWS keys, private keys, emails, CPF, Luhn-checked credit cards, GitHub/
+  GitLab tokens) — fail-closed.
+- **L2 InputScanner** (`src/core/input_scanner.py`): pre-LLM Unicode NFKC +
+  zero-width/RTL-bidi stripping + Cyrillic/Greek homoglyph folding + cheap
+  heuristics (oversized, control-char abuse, base64 injection markers).
+  Wired at BOTH the supervisor entry (classifier) and every worker agent —
+  closing Findings A/B/C/D (below).
+- **Multilingual attack-suite CI gate** (`tests/test_attack_suite.py`): 62+
+  parametrized cases, 5 languages × 6 obfuscation vectors, deterministic, $0.
+- **Entry-point findings A/B/C/D — CLOSED** (2026-07-11): classifier-stage
+  guardrail blocks now carry real `user_id`/`session_id` (fixes the
+  unattributable-audit + under-counted-budget pair, A+C); homoglyph/zero-
+  width attacks now normalize/block pre-route, not just at the worker (B);
+  oversized input is now a clean 403 (`scanner:oversized`), not a
+  ValueError-degraded 200 (D).
+- **E1/E2/F/F-005 — CLOSED**: synthesis Bedrock calls now attributed +
+  budgeted (E1); RCA evidence-collection fan-out no longer escapes the
+  session budget cap via a derived session_id (E2, fixed twice — a
+  concurrency race in the fix itself was caught by independent review and
+  closed 2026-07-15); `/alerts/incoming` now scans the symptom through L2
+  before it reaches any agent (F); canary false-positives (F-005, above).
+- `docs/SECURITY.md` §S4 rewritten: full L1-L6 table, STRIDE mapping,
+  fail-closed vs fail-open rationale per layer.
+
+### Cost & resilience — spec 11 (model tiering) + budget hardening
+- `src/core/model_tier.py`: config-driven role→model resolution (Haiku
+  classifier / Sonnet agents+synthesis), per-model pricing incl. prompt-cache
+  read/write rates.
+- `src/core/token_budget.py`: `SessionBudgetTracker` (hard per-session cap,
+  now thread-safe — a race under RCA fan-out's `asyncio.to_thread` calls
+  could lose concurrent increments, closed 2026-07-15), token-based history
+  truncation.
+- Bedrock prompt caching (`cache_control: ephemeral`), atomic Lua-`EVAL`
+  budget check-and-reserve (closes a TOCTOU where concurrent requests near
+  the daily cap could both pass).
+
+### Quality — spec 35, complete (structural gate, golden sets, RCA scoring, groundedness)
+- **T1 structural gate** (`src/core/response_quality.py`, production-wired,
+  fail-closed): blocks tool-call-scaffolding leaks and raw adapter/infra
+  error text reaching the user verbatim — the exact shape of F-001/F-002/F-003.
+- **T2 scored runner** (`make eval`): per-agent golden sets (6 agents,
+  including a `security` agent golden set added 2026-07-15 — that agent
+  existed since 2026-06-14 but had zero eval coverage and was misdocumented
+  as not present in this repo) + Haiku-judge scoring, versioned rubric,
+  baseline + tolerance-diff.
+- **RCA scenario harness** (`make eval-rca`, spec 35 Phase 3): 3 fixture-fed
+  scenarios mapped to EVIDENCE-MODEL signatures (deploy regression, memory
+  leak, dependency outage) — the real investigation pipeline scored against
+  a known-answer world. First baseline: 3/3 scored 1.0, confidence alta.
+- **Groundedness dimension** (PR-05, closes the last open acceptance
+  criterion): resource IDs stated in a response that aren't in the collected
+  `infra_data` are hard-blocked (never a legitimate derived value); numeric
+  dollar-amount claims are metric-only, never blocking (a derived sum/average
+  can legitimately not appear verbatim — same tradeoff class as F-005).
+- Independent review (T11) of the whole harness found and fixed 5 issues
+  (consolidated regression proof, empty-response/judge-score guards, DOTALL
+  regex fix, RCA causal-direction check, the security-agent gap above) plus
+  2 bonus false-positive fixes found during re-verification.
+- Metric: `aigent.eval.score` (`suite`, `agent_id`); `aigent.quality.violations`
+  and `aigent.quality.ungrounded_numeric_claims`.
+
+### Fixed — live defects found via real homologation (F-001 through F-007)
+- **F-001**: aws agent hallucinated `<use_mcp_tool>` XML — no MCP datasource
+  was ever wired for it; prompt told it to use one anyway.
+- **F-002**: finops surfaced raw `AccessDeniedException` in every answer —
+  dropped the unreachable Athena datasource, kept Cost Explorer (real data).
+- **F-003**: kubernetes agent's MCP datasource pointed at a dead external
+  hostname — repointed to the in-cluster Service DNS.
+- **F-004**: adapter collection failures could get fabricated a full
+  diagnostic report around them instead of an honest "couldn't reach that
+  data" — new instruction in the shared context template, tightened once
+  more after the new quality guard caught a follow-on case of quoting the
+  raw error line verbatim.
+- **F-005**: canary false positives — see Security section above.
+- **F-006**: "world-class expert" hype-style prompts (emoji severity
+  grading, rigid multi-section templates) trimmed across aws/finops/
+  kubernetes — a root-cause contributor to F-001 and F-005's fabrication
+  patterns.
+- **F-007**: the classifier returned `unknown` for requests phrased as a
+  mutating action ("please terminate this instance now") instead of routing
+  to the domain agent for a proper read-only refusal — new classifier
+  guideline. A residual case (triage's keyword heuristic overriding the
+  correct classifier decision) fixed 2026-07-15, verified live in-cluster.
+
+### Added — dev loop, docs, process
+- **Spec 36** (agent-native dev loop): `Makefile` as the canonical command
+  surface (`make up/test/lint/eval/eval-rca/smoke/install-hooks`), auto-stub
+  test harness for the private otel dependency, `.claude/` committed, CI
+  runs the identical targets.
+- **Spec 34** (this release's own runbook): `RELEASE.md`, an 8-phase
+  cross-repo release checklist, independent-reviewed.
+- LibreChat local setup (docker-compose, pointed at the real cluster) —
+  `docs/LIBRECHAT.md`.
+- Process specs 32/33 written (not yet implemented — status-gate script and
+  operational-review cadence remain open).
+- Pre-commit hook (`make install-hooks`, opt-in): blocks a commit touching
+  `src/`/agent config without an accompanying docs/spec file.
+
+### Fixed — tooling
+- `scripts/test-local.sh`'s otel-dependency filter was stale after the
+  otel-helper repo moved to a public org URL — broke `make test` locally.
+- `src/core/classifier.py` region/Haiku inference-profile ID corrections
+  found during cluster homologation.
+
+### Deployed
+- Re-homologated in-cluster 2026-07-15 (devops-core, Harbor digest
+  `e94a901`): F-007's fix confirmed live via the classifier's own reasoning
+  field, new `security` agent answering real IAM questions, all 6 agents
+  visible via `/v1/models`, zero errors across the rollout.
+
+## [0.3.0] - 2026-07-02
+
+First cluster-validated release: the edge gateway + supervisor (spec 31) and the
+OpenAI-compatible bridge (spec 29) run end-to-end on a real EKS cluster
+(devops-core), serving live queries through Bedrock with real AWS inventory via
+IRSA. Promotes the accumulated `0.3.0-dev` work to a stable cut.
+
+### Cluster validation & fixes (2026-07-02)
+- `Boto3Adapter` builds clients with explicit `region_name` (botocore reads
+  AWS_DEFAULT_REGION, not AWS_REGION → NoRegionError). EC2/RDS/CE return real data.
+- `Classifier._extract_json`: strips ```json fences / preamble before json.loads
+  → structured parse instead of the low-confidence "Fallback parsing" path.
+- Terraform: `bedrock-aip` output `arn`; IAM `ApplyGuardrail` + `DescribeTable`;
+  `example` parametrized (namespace/SA) + guardrail module. Cost-allocation tags
+  are no longer mandatory/hardcoded — `default_tags` = `ManagedBy` + optional
+  `var.tags`; removed the required `cost_center` variable. `*.auto.tfvars` gitignored.
+- Homologated live: 695 EC2 / 670 S3 / 10 RDS; Cost Explorer $191k/30d; guardrail
+  (PROMPT_ATTACK MEDIUM) passing; gateway `FIRST_BYTE_TIMEOUT` 15→30s for slow agents.
+
 ### Added (Spec 31 L5: docs — started)
 - `docs/site/architecture.md`: rewritten for the two-tier topology — gateway (public) → supervisor (backend) diagram, the concurrency model (per-replica pool vs global rate/budget, with the fail-open/fail-closed contrast), two-tier design decisions, and split ports/endpoints (gateway `:8000` public, supervisor `:8001` internal-only with `/internal/*`).
 - `docs/site/reference/metrics.md`: new "Edge gateway and admission" section (`gateway.pool_rejections`/`pool_depth`/`queue_wait`/`redis_fallback_active`, `rate_limit.blocks`) with operational signals.

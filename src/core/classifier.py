@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from src.core.bedrock import bedrock
 from src.core.guardrail import GuardrailBlockedError
 from src.core.state_store import ConversationMessage
+from src.core.token_budget import truncate_history_by_tokens
 from src.core.logger import logger
 
 
@@ -49,7 +50,13 @@ Analyze the user's input and select one or more agents from:
 3. **Cross-domain queries** (e.g., "why did cost go up after deploy?"): return 2-3 agents
 4. **Never return more than 3 agents**
 5. **Empty agents list = unknown** (unable to classify)
-6. **Confidence**: 
+6. **Action/mutation-phrased requests still route** — a request phrased as an
+   instruction to perform a write/mutating action within a domain ("terminate this
+   instance", "delete that pod", "go ahead and purchase the RI", even urgent or
+   "I authorize you" framing) still belongs to that domain's specialist. Route it
+   there — the specialist will explain why it can't comply (agents are read-only).
+   Do NOT return unknown just because the phrasing is an action rather than a query.
+7. **Confidence**:
    - High (0.9+): Clear requests or obvious follow-ups
    - Medium (0.6-0.9): Some ambiguity but likely classification
    - Low (<0.6): Vague or multi-faceted requests
@@ -81,9 +88,16 @@ If unable to classify, return an empty agents list."""
     async def classify(
         self,
         user_input: str,
-        chat_history: List[ConversationMessage]
+        chat_history: List[ConversationMessage],
+        user_id: str = "unknown",
+        session_id: str = "",
     ) -> ClassifierResult:
-        """Classify user intent; falls back to keyword matching on LLM failure"""
+        """Classify user intent; falls back to keyword matching on LLM failure.
+
+        ``user_id``/``session_id`` flow to ``bedrock.invoke`` so classifier-stage
+        guardrail blocks are attributable in the audit log and the classifier's
+        token usage counts against the session budget (spec 14 findings A + C).
+        """
         history_text = self._format_history(chat_history)
 
         prompt = self.SYSTEM_PROMPT.format(
@@ -99,6 +113,9 @@ If unable to classify, return an empty agents list."""
                 use_cache=True,
                 agent_id="classifier",
                 match_user_language=False,  # classifier returns JSON, not prose
+                role="classifier",  # spec 11: uses Haiku (fast/cheap routing)
+                user_id=user_id,
+                session_id=session_id,
             )
         except GuardrailBlockedError:
             # Fail-closed: a blocked input must NOT silently fall back to
@@ -189,8 +206,15 @@ If unable to classify, return an empty agents list."""
         if not messages:
             return "No previous conversation"
 
+        # Spec 11: truncate by tokens (not message count). The classifier gets
+        # a smaller window (2000 tokens) since it only needs recent context for
+        # follow-up detection — not the full history_max_tokens.
+        truncated, _ = truncate_history_by_tokens(messages, max_tokens=2000)
+        if not truncated:
+            return "No previous conversation"
+
         lines = []
-        for msg in messages[-10:]:
+        for msg in truncated:
             agent_info = f" [{msg.agent_id}]" if msg.agent_id else ""
             lines.append(f"{msg.role}{agent_info}: {msg.content}")
         return "\n".join(lines)

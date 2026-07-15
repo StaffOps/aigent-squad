@@ -41,6 +41,7 @@ async def extract_deltas(rca: RCAResult) -> list[KbDelta]:
             messages=[{"role": "user", "content": user_msg}],
             system_prompt=EXTRACTOR_PROMPT,
             temperature=0.2,
+            role="agent",  # spec 11: extraction uses agent tier (Sonnet)
         )
         start = response.find("{")
         end = response.rfind("}")

@@ -64,6 +64,14 @@ services:
       - REDIS_PASSWORD=${REDIS_PASSWORD:-changeme}
       - INTERNAL_API_TOKEN=${INTERNAL_API_TOKEN:-dev-secret-token}
       - SUPERVISOR_INTERNAL_TOKEN=${SUPERVISOR_INTERNAL_TOKEN:-dev-internal-token}
+      # Local default OFF (out-of-box run — spec 36): the app default is
+      # fail-closed (true) and with no provisioned GUARDRAIL_ID every invoke
+      # would be refused. Prod (Helm values) keeps fail-closed. To test the
+      # guardrail locally: GUARDRAIL_ENABLED=true + GUARDRAIL_ID from
+      # infra/terraform/guardrail outputs.
+      - GUARDRAIL_ENABLED=${GUARDRAIL_ENABLED:-false}
+      - GUARDRAIL_ID=${GUARDRAIL_ID:-}
+      - GUARDRAIL_VERSION=${GUARDRAIL_VERSION:-DRAFT}
       - POSTGRES_HOST=postgres
       - POSTGRES_PORT=5432
       - POSTGRES_USER=aigent
@@ -149,6 +157,58 @@ services:
       timeout: 5s
       retries: 3
 
+  # --- LibreChat (spec 29 bridge validation — docs/LIBRECHAT.md) ---
+
+  mongo:
+    image: mongo:7
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # Runs standalone against the REAL devops-core squad by default (only mongo
+  # is a local dependency — gateway/supervisor are NOT started for this).
+  # `docker compose up -d mongo librechat` is enough; no need for `make up`.
+  # To point at a fully-local squad instead, override AIGENT_SQUAD_BASE_URL to
+  # http://gateway:8000/v1 and bring up the full stack (`make up`) too.
+  librechat:
+    image: ghcr.io/danny-avila/librechat:latest
+    ports:
+      - "3080:3080"
+    environment:
+      - HOST=0.0.0.0
+      - MONGO_URI=mongodb://mongo:27017/LibreChat
+      - ENDPOINTS=custom
+      - ALLOW_REGISTRATION=true
+      - NO_INDEX=true
+      # Dev-only throwaway secrets (single-user local testing, not sensitive).
+      - JWT_SECRET=${LIBRECHAT_JWT_SECRET:-9c8189d30bc1b50090fa8175ec91610183d632484602b95b0ab8dd493ba17cd5}
+      - JWT_REFRESH_SECRET=${LIBRECHAT_JWT_REFRESH_SECRET:-770c5fc01057dfd28051ce59e6df1474efda982000e49f4da57b315940b92343}
+      - CREDS_KEY=${LIBRECHAT_CREDS_KEY:-75e847bef2df3dc883bd365d2aae4cfdba329dd12e49800123c1447981d4c9db}
+      - CREDS_IV=${LIBRECHAT_CREDS_IV:-aadf8c9ff2131a61b8306ede1a097383}
+      # baseURL is hardcoded in infra/librechat/librechat.yaml (LibreChat
+      # doesn't template that field — see the comment there). This must be
+      # the real gateway edge-auth token (STAFFOPS_AIGENT_SQUAD secret,
+      # property internal-api-token) unless you've edited that file to point
+      # at a local gateway instead, in which case dev-secret-token works.
+      # Kept as a separate var from INTERNAL_API_TOKEN (used by
+      # supervisor/gateway below) so an unset value here never breaks
+      # `make up`'s full local stack.
+      - AIGENT_SQUAD_API_KEY=${LIBRECHAT_AIGENT_SQUAD_API_KEY:-dev-secret-token}
+    volumes:
+      - ./infra/librechat/librechat.yaml:/app/librechat.yaml:ro
+    depends_on:
+      mongo:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   # --- Observability Stack ---
 
   otel-collector:
@@ -201,3 +261,4 @@ volumes:
   redis-data:
   tempo-data:
   postgres-data:
+  mongo-data:

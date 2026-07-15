@@ -1,0 +1,45 @@
+# Spec 35 Phase 3 (T8) — RCA scenario #1: deploy regression
+# Maps to specs/EVIDENCE-MODEL.md signature #1 (CHANGE + MECHANISM + IMPACT,
+# valid temporal order, no pre-existing error pattern -> HIGH confidence).
+#
+# The fixtures below are what a real adapter WOULD have returned if this were
+# a live incident (design.md Decision 3: fixture-fed world, real pipeline —
+# classifier/fan-out/correlate/synthesize all run for real against Bedrock).
+
+id: deploy-regression
+symptom: >
+  checkout-service is returning errors to customers. Error rate spiked
+  about 10 minutes ago. Please investigate the root cause.
+
+expected_root_cause: >
+  A deploy (commit a1b2c3d, pipeline #4821) to checkout-service introduced
+  a regression (NullPointerException in payment validation) that caused the
+  error-rate spike — recommend rollback.
+expected_keywords: ['(?i)deploy|rollback|regression|commit|pipeline']
+expected_confidence_min: media   # alta > media > baixa (EVIDENCE-MODEL Track A: HIGH)
+
+fixtures:
+  devops: |
+    GitLab CI/CD pipeline #4821 deployed checkout-service to production at
+    2026-07-14T14:32:00Z (commit a1b2c3d, "refactor payment validation",
+    author: j.silva). No other deploys to checkout-service in the prior 24h.
+    No rollback has been triggered.
+  observability: |
+    Tempo traces for checkout-service show a NEW error signature starting at
+    2026-07-14T14:32:15Z: "NullPointerException in PaymentValidator.validate()"
+    — 0 occurrences of this error signature in the prior 24h window (Loki
+    count_over_time query). 5xx error rate for checkout-service jumped from
+    0.1% to 34% at 2026-07-14T14:32:20Z (spanmetrics). p99 latency unchanged
+    (this is a fail-fast error, not a slowdown). No other service shows an
+    error rate change in the same window.
+  kubernetes: |
+    checkout-service pods: 0 restarts, 0 OOMKilled events, all pods Ready.
+    No FailedScheduling or node-condition events. This is not a crash — pods
+    are up and serving, just returning errors on the new code path.
+  aws: |
+    No RDS/ElastiCache failover or health events in the last 24h for any
+    resource tagged checkout-service. CloudWatch shows normal ranges for
+    all backing AWS resources.
+  finops: |
+    No cost-relevant signal for this investigation. Checkout-service spend
+    is within its normal daily range for the last 7 days.

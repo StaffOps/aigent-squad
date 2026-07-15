@@ -18,10 +18,20 @@ If any agents are listed as FAILED, include a brief note that the response is pa
 
 
 class Synthesizer:
-    async def synthesize(self, query: str, responses: list[tuple[str, str]], failed: list[str]) -> str:
+    async def synthesize(
+        self,
+        query: str,
+        responses: list[tuple[str, str]],
+        failed: list[str],
+        user_id: str = "unknown",
+        session_id: str = "",
+    ) -> str:
         """
         responses: list of (agent_name, response_text)
         failed: list of agent names that failed
+        user_id/session_id: propagated so the synthesis Bedrock call is
+            attributable (OUTPUT-guardrail audit) and its Sonnet tokens count
+            against the session budget (spec 14 Finding E1).
         """
         with tracer.start_as_current_span("synthesizer.synthesize") as span:
             span.set_attribute("agent_count", len(responses))
@@ -52,6 +62,10 @@ Synthesize a single answer for the user."""
                 messages=[{"role": "user", "content": user_msg}],
                 system_prompt=SYNTHESIZER_PROMPT,
                 temperature=0.3,
+                role="synthesis",  # spec 11: uses Sonnet (synthesis tier)
+                agent_id="synthesizer",
+                user_id=user_id,
+                session_id=session_id,
             )
             return response
 

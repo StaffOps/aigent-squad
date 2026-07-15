@@ -86,7 +86,9 @@ async def handle_alert_payload(payload: AlertmanagerPayload, run_investigation_f
 
         symptom = alert_to_symptom(alert, payload.commonLabels)
         try:
-            rca = await run_investigation_fn(symptom=symptom, agents=None)
+            rca = await run_investigation_fn(
+                symptom=symptom, agents=None, fingerprint=alert.fingerprint,
+            )
             alerts_investigation_triggered.add(1)
             triggered += 1
             if slack_post_fn:

@@ -6,20 +6,53 @@ routing_keywords: [pod, node, deployment, service, namespace, kubectl, k8s, clus
 skills:
   - oomkill-investigation
 datasources:
-  # Read-only access to the cluster via the kubernetes-mcp-server
-  # (devops/devops-mcp-kube). Caminho A of ADR-001: MCP-as-adapter, not
-  # autonomous tool-calling. The allowlist deliberately EXCLUDES the
-  # server's mutating tools (pods_delete/pods_exec/pods_run/resources_*),
-  # enforcing "read-only is law" even though the server is unauthenticated.
+  # Access to the cluster via the kube-mcp server (mcp-servers namespace).
+  # Caminho A of ADR-001: MCP-as-adapter, not autonomous tool-calling.
+  #
+  # Full tool catalog allowlisted (2026-07-13): kube-mcp's own protocol
+  # surface is read-only-only — its tool catalog (queried live via
+  # session.list_tools()) has no delete/exec/run/apply/patch tools at all,
+  # only list/get/log/top/view. RBAC enforcement lives at the MCP server
+  # itself (its ServiceAccount), so the app-level allowlist here is a
+  # readability/audit aid, not the security boundary — no need to hand-curate
+  # a subset. Re-check this comment if kube-mcp's tool catalog ever grows a
+  # mutating tool; re-verify with session.list_tools() before trusting it.
+  #
+  # In-cluster Service DNS, not the external hostname: the supervisor runs in
+  # the SAME cluster as kube-mcp, so this avoids an unnecessary round-trip
+  # through the public ingress (extra latency + an extra failure domain).
+  # Discovered 2026-07-13: the external hostname this previously pointed at
+  # (devops-mcp-kube-core.bdc.app.br) 404s with Traefik's default cert — the
+  # Ingress was renamed to mcp-kube.bdc.app.br at some point; the in-cluster
+  # Service name is stable either way and is the right target for an
+  # in-cluster caller regardless of what the external hostname is this week.
   - type: mcp
     name: k8s-mcp
-    url: https://devops-mcp-kube-core.bdc.app.br/sse
+    url: http://kube-mcp.mcp-servers.svc.cluster.local:8080/sse
     tools:
-      - pods_list
-      - namespaces_list
+      - configuration_view
       - events_list
+      - helm_list
+      - kiali_get_logs
+      - kiali_get_mesh_status
+      - kiali_get_mesh_traffic_graph
+      - kiali_get_metrics
+      - kiali_get_pod_performance
+      - kiali_get_resource_details
+      - kiali_get_trace_details
+      - kiali_list_traces
+      - kiali_manage_istio_config_read
+      - namespaces_list
+      - nodes_log
+      - nodes_stats_summary
       - nodes_top
+      - pods_get
+      - pods_list
+      - pods_list_in_namespace
+      - pods_log
       - pods_top
+      - resources_get
+      - resources_list
 cache:
   ttl: 60
 model:

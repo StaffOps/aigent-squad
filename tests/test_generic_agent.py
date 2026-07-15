@@ -8,6 +8,7 @@ from unittest.mock import patch, AsyncMock
 from src.core.adapters import DatasourceAdapter
 from src.core.agent_config import AgentConfig
 from src.core.generic_agent import GenericAgent
+from src.core.guardrail import GuardrailBlockedError
 from src.core.state_store import ConversationMessage
 
 
@@ -88,13 +89,17 @@ class TestEmptyInputRaisesValueError:
 
 
 @pytest.mark.asyncio
-class TestTooLongInputRaisesValueError:
+class TestTooLongInputBlockedByScanner:
     @patch("src.core.generic_agent.bedrock")
-    async def test_too_long_input_raises_value_error(self, mock_bedrock):
-        """10001 chars → ValueError."""
+    async def test_too_long_input_raises_guardrail_blocked(self, mock_bedrock):
+        """10001 chars → scanner:oversized, fail-closed 403 (spec 14 finding D).
+
+        Previously a plain ValueError, which the supervisor mapped to a 200
+        fallback instead of a security refusal.
+        """
         agent = GenericAgent(config=_make_config(), prompt="p", adapters=[])
 
-        with pytest.raises(ValueError, match="too long"):
+        with pytest.raises(GuardrailBlockedError) as exc_info:
             await agent.process_request(
                 input_text="x" * 10001,
                 user_id="u",
@@ -102,6 +107,7 @@ class TestTooLongInputRaisesValueError:
                 chat_history=[],
             )
 
+        assert "scanner:oversized" in exc_info.value.categories
         mock_bedrock.invoke.assert_not_called()
 
 
@@ -223,6 +229,66 @@ class TestHistoryFormattedInContext:
 
         assert "prior question" in context_text
         assert "prior answer" in context_text
+
+
+@pytest.mark.asyncio
+class TestCollectionErrorHonestyInstruction:
+    """generic_agent.py context template must tell the model not to fabricate
+    diagnostics around a datasource collection failure (found 2026-07-13: the
+    kubernetes agent narrated a full fake troubleshooting report around a raw
+    MCP connection error instead of stating the data was unavailable)."""
+
+    @patch("src.core.generic_agent.bedrock")
+    async def test_context_instructs_against_fabricating_on_collection_error(self, mock_bedrock):
+        mock_bedrock.invoke = AsyncMock(return_value="answer")
+
+        agent = GenericAgent(config=_make_config(), prompt="p", adapters=[FakeAdapter("[mcp:k8s-mcp] error: boom")])
+
+        await agent.process_request(
+            input_text="what's in the devops namespace?",
+            user_id="u",
+            session_id="s",
+            chat_history=[],
+        )
+
+        call_args = mock_bedrock.invoke.call_args
+        messages_content = call_args.kwargs.get("messages") or call_args[1].get("messages") or call_args[0][0]
+        context_text = str(messages_content)
+
+        assert "[mcp:k8s-mcp] error: boom" in context_text
+        assert "Do not invent root causes" in context_text
+        # F-004 refinement (found 2026-07-14 via spec 35's own eval harness):
+        # the model was honest about a collection failure but quoted the raw
+        # "[svc] error: ..." line verbatim inside the answer, which ResponseQ
+        # ualityGuard (spec 35 T1) then correctly blocked as a raw-error leak
+        # — a real answer denied by an over-literal reading of "say so plainly".
+        assert "do not quote" in context_text.lower()
+
+
+@pytest.mark.asyncio
+class TestCanaryMarkerNonRepetitionInstruction:
+    """generic_agent.py context template must tell the model never to surface
+    a canary's internal-telemetry-id annotation (F-005, 2026-07-13)."""
+
+    @patch("src.core.generic_agent.bedrock")
+    async def test_context_instructs_against_echoing_internal_telemetry_id(self, mock_bedrock):
+        mock_bedrock.invoke = AsyncMock(return_value="answer")
+
+        agent = GenericAgent(config=_make_config(), prompt="p", adapters=[])
+
+        await agent.process_request(
+            input_text="how many EC2 instances are running?",
+            user_id="u",
+            session_id="s",
+            chat_history=[],
+        )
+
+        call_args = mock_bedrock.invoke.call_args
+        messages_content = call_args.kwargs.get("messages") or call_args[1].get("messages") or call_args[0][0]
+        context_text = str(messages_content)
+
+        assert "internal-telemetry-id" in context_text
+        assert "Session:" in context_text  # named explicitly as a forbidden footer style
 
 
 @pytest.mark.asyncio

@@ -198,6 +198,20 @@ reusable KB entries, and the RAG injection path that retrieves them at query tim
 
 ---
 
+## Quality — structural gate and eval harness (spec 35)
+
+`aigent.quality.violations` is emitted from production traffic (any request,
+any time `ResponseQualityGuard` fires). `aigent.eval.score` is emitted only
+by `make eval` / `make eval-rca` (spec 35 T2/T9, on-demand, real Bedrock
+cost) — it will read as sparse/absent unless someone has run an eval
+recently.
+
+| Metric | Type | Labels | Description |
+|--------|------|--------|-------------|
+| `aigent.quality.violations` | Counter | `agent_id`, `category` | Structural quality defects blocked in a response — tool-scaffolding leaks (`tool_scaffolding`), raw adapter/infra error text (`raw_adapter_error`, `raw_traceback`, `raw_botocore_exception`, `raw_boto3_error_string`, `raw_taskgroup_exception`), or an ungrounded resource ID (`ungrounded_resource_id` — groundedness dimension, PR-05, 2026-07-15). The F-001/F-002/F-003 defect classes as a metric. |
+| `aigent.quality.ungrounded_numeric_claims` | Counter | `agent_id` | A dollar-amount claim with no match in `infra_data` — signal only, never blocking (a derived sum/average legitimately won't always appear verbatim). Groundedness dimension, PR-05. |
+| `aigent.eval.score` | Histogram | `suite`, `agent_id` | Per-question/scenario score (0-1). `suite="golden"` from `make eval`'s golden-set + LLM-judge run (mechanical checks are the floor — a failure zeroes the score regardless of judge opinion). `suite="rca"` from `make eval-rca`'s fixture-fed scenarios (spec 35 Phase 3, mechanical-only, no judge); `agent_id` holds the scenario id for this suite, not an agent name. |
+
 ## Health and readiness (spec 07)
 
 Emitted by the dependency health checker on every `/healthz` and `/ready` request.

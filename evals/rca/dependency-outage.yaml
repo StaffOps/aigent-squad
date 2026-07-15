@@ -1,0 +1,55 @@
+# Spec 35 Phase 3 (T8) — RCA scenario #3: dependency outage
+# Maps to specs/EVIDENCE-MODEL.md signature #3 (C4 dependency state change +
+# M8 conn timeout + I1/I2 impact, other consumers of the same dependency
+# affected too -> HIGH confidence, guards against "invert causality").
+
+id: dependency-outage
+symptom: >
+  orders-service is timing out on requests and customers can't complete
+  checkout. Please investigate the root cause.
+
+expected_root_cause: >
+  payments-service's backing RDS database failed over, which caused
+  payments-service to become unresponsive, which caused orders-service
+  (and other callers of payments-service) to time out — orders-service
+  itself is not at fault, this is an upstream dependency outage.
+expected_keywords: ['(?i)payments-service|depend|rds|failover|upstream']
+# T11 review fix (2026-07-15): the loose expected_keywords OR-match doesn't
+# verify causal direction — a hypothesis that inverts causality (blames
+# orders-service's OWN fault instead of its payments-service dependency)
+# could still match "payments-service" and pass. This scenario's whole
+# point is guarding against exactly that inversion (see header above), so
+# enforce it: fail if the hypothesis pins the root cause ON orders-service
+# itself.
+forbidden_keywords:
+  - '(?i)orders-service.{0,60}(root cause|is the cause|caused (the|this)|itself is|own (bug|issue|fault|problem|exhaustion|leak)|is at fault|is responsible|is to blame)'
+expected_confidence_min: media
+
+fixtures:
+  aws: |
+    RDS instance orders-payments-db (used by payments-service) shows a
+    Failover CloudWatch event at 2026-07-14T09:14:00Z. DatabaseConnections
+    metric dropped from 42 to 0 at the same timestamp and recovered to
+    normal (38-45) by 2026-07-14T09:17:30Z once failover completed. No
+    other RDS/ElastiCache resources show any event in this window.
+  observability: |
+    Loki logs for orders-service show "connection timeout calling
+    payments-service" starting at 2026-07-14T09:14:10Z. p99 latency for
+    orders-service jumped from 120ms to 5000ms (the client timeout
+    ceiling) at 2026-07-14T09:14:12Z. Two OTHER services that also call
+    payments-service — billing-service and invoicing-service — show the
+    identical "connection timeout" pattern starting within the same 10s
+    window (2026-07-14T09:14:08Z and 2026-07-14T09:14:15Z respectively).
+    payments-service's own inbound request rate dropped to ~0 during the
+    same window (it was not receiving traffic normally, not that it was
+    receiving and failing to respond).
+  kubernetes: |
+    orders-service pods: 0 restarts, all healthy — the pods themselves are
+    fine, this is an outbound call failure, not a pod problem.
+    payments-service pods: 0 restarts, all Ready, but readiness probe
+    failures observed 2026-07-14T09:14:05Z-09:17:00Z (probe hits its own
+    DB connection health check, which failed during the RDS failover).
+  devops: |
+    No deployments to orders-service or payments-service in the last 24h.
+  finops: |
+    No cost-relevant signal for this investigation.

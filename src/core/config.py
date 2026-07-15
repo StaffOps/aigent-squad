@@ -6,13 +6,62 @@ class Settings(BaseSettings):
     aws_region: str = "us-east-1"
     bedrock_model_id: str = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"  # Claude Sonnet 4.5 (US inference profile; model requires INFERENCE_PROFILE, not on-demand)
 
+    # Model tiering (spec 11): role → model ID.  Override via env vars
+    # BEDROCK_CLASSIFIER_MODEL_ID, BEDROCK_AGENT_MODEL_ID, BEDROCK_SYNTHESIS_MODEL_ID.
+    bedrock_classifier_model_id: str = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+    bedrock_agent_model_id: str = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
+    bedrock_synthesis_model_id: str = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
+
+    # Prompt caching (spec 11): add cache_control to system block.
+    # Disable if the region/model rejects it (graceful degradation).
+    bedrock_prompt_cache_enabled: bool = True
+
+    # Token budget (spec 11): hard cap per session (total input+output tokens).
+    # Default 200k — generous but prevents runaway sessions.
+    session_token_budget: int = 200_000
+
+    # History truncation by tokens (spec 11). Controls how many tokens of chat
+    # history are included in each Bedrock call (not session-wide budget).
+    history_max_tokens: int = 8_000
+
     # Bedrock Guardrail — anti-prompt-injection (spec 14, L1). Fail-closed:
     # when guardrail_enabled and no id is configured, invoke is refused (not
     # bypassed). Provision via infra/terraform/guardrail (outputs id/version).
     guardrail_enabled: bool = True
     guardrail_id: Optional[str] = None
     guardrail_version: str = "DRAFT"
-    
+
+    # Canary Guard — exfiltration detection (spec 14, L5). Injects per-request
+    # tokens into infra_data; if they appear in the output, redacts them and
+    # returns the response (redact-and-continue since F-005, 2026-07-13 — a
+    # deliberate exception to the other layers' fail-closed default; see
+    # src/core/canary.py module docstring).
+    canary_enabled: bool = True
+    # Repeated detections within the SAME session escalate from redact to
+    # hard-block (independent review 2026-07-14, F-005 follow-up): the
+    # redact-and-continue policy is a soft oracle an attacker could probe
+    # for exfiltration/obfuscation techniques (each detection tells them
+    # their payload survived to the model's output, without ever hard-
+    # failing). A one-off benign false positive essentially never repeats
+    # this many times in one session; sustained detections are a real
+    # signal, not noise, so escalate to fail-closed.
+    canary_escalation_threshold: int = 3
+
+    # Output Filter — PII/secret leak detection (spec 14, L4). Scans model
+    # response for credentials, PII, keys before returning. Fail-closed.
+    output_filter_enabled: bool = True
+
+    # Response Quality Guard — structural defect detection (spec 35, T1).
+    # Scans model response for tool-call scaffolding leaks and raw adapter/
+    # infra error text reaching the user verbatim (F-001/F-002/F-003 classes).
+    # Fail-closed — unlike canary, neither defect class is ever legitimate.
+    response_quality_enabled: bool = True
+
+    # Input Scanner — pre-LLM normalization + cheap heuristics (spec 14, L2).
+    # Normalizes unicode/homoglyphs, rejects junk before spending a Bedrock
+    # invoke. Fail-closed on scanner error. Runs before context construction.
+    input_scanner_enabled: bool = True
+
     # DynamoDB
     dynamodb_sessions_table: str = "agent-sessions"
     dynamodb_endpoint: Optional[str] = None

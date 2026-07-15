@@ -19,8 +19,8 @@ of the old README. The premise: the system **didn't build/run** at the time
 | Cache | ✅ deterministic sha256 key (spec 03) |
 | Observability | ✅ OTel wired, JSONFormatter, PROMETHEUS_URL, custom metrics (spec 03) |
 | Security (baseline) | ✅ auth, non-root, redis password, prompt delimiters (spec 04) |
-| Security (anti-injection) | ⚠️ spec 14 Phase 1 done (Bedrock Guardrail L1 + fail-closed + audit); Phases 2–5 pending |
-| Edge gateway | ✅ spec 31 cluster-validated (2026-07-01, devops-core): gateway + supervisor in-process, Istio HTTPRoute, IRSA→Bedrock, guardrail, agentsSource git+configmap. Image `0.3.0-dev` on Harbor labs; chart 0.9.0 |
+| Security (anti-injection) | ✅ spec 14 **Phases 1–6 done** (L1 Bedrock Guardrail, L2 InputScanner, L3 context isolation, L4 output filter, L5 canary, L6 rate/budget; multilingual attack-suite CI gate; SECURITY.md defense-in-depth). Homologated in cluster 2026-07-03; entry-point findings A/B/C/D CLOSED 2026-07-11; E1/E2/F/F-005 CLOSED 2026-07-13 — see spec 14 tasks.md |
+| Edge gateway | ✅ spec 31 cluster-validated (2026-07-01, devops-core): gateway + supervisor in-process, Istio HTTPRoute, IRSA→Bedrock, guardrail, agentsSource git+configmap. Image `0.3.0-dev` on Harbor labs (rebuilt 2026-07-03 w/ InputScanner, digest `fbe381fb`); chart 0.9.2 (redis StatefulSet+PVC) |
 | Tests | ✅ ~93% global coverage, CI gate 90% |
 | Docs | ✅ MkDocs site (architecture/metrics two-tier), METRICS.md, SECURITY.md, KNOWLEDGE-BASE.md, HOW-TO |
 | Async/Resilience | ✅ full async, circuit breaker, fail-open (spec 06) |
@@ -30,11 +30,40 @@ of the old README. The premise: the system **didn't build/run** at the time
 | Platform | ✅ config-driven, Helm chart, zero-code agent add (spec 22) |
 | CI/CD | ✅ GitHub Actions, multi-arch, Trivy scan-before-push, Bandit SAST (spec 08) |
 
-**Suggested real version**: `0.2.0` released; gateway (spec 31) validated in
-devops-core and running as `0.3.0-dev` (image on Harbor labs, chart 0.9.0).
-Cut a stable `0.3.0` (drop `-dev`) once the milestone is committed and the image
-is rebuilt with the app fixes under a stable tag. The README's
-"v2.0 / Production Ready" is inflated (see `version-management.md`).
+**Suggested real version**: `0.3.0` cut (tag `v0.3.0`, chart `0.9.2`). Running as
+`0.3.0-dev` in devops-core (Harbor labs image, rebuilt + redeployed 2026-07-15 —
+digest `e94a901`, includes F-007 classifier+triage fix, spec-14 E2/F-005
+independent-review hardening, spec 35 Phases 3+4 incl. the groundedness
+dimension, and the new `security` agent's golden-set coverage; homologated live
+against the public gateway endpoint same day). Post-0.3.0 on `dev`: spec 11
+(model tiering, done), spec 14 Phases 3–5 (done). **`0.4.0` gate status
+corrected 2026-07-15** — this section previously said findings A/B/D were still
+open; they were actually CLOSED 2026-07-11 (see `specs/14-security-hardening/
+tasks.md`), stale doc, not a real blocker. `0.4.0` remains uncut only because
+the user has deliberately chosen to keep accumulating improvements first, not
+because of an open gate.
+
+> **Work order (updated 2026-07-04, product-first rebalance ~70% value / 30% platform)**:
+> 1. **spec 36** (agent-native dev loop) — do FIRST, multiplies everything after; ✅ done
+> 2. **quick quality fixes**: finops Athena datasource decision ✅ done, F-001 aws
+>    `<use_mcp_tool>` echo ✅ done, spec-14 findings A/B/D ✅ CLOSED 2026-07-11 (not an
+>    open `0.4.0` gate — see the corrected note above);
+> 3. **spec 35** (structural quality gate, golden sets, RCA scenarios, groundedness) —
+>    ✅ all phases done 2026-07-15;
+> 4. **spec 18 Phase 1.5** — EVIDENCE-MODEL correlator + **CASE-001 real-RCA proof**;
+>    not started — next real item on this list;
+> 5. **process track in parallel**: specs 32 → 33 → 34 (34 executes on `0.4.0`);
+> 6. **decision pending**: ADR-0007 (internal-first vs OSS) — prices the interface
+>    choice (LibreChat live vs Slack v2) and the quickstart investment.
+> 7. **direction (D-03, decided + refined 2026-07-04)**: the squad stays REACTIVE
+>    (acts only when triggered; proactive watching = separate product). Core = spec
+>    candidate `38-on-trigger-comprehension` — entity resolution + baseline verdicts
+>    computed in code at trigger time (requirements seed: `docs/BEHAVIOR-BASELINES.md`;
+>    entity #1 = the squad itself). Enters the queue after 35/18-Phase-1.5 (consumes
+>    B-01 adapters + feedback loop); anomaly-detection integration stays OPTIONAL.
+>
+> Full critical-review reasoning: `specs/PRODUCT-REVIEW-2026-07.md` (PR-01..38, §§A–F).
+> Live item tracking: `specs/BACKLOG.md` (findings F-*, product B-*, decisions D-*).
 
 ---
 
@@ -96,14 +125,14 @@ closed** (Redis/DynamoDB with no error handling), and is **blind/indefensible**
 | # | Spec | Severity | Depends on |
 |---|------|----------|------------|
 | 06 | `resilience-patterns` (async-first, fail-open, circuit breaker, classifier fallback) | ✅ done | 02 |
-| 07 | `readiness-probes` (`/healthz`+`/ready`+graceful shutdown) | 🔴 | 02 |
+| 07 | `readiness-probes` (`/healthz`+`/ready`+graceful shutdown) | ✅ done (2026-06-17) | 02 |
 | 08 | `ci-cd-pipeline` (GitHub Actions, multi-arch, scan, coverage gate) | ✅ done | 01 |
-| 09 | `otel-instrumentation` (7 services, propagation, Collector) | 🟠 | 02 |
-| 10 | `metrics-and-cost-observability` (RED + tokens/cost $) | 🟠 | 09 |
-| 11 | `bedrock-resilience-cost` (Haiku in the classifier, prompt caching, tiering) | 🟠 | 06 |
+| 09 | `otel-instrumentation` (7 services, propagation, Collector) | 🟠 partial (otel-helper covers app; formal spec not executed) | 02 |
+| 10 | `metrics-and-cost-observability` (RED + tokens/cost $) | ✅ Phase 1 done (2026-06-18) | 09 |
+| 11 | `bedrock-resilience-cost` (Haiku in the classifier, prompt caching, tiering) | ✅ done | 06 |
 | 12 | `terraform-infra` (DynamoDB/ElastiCache/ECR/IRSA/Secrets) | 🟠 | — |
 | 13 | `iam-least-privilege` (read-only per agent + explicit deny) | 🟠 | 12 |
-| 14 | `security-hardening` (defense-in-depth anti-prompt-injection: multi-language Bedrock Guardrails, fail-closed, canary/output-filter, rate/budget; read-only as a security posture = competitive differentiator) | ⚠️ Phase 1 done (Guardrail L1 + fail-closed + audit); Phases 2-5 pending | 04 |
+| 14 | `security-hardening` (defense-in-depth anti-prompt-injection: multi-language Bedrock Guardrails, fail-closed, canary/output-filter, rate/budget; read-only as a security posture = competitive differentiator) | ✅ done (Phases 1–6: L1–L6 + attack-suite CI gate + docs); cluster-homologated 2026-07-03; all findings (A/B/C/D/E1/E2/F/F-005) CLOSED | 04 |
 | 15 | `sli-slo-framework` | 🟡 | 10 |
 | 16 | `incident-runbooks` | 🟡 | 06, 07 |
 | 17 | `multi-agent-collaboration` (cross-domain fan-out/fan-in + synthesis, agent-as-tools 1 hop) | ✅ done | 06, 09 |
@@ -112,14 +141,20 @@ closed** (Redis/DynamoDB with no error handling), and is **blind/indefensible**
 | ~~20~~ | ~~`grpc-inter-agent-mesh`~~ — **REMOVED** (2026-06-02): latency irrelevant vs model calls | ❌ | — |
 | 21 | `incident-memory-learning` (incident memory + similar-case retrieval; simple learning) | ✅ done | 18 |
 | 22 | `agent-capability-manifest` (**open** roster via YAML + collaboration via `capabilities`/`evidence_types`/`delegates_to` metadata; **replaces 19**) | ✅ done (Phase A+B) | — |
-| 23 | `test-harness-docker` (`Dockerfile.test` + `pytest --cov-fail-under=90` with mocks; same harness dev↔CI; consumed by 08) | 🔴 | — |
-| 24 | `docs-portal-mkdocs` (MkDocs Material portal `src`→`public`; README becomes an index; ADRs; consolidates/deletes ghost docs) | 🟠 | — |
+| 23 | `test-harness-docker` (`Dockerfile.test` + `pytest --cov-fail-under=90` with mocks; same harness dev↔CI; consumed by 08) | ✅ done (Dockerfile.test 2026-06-18; CI gate live) | — |
+| 24 | `docs-portal-mkdocs` (MkDocs Material portal `src`→`public`; README becomes an index; ADRs; consolidates/deletes ghost docs) | ✅ done (site live at staffops.github.io/aigent-squad; root doc cleanup 2026-06-23) | — |
 | 25 | `multi-tenant-concurrency` (distributed circuit breaker, session lock, rate limit/budget, Bedrock semaphore, k6 load test) | 🟠 | 06, 17 |
 | 26 | `agent-skills` (lazy-loaded markdown knowledge, global, per-agent allowlist, keyword match) | ✅ done | 02 |
 | 27 | `bedrock-cost-attribution` (AIP per model + FinOps tags; per-agent attribution via labeled token metric) | ✅ done (infra+app; deploy pending) | — |
 | 28 | `llm-provider-abstraction` (multi-provider layer: `LLMProvider` Protocol + common `LLMService`; litellm candidate; preserves cost-attribution; clean-room) | 📝 design only | reopens ADR-001 |
-| 29 | `openai-compat-bridge` (OpenAI `/v1` API on the supervisor → LibreChat plugs in directly; auto + per-agent models; pseudo-streaming until spec 06) | ✅ implemented | enables LibreChat (Option A) |
-| 31 | `edge-gateway-worker-pool` (thin FastAPI gateway in front of the supervisor: admission control + WorkerPool backpressure + protocol isolation + global rate/budget; enables multi-replica supervisor; reuses `staffops-chaitops` `agent-api` patterns) | 📝 spec written, impl pending | 25, 29 |
+| 29 | `openai-compat-bridge` (OpenAI `/v1` API → LibreChat plugs in directly; auto + per-agent models; pseudo-streaming until spec 06) | ✅ implemented; `/v1` routes now hosted by the gateway (spec 31) | enables LibreChat (Option A) |
+| 30 | `datasource-cache-layer` (sha256 TTL cache in the adapter base; fail-open; emits `aigent.cache.hits/misses`) | ✅ done (2026-06-21) | — |
+| 31 | `edge-gateway-worker-pool` (thin FastAPI gateway in front of the supervisor: admission control + WorkerPool backpressure + protocol isolation + global rate/budget; enables multi-replica supervisor; reuses `staffops-chaitops` `agent-api` patterns) | ✅ done — cluster-validated 2026-07-01 (devops-core); pending: T21 k6 load test, T23 final review | 25, 29 |
+| 32 | `spec-lifecycle-ssot` (**process**: status frontmatter per spec + CI lint script = single source of truth; `specs/README.md` process doc; `specs/BACKLOG.md` for dormant/findings/deferred; HANDOFF overwrite rule; ROADMAP plan-only) | 🔴 **top priority** — spec written 2026-07-03 | — |
+| 33 | `operational-review-loop` (**process**: recurring review — measure ALL promotion triggers (`specs/TRIGGERS.md`), reconcile real Bedrock cost vs ANALYSIS estimates, triage BACKLOG; dated records in `specs/reviews/`; dormant phases promote ONLY with a review citation) | 🔴 **top priority** — spec written 2026-07-03 | 32 |
+| 34 | `release-runbook` (**process**: `RELEASE.md` sequencing dev→main→tag→image→chart→overlay→rollout→homologation→close across the 3 repos; tag/appVersion/overlay coherence rule; credential-hygiene close step) | 🔴 **top priority** — spec written 2026-07-03 | 32, 33 |
+| 35 | `quality-eval-harness` (**product**: T1 structural CI gate — scaffolding leaks/raw errors/ungrounded resource IDs, deterministic $0; T2 scored golden sets per agent + 3 fixture-fed RCA scenarios mapped to EVIDENCE-MODEL signatures; groundedness dimension; `aigent.eval.score`; the functional twin of the attack suite) | ✅ done (all 4 phases, 2026-07-15) — T11 independent review findings also fixed same day; TRIGGERS.md rows deferred to spec 33 | 36; feeds 33/34 |
+| 36 | `agent-native-dev-loop` (**multiplier**: out-of-box local run, `Makefile` canonical verbs, auto-stub for the private dep, committed `.claude/` (settings + skills, AGENTS.md stays canonical), failure-mode playbook, CI runs the same make targets) | 🔴 **do FIRST** — spec written 2026-07-04 | — |
 
 > **ADR-001** ([`ADR-001-bedrock-direct-vs-strands.md`](ADR-001-bedrock-direct-vs-strands.md)): decision to keep Bedrock-direct (not adopt Strands). Reopen signal: agents stop being consultative read-only.
 
@@ -159,17 +194,28 @@ The expected gain is **troubleshooting/RCA**. Critical path of the differentiato
 21 (learning) after 18                     ← learning (Sonnet extractor → Opus enricher → KB)
 ```
 
-### Backlog (after the critical path)
+### Backlog (DORMANT — do not schedule until a blocker forces it)
+
+> These items are **explicitly deferred to a future phase**. Do NOT surface them
+> as "next steps" or recurring suggestions. Pull an item ONLY when it becomes a
+> hard blocker for other work — otherwise leave it here untouched.
+>
+> - **finops ↔ Athena**: ✅ resolved (2026-07-13) — dropped the `athena`
+>   datasource from `agents/finops/agent.yaml` (option b). Re-enable trigger:
+>   someone actually needs Kubecost/CUR analysis through the agent — then set
+>   `enable_athena_finops=true` in IRSA + a real CUR target.
+> - **Distributed topology (code)**: chart renders it but the supervisor only
+>   routes in-process (needs a RemoteAgent HTTP client). Blocker trigger: a real
+>   need for independent per-agent scaling/isolation. ADR-001 favors in-process.
 
 | Item | Description |
 |------|-------------|
 | Specialized adapters | Create `GitLabAdapter` (`type: gitlab`) and `RAGAdapter` (`type: rag`) — the generic HttpAdapter doesn't replicate the old gitlab_client's query intelligence (search_code, search_docs, list_projects). Same for RAG (Bedrock Knowledge Bases). |
-| **Distributed topology (code)** | The Helm chart renders a `distributed` topology (supervisor + N specialist Deployments + mcp-server), but the supervisor **only routes in-process** (`SupervisorAgent` instantiates `GenericAgent` in memory; no HTTP call to remote specialists — `close()` is a no-op "agents are in-process"). To make `topology: distributed` functional, implement a `RemoteAgent`/HTTP supervisor client that, when configured, delegates to `http://<release>-<agent>:8001/process` instead of the in-process instance. Until then, `distributed` is infra-scaffold only. ADR-001 favors in-process (inter-agent latency irrelevant vs model cost), so this is deliberately deferred — reopen only if a real need for independent per-agent scaling/isolation emerges. Discovered 2026-07-01 while validating spec 31 in-cluster. |
-| **finops ↔ Athena mismatch** | The `finops` agent declares two datasources — `boto3 ce` (Cost Explorer, works) and `athena` (Kubecost DB). But the IRSA role is provisioned with `enable_athena_finops = false`, so `athena:StartQueryExecution` is denied → the AthenaAdapter fails on every finops query (`AccessDeniedException`), adding latency and a visible error in the response. Two options: (a) enable Athena in the IRSA (`enable_athena_finops = true` + CUR/Kubecost bucket/workgroup/db vars) once a real Athena target exists, or (b) drop the `athena` datasource from the finops agent config until then. Cost Explorer alone already returns real spend (~$191k/30d confirmed 2026-07-01). Discovered 2026-07-01 during fix homologation. Related: the slow path (Athena timeout + Bedrock ≈ 17s) also forced bumping `GATEWAY_FIRST_BYTE_TIMEOUT_SECONDS` 15→30 in the overlay. |
-| Spec 07 | Readiness probes `/healthz` + `/ready` + graceful shutdown (partially done in 06) |
-| Spec 11 | Bedrock model tiering (Haiku in the classifier, Sonnet in the agents) |
-| Spec 22 Phase B | Helm chart (done) — refine with ExternalSecret, NetworkPolicy |
-```
+| **Distributed topology (code)** | The Helm chart renders a `distributed` topology (supervisor + N specialist Deployments + mcp-server), but the supervisor **only routes in-process** (`SupervisorAgent` instantiates `GenericAgent` in memory; no HTTP call to remote specialists — `close()` is a no-op "agents are in-process"). To make `topology: distributed` functional, implement a `RemoteAgent`/HTTP supervisor client that, when configured, delegates to `http://<release>-<agent>:8001/process` instead of the in-process instance. Until then, `distributed` is infra-scaffold only. ADR-001 favors in-process (inter-agent latency irrelevant vs model cost), so this is deliberately deferred — reopen only if a real need for independent per-agent scaling/isolation emerges. Discovered 2026-07-01 while validating spec 31 in-cluster. **LOW priority / deferred: the earlier prerequisites (0.3.0 release, spec 14 security, spec 11 cost, budget TOCTOU) have now ALL shipped (2026-07-03) — but distributed topology stays deferred on its own merits: ADR-001 favors in-process (inter-agent latency irrelevant vs model cost). Reopen only if a real need for independent per-agent scaling/isolation emerges.** |
+| ~~finops ↔ Athena mismatch~~ | ✅ done (2026-07-13) — option (b): dropped the `athena` datasource from `agents/finops/agent.yaml`; `boto3 ce` (Cost Explorer) already returns real spend (~$191k/30d confirmed 2026-07-01). Re-enable path (a) stays available: `enable_athena_finops = true` + CUR/Kubecost bucket/workgroup/db vars in `infra/terraform/iam` once a real Athena target exists. `GATEWAY_FIRST_BYTE_TIMEOUT_SECONDS` stays at 30 (no regression risk from reverting it). |
+| ~~Spec 07~~ | ✅ done (2026-06-17) — `/healthz` + `/ready` + graceful shutdown |
+| ~~Spec 11~~ | ✅ done — Bedrock model tiering (Haiku classifier, Sonnet agents) + prompt caching + token budget |
+| Spec 22 Phase B | Helm chart (done; 0.9.x cluster-validated) — refine with ExternalSecret, NetworkPolicy |
 
 Principles: efficient communication (async + fan-out), quality learning (Opus
 enriches before persisting), config via file+env, **not overly complex** (round
@@ -308,24 +354,31 @@ without waiting for a human). Convergence by voting/confidence, not a fixed roun
 | 21-incident-memory-learning | ✅ done | All phases (1–4) + docs/tests; Opus enricher deferred (Sonnet-only) |
 | 22-agent-capability-manifest | ✅ done | Phase A + Phase B both complete |
 
-### Specs NOT done
+### Remaining specs (status as of 2026-07-03)
 
 | Spec | Status |
 |------|--------|
-| 05-helm-chart | Not started (original; superseded partially by spec 22 Phase B) |
+| 05-helm-chart | Superseded by spec 22 Phase B — chart lives in `StaffOps/helm-charts` (`aigent-squad` 0.9.x, cluster-validated 2026-07-01) |
 | 07-readiness-probes | ✅ Complete (2026-06-17) — /healthz, /ready, /health alias |
-| 09-otel-instrumentation | Not started (partial coverage via otel-helper) |
+| 09-otel-instrumentation | Not started as a formal spec (partial coverage via otel-helper; OTel wired in app) |
 | 10-metrics-and-cost-observability | ✅ Phase 1 (2026-06-18) — efficiency (collect/llm duration, prompt size) + quality (rounds) |
 | 30-datasource-cache-layer | ✅ (2026-06-21) — sha256 TTL cache wired into adapters, fail-open; `aigent.cache.hits/misses` now emitted |
-| 11-bedrock-resilience-cost | Not started |
-| 12-terraform-infra | Delivered outside the numbered spec (see `infra/terraform/`) |
-| 13-iam-least-privilege | Partially delivered in `infra/terraform/iam/` |
-| 14-security-hardening | Spec written; not implemented |
+| 11-bedrock-resilience-cost | ✅ done (2026-07-02) — Haiku classifier tiering + prompt caching + token budget; Haiku 4.5 pricing corrected |
+| 12-terraform-infra | Delivered outside the numbered spec (see `infra/terraform/`; applied to devops-core 2026-07-01) |
+| 13-iam-least-privilege | Partially delivered in `infra/terraform/iam/` (IRSA applied 2026-07-01) |
+| 14-security-hardening | ✅ done (Phases 1–6) — L1–L6 + multilingual attack-suite CI gate + SECURITY.md; cluster-homologated 2026-07-03; all findings (A/B/C/D/E1/E2/F/F-005) CLOSED (see tasks.md) |
 | 15-sli-slo-framework | Not started |
 | 16-incident-runbooks | Not started |
 | 19-config-driven-platform | ❌ Substituted by spec 22 |
-| 23-test-harness-docker | Not started |
-| 24-docs-portal-mkdocs | Not started |
-| 25-multi-tenant-concurrency | Not started |
+| 23-test-harness-docker | ✅ done (2026-06-18) — `Dockerfile.test` + fakeredis/respx/moto harness; CI reuses it (90% gate) |
+| 24-docs-portal-mkdocs | ✅ done — MkDocs Material site live (staffops.github.io/aigent-squad); root ghost docs deleted 2026-06-23 |
+| 25-multi-tenant-concurrency | Partially superseded by spec 31 (rate/budget guards in `src/core/rate_limiter.py`, Lua-atomic budget); session lock, distributed circuit breaker, k6 load test still open |
 | 28-llm-provider-abstraction | Design only |
-| 29-openai-compat-bridge | Implemented |
+| 29-openai-compat-bridge | ✅ Implemented — `/v1` routes now hosted by the gateway (spec 31) |
+| 31-edge-gateway-worker-pool | ✅ done — cluster-validated 2026-07-01; pending T21 (k6) + T23 (final review) |
+| 32-spec-lifecycle-ssot | 📝 spec written (2026-07-03) — 🔴 process track |
+| 33-operational-review-loop | 📝 spec written (2026-07-03) — 🔴 after 32 |
+| 34-release-runbook | 📝 spec written (2026-07-03) — 🔴 after 32/33; executes on the 0.4.0 release |
+| 35-quality-eval-harness | ✅ done (2026-07-15) — T1–T4/T8–T11 shipped, groundedness dimension closed the last open acceptance criterion; TRIGGERS.md rows deferred to spec 33 T1 |
+| 36-agent-native-dev-loop | 📝 spec written (2026-07-04) — 🔴 **do FIRST** (multiplier) |
+| 18 — Phase 1.5 (added 2026-07-04) | 📝 tasks T12–T16 — EVIDENCE-MODEL correlator + CASE-001 real-RCA proof |

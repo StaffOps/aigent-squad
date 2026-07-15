@@ -4,34 +4,48 @@
 > Cursor, Copilot, Aider, …). Tool-specific files (`CLAUDE.md`) just point here.
 > Detailed rules live in [`steering/`](steering/); plans in [`specs/`](specs/).
 
-Multi-agent AI platform for AWS/Kubernetes operations: **1 supervisor + 5 specialists (in-process)
-+ MCP server**. Config-driven, Bedrock-direct, read-only by default.
+Multi-agent AI platform for AWS/Kubernetes operations: **edge gateway + supervisor
+(1 process, 6 in-process specialists) + MCP server**. Config-driven, Bedrock-direct,
+read-only by default, defense-in-depth anti-prompt-injection (spec 14).
 
-> **Status**: Phase 0 complete (stabilization). Work on branch `dev`. Never push to `main`.
-> Blockers tracked in `specs/AUDIT.md`. Plan in `specs/ROADMAP.md`.
+> **Status**: `0.3.0` released and cluster-validated (devops-core, 2026-07) — gateway +
+> supervisor end-to-end with IRSA→Bedrock, Guardrail, DynamoDB. Specs 11 (model tiering),
+> 14 (security L1–L6), and 35 (quality eval harness) shipped; re-homologated in-cluster
+> 2026-07-15 (image digest `e94a901`). Work on branch `dev`. Never push to `main`.
+> Real status per spec in `specs/ROADMAP.md`; session state in `HANDOFF.md`.
+> `specs/AUDIT.md` is the historical 2026-05-30 audit (findings fixed — kept as record).
 
 ---
 
 ## Architecture
 
 ```
-User (Slack / HTTP / LibreChat)
+User (LibreChat /v1 · HTTP /query · Alertmanager · MCP :8006)
          │
          ▼
-  Supervisor :8000
-  ├── Classifier (Bedrock) → routes to 1–3 agents
+  Gateway :8000 (public front door — spec 31)
+  ├── Edge auth (INTERNAL_API_TOKEN / GATEWAY_API_KEYS, fail-closed)
+  ├── AdmissionGuard: per-user rate + global daily budget (Redis, fail-open)
+  ├── WorkerPool backpressure (semaphore 20, 503 + Retry-After)
+  └── OpenAI /v1 shaping (spec 29) · /jobs/{id}/cancel
+         │  POST /internal/process  (SUPERVISOR_INTERNAL_TOKEN, fail-closed)
+         ▼
+  Supervisor :8001 (backend-only)
+  ├── InputScanner L2 (NFKC/homoglyph/zero-width, fail-closed — spec 14)
+  ├── Classifier (Bedrock Haiku) → routes to 1–3 agents
   ├── Fan-out (parallel) → synthesizer merges N responses
-  ├── RCA investigation → all agents collect evidence in parallel
+  ├── RCA investigation → agents collect evidence in parallel
+  ├── Bedrock Guardrail (input+output, fail-closed 403) + canary + output filter
   └── DynamoDB (history, 24h TTL, per-agent isolated)
          │
   ┌──────┴──────────────────────────────┐
   │ In-process specialists (no ports)   │
   │  aws · kubernetes · finops          │
-  │  devops · observability             │
+  │  devops · observability · security  │
   └─────────────────────────────────────┘
          │
-  Redis (datasource cache, 1–60min TTL)
-  Bedrock (Claude Sonnet 4.5 inference profile)
+  Redis (datasource cache 1–60min TTL · rate/budget · jobs)
+  Bedrock (tiered: Haiku classifier / Sonnet agents+synthesis, prompt caching)
   PostgreSQL + pgvector (knowledge base, optional)
 ```
 
@@ -39,34 +53,50 @@ User (Slack / HTTP / LibreChat)
 
 1. **Classifier always routes** — routing is a Bedrock call, never manual `if/else`
 2. **Per-agent isolated history** — DynamoDB `pk=user#session`, `sk=agent#timestamp`
-3. **GenericAgent pattern** — all 5 specialists inherit `Agent`, implement `async process_request(...)`
-4. **Single Bedrock model source** — `src/core/config.py` → env `BEDROCK_MODEL_ID`
+3. **GenericAgent pattern** — all 6 specialists inherit `Agent`, implement `async process_request(...)`
+4. **Model tiering from config, never hardcoded** (spec 11) — `src/core/model_tier.py`
+   resolves role→model: `BEDROCK_CLASSIFIER_MODEL_ID` (Haiku) / `BEDROCK_MODEL_ID`
+   (agents) / `BEDROCK_SYNTHESIS_MODEL_ID`; misconfig fails loudly at startup
 5. **Read-only posture** — 4 layers: system prompt + IAM deny + K8s RBAC + response templates
-6. **Fail-open** — Redis/DynamoDB loss = service continues (agents get empty history/cache miss)
+6. **Fail-open for availability, fail-closed for security** — Redis/DynamoDB loss =
+   service continues (empty history/cache miss); rate/budget guards fail-open. BUT
+   security layers (Guardrail, InputScanner, output filter — spec 14) are
+   **fail-closed**: block or unavailable → 403, never bypass. **Exception: canary
+   (L5)** is redact-and-continue, not fail-closed (spec 14 F-005, 2026-07-13,
+   deliberate decision) — a detected leak is audited + the token is redacted
+   from the response, which still reaches the user; it does not 403. Live
+   testing found a real false-positive rate on ordinary benign answers (models
+   echo the canary as a self-invented "session ID" footer, no injection
+   involved), and the token is single-use/worthless once redacted, so denying
+   an otherwise-legitimate answer cost more than it protected
 7. **Deterministic cache keys** — `hashlib.sha256()`, never native `hash()`
-8. **No business logic in `server.py`** — transport + auth only; all logic in `agent.py`
+8. **No business logic in `server.py`/gateway** — transport + auth only; the gateway
+   holds NO orchestration and NEVER evaluates the guardrail (supervisor does)
 9. **Single response contract** — `{role, content, timestamp, agent_id}`
+10. **Two-tier trust boundary** — supervisor `/internal/*` accepts only the gateway
+    (`SUPERVISOR_INTERNAL_TOKEN`, distinct secret, + NetworkPolicy); public routes
+    live exclusively on the gateway
 
 ---
 
-## Build, test, lint — ALL via Docker
+## Build, test, lint — ALL via Docker, ALL via make (spec 36)
 
 No local Python. `python:3.11-slim` for tests (not 3.12 — pkg_resources/OTel issues).
+The **Makefile is the canonical command surface** — CI runs the same targets.
 
 ```bash
-# Tests + coverage gate (≥90% enforced)
-docker run --rm -v "$(pwd):/app" -w /app python:3.11-slim sh -c \
-  "pip install -r requirements.txt -q && pytest --cov=src --cov-fail-under=90"
-
-# Lint (ruff — rules F, E7, E9)
-docker run --rm -v "$(pwd):/app" -w /app python:3.11-slim sh -c \
-  "pip install ruff -q && ruff check src/ tests/"
+make up          # local two-tier stack + wait for gateway /ready
+make smoke       # health + 1 real query + /v1/models
+make test        # full suite + 90% gate via Docker (auto-stubs the private otel dep)
+make test-one FILE=tests/test_x.py
+make lint        # ruff, CI-verbatim scope
+make down        # stop (V=1 drops volumes)
 
 # Build image
 docker build -t aigent-squad:latest .
 
-# Local stack
-./setup-local.sh     # then: curl http://localhost:8000/health
+# Legacy wrapper (delegates to make up + smoke)
+./setup-local.sh
 docker compose up    # alternative
 
 # Smoke test
@@ -76,8 +106,31 @@ curl -X POST http://localhost:8000/query \
   -d '{"user_input": "How many EC2 instances are running?", "user_id": "u1", "session_id": "s1"}'
 ```
 
-> Tests require SSH key for `staffops-otel-libs` (private dep). In CI a deploy key is used.
-> Locally, stub the dep: grep it out of requirements, create a minimal `__init__.py` stub.
+> Tests require the private `staffops-otel-libs` dep. In CI a deploy key is used.
+> Locally, `make test` handles it automatically (`scripts/test-local.sh` generates a
+> no-op stub when the repo is unreachable and prints a loud warning).
+>
+> **Pre-push gate (mandatory).** CI runs `lint` → `test` and STOPS at the first
+> failure, so a lint error hides test results. Before every push, run the CI
+> lint command verbatim on the FULL scope — `ruff check src/ tests/` (not just
+> the files you touched; `--fix` auto-resolves F401) — then the tests. The local
+> `otel_helper` stub masks both flaky-dep tests and the real coverage gate, so
+> "passes locally" ≠ "passes CI": confirm with `gh run list` after pushing.
+> Subagent-generated modules/tests commonly leave unused imports — always lint them.
+
+---
+
+## Playbook — common failure modes (spec 36)
+
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| `403` on any query | Fail-closed security (spec 14): guardrail block, InputScanner, or `GUARDRAIL_ENABLED=true` with no `GUARDRAIL_ID` | Local compose defaults guardrail OFF — check env overrides; prod: this is working as designed |
+| `401` on `/query` or `/v1/*` | Edge token mismatch | Header `X-Internal-Token` must equal `INTERNAL_API_TOKEN` (NOT `SUPERVISOR_INTERNAL_TOKEN` — that's the gateway→supervisor link only) |
+| `503 backend_unavailable` | Supervisor down/unreachable | `docker compose logs supervisor` — usual cause: invalid `agent.yaml` (Pydantic fails at startup) |
+| `503 service_overloaded` | WorkerPool full (backpressure) | Self-healing; persistent → raise `GATEWAY_MAX_CONCURRENT` |
+| Empty history / no context | DynamoDB fail-open (by design) | Check `dynamodb-local` health; the query still answers |
+| Passes locally, fails CI | Local run used the otel stub (masks deps/telemetry) | The `make test` warning says so; verdict = `gh run list -L 3` |
+| Bedrock `on-demand throughput isn't supported` | Raw model id used | `BEDROCK_MODEL_ID` must be an inference profile (`us.` prefix) |
 
 ---
 
@@ -85,33 +138,47 @@ curl -X POST http://localhost:8000/query \
 
 ```
 src/
+  gateway/              ← Edge tier (spec 31) — public :8000
+    main.py             ← FastAPI front door: /query, /v1/*, /jobs/{id}/cancel, health
+    worker_pool.py      ← Local semaphore(20), PoolFullError→503, cancel via Redis poll
+    supervisor_client.py← httpx client + preflight to the supervisor backend
+    auth.py             ← Edge auth (INTERNAL_API_TOKEN / GATEWAY_API_KEYS, fail-closed)
   core/
-    agent_base.py       ← Abstract Agent class (implement async process_request)
-    generic_agent.py    ← Config-driven agent (all 5 specialists use this)
-    bedrock.py          ← Bedrock client: circuit breaker, retry, token counting
-    classifier.py       ← LLM-based routing + keyword fallback
-    adapters.py         ← Boto3, Kubernetes, HTTP, Athena, MCP data collectors
+    generic_agent.py    ← Config-driven agent (all 6 specialists use this)
+    bedrock.py          ← Bedrock chokepoint: guardrail, retry, tokens, prompt caching
+    model_tier.py       ← Role→model resolver + per-model pricing (spec 11)
+    token_budget.py     ← Per-session token budget (hard cap, spec 11)
+    classifier.py       ← LLM-based routing (Haiku) + keyword fallback
+    guardrail.py        ← Bedrock Guardrail client (L1, fail-closed — spec 14)
+    input_scanner.py    ← L2 pre-LLM normalization + heuristics (spec 14)
+    output_filter.py    ← L4 PII/secret/canary scan on responses (spec 14)
+    canary.py           ← L5 exfiltration canary tokens (spec 14)
+    rate_limiter.py     ← AdmissionGuard: rate + daily budget, Lua atomic, fail-open
+    circuit_breaker.py  ← Bedrock circuit breaker
+    adapters.py         ← Boto3, Kubernetes, HTTP, Athena, MCP data collectors (cached)
     skills.py           ← Lazy skill registry (SKILL.md frontmatter matching)
     registry.py         ← Auto-discovers agents from agents/ at startup
     state_store.py      ← DynamoDB ChatStorage (per-agent history, 24h TTL)
     cache.py            ← Redis datasource cache (NOT LLM responses)
-    config.py           ← Pydantic BaseSettings (env vars, BEDROCK_MODEL_ID SSOT)
-    auth.py             ← X-Internal-Token header check (fail-closed)
+    config.py           ← Pydantic BaseSettings (env vars SSOT)
+    auth.py / internal_auth.py ← edge token / supervisor-internal token (fail-closed)
+    health.py           ← DependencyChecker for /ready probes
     metrics.py          ← OTel + custom aigent.* metrics
     investigation.py    ← Evidence model, RCA logic
+    triage.py           ← trivial-vs-investigate decision
+    kb/                 ← Incident memory (spec 21): extractor, enricher, pgvector store, RAG
   supervisor/
     agent.py            ← SupervisorAgent: routing, fan-out, history, investigation
-    server.py           ← FastAPI: /query, /alerts/incoming, /v1/chat/completions, health
+    server.py           ← FastAPI backend :8001: /internal/process, /internal/agents,
+                          /alerts/incoming, /kb/*, health (public /query & /v1 moved to gateway)
     synthesizer.py      ← Merges N agent responses into one
-    investigation.py    ← RCA orchestration (Phase 1: single-round)
-  agents/
-    aws/agent.py · kubernetes/agent.py · finops/agent.py
-    devops/agent.py · observability/agent.py
+    openai_compat.py    ← OpenAI /v1 shaping (imported by the gateway)
+    investigation.py    ← RCA orchestration (Phase 1: single-round + alert ingestion)
   api/
     server.py           ← Slack entrypoint (rewrite planned in Phase 3)
 
 agents/                 ← Config-driven agent definitions (agent.yaml + prompt.md)
-  aws/ · kubernetes/ · finops/ · devops/ · observability/
+  aws/ · kubernetes/ · finops/ · devops/ · observability/ · security/
 
 skills/                 ← Lazy-loaded markdown knowledge (SKILL.md with YAML frontmatter)
 
@@ -166,10 +233,17 @@ No code changes needed — `AgentRegistry` auto-discovers at startup.
 
 | Variable | Required | Default | Purpose |
 |----------|----------|---------|---------|
-| `BEDROCK_MODEL_ID` | ✅ | `us.anthropic.claude-sonnet-4-5-20250929-v1:0` | Model (inference profile) |
+| `BEDROCK_MODEL_ID` | ✅ | `us.anthropic.claude-sonnet-4-5-20250929-v1:0` | Agent/synthesis model (inference profile) |
+| `BEDROCK_CLASSIFIER_MODEL_ID` | | `us.anthropic.claude-haiku-4-5-20251001-v1:0` | Classifier model (Haiku tiering, spec 11) |
 | `AWS_REGION` | ✅ | `us-east-1` | Bedrock, DynamoDB, AWS APIs |
-| `INTERNAL_API_TOKEN` | ✅ | — | Auth for /query + all non-health endpoints |
-| `REDIS_HOST` | ✅ | — | Cache |
+| `INTERNAL_API_TOKEN` | ✅ | — | Edge auth for /query + /v1 (gateway) |
+| `SUPERVISOR_INTERNAL_TOKEN` | ✅ | — | Gateway→supervisor `/internal/*` link (distinct secret, fail-closed) |
+| `GUARDRAIL_ENABLED` | | `true` | Spec-14 Bedrock Guardrail (fail-closed; needs `GUARDRAIL_ID`) |
+| `GUARDRAIL_ID` / `GUARDRAIL_VERSION` | when enabled | — / `DRAFT` | From `infra/terraform/guardrail/` outputs |
+| `INPUT_SCANNER_ENABLED` / `OUTPUT_FILTER_ENABLED` / `CANARY_ENABLED` | | `true` | Spec-14 L2/L4/L5 toggles |
+| `RATE_BUDGET_ENABLED` | | `true` | Gateway admission guards (rate + daily budget) |
+| `GATEWAY_MAX_CONCURRENT` | | `20` | WorkerPool size (+ `GATEWAY_*_TIMEOUT_SECONDS`) |
+| `REDIS_HOST` | ✅ | — | Cache + rate/budget + job lifecycle |
 | `REDIS_PASSWORD` | ✅ | — | Cache auth |
 | `REDIS_SSL` | | `true` | Disable in dev |
 | `DYNAMODB_SESSIONS_TABLE` | | `agent-sessions` | Conversation history |
@@ -187,7 +261,8 @@ See `.env.example` for full template.
 
 | Service | Port |
 |---------|------|
-| Supervisor | 8000 |
+| Gateway (public) | 8000 |
+| Supervisor (backend, `/internal/*`) | 8001 |
 | MCP Server | 8006 |
 | Redis | 6379 |
 | PostgreSQL | 5432 |
@@ -208,7 +283,9 @@ All metrics named `aigent.<domain>.<name>`. Key ones:
 | `aigent.errors.total` | agent_id, error_type | Failures |
 | `aigent.tokens.total` | agent_id, model, direction | Token consumption |
 | `aigent.cost.estimated` | agent_id | USD cost per agent |
-| `aigent.cache.hits/misses` | agent_id | Cache effectiveness |
+| `aigent.cache.hits/misses` | namespace | Datasource cache effectiveness (spec 30) |
+| `aigent.gateway.pool_rejections/pool_depth/queue_wait` | — | Gateway backpressure (spec 31) |
+| `aigent.rate_limit.blocks` | reason | Admission guard blocks (user/global) |
 | `aigent.fanout.calls` | — | Multi-agent dispatch count |
 | `aigent.investigation.duration` | — | RCA latency |
 | `aigent.circuit_breaker.transitions` | — | Bedrock resilience events |
@@ -224,11 +301,17 @@ in `docs/METRICS.md`.
 | Phase | Description | Status |
 |-------|-------------|--------|
 | 0 | Stabilization (fix blockers, unify architecture, harden security) | ✅ Complete |
-| 1 | Quality + docs (test suite ≥90%, per-agent cost metrics, README) | 🔄 In progress |
-| 2 | Deploy (Helm chart, EKS/IRSA, per-env manifests) | 🔴 Blocked on Phase 1 |
-| 3+ | Features (Slack v2, RAG, proactive agents, multi-round RCA) | ⏳ After real deploy |
+| 1 | Quality + docs (tests ~93% w/ 90% gate, cost metrics, MkDocs site, CI/CD) | ✅ Complete |
+| 2 | Deploy (Helm chart 0.9.x, EKS/IRSA, gateway two-tier) | ✅ Cluster-validated (devops-core, 2026-07; `0.3.0`) |
+| 2.5 | Hardening (spec 14 L1–L6, spec 11 tiering, budget TOCTOU) | ✅ Shipped; all findings (A/B/C/D/E1/E2/F/F-005) CLOSED |
+| 3+ | Features (Slack v2, multi-round RCA, distributed topology, RAG bench) | ⏳ Next — see `specs/ROADMAP.md` |
 
-Current work order (Phase 0): complete → Phase 1 in progress.
+Current work: spec 14 and spec 35 (quality eval harness) are both fully
+shipped and cluster-homologated (devops-core, `0.3.0-dev`, digest `e94a901`,
+2026-07-15). `0.4.0` is not gated on anything technical — it stays uncut
+because the team is deliberately accumulating more improvements first (see
+`HANDOFF.md` for the live session state). Next real item: spec 18 Phase 1.5
+(EVIDENCE-MODEL correlator).
 
 ---
 
@@ -256,7 +339,11 @@ Current work order (Phase 0): complete → Phase 1 in progress.
 - **Spec-driven**: update `specs/<NN>/design.md` BEFORE implementing
 - **Tests ship with code**: ≥90% coverage, Docker-measured, independent author
 - **Metrics ship with code**: new feature = new `aigent.*` metric in `metrics.py` + `docs/METRICS.md`
-- **Docs ship with code**: update relevant `docs/` files in the same change
+- **Docs ship with code**: update relevant `docs/` files in the same change.
+  Opt-in enforcement: `make install-hooks` installs a pre-commit hook
+  (`.githooks/pre-commit`) that blocks a commit touching `src/` or an
+  agent's `agent.yaml`/`prompt.md` without a docs/spec file in the same
+  commit (bypass per-commit: `git commit --no-verify`)
 - **Mark tasks**: update `tasks.md` with completion dates; explicitly defer unfinished items
 - **Conventional commits**: `feat/fix/docs/test/refactor/chore(scope): description`
 - **Stage explicitly**: `git add <specific files>` — never `git add .`
@@ -276,5 +363,8 @@ Current work order (Phase 0): complete → Phase 1 in progress.
 | Security / read-only policy | `docs/SECURITY.md`, `docs/READ_ONLY_POLICY.md` |
 | Observability pipeline | `docs/OBSERVABILITY.md` |
 | All custom metrics | `docs/METRICS.md` |
-| Bedrock design decision | `specs/ADR-001-bedrock-direct-vs-strands.md` |
+| Product why / personas / success metrics | `docs/prd/aigent-squad.md` |
+| Architecture decisions (ADR index) | `docs/architecture/decisions/README.md` |
+| Bedrock design decision | `specs/ADR-001-bedrock-direct-vs-strands.md` (= ADR-0001) |
 | Deploy to K8s | `helm-charts/charts/aigent-squad` (sibling repo) |
+| Cut a release | `RELEASE.md` (spec 34) — 8-phase runbook, cross-repo |

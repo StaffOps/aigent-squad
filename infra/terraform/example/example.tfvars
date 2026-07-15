@@ -12,9 +12,12 @@ vpc_id                       = "vpc-xxxxxxxx"
 private_subnet_ids           = ["subnet-aaaa", "subnet-bbbb"]
 eks_worker_security_group_id = "sg-xxxxxxxx"
 
-# CostCenter must be a value approved by the org's AWS tag policy
-# (e.g. Platform-Infrastructure). An arbitrary value is rejected at apply.
-cost_center = "CHANGE-ME"
+# Optional extra tags merged into every resource (e.g. cost allocation).
+# The infra imposes no org-specific tagging scheme — leave empty or fill in.
+# tags = {
+#   CostCenter = "my-cost-center"
+#   Environment = "PRD"
+# }
 
 # Namespace + ServiceAccount the supervisor pod actually runs as. The Helm chart
 # names the SA <release>-supervisor, so the IRSA trust must target that exact SA.

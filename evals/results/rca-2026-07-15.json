@@ -1,0 +1,33 @@
+{
+  "timestamp": "2026-07-15T17:27:27.663370+00:00",
+  "avg_score": 1.0,
+  "scenarios": [
+    {
+      "id": "dependency-outage",
+      "score": 1.0,
+      "passed": true,
+      "confidence": "alta",
+      "hypothesis": "orders-service checkout timeouts were caused by payments-service becoming unreachable during an RDS failover event on orders-payments-db, which triggered Kubernetes readiness probe failures that removed payments-service pods from the load balancer",
+      "evidence_count": 16,
+      "failures": []
+    },
+    {
+      "id": "deploy-regression",
+      "score": 1.0,
+      "passed": true,
+      "confidence": "alta",
+      "hypothesis": "Deployment a1b2c3d ('refactor payment validation' by j.silva) introduced a NullPointerException in PaymentValidator.validate() due to missing null-safety checks, causing 34% of checkout requests to fail immediately.",
+      "evidence_count": 14,
+      "failures": []
+    },
+    {
+      "id": "memory-leak",
+      "score": 1.0,
+      "passed": true,
+      "confidence": "alta",
+      "hypothesis": "recommendation-service has a memory leak causing pods to consume ~132 MiB/hour until hitting the 512Mi limit and being OOMKilled every ~2.5 hours",
+      "evidence_count": 20,
+      "failures": []
+    }
+  ]
+}

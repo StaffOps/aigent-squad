@@ -1,8 +1,9 @@
 # Terraform module: `bedrock-aip`
 
-Creates **Application Inference Profiles (AIP)** — one per model — carrying
-FinOps cost allocation tags. The app invokes the AIP ARN instead of the raw
-model id, so Amazon Bedrock spend becomes filterable by tag in Cost Explorer.
+Creates **Application Inference Profiles (AIP)** — one per model. The app invokes
+the AIP ARN instead of the raw model id, so Amazon Bedrock spend becomes
+filterable by tag in Cost Explorer (using whatever tags you set in the
+provider's `default_tags` — the module imposes no specific tagging scheme).
 
 Per-agent cost is **not** done with per-agent AIPs. It's derived from the
 per-agent token metric (showback). See `specs/27-bedrock-cost-attribution/`.
@@ -10,14 +11,14 @@ per-agent token metric (showback). See `specs/27-bedrock-cost-attribution/`.
 ## What it creates
 
 - 1 `aws_bedrock_inference_profile` per entry in `var.models`
-- Each tagged with `CostProject`, `CostScope`, `Environment`, `CostCenter`
+- Each inherits the provider's `default_tags` (set any cost/governance tags there)
 - `copy_from` points at the **system** inference profile (the `us.` one) —
   required because Claude Sonnet 4.5 has no on-demand on the bare
   foundation-model ARN, and `us.` adds cross-region routing.
 
 ## Usage
 
-Cost allocation tags are defined **once** in the AWS provider's `default_tags`
+Tags are defined **once** in the AWS provider's `default_tags`
 (see `example/main.tf`), so they are NOT module inputs — every AIP inherits
 them automatically.
 
@@ -26,13 +27,7 @@ them automatically.
 provider "aws" {
   region = var.region
   default_tags {
-    tags = {
-      CostProject = "aigent-squad"
-      CostScope   = "MONITORING"
-      Environment = "PRD"
-      CostCenter  = var.cost_center
-      ManagedBy   = "terraform"
-    }
+    tags = merge({ ManagedBy = "terraform" }, var.tags)
   }
 }
 
