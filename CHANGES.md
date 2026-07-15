@@ -2,79 +2,138 @@
 
 ## [Unreleased]
 
-### Added (Spec 14 Phase 5: security docs)
-- `docs/SECURITY.md` §S4 rewritten: defense-in-depth L1–L6 table, STRIDE mapping,
-  fail-closed (L1/L2/L4/L5) vs fail-open (L6), L3 delimitation detail. Replaces the
-  stale "delimitation only / not yet implemented" note. `docs/READ_ONLY_POLICY.md`
-  cross-ref updated (Phases 1–4 shipped, links §S4). Security-reviewed against code.
-- **Known gap documented (homologation 2026-07-03)**: L2 `InputScanner` is wired in
-  the worker (generic) agents but NOT at the supervisor entry — the routing
-  classifier invoke sees raw input (covered by L1, not L2 canonicalization). Fix
-  proposed (wire L2 at `supervisor.process_request`), deferred; L1 is the backstop.
+_Nothing yet — this section starts fresh after the [0.4.0] cut._
 
-### Changed (Spec 14 Phase 4: hardening from security review)
-- `src/core/input_scanner.py`: strip RTL/Bidi override chars (U+202A–202E, U+2066–
-  2069) in the zero-width pass — visual-direction obfuscation with no legit use.
+## [0.4.0] - 2026-07-15
 
-### Added (Spec 14 Phase 4: multilingual prompt-injection attack suite — CI gate)
-- `tests/test_attack_suite.py`: deterministic security regression gate (62
-  parametrized attack cases, no Bedrock/AWS/cost). Covers 5 languages (PT, EN,
-  ES, Chinese, Arabic) × 6 obfuscation vectors (zero-width splitting, Cyrillic/
-  Greek homoglyphs, fullwidth chars, base64-encoded payloads, combined layered
-  attacks, leetspeak). Asserts L2 InputScanner normalizes obfuscations (exposing
-  canonical text for L1) or blocks (GuardrailBlockedError). Plain-text and
-  leetspeak injections marked `xfail(strict=True)` — L1 is the catcher by design.
-  L3 context isolation tests (7 cases) confirm delimiter structure is sound.
-- **Task 13 (L3 reinforcement)**: no code change needed. Attack suite confirmed
-  that `generic_agent.py` context construction is structurally sound against
-  delimiter spoofing — the trailing reinforcement line is positionally anchored
-  and user-injected close tags are nested content, not real delimiters.
+Everything since the `0.3.0` tag (2026-07-02): spec 11 (model tiering) and
+spec 14 Phases 2-6 (defense-in-depth complete, all findings closed) shipped
+within days of the 0.3.0 cut and were never cut into a release themselves —
+consolidated here rather than losing that history. Plus two weeks of live
+defect-fixing (F-001 through F-007), spec 35 (quality eval harness,
+complete), spec 36 (agent-native dev loop), spec 34 (this release's own
+runbook), and a full re-homologation against the real cluster.
 
-### Added (Spec 14 Phase 3: input normalization + cheap heuristics — L2)
-- `src/core/input_scanner.py`: `InputScanner` — pre-LLM normalization (Unicode
-  NFKC, zero-width char stripping, Cyrillic/Greek homoglyph→Latin folding) +
-  cheap rejection heuristics (oversized input, excessive control chars, repeated-
-  char abuse, base64 blob inspection for injection markers). Fail-closed on
-  scanner error (Decision 2). Audit log uses sha256[:12] digest only (no raw
-  payload). Gated by `INPUT_SCANNER_ENABLED` env var (default `true`).
-- `src/core/generic_agent.py`: InputScanner wired at the START of
-  `process_request` (before adapters/context/invoke). Normalized text replaces
-  `input_text` for all downstream processing.
-- `src/core/config.py`: new setting `input_scanner_enabled` (default `True`).
-- **Note (Task 9 — reused)**: `RateLimiter`+`BudgetGuard` per user/session
-  already delivered as `AdmissionGuard` in `src/core/rate_limiter.py` (spec 31
-  L3). Fail-open for rate/budget (availability); fail-closed reserved for security
-  guardrails — reconciled at spec-31 round-table.
+### Security — spec 14 Phases 2-6, defense-in-depth complete, ALL findings closed
+- **L5 canary** (`src/core/canary.py`): per-request random tokens injected
+  into `infra_data`; exact+fuzzy leak detection. **Redact-and-continue since
+  F-005** (2026-07-13, not fail-closed like the other layers) — live testing
+  found ordinary Bedrock responses false-positive on a self-invented
+  "session ID" footer; a leaked token is single-use/worthless once redacted,
+  so denying an otherwise-correct answer cost more than it protected. Hardened
+  2026-07-15: obfuscated-prefix redaction gap closed, and repeated detections
+  in the same session now escalate to a hard block (closes the "soft oracle"
+  an attacker could probe with zero real cost).
+- **L4 output filter** (`src/core/output_filter.py`): PII/secret detection
+  (AWS keys, private keys, emails, CPF, Luhn-checked credit cards, GitHub/
+  GitLab tokens) — fail-closed.
+- **L2 InputScanner** (`src/core/input_scanner.py`): pre-LLM Unicode NFKC +
+  zero-width/RTL-bidi stripping + Cyrillic/Greek homoglyph folding + cheap
+  heuristics (oversized, control-char abuse, base64 injection markers).
+  Wired at BOTH the supervisor entry (classifier) and every worker agent —
+  closing Findings A/B/C/D (below).
+- **Multilingual attack-suite CI gate** (`tests/test_attack_suite.py`): 62+
+  parametrized cases, 5 languages × 6 obfuscation vectors, deterministic, $0.
+- **Entry-point findings A/B/C/D — CLOSED** (2026-07-11): classifier-stage
+  guardrail blocks now carry real `user_id`/`session_id` (fixes the
+  unattributable-audit + under-counted-budget pair, A+C); homoglyph/zero-
+  width attacks now normalize/block pre-route, not just at the worker (B);
+  oversized input is now a clean 403 (`scanner:oversized`), not a
+  ValueError-degraded 200 (D).
+- **E1/E2/F/F-005 — CLOSED**: synthesis Bedrock calls now attributed +
+  budgeted (E1); RCA evidence-collection fan-out no longer escapes the
+  session budget cap via a derived session_id (E2, fixed twice — a
+  concurrency race in the fix itself was caught by independent review and
+  closed 2026-07-15); `/alerts/incoming` now scans the symptom through L2
+  before it reaches any agent (F); canary false-positives (F-005, above).
+- `docs/SECURITY.md` §S4 rewritten: full L1-L6 table, STRIDE mapping,
+  fail-closed vs fail-open rationale per layer.
 
-### Fixed (Spec 31 T19d: budget check-and-reserve is now atomic)
-- `src/core/rate_limiter.py`: `AdmissionGuard.check_budget` replaced the
-  non-atomic GET→compare→INCR with a single Lua `EVAL` check-and-reserve
-  (`_BUDGET_RESERVE_LUA`). Concurrent requests near the daily cap can no longer
-  both pass (TOCTOU closed) — verified by a 10-way concurrency test (cap $5, ten
-  $1 reserves → exactly 5 allowed, total never exceeds the cap). Still fail-open
-  (Redis/EVAL error → allow). Haiku estimate pricing aligned to $1/$5 (4.5).
-- CI (`test.yml`) uses `fakeredis[lua]` so the EVAL path is exercised.
+### Cost & resilience — spec 11 (model tiering) + budget hardening
+- `src/core/model_tier.py`: config-driven role→model resolution (Haiku
+  classifier / Sonnet agents+synthesis), per-model pricing incl. prompt-cache
+  read/write rates.
+- `src/core/token_budget.py`: `SessionBudgetTracker` (hard per-session cap,
+  now thread-safe — a race under RCA fan-out's `asyncio.to_thread` calls
+  could lose concurrent increments, closed 2026-07-15), token-based history
+  truncation.
+- Bedrock prompt caching (`cache_control: ephemeral`), atomic Lua-`EVAL`
+  budget check-and-reserve (closes a TOCTOU where concurrent requests near
+  the daily cap could both pass).
 
-### Added (Spec 11: Bedrock cost & model tiering — T1–T6 implemented)
-- `src/core/model_tier.py`: config-driven model resolution (`resolve_model(role)` → model ID from settings), per-model pricing table (Haiku/Sonnet/Opus with cache_read rates), `compute_cost()` replacing hardcoded Sonnet pricing, and `estimate_tokens()` for budget/truncation (conservative ~4 chars/token approximation).
-- `src/core/token_budget.py`: `SessionBudgetTracker` (per-session hard cap, configurable via `SESSION_TOKEN_BUDGET`), `TokenBudgetExceeded` exception (fail-hard, not warn), and `truncate_history_by_tokens()` replacing message-count truncation in classifier + generic_agent.
-- `src/core/config.py`: new settings — `BEDROCK_CLASSIFIER_MODEL_ID` (default Haiku), `BEDROCK_AGENT_MODEL_ID` / `BEDROCK_SYNTHESIS_MODEL_ID` (default Sonnet), `BEDROCK_PROMPT_CACHE_ENABLED`, `SESSION_TOKEN_BUDGET` (200k), `HISTORY_MAX_TOKENS` (8000).
-- `src/core/bedrock.py`: `invoke`/`_invoke_sync` accept `role` param ("classifier"/"agent"/"synthesis") → resolves model via `model_tier.resolve_model()`; system block now includes `cache_control: {"type":"ephemeral"}` when caching enabled; graceful degradation on ValidationException (disables cache for process lifetime, no crash); per-model cost metric via `compute_cost()` (accounts for `cache_read_input_tokens`); all existing callers updated with appropriate role.
-- `src/core/classifier.py`: passes `role="classifier"` (→ Haiku); history truncation now by tokens (2000-token window) instead of last-10-messages.
-- `src/core/generic_agent.py`: passes `role="agent"` (→ Sonnet); history truncation by tokens (configurable `history_max_tokens`, default 8000) instead of last-5-messages.
-- `src/supervisor/synthesizer.py`, `src/supervisor/investigation.py`, `src/core/kb/enricher.py`, `src/core/kb/extractor.py`: all pass `role="synthesis"` or `role="agent"` as appropriate.
+### Quality — spec 35, complete (structural gate, golden sets, RCA scoring, groundedness)
+- **T1 structural gate** (`src/core/response_quality.py`, production-wired,
+  fail-closed): blocks tool-call-scaffolding leaks and raw adapter/infra
+  error text reaching the user verbatim — the exact shape of F-001/F-002/F-003.
+- **T2 scored runner** (`make eval`): per-agent golden sets (6 agents,
+  including a `security` agent golden set added 2026-07-15 — that agent
+  existed since 2026-06-14 but had zero eval coverage and was misdocumented
+  as not present in this repo) + Haiku-judge scoring, versioned rubric,
+  baseline + tolerance-diff.
+- **RCA scenario harness** (`make eval-rca`, spec 35 Phase 3): 3 fixture-fed
+  scenarios mapped to EVIDENCE-MODEL signatures (deploy regression, memory
+  leak, dependency outage) — the real investigation pipeline scored against
+  a known-answer world. First baseline: 3/3 scored 1.0, confidence alta.
+- **Groundedness dimension** (PR-05, closes the last open acceptance
+  criterion): resource IDs stated in a response that aren't in the collected
+  `infra_data` are hard-blocked (never a legitimate derived value); numeric
+  dollar-amount claims are metric-only, never blocking (a derived sum/average
+  can legitimately not appear verbatim — same tradeoff class as F-005).
+- Independent review (T11) of the whole harness found and fixed 5 issues
+  (consolidated regression proof, empty-response/judge-score guards, DOTALL
+  regex fix, RCA causal-direction check, the security-agent gap above) plus
+  2 bonus false-positive fixes found during re-verification.
+- Metric: `aigent.eval.score` (`suite`, `agent_id`); `aigent.quality.violations`
+  and `aigent.quality.ungrounded_numeric_claims`.
 
-### Added (Spec 14 Phase 2: exfiltration defense — L5 canary + L4 output filter)
-- `src/core/canary.py`: `CanaryGuard` injects per-request unique tokens (128-bit random, `CNRY-` prefix) into `infra_data` before the model invoke. After invoke, scans the response for any canary token; if found → `GuardrailBlockedError` (exfiltration signal, fail-closed). Tokens never logged in clear text (sha256[:12] digest for audit correlation). Gated by `CANARY_ENABLED` env var (default `true`).
-- `src/core/output_filter.py`: `OutputFilter` scans model response for PII/secrets (AWS access keys, private keys, emails, CPF, credit cards, GitHub/GitLab tokens, generic API secrets) using compiled regex patterns. Detection → `GuardrailBlockedError` (fail-closed: blocks entire response, consistent with Decision 2 — block not redact). Categories reported as `leak:<pattern_name>`. Gated by `OUTPUT_FILTER_ENABLED` env var (default `true`).
-- `src/core/config.py`: new settings `canary_enabled` (default `True`) and `output_filter_enabled` (default `True`), matching `guardrail_enabled` posture.
-- `src/core/generic_agent.py`: canary injection wired after adapter data collection; canary detection + output filter scan wired after Bedrock invoke, before response return. Both raise `GuardrailBlockedError` (existing HTTP 403 mapping, no entrypoint changes needed).
+### Fixed — live defects found via real homologation (F-001 through F-007)
+- **F-001**: aws agent hallucinated `<use_mcp_tool>` XML — no MCP datasource
+  was ever wired for it; prompt told it to use one anyway.
+- **F-002**: finops surfaced raw `AccessDeniedException` in every answer —
+  dropped the unreachable Athena datasource, kept Cost Explorer (real data).
+- **F-003**: kubernetes agent's MCP datasource pointed at a dead external
+  hostname — repointed to the in-cluster Service DNS.
+- **F-004**: adapter collection failures could get fabricated a full
+  diagnostic report around them instead of an honest "couldn't reach that
+  data" — new instruction in the shared context template, tightened once
+  more after the new quality guard caught a follow-on case of quoting the
+  raw error line verbatim.
+- **F-005**: canary false positives — see Security section above.
+- **F-006**: "world-class expert" hype-style prompts (emoji severity
+  grading, rigid multi-section templates) trimmed across aws/finops/
+  kubernetes — a root-cause contributor to F-001 and F-005's fabrication
+  patterns.
+- **F-007**: the classifier returned `unknown` for requests phrased as a
+  mutating action ("please terminate this instance now") instead of routing
+  to the domain agent for a proper read-only refusal — new classifier
+  guideline. A residual case (triage's keyword heuristic overriding the
+  correct classifier decision) fixed 2026-07-15, verified live in-cluster.
 
-### Review remediations (security + finops + code-review)
-- **Canary (HIGH-1)**: detection is exact **and fuzzy** — the hex suffix is matched even if separators are inserted between chars, defeating "replace '-' with ' '" obfuscation attacks.
-- **OutputFilter false-positives**: `aws_secret_key` now requires proximity to an AWS key-name (drops bare 40-char blobs like SHA-1); `credit_card` is confirmed with a **Luhn** check (drops epoch timestamps / IDs).
-- **finops**: Haiku priced at 4.5 rates ($1/$5/$0.10 per MTok); `compute_cost` now prices cache-**write** tokens at 1.25x (was unpriced) via `cache_creation_input_tokens` from `bedrock.py`.
-- **Token budget wired** (was inert): `record_usage` on every Bedrock call (`_invoke_sync`) + `check_budget` hard-cut at `SupervisorAgent.process_request` entry. Enricher stays on Sonnet (`synthesis` tier); Opus is a documented promotion trigger, not a silent deferral.
+### Added — dev loop, docs, process
+- **Spec 36** (agent-native dev loop): `Makefile` as the canonical command
+  surface (`make up/test/lint/eval/eval-rca/smoke/install-hooks`), auto-stub
+  test harness for the private otel dependency, `.claude/` committed, CI
+  runs the identical targets.
+- **Spec 34** (this release's own runbook): `RELEASE.md`, an 8-phase
+  cross-repo release checklist, independent-reviewed.
+- LibreChat local setup (docker-compose, pointed at the real cluster) —
+  `docs/LIBRECHAT.md`.
+- Process specs 32/33 written (not yet implemented — status-gate script and
+  operational-review cadence remain open).
+- Pre-commit hook (`make install-hooks`, opt-in): blocks a commit touching
+  `src/`/agent config without an accompanying docs/spec file.
+
+### Fixed — tooling
+- `scripts/test-local.sh`'s otel-dependency filter was stale after the
+  otel-helper repo moved to a public org URL — broke `make test` locally.
+- `src/core/classifier.py` region/Haiku inference-profile ID corrections
+  found during cluster homologation.
+
+### Deployed
+- Re-homologated in-cluster 2026-07-15 (devops-core, Harbor digest
+  `e94a901`): F-007's fix confirmed live via the classifier's own reasoning
+  field, new `security` agent answering real IAM questions, all 6 agents
+  visible via `/v1/models`, zero errors across the rollout.
 
 ## [0.3.0] - 2026-07-02
 
