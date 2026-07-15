@@ -1,9 +1,94 @@
-# Handoff — sessions 2026-06-16 → 2026-07-14
+# Handoff — sessions 2026-06-16 → 2026-07-15
 
 Estado para retomar. O que foi feito, o que ficou pendente, e próximos
 passos priorizados.
 
 ---
+
+## Done — session 2026-07-15 (F-007 fix, security review fixes, values migration, spec 35 Phase 3)
+
+Worked the ordered queue the user gave ("2+1+4+5"): F-007 fix → security
+review fixes → (interrupt: helmfile values migration) → spec 35 Phase 3.
+Nothing pushed; app-repo changes uncommitted, `k8s-setup` changes uncommitted.
+
+- **F-007 fixed + verified** (`src/core/classifier.py`): new guideline 6 in
+  `Classifier.SYSTEM_PROMPT` — mutation-phrased requests still route to the
+  domain agent. Verified live: 4/5 previously-failing golden questions now
+  route correctly with a proper refusal. 1 residual (routes to `investigation`
+  instead of direct `aws` — a triage/synthesis-text issue, not classifier;
+  documented in BACKLOG F-007, not a functional bug). Bonus fix found while
+  verifying: `scripts/test-local.sh`'s otel-dep filter was stale after the
+  `d8dc822` URL rename, broke `make test` locally — fixed.
+- **4 independent-review findings fixed** (`specs/BACKLOG.md` "Independent
+  review findings" row): budget-tracker thread-safety lock, `/alerts/incoming`
+  fingerprint-based budget session, canary obfuscated-prefix redaction,
+  canary repeated-detection escalation (3 strikes → hard block). Full suite
+  732 passed / 94.40% cov, lint clean.
+- **Helmfile values migration** (user-directed mid-turn, separate repo
+  `BDC/k8s-setup`): migrated the real applied values into
+  `staffops/aigent-squad/values.yaml.gotmpl`, gitignored it (real IRSA
+  ARN/secrets-key/hostname), untracked it from git (`git rm --cached`,
+  staged not committed), left a pointer comment in the file itself to
+  `infra/values/values.yaml` (this repo) as the canonical source. Hit a
+  transient "model unavailable" classifier outage mid-edit — retried until
+  it recovered, no data lost.
+- **Spec 35 Phase 3 (T8/T9) shipped**: 3 fixture-fed RCA scenarios
+  (`evals/rca/*.yaml`) + `evals/rca_runner.py` (`FixtureAdapter` swaps real
+  adapters for canned text; classifier/fan-out/correlate/synthesize all run
+  for real) + `make eval-rca`. First real run: **all 3 scenarios scored 1.0,
+  confidence alta**, substantive correct hypotheses. Baseline recorded
+  (`evals/results/rca-baseline.json`) — this is the BEFORE for spec 18 Phase
+  1.5 (EVIDENCE-MODEL correlator) to measure gain against later. Hit an AWS
+  SSO token expiry mid-run (container's mounted SSO cache had a dead refresh
+  token even though the host CLI still resolved credentials) — user ran
+  `aws sso login`, re-ran clean.
+- **Next / open**: nothing currently blocking. Docker stack was torn down
+  after the RCA run. Spec 35 Phase 4 (T10/T11 — docs + independent-author
+  review) still open. Commit/push decisions (this repo's `dev`, `BDC/
+  aigent-squad`'s `main`, `BDC/k8s-setup`'s values migration) all deferred,
+  per the user's standing "accumulate more improvements before 0.4.0" call.
+
+## Done — session 2026-07-14 continued (independent review + eval re-verification, F-007 filed)
+
+Picked up from the `b0e6f98` golden-set calibration commit. Did the two items
+requested ("faça 3 e 4"): an independent security review of the E2 + F-005
+(canary) changes, and a real `make eval` re-run to verify the calibration.
+Nothing new committed yet — all local file edits, no git action taken.
+
+- **Independent review (4 findings, not yet fixed)**: 2 Medium on spec-14 E2
+  (`SessionBudgetTracker.record_usage` thread-safety race; `/alerts/incoming`
+  passing `session_id=""` bypasses budget attribution entirely), 1 Medium + 1
+  Low on F-005 canary (obfuscated-prefix redaction gap; the new
+  redact-and-continue behavior is itself a soft oracle an attacker could probe
+  for evasion techniques). Reported to the user via `ReportFindings`; no fix
+  proposed or applied yet — open decision.
+- **Eval re-run verified the calibration worked**: aws 0.411→0.611, finops
+  0.329→0.471, kubernetes 0.533→0.567, observability 0.36→0.82, devops
+  0.88→0.86 (noise). Promoted `evals/results/2026-07-14.json` to
+  `evals/results/baseline.json` (old one kept as
+  `...-first-calibration-baseline-superseded.json`).
+- **F-007 filed** (`specs/BACKLOG.md`): of the 7 remaining mechanical
+  failures, 5 are the SAME "refuse a mutating action" pattern surviving
+  across two independently-reworded golden-set passes — ruled out as wording
+  noise, isolated as a real classifier defect. `Classifier.SYSTEM_PROMPT`
+  (`src/core/classifier.py`) gives the Haiku classifier no signal that a
+  mutation-phrased request ("please terminate this instance now") still
+  belongs to a domain agent (agent descriptions describe read/query
+  capability only) — classifier returns empty/`unknown`, and
+  `SupervisorAgent.process_request` (`src/supervisor/agent.py:165-183`)
+  short-circuits to a generic "I'm not sure how to help" instead of routing
+  to the agent, whose `prompt.md` refusal template never gets to fire.
+  Candidate fix identified (new classifier guideline), not implemented —
+  needs a real-Bedrock verification round, held for go-ahead.
+- Docker stack (redis, dynamodb-local, postgres, supervisor, gateway) torn
+  down after the eval run completed.
+- **Next / open decisions** (none acted on without explicit go-ahead):
+  address the 4 review findings? implement + verify the F-007 classifier fix
+  (real Bedrock cost)? proceed to spec 35 Phase 3 (RCA scenario scoring,
+  T8/T9 — also real cost, only scoped so far)? `make install-hooks` still
+  needs the user to run it themselves (never touch `git config`). Push
+  decisions (`dev` here, `main` in `BDC/aigent-squad`) and the `0.4.0` cut
+  itself remain explicitly deferred per the user's standing instruction.
 
 ## Done — session 2026-07-13 (follow-up queue: F-001, F-002, spec-14 E2 — uncommitted)
 
