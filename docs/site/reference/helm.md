@@ -125,6 +125,22 @@ helm install aigent-squad staffops/aigent-squad \
     Secrets Manager. In environments without ESO, inject secrets via a CI/CD secret
     store or Kubernetes `Secret` objects managed outside the chart.
 
+### Optional chat UI (chart 0.9.4+)
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `librechat.enabled` | `false` | Deploy [LibreChat](https://github.com/danny-avila/LibreChat) + an in-cluster MongoDB `StatefulSet`, pre-wired to this release's gateway via the OpenAI-compatible bridge (spec 29) |
+| `librechat.baseURL` | auto | Gateway URL LibreChat talks to; auto-computed to this release's own gateway Service when left empty |
+| `librechat.apiKey` / `apiKeySecretName` | `""` | Token LibreChat sends as `X-Internal-Token`. If both are empty and `externalSecrets.enabled` is `true`, the chart reuses the existing `externalSecrets.secrets[]`-provisioned Secret automatically |
+
+!!! info "Minimal by design, not production-grade"
+    This is a quick homologation/demo aid, not a hardened deployment: single
+    Mongo pod, no HA, no auth on Mongo (same posture as `redis.inCluster`).
+    JWT/CREDS secrets auto-generate per install unless pinned via
+    `librechat.jwtSecret` etc. For anything beyond quick demo use, run
+    LibreChat separately with its own production-grade Mongo and secret
+    management.
+
 ### Agent configuration
 
 | Key | Default | Description |
