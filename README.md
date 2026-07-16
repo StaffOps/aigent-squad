@@ -1,6 +1,6 @@
 # Agent Squad - Multi-Agent System for AWS/Kubernetes Operations
 
-**Version**: 0.3.0
+**Version**: 0.4.0
 **Status**: ✅ Cluster-validated (devops-core, 2026-07) — see `specs/ROADMAP.md`
 **Architecture**: Two-tier (edge gateway → supervisor), in-process specialists, Bedrock-direct
 
@@ -551,6 +551,6 @@ Apache 2.0 — See [LICENSE](LICENSE) for details.
 
 ---
 
-**Last Updated**: 2026-07-03
-**Version**: 0.3.0
+**Last Updated**: 2026-07-16
+**Version**: 0.4.0
 **Status**: ✅ Cluster-validated (devops-core) — see `specs/ROADMAP.md` for what's next

@@ -37,12 +37,10 @@ private `staffops-otel-libs` fork 2026-07-14, pinned to `v0.2.0` since
 - Exemplars: enabled (metric → trace linking)
 
 Installed at build time via `git+https` (public repo — no deploy key/SSH
-needed anymore). **The Dockerfile still mounts a `github_token` build
-secret for this install step** — verified `otel-helper` is the only `git+`
-line in `requirements.txt`, so that secret is now vestigial (it was
-required back when this package lived in a private repo). Not removed here
-— tracked as a cleanup item, not this doc's job to silently drop a working
-build step.
+needed anymore). The `Dockerfile`'s `github_token` build secret (a leftover
+from when this package lived in a private repo) was removed 2026-07-15 —
+see `specs/BACKLOG.md` B-28 — so a plain `docker build .` now succeeds with
+no credential at all.
 
 ## Traces
 

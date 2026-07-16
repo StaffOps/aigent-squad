@@ -9,33 +9,31 @@ git clone git@github.com:StaffOps/staffops-aigent-squad.git
 cd staffops-aigent-squad
 ```
 
-### 2. Load SSH key (required for private dep)
+### 2. Start the stack
 
 ```bash
-eval $(ssh-agent -s)
-ssh-add ~/.ssh/id_ed25519
+make up      # builds + starts, waits for the gateway /ready check
+make smoke   # health + 1 real query + /v1/models
 ```
 
-### 3. Start the stack
-
-```bash
-docker compose up -d
-```
-
-This builds the image (using your SSH agent for the private `otel-helper` dep) and starts:
+No SSH key or private-repo access needed — `otel-helper` is a public
+dependency (since 2026-07-14). A Bedrock-capable AWS credential IS needed
+for `make smoke`'s real query (see [Prerequisites](prerequisites.md)); `make
+lint` / `make test` alone need neither AWS nor a live Bedrock call.
 
 | Service | URL | Purpose |
 |---------|-----|---------|
-| Supervisor | http://localhost:8000 | Main API |
+| Gateway | http://localhost:8000 | Public front door (`/query`, `/v1/*`, health) |
+| Supervisor | http://localhost:8001 | Backend-only (`/internal/*`) |
 | MCP Server | http://localhost:8006 | Kiro CLI integration |
 | Redis | localhost:6379 | Agent data cache |
-| DynamoDB Local | localhost:8001 | Conversation history |
+| DynamoDB Local | localhost:8100 | Conversation history |
 
-### 4. Verify
+### 3. Verify
 
 ```bash
 curl http://localhost:8000/healthz   # liveness — always 200
-curl http://localhost:8000/ready     # readiness — checks Redis + DynamoDB + agents
+curl http://localhost:8000/ready     # readiness — checks supervisor + Redis + DynamoDB + agents
 ```
 
 ---
@@ -73,17 +71,15 @@ See [Helm Reference](../reference/helm.md) for the full values schema.
 
 ## Running tests
 
-Tests run inside Docker — never install Python deps locally:
+Everything runs via Docker + `make` — never install Python deps locally:
 
 ```bash
-# Build test image once (needs SSH agent for private dep)
-DOCKER_BUILDKIT=1 docker build --ssh default -f Dockerfile.test -t aigent-test .
-
-# Run tests (volume mount — no rebuild needed for code changes)
-docker run --rm \
-  -v "$(pwd)/src:/app/src" \
-  -v "$(pwd)/tests:/app/tests" \
-  aigent-test
+make test                          # full suite + 90% coverage gate
+make test-one FILE=tests/test_x.py # single file
+make lint                          # ruff, CI-verbatim scope
 ```
 
-Coverage gate: ≥90% enforced via `.coveragerc`.
+`make test` auto-stubs the `otel-helper` dependency locally
+(`scripts/test-local.sh`) so the suite runs the same whether or not you have
+network access to it — CI uses the real one. Coverage gate: ≥90%, enforced
+in Docker.

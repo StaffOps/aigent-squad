@@ -35,16 +35,24 @@ Option B's own consequence list, same day:
   `pip install` needs no auth).
 - Spec 35 (quality eval harness) as the public quality bar — **shipped**
   (2026-07-15, same session).
-- Still open (tracked in `specs/BACKLOG.md`): zero-AWS-provisioning demo mode
-  (guardrail off + seeded fixtures, no real Bedrock/AWS creds needed to try
-  it), org-owned Docker Hub namespace (B-27 — staying on the personal account
-  for now, no org account exists yet), `CONTRIBUTING.md` + issue triage, and
-  scrubbing real-org references (`.bdc.app.br` hostnames, "BDC-internal"
-  comments) from `infra/values/values.yaml`, `infra/librechat/librechat.yaml`,
+- **Resolved 2026-07-15**: `CONTRIBUTING.md` written; real-org references
+  (`.bdc.app.br` hostnames, "BDC-internal" comments) scrubbed from
+  `infra/values/values.yaml`, `infra/librechat/librechat.yaml`,
   `agents/kubernetes/agent.yaml`, `src/gateway/worker_pool.py`, and several
   spec/doc files — real infra examples stay as internal reference material
   (matches the existing `infra/terraform/example/` neutral-defaults pattern),
   not deleted, just not literally present in the public-facing tree.
+- **Resolved 2026-07-16** (B-29, option b): the "demo needs zero AWS" framing
+  was itself the gap, not missing code — `docs/PREREQUISITES.md` and its
+  mkdocs mirror now state plainly that a Bedrock-capable credential is the
+  ONLY AWS requirement (no Terraform/IRSA/EKS/Guardrail setup), and several
+  stale references to a private `otel-helper` / SSH-key build step (already
+  obsolete since B-28) were corrected across `docs/SETUP.md`,
+  `docs/OBSERVABILITY.md`, and the mkdocs installation guide. A
+  fixture-driven fake-Bedrock mode (the alternative, heavier option) stays
+  unbuilt — left open if real demand shows up.
+- Still open: org-owned Docker Hub namespace (B-27 — staying on the personal
+  account for now, no org account exists yet).
 
 Two candidate resolutions were considered, with a recommendation (kept for
 the record):
