@@ -1,7 +1,78 @@
-# Handoff — sessions 2026-06-16 → 2026-07-15
+# Handoff — sessions 2026-06-16 → 2026-07-16
 
 Estado para retomar. O que foi feito, o que ficou pendente, e próximos
 passos priorizados.
+
+---
+
+## Done / in-progress — session 2026-07-16 (B-25 chart-side, B-29 closed, spec 32 Phase 1 started)
+
+Continuing "siga nessa ordem de itens abertos" (B-25 → B-27 → B-29 → specs
+32+33 → spec 06/17/18 T11 → item 6).
+
+- **B-25 (Harbor vs Docker Hub), chart-side closed**: `helm-charts` chart
+  bumped to **0.9.5** — `appVersion` `0.3.0` → `0.4.0`, restoring coherence
+  with the app tag actually published 2026-07-15. Published, verified
+  pullable. **Cluster-side explicitly NOT done**: reverting `[k8s-setup]`'s
+  local chart-path override (`staffops/helmfile.yaml.gotmpl`) was blocked by
+  the auto-mode classifier as an unauthorized shared-cluster change; asked
+  the user directly via AskUserQuestion, answer was **"pular por agora"**
+  (skip for now) — devops-core (PRD-labeled) stays on Harbor, Docker Hub
+  remains tag-of-record only. Do NOT attempt the cluster-side switch again
+  without the user naming it explicitly next time.
+- **B-27**: no action — confirmed already-decided (personal Docker Hub
+  account, no org account yet).
+- **B-29 (zero-AWS demo mode) CLOSED — went with option (b)**, no code:
+  turned out to be a documentation-accuracy problem, not a missing feature.
+  Fixed real staleness while writing it up: `docs/PREREQUISITES.md` +
+  its mkdocs mirror overstated the AWS requirement (Titan Embeddings is
+  KB-only, disabled by default) and still described an SSH-key/private-repo
+  build step B-28 already made obsolete; `docs/SETUP.md` +
+  `docs/site/getting-started/installation.md` still described the
+  pre-spec-31 single-service topology; `docs/OBSERVABILITY.md` claimed the
+  `github_token` secret was "still mounted" when B-28 had already removed
+  it. All fixed. README version banner `0.3.0` → `0.4.0`.
+- **specs 32+33 discovered ALREADY WRITTEN** (2026-07-03) — task #49's
+  framing ("write specs 32+33") was stale; the real work is implementing
+  them. Started spec 32 (`spec-lifecycle-ssot`) Phase 1:
+  - `specs/README.md` **written** (T1+T3 combined) — lifecycle, frontmatter
+    schema (8-value status vocabulary), full-spec vs `bugfix.md` tiers,
+    verification-independence pipeline, mandatory-security-review rule,
+    numbering/language convention, document homes. **NOT yet committed.**
+  - **NOT started**: T2 (frontmatter backfill on all 29 existing spec dirs
+    — ground truth for this is the ROADMAP.md "Audit Summary (2026-06-14)" +
+    "Remaining specs (status as of 2026-07-03)" tables around line 340-386,
+    which the design.md's own Risks section says already constitutes the
+    required ground-truthing — do NOT re-derive from raw tasks.md checkbox
+    counts alone, several specs (29, 31 especially) have every box
+    unchecked despite being shipped, exactly the drift this spec exists to
+    fix), T4 (`scripts/specs_status.py`), T5 (CI wiring), T6 (script tests).
+  - Key design point worth remembering: the validation script's
+    "done-with-open-tasks" check should only fire for status `done` (which
+    requires literally every box checked — use it ONLY for specs verified
+    100% checked, e.g. 01/02/03/04/10/11/21/22/26/27/29/30/34/35), NOT for
+    `done-with-deferrals` (which just needs its `deferred:` list
+    cross-referenced in `specs/BACKLOG.md` — stale-but-actually-done
+    checkboxes elsewhere in that file are fine, don't need fixing).
+  - Phase 2 (T7-T12: ROADMAP slim-down, HANDOFF restructure to
+    overwrite-not-append per spec 32's own Decision 4, `specs/VISION.md`
+    extraction, frozen-status banners, AGENTS.md dedup) not started —
+    deliberately more consequential (changes how HANDOFF itself works)
+    than Phase 1, was going to checkpoint with the user before touching it.
+  - Spec 33 (`operational-review-loop`) not started at all yet.
+  - **Also noticed in passing, not yet filed**: spec 08's T2 (mkdocs
+    `--strict` CI gate) was blocked on spec 24, which is now done — the
+    blocker is stale and this is probably actionable now. Worth a fresh
+    BACKLOG entry, not filed yet.
+- **User interrupted mid-backfill** ("salve o status atual, continuarei
+  depois") — stopped cleanly, nothing broken, `specs/README.md` is the only
+  uncommitted file in the app repo. **Ask the user how they want it staged
+  before touching it** — did not commit/push without confirmation since the
+  interrupt came mid-task.
+
+Still open, unchanged: specs 06/17/18 T11 (not started), spec 18 Phase 2 not
+implemented, item 6 from the original mega-directive (still no specific
+backlog item named — genuinely ambiguous, needs the user to clarify).
 
 ---
 
