@@ -104,3 +104,50 @@ Note: if the Grafana LLM app COULD send `model=aigent-squad-observability`, that
 - spec 34: RELEASE.md Phases 3-5 (chart bump / overlay / rollout) — gated on B-25
 - spec 36: T11 independent review (fresh-clone dry run + .claude contract)
 - spec 37: all deferrals CLOSED 2026-07-21 — Auto-route streaming (G-4), MCP SA-RBAC audit gate, Grafana plugin integration (G-1..G-6), and the Guardrail ingress input-guard fix (G-6) are all DONE + homologated live. Non-blocking follow-ups: recommended R1-R7; vm-mcp/observability Prometheus connectivity; provisioning the plugin's real per-consumer key (ExternalSecret). Earlier: count-framing + 40K scale budgets shipped 2026-07-20 (model reports the marker total, 267 not 38).
+
+---
+
+## Future agents (candidates — 2026-07-21, annotated for later)
+
+Add a new agent only when the **domain + routing keywords** are distinct; otherwise wire more
+datasources into an existing agent. Each new agent = `agents/<name>/agent.yaml` (config-driven).
+
+| Agent | Consumes (read-only) | Priority | Spec |
+|---|---|---|---|
+| troubleshoot / RCA | vm-mcp + grafana-mcp (loki/tempo/pyroscope/incidents/sift) + kube-mcp | high | spec 39 WS3 |
+| gitops / delivery | ArgoCD, Argo Rollouts, Helm (kube-mcp gitops/rollouts tools) + GitLab MCP (later) | med | new |
+| network / mesh | Istio Ambient, Cilium/Hubble, Kiali (kube-mcp cilium/istio/kiali + kiali-mcp) | med | new |
+| supply-chain / vuln | Trivy, DependencyTrack, DefectDojo, Harbor, cosign | med | new (split from `security`) |
+| database | CNPG / RDS / Redis health + metrics (backing-services) | med | new |
+| backup / DR | Velero backup status + restore readiness (kube-mcp velero tools) | low | new |
+
+## MCP integration roadmap (read-only)
+
+Invariants for ANY new MCP: **100% read-only allowlist (fail-closed)** + run `scripts/mcp_rbac_audit.py`
+on its ServiceAccount + **per-consumer scope (G-5)** for sensitive agents + **NO mutating tools**
+(execution is a separate HITL roadmap).
+
+| MCP | Status | Action |
+|---|---|---|
+| grafana-mcp | deployed, SA = 23 read-only rules PASS | **WIRE NOW** (spec 39 WS1): Loki/Tempo/Pyroscope/alerts/incidents/oncall/sift — gated by M-1 (Grafana token = Viewer) + M-10 (output secret/PII filter) + explicit allowlist |
+| tempo-mcp / kiali-mcp | verify deploy | wire to observability / a future mesh agent |
+| kubectl-mcp | deployed | evaluate vs kube-mcp (dedup) |
+| **AWS read-only MCP** | NOT deployed | **provision via Terraform** — describe/list/get + Cost Explorer + CloudWatch + Config + Security Hub; IRSA **read-only** role; for `aws`/`finops` |
+| GitLab MCP | NOT deployed (LATER) | read-only pipelines/MRs/deploy-history → "regression ↔ deploy" correlation |
+| Kubecost read API | NOT wired (LATER) | cost read for `finops` |
+
+## Assertiveness roadmap (prioritized — 2026-07-21)
+
+| # | Lever | Impact | Effort | Risk | Priority | Maps to |
+|---|---|---|---|---|---|---|
+| 1 | **Metric catalogs as skills** (canonical names) | Highest — kills metric hallucination | Med | Low | **P0** | spec 39 WS2 |
+| 6 | Filter/aggregate + count-marker | High | ~done | Low | **P0** (shipped in spec 37; extend) | spec 37 |
+| 7 | **Eval harness / golden queries** | High — measures all the rest | Med | Low | **P0** (foundational) | `docs/BEHAVIOR-BASELINES.md` + new |
+| 5 | Calibrated honesty (`confidence` + `unverified_claims[]`) | High | Med | Low | **P1** | B-16 |
+| 3 | Classifier → planner (`sub_queries[]`) | Med-High | Med | Low | **P1** | B-14 |
+| 4 | Cross-signal RCA (≥3 signals + grounding gate) | High | High | Med | **P1** | spec 39 WS3 |
+| 2 | Model-tier + escalation (Haiku→Sonnet→Opus) | Med-High | High | Med (cost) | **P2** | spec 38 / B-30 |
+| 8 | Feedback loop (user feedback → trend → tune) | Med | Med | Low | **P2** | B-03 |
+
+**Recommended order:** P0 (metric catalogs + eval harness; count-marker already shipped) → P1
+(calibrated honesty, classifier→planner, cross-signal RCA) → P2 (model-tier, feedback).
