@@ -8,7 +8,7 @@
 |---|---|
 | **Status** | `aprovado` (2026-07-03) |
 | **Author(s)** | Carlos Felipe Gomes |
-| **Stakeholders** | StaffOps / BDC platform team (devops-core operators) |
+| **Stakeholders** | StaffOps / <ORG> platform team (devops-core operators) |
 | **Date** | 2026-07-03 |
 | **Related specs** | `specs/ROADMAP.md` (all); positioning: `specs/ECOSYSTEM.md`, `docs/COMPETITIVE-ANALYSIS.md`; security thesis: `specs/14-security-hardening/` |
 
@@ -70,7 +70,7 @@ production from day one:
   Alertmanager (`/alerts/incoming`) with optional Slack post-back.
 - **FinOps analyst** — per-agent Bedrock cost showback (AIP tags + token
   metrics); cost-trend questions via the finops agent.
-- **Platform team (BDC)** — deploys/extends the squad (Helm chart, agents by
+- **Platform team (<ORG>)** — deploys/extends the squad (Helm chart, agents by
   config, skills), integrates in-cluster callers (anomaly-detection, Falco).
 
 ## 5. Scope
@@ -101,7 +101,7 @@ production from day one:
 
 - **Assumed**: Bedrock availability/quotas suffice for the load profile;
   read-only IAM/RBAC actually enforce what the prompt promises (validated via
-  IRSA in devops-core); the BDC cluster remains the primary deploy target.
+  IRSA in devops-core); the <ORG> cluster remains the primary deploy target.
 - **Risk — market speed**: Aurora/HolmesGPT (CNCF) mature fast; our security
   differentiator is only real while it stays *implemented and validated* —
   the 3 open entry-point findings (A/B/D) are exactly that gap.

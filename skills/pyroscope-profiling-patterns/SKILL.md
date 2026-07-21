@@ -172,7 +172,7 @@ kubectl run pyro-q -n monitoring --rm -i --restart=Never \
 
 ```csharp
 // <org> OTel Helper — when profiling returns
-services.AddBDCOtel(options => {
+services.Add<ORG>Otel(options => {
     options.EnableProfiling = true;  // IProfilingProvider interface
 });
 ```
@@ -180,7 +180,7 @@ services.AddBDCOtel(options => {
 ### Python (planned)
 
 ```python
-from bdc_otel import setup_telemetry
+from <org>_otel import setup_telemetry
 setup_telemetry(enable_profiling=True)
 ```
 
@@ -242,5 +242,5 @@ Without `service_name`, profiles are unattributable — useless for debugging.
 - pprof format: https://github.com/google/pprof
 - OTel Profiles signal (Alpha): https://opentelemetry.io/docs/specs/otel/profiles/
 - Local docs: `<workspace>/01-DEVOPS/EXTERNAL-DOCS/pyroscope/docs`
-- <org> profiling branch (not merged): `feat/pyroscope` commit `824171a` in bdctelemetryhelper
+- <org> profiling branch (not merged): `feat/pyroscope` commit `824171a` in <org>telemetryhelper
 - Related skills: `grafana-cross-signal-correlation`, `monitoring-stack-overview`

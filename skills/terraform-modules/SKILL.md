@@ -1,13 +1,13 @@
 ---
-name: terraform-modules-bdc
-description: "BDC Terraform modules catalog. Use when provisioning AWS resources (ECS services/clusters, S3 buckets, CloudFront distributions, EC2 instances) or migrating ECS to EKS. Covers module interfaces, common variables, tagging patterns, and usage examples."
+name: terraform-modules
+description: "<ORG> Terraform modules catalog. Use when provisioning AWS resources (ECS services/clusters, S3 buckets, CloudFront distributions, EC2 instances) or migrating ECS to EKS. Covers module interfaces, common variables, tagging patterns, and usage examples."
 keywords: [terraform-modules, terraform, modules, "terraform modules", cloudfront, ec2, eks, s3, aws, ecs]
 ---
-# BDC Terraform Modules
+# <ORG> Terraform Modules
 
 ## Overview
 
-BDC maintains reusable Terraform modules, cookiecutter templates, and live resource definitions for all AWS infrastructure. All provisioning follows Infrastructure-as-Code principles with mandatory tagging.
+<ORG> maintains reusable Terraform modules, cookiecutter templates, and live resource definitions for all AWS infrastructure. All provisioning follows Infrastructure-as-Code principles with mandatory tagging.
 
 ## Directory Structure
 
@@ -80,8 +80,8 @@ module "people_api" {
   source = "../../MODULES/aws-ecs-service"
 
   service_name    = "dpm-people-api"
-  cluster_name    = "bdc-ecs-prd"
-  container_image = "harbor.bigdatacorp.com.br/bdc-images/dpm-people-api:a1b2c3d"
+  cluster_name    = "<org>-ecs-prd"
+  container_image = "harbor.<org>.com/<org>-images/dpm-people-api:a1b2c3d"
   container_port  = 8080
   desired_count   = 3
   cpu             = 512
@@ -113,7 +113,7 @@ Provisions an ECS cluster with capacity providers.
 module "prd_cluster" {
   source = "../../MODULES/aws-ecs-cluster"
 
-  cluster_name       = "bdc-ecs-prd"
+  cluster_name       = "<org>-ecs-prd"
   capacity_providers = ["FARGATE", "FARGATE_SPOT"]
 
   default_capacity_provider_strategy = [
@@ -126,7 +126,7 @@ module "prd_cluster" {
     CostCenter  = "Platform-Infrastructure"
     CostScope   = "INFRASTRUCTURE"
     CostProject = "ECS"
-    Name        = "bdc-ecs-prd"
+    Name        = "<org>-ecs-prd"
   }
 }
 ```
@@ -142,7 +142,7 @@ module "nightly_sync" {
   task_name         = "dpm-nightly-sync"
   cluster_arn       = module.prd_cluster.arn
   schedule          = "cron(0 3 * * ? *)"  # 03:00 UTC daily
-  container_image   = "harbor.bigdatacorp.com.br/bdc-images/dpm-sync:a1b2c3d"
+  container_image   = "harbor.<org>.com/<org>-images/dpm-sync:a1b2c3d"
   cpu               = 1024
   memory            = 2048
 
@@ -158,7 +158,7 @@ module "nightly_sync" {
 
 ### aws-s3-bucket
 
-S3 bucket with BDC security defaults.
+S3 bucket with <ORG> security defaults.
 
 **Features**:
 - Lifecycle rules (transition to IA/Glacier, expiration)
@@ -172,7 +172,7 @@ S3 bucket with BDC security defaults.
 module "data_lake" {
   source = "../../MODULES/aws-s3-bucket"
 
-  bucket_name = "bdc-dpm-data-lake-prd"
+  bucket_name = "<org>-dpm-data-lake-prd"
   versioning  = true
   encryption  = "aws:kms"
   kms_key_arn = data.aws_kms_key.main.arn
@@ -189,7 +189,7 @@ module "data_lake" {
 
   replication = {
     enabled     = true
-    destination = "arn:aws:s3:::bdc-dpm-data-lake-prd-replica"
+    destination = "arn:aws:s3:::<org>-dpm-data-lake-prd-replica"
     role_arn    = aws_iam_role.replication.arn
   }
 
@@ -198,7 +198,7 @@ module "data_lake" {
     CostCenter  = "Program-DataPlatform"
     CostScope   = "STORAGE"
     CostProject = "DATA-LAKE"
-    Name        = "bdc-dpm-data-lake-prd"
+    Name        = "<org>-dpm-data-lake-prd"
   }
 }
 ```
@@ -218,7 +218,7 @@ CloudFront distribution for frontend applications.
 module "portal_cdn" {
   source = "../../MODULES/aws-cloudfront"
 
-  domain_aliases = ["portal.bdc.app.br"]
+  domain_aliases = ["portal.<org>.app.br"]
   acm_cert_arn   = data.aws_acm_certificate.portal.arn
 
   origins = [
@@ -230,7 +230,7 @@ module "portal_cdn" {
     },
     {
       id          = "api-backend"
-      domain_name = "api.bdc.internal"
+      domain_name = "api.<org>.internal"
       type        = "custom"
       protocol    = "https-only"
     }
@@ -316,10 +316,10 @@ All Terraform state uses S3 backend with DynamoDB locking:
 ```hcl
 terraform {
   backend "s3" {
-    bucket         = "bdc-terraform-state"
+    bucket         = "<org>-terraform-state"
     key            = "ecs-services/dpm-people-api/terraform.tfstate"
     region         = "us-east-1"
-    dynamodb_table = "bdc-terraform-locks"
+    dynamodb_table = "<org>-terraform-locks"
     encrypt        = true
   }
 }

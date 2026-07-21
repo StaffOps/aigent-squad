@@ -319,4 +319,4 @@ curl -s "${DTRACK_URL}/api/v1/metrics/portfolio/current" \
 - `sbom-vulnerability-management` skill — full pipeline overview
 - `container-image-apko` skill — apko auto-generates SBOM
 - `ci-cd-conventions` steering — pipeline stage structure
-- `cloud-security-bdc` steering — vulnerability SLA requirements
+- `cloud-security-<org>` steering — vulnerability SLA requirements

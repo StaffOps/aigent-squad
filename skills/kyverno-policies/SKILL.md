@@ -1,13 +1,13 @@
 ---
-name: kyverno-bdc-policies
-description: "Kyverno policies enforced at BDC. Use when debugging pod admission failures, understanding mandatory labels, image mutation rules, or designing new policies. Covers ClusterPolicy patterns, BDC-specific rules, exceptions, and troubleshooting."
+name: kyverno-policies
+description: "Kyverno policies enforced at <ORG>. Use when debugging pod admission failures, understanding mandatory labels, image mutation rules, or designing new policies. Covers ClusterPolicy patterns, <ORG>-specific rules, exceptions, and troubleshooting."
 keywords: [kyverno-policies, kyverno, policies, "kyverno policies"]
 ---
-# Kyverno Policies at BDC
+# Kyverno Policies at <ORG>
 
 ## Overview
 
-Kyverno is the policy engine enforcing infrastructure and security standards at admission time across all BDC EKS clusters. It runs in the `kyverno` namespace and intercepts every resource creation/update via admission webhooks.
+Kyverno is the policy engine enforcing infrastructure and security standards at admission time across all <ORG> EKS clusters. It runs in the `kyverno` namespace and intercepts every resource creation/update via admission webhooks.
 
 ## Policy types
 
@@ -16,9 +16,9 @@ Kyverno is the policy engine enforcing infrastructure and security standards at 
 | `ClusterPolicy` | Cluster-wide | Mandatory labels, image mutation, security baselines |
 | `Policy` | Namespace-scoped | Namespace-specific exceptions or additional rules |
 
-BDC uses `ClusterPolicy` for all standard enforcement. Namespace-scoped `Policy` is rare.
+<ORG> uses `ClusterPolicy` for all standard enforcement. Namespace-scoped `Policy` is rare.
 
-## BDC mandatory policies
+## <ORG> mandatory policies
 
 ### 1. Mandatory labels (validate)
 
@@ -92,7 +92,7 @@ spec:
               spec:
                 containers:
                   - name: "{{ element.name }}"
-                    image: "harbor.bigdatacorp.com.br/proxy-cache/{{ regex_replace_all('^[^/]+/', element.image, '') }}"
+                    image: "harbor.<org>.com/proxy-cache/{{ regex_replace_all('^[^/]+/', element.image, '') }}"
 ```
 
 **You do NOT need to manually prefix images** — Kyverno handles it transparently.
@@ -133,7 +133,7 @@ spec:
                 - "btc-*"
       verifyImages:
         - imageReferences:
-            - "harbor.bigdatacorp.com.br/bdc-images/*"
+            - "harbor.<org>.com/<org>-images/*"
           attestors:
             - entries:
                 - keys:
@@ -222,6 +222,6 @@ kubectl get events -n <namespace> --field-selector reason=PolicyViolation
 
 - `cosign-image-signing` skill — signing details, key rotation, Harbor `--new-bundle-format=false` gotcha (Kyverno verifies signatures created by this)
 - `cosign-signing-mandatory` steering — image signing requirements
-- `k8s-best-practices-bdc` steering — mandatory labels and security context
+- `k8s-best-practices-<org>` steering — mandatory labels and security context
 - `aws-tag-policies` steering — CostCenter values reference
-- `helm-chart-app-bdc` skill — how labels are set in Helm values
+- `helm-chart-app` skill — how labels are set in Helm values

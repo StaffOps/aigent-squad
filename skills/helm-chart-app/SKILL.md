@@ -1,13 +1,13 @@
 ---
-name: helm-chart-app-bdc
-description: "BDC corporate app Helm chart. Use when deploying services to EKS, configuring Rollouts/Deployments/StatefulSets, KEDA autoscaling, Istio routing, ExternalSecrets, or mandatory labels. Covers all values.yaml options, deployment types, strategies, and common patterns."
+name: helm-chart-app
+description: "<ORG> corporate app Helm chart. Use when deploying services to EKS, configuring Rollouts/Deployments/StatefulSets, KEDA autoscaling, Istio routing, ExternalSecrets, or mandatory labels. Covers all values.yaml options, deployment types, strategies, and common patterns."
 keywords: [helm-chart-app, helm, chart, app, "helm chart", "chart app", eks, istio, keda]
 ---
-# BDC Corporate App Helm Chart
+# <ORG> Corporate App Helm Chart
 
 ## Overview
 
-The `app/` chart is the **most used Helm chart at BDC**. It standardizes application deployments across all EKS clusters.
+The `app/` chart is the **most used Helm chart at <ORG>**. It standardizes application deployments across all EKS clusters.
 
 - **Location**: `02-KUBE/00-CONFIG/helm-charts/app/`
 - **Chart version**: `0.2.0-alpha`
@@ -56,7 +56,7 @@ Without `costCenter`, the OTel Collector `k8sattributesprocessor` will NOT enric
 
 ```yaml
 image:
-  repository: harbor.bigdatacorp.com.br/bdc-images/dpm-people-api
+  repository: harbor.<org>.com/<org>-images/dpm-people-api
   tag: "a1b2c3d"          # Immutable SHA tag from CI
   pullPolicy: IfNotPresent
 ```
@@ -74,7 +74,7 @@ The port value propagates to Service, Ingress backend, and probe targets.
 
 ## Resources
 
-**BDC convention: requests MUST equal limits.** This ensures QoS class `Guaranteed` and predictable scheduling.
+**<ORG> convention: requests MUST equal limits.** This ensures QoS class `Guaranteed` and predictable scheduling.
 
 ```yaml
 resources:
@@ -186,7 +186,7 @@ configMap:
   SERVICE_NAME: "dpm-people-api"
   ENVIRONMENT: "PRD"
   OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-agent-collector.monitoring:4317"
-  BDC_OTEL_EXTRA_INSTRUMENTATION: "SQL,AWS,REDIS"
+  <ORG>_OTEL_EXTRA_INSTRUMENTATION: "SQL,AWS,REDIS"
 ```
 
 ## ExternalSecret
@@ -238,16 +238,16 @@ ingress:
   ingressClassName: "nginx-dpm-internal"  # nginx-<team>-<internal|external>
   annotations:
     cert-manager.io/cluster-issuer: "aws-privateca-issuer"
-    external-dns.alpha.kubernetes.io/hostname: "people-api.bdc.internal"
+    external-dns.alpha.kubernetes.io/hostname: "people-api.<org>.internal"
   hosts:
-    - host: people-api.bdc.internal
+    - host: people-api.<org>.internal
       paths:
         - path: /
           pathType: Prefix
   tls:
     - secretName: people-api-tls
       hosts:
-        - people-api.bdc.internal
+        - people-api.<org>.internal
 ```
 
 ## Route (Gateway API)
@@ -258,11 +258,11 @@ Recommended for new deployments (replacing Ingress):
 route:
   enabled: true
   parentRef:
-    name: bdc-gateway
+    name: <org>-gateway
     namespace: istio-gateway
     sectionName: https
   hostnames:
-    - "people-api.bdc.internal"
+    - "people-api.<org>.internal"
   matches:
     - path:
         type: PathPrefix
@@ -323,7 +323,7 @@ Port 8081 is the standard metrics port (separate from application port).
 deploymentType: Rollout
 strategy: Canary
 image:
-  repository: harbor.bigdatacorp.com.br/bdc-images/dpm-people-api
+  repository: harbor.<org>.com/<org>-images/dpm-people-api
   tag: "a1b2c3d"
 service:
   port: 8080
@@ -389,7 +389,7 @@ autoscaling:
 - `helmfile-k8s-addon` — same pattern for cluster add-ons (alternative chart strategy)
 - `helmfile-templating` — gotmpl + Sprig + tpl escaping for advanced values
 - `argocd-patterns` — sync waves, hooks, health checks for app deploys
-- `kyverno-bdc-policies` — mandatory labels enforced on every chart-rendered resource
-- `helm-chart-cronworkflow-bdc` — companion chart for batch/scheduled jobs
-- `bdc-telemetry-standard` — how telemetry env vars are wired into the chart
+- `kyverno-policies` — mandatory labels enforced on every chart-rendered resource
+- `helm-chart-cronworkflow` — companion chart for batch/scheduled jobs
+- `telemetry-standard` — how telemetry env vars are wired into the chart
 - `external-secrets-aws-sm` — `externalSecret` block in this chart

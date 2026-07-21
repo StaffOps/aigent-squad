@@ -156,7 +156,7 @@ sum(rate(harbor_core_http_request_total{operation=~".*",method=~".*"}[5m])) by (
 | Core replicas | 2 | Metrics aggregated across replicas by ServiceMonitor |
 | Registry replicas | 2 | Same — aggregate or filter by `pod` label |
 | Metrics port | 8001 (chart default) | All components share the same port |
-| Storage backend | S3 (`bdc-eks-prd-harbor-nv`) | `registry_storage_action_seconds{driver="s3"}` |
+| Storage backend | S3 (`<org>-eks-prd-harbor-nv`) | `registry_storage_action_seconds{driver="s3"}` |
 | Database | External RDS PostgreSQL | `harbor_up{component="database"}` monitors RDS reachability |
 | Redis | Internal (in-cluster) | `harbor_up{component="redis"}` monitors internal Redis |
 | Trivy | Enabled (1 replica) | Scan tasks visible in jobservice metrics |

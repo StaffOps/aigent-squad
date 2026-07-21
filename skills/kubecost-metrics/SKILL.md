@@ -191,5 +191,5 @@ Key settings affecting metric accuracy in this deployment:
 
 - [Kubecost Official Metrics Documentation](https://docs.kubecost.com/architecture/user-metrics) — cost-model + network-costs + cAdvisor + KSM metrics
 - [OpenCost Metrics Reference Guide](https://opencost.io/docs/integrations/metrics) — comprehensive generated metrics list with labels
-- Deployed chart: `kubecost/cost-analyzer` v2.8.5 at `/home/karlipegomes/Documents/BDC/02-KUBE/00-CONFIG/k8s-setup/kubecost/cost-analyzer/values.yaml.gotmpl`
+- Deployed chart: `kubecost/cost-analyzer` v2.8.5 at `/home/karlipegomes/Documents/<ORG>/02-KUBE/00-CONFIG/k8s-setup/kubecost/cost-analyzer/values.yaml.gotmpl`
 - Kubecost GitHub: [cost-analyzer-helm-chart](https://github.com/kubecost/cost-analyzer-helm-chart)

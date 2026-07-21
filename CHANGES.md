@@ -40,7 +40,7 @@
 - **G-5 / G-3 per-consumer scope** — `GATEWAY_KEY_AGENT_MAP` maps a consumer key → a default agent
   (e.g. observability) on auto-route models (an explicit `aigent-squad-<agent>` still wins; not an
   auth bypass).
-- **G-3 endpoint** — stable prod exposure confirmed (HTTPRoute `aigent-squad.bdc.app.br/v1` +
+- **G-3 endpoint** — stable prod exposure confirmed (HTTPRoute `aigent-squad.<org>.app.br/v1` +
   in-cluster `aigent-squad-gateway.staffops.svc:8000/v1`); per-consumer key mechanism ready.
 - **MCP SA-RBAC audit gate** — `scripts/mcp_rbac_audit.py` (+ Makefile + REQUIRED onboarding doc)
   proves a new MCP server's ServiceAccount is read-only (fails on any mutating verb). Live-validated:

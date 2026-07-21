@@ -415,4 +415,4 @@ curl -I https://portal.<org-domain>/assets/main.js
 - CloudFront docs: https://docs.aws.amazon.com/AmazonCloudFront/
 - OAC migration: https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/private-content-restricting-access-to-s3.html
 - WAF docs: https://docs.aws.amazon.com/waf/
-- Related: `route53-patterns`, `terraform-modules-bdc`, `iam-patterns`
+- Related: `route53-patterns`, `terraform-modules`, `iam-patterns`

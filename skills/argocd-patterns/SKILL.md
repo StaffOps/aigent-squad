@@ -367,6 +367,6 @@ Channels:
 ## Related
 
 - `helmfile-applicationset` skill — how ApplicationSets are rendered via helmfile
-- `helm-chart-app-bdc` skill — the app chart consumed by Applications
-- `helm-chart-cronworkflow-bdc` skill — CronWorkflow chart for batch jobs
+- `helm-chart-app` skill — the app chart consumed by Applications
+- `helm-chart-cronworkflow` skill — CronWorkflow chart for batch jobs
 - `helmfile-k8s-addon` skill — cluster add-on management (including ArgoCD itself)

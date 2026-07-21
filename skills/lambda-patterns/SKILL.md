@@ -56,7 +56,7 @@ Snapshots the initialized function. Restores from snapshot instead of cold-start
 resource "aws_lambda_function" "java_api" {
   function_name = "my-java-api"
   runtime       = "java21"
-  handler       = "com.bdc.Handler::handleRequest"
+  handler       = "com.<org>.Handler::handleRequest"
 
   snap_start {
     apply_on = "PublishedVersions"

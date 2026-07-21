@@ -49,13 +49,13 @@ librechat:
   enabled: true
   route:                      # expose the UI via an Istio GatewayAPI HTTPRoute
     enabled: true
-    host: librechat-ais.bdc.app.br
+    host: librechat-ais.<org>.app.br
     annotations:
-      external-dns.alpha.kubernetes.io/hostname: librechat-ais.bdc.app.br
+      external-dns.alpha.kubernetes.io/hostname: librechat-ais.<org>.app.br
     parentRef:                # omit to inherit routing.gatewayapi.parentRef
       name: istio-dvps-internal
       namespace: istio-gateway
-      sectionName: https-bdc-app-br
+      sectionName: https-<org>-app-br
 ```
 
 - **baseURL** auto-computes to this release's own gateway (`http://<release>-gateway:8000/v1`).
@@ -93,7 +93,7 @@ signup) — so there is **no default user/password**; you create the first accou
 
 The squad itself doesn't need to run anywhere near LibreChat — only
 `mongo` + `librechat` run locally, pointed at the real devops-core gateway
-(`https://aigent-squad.bdc.app.br`). No Helm chart, no in-cluster LibreChat
+(`https://aigent-squad.<org>.app.br`). No Helm chart, no in-cluster LibreChat
 deployment: same call `staffops-chaitops` made for its own LibreChat
 (docker-compose only; a K8s migration is explicitly deferred there until a
 real trigger — `TODO.md` §1). `infra/librechat/librechat.yaml`'s `baseURL` is

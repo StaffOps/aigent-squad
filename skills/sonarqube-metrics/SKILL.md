@@ -223,4 +223,4 @@ The PodMonitor will be picked up by vmagent's PodMonitor CRD discovery (vm-opera
 - [Prometheus setup guide (2025.4)](https://docs.sonarsource.com/sonarqube-server/2025.4/server-installation/on-kubernetes-or-openshift/set-up-monitoring/prometheus)
 - [Monitoring introduction (2025.4)](https://docs.sonarsource.com/sonarqube-server/2025.4/server-installation/on-kubernetes-or-openshift/set-up-monitoring/introduction)
 - [Helm chart values.yaml (master)](https://github.com/SonarSource/helm-chart-sonarqube/blob/master/charts/sonarqube/values.yaml)
-- Deployed config: `/home/karlipegomes/Documents/BDC/02-KUBE/00-CONFIG/k8s-setup/sonarqube/sonarqube/values.yaml.gotmpl`
+- Deployed config: `/home/karlipegomes/Documents/<ORG>/02-KUBE/00-CONFIG/k8s-setup/sonarqube/sonarqube/values.yaml.gotmpl`

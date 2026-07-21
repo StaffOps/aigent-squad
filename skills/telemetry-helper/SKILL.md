@@ -1,30 +1,30 @@
 ---
-name: bdc-telemetry-helper
-description: "BDC OTel Helper monorepo overview \u2014 current state, structure, versions, sample apps, CI/CD pipeline, Harbor images. Use when working on the bdctelemetryhelper repo, releasing new versions, or referring to sample apps. Cross-references to detailed skills for specific topics."
+name: telemetry-helper
+description: "<ORG> OTel Helper monorepo overview \u2014 current state, structure, versions, sample apps, CI/CD pipeline, Harbor images. Use when working on the <org>telemetryhelper repo, releasing new versions, or referring to sample apps. Cross-references to detailed skills for specific topics."
 keywords: [telemetry, harbor, otel, pipeline, ci, cd]
 ---
-# BDC OTel Helper — Project Overview
+# <ORG> OTel Helper — Project Overview
 
-Quick reference for the `bdctelemetryhelper` monorepo state.
+Quick reference for the `<org>telemetryhelper` monorepo state.
 
 ## Repository
 
-**Path**: `/home/karlipegomes/Documents/BDC/01-DEVOPS/LABS/bdctelemetryhelper`
+**Path**: `/home/karlipegomes/Documents/<ORG>/01-DEVOPS/LABS/<org>telemetryhelper`
 
-GitLab: BDC's internal GitLab.
+GitLab: <ORG>'s internal GitLab.
 
 ## Purpose
 
-Corporate OpenTelemetry libraries for BDC apps:
-- `.NET` library: `BDCOtelHelper`
-- `Python` library: `bdc_otel`
+Corporate OpenTelemetry libraries for <ORG> apps:
+- `.NET` library: `<ORG>OtelHelper`
+- `Python` library: `<org>_otel`
 
-Both implement the corporate observability standard. See related skill: `bdc-telemetry-standard`.
+Both implement the corporate observability standard. See related skill: `telemetry-standard`.
 
 ## Monorepo structure
 
 ```
-bdctelemetryhelper/
+<org>telemetryhelper/
 ├── README.md                          # Overview, env vars, quick start
 ├── .gitlab-ci.yml                     # CI: unit-test → build-dev → demo → build
 ├── .gitignore                         # .NET + Python + IDE + OS
@@ -33,9 +33,9 @@ bdctelemetryhelper/
 │   ├── 02-workers-background.json
 │   └── 03-traces-reliability.json
 ├── dotnet/                            # .NET lib
-│   ├── BDCOtelHelper/                 # Lib source
-│   ├── BDCOtelHelper.Tests/           # 61 tests, 90% coverage
-│   ├── BDCOtelHelper.sln
+│   ├── <ORG>OtelHelper/                 # Lib source
+│   ├── <ORG>OtelHelper.Tests/           # 61 tests, 90% coverage
+│   ├── <ORG>OtelHelper.sln
 │   ├── example/
 │   │   ├── dotnet-api/                # Minimal API (13 endpoints, gRPC client)
 │   │   ├── dotnet-backend/            # gRPC server (5 RPCs)
@@ -50,7 +50,7 @@ bdctelemetryhelper/
 │   ├── HOW-TO.md
 │   └── TESTS.md
 └── python/                            # Python lib
-    ├── bdc_otel/                      # Lib source
+    ├── <org>_otel/                      # Lib source
     ├── tests/                         # 63 tests, 94% coverage
     ├── pyproject.toml
     ├── example/
@@ -78,7 +78,7 @@ bdctelemetryhelper/
 | Target frameworks | `net8.0;net10.0` |
 | OTel SDK | 1.15.3 |
 | Tests | 61 passing, 90% coverage |
-| API entry point | `services.AddBDCOtel()` |
+| API entry point | `services.Add<ORG>Otel()` |
 
 ### Python library
 
@@ -111,9 +111,9 @@ Aliases: `PRD-BATCH`, `PRD_BATCH` → maps to `BTC`.
 | `OTEL_SERVICE_NAME` | `my-service` | Fallback for service name |
 | `ENVIRONMENT` | `LOCAL` | Environment enum |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | `http://otel-agent-collector.monitoring` | Collector host |
-| `BDC_OTEL_DEBUG_LEVEL` | `false` | Debug mode (force 100% sampling) |
-| `BDC_OTEL_EXTRA_INSTRUMENTATION` | `SQL` | Conditional: SQL, AWS, REDIS |
-| `BDC_OTEL_SAMPLE_RATIO` | `1.0` | Head sampling (0.0-1.0) |
+| `<ORG>_OTEL_DEBUG_LEVEL` | `false` | Debug mode (force 100% sampling) |
+| `<ORG>_OTEL_EXTRA_INSTRUMENTATION` | `SQL` | Conditional: SQL, AWS, REDIS |
+| `<ORG>_OTEL_SAMPLE_RATIO` | `1.0` | Head sampling (0.0-1.0) |
 
 ## Sample apps — .NET
 
@@ -198,12 +198,12 @@ python-backend (gRPC server)
 ## Harbor images
 
 ```
-harbor.bigdatacorp.com.br/labs/dotnet-api
-harbor.bigdatacorp.com.br/labs/dotnet-backend
-harbor.bigdatacorp.com.br/labs/dotnet-process
-harbor.bigdatacorp.com.br/labs/python-api
-harbor.bigdatacorp.com.br/labs/python-backend
-harbor.bigdatacorp.com.br/labs/python-process
+harbor.<org>.com/labs/dotnet-api
+harbor.<org>.com/labs/dotnet-backend
+harbor.<org>.com/labs/dotnet-process
+harbor.<org>.com/labs/python-api
+harbor.<org>.com/labs/python-backend
+harbor.<org>.com/labs/python-process
 ```
 
 Tags:
@@ -252,13 +252,13 @@ The `feat/pyroscope` branch (commit `824171a`) has the previous Pyroscope integr
 ### May 2026 — gRPC migration + StartRootActivity (commit `b4d38bf`, `4665511`, `04cc63a`)
 - Sample apps migrated from HTTP to gRPC for API→Backend
 - Added `StartRootActivity` extension for independent traces in workers
-- `BdcEnvironment.PRD_BATCH` renamed to `BTC` (alias accepted)
+- `<ORG>Environment.PRD_BATCH` renamed to `BTC` (alias accepted)
 - Added `DebugTraceStateProcessor`
-- `BDC_OTEL_SAMPLE_RATIO` env var
-- Renamed API: `AddBDCTelemetry` → `AddBDCOtel`
+- `<ORG>_OTEL_SAMPLE_RATIO` env var
+- Renamed API: `Add<ORG>Telemetry` → `Add<ORG>Otel`
 
 ### May 2026 — Python lib introduced
-- Created `python/` directory with `bdc_otel` library
+- Created `python/` directory with `<org>_otel` library
 - Full parity with .NET (entry point, env vars, behavior per environment)
 - Notification service sample apps
 - 63 tests, 94% coverage
@@ -271,7 +271,7 @@ The `feat/pyroscope` branch (commit `824171a`) has the previous Pyroscope integr
 
 ### .NET (always via Docker)
 ```bash
-cd /home/karlipegomes/Documents/BDC/01-DEVOPS/LABS/bdctelemetryhelper/dotnet
+cd /home/karlipegomes/Documents/<ORG>/01-DEVOPS/LABS/<org>telemetryhelper/dotnet
 
 # Build
 docker run --rm -v $(pwd):/src -w /src mcr.microsoft.com/dotnet/sdk:8.0 dotnet build
@@ -285,7 +285,7 @@ docker run --rm -v $(pwd):/src -w /src mcr.microsoft.com/dotnet/sdk:8.0 dotnet p
 
 ### Python (always via Docker)
 ```bash
-cd /home/karlipegomes/Documents/BDC/01-DEVOPS/LABS/bdctelemetryhelper/python
+cd /home/karlipegomes/Documents/<ORG>/01-DEVOPS/LABS/<org>telemetryhelper/python
 
 # Test
 docker run --rm -v $(pwd):/app -w /app python:3.11-slim sh -c \
@@ -313,7 +313,7 @@ docker run --rm -v $(pwd):/app -w /app python:3.11-slim sh -c \
 
 ## Related skills
 
-- `bdc-telemetry-standard` — Lib API, env vars, behavior per environment, anti-patterns
+- `telemetry-standard` — Lib API, env vars, behavior per environment, anti-patterns
 - `dotnet-otel-patterns` — StartRootActivity, debug processor, advanced .NET patterns
 - `python-otel-patterns` — gRPC aio, FastAPI, Python 3.11 vs 3.12
 - `grpc-distributed-tracing` — Cross-language gRPC tracing
@@ -322,8 +322,8 @@ docker run --rm -v $(pwd):/app -w /app python:3.11-slim sh -c \
 
 ## Reference links
 
-- Repo: `/home/karlipegomes/Documents/BDC/01-DEVOPS/LABS/bdctelemetryhelper`
-- Sample apps: `bdctelemetryhelper/{dotnet,python}/example/`
-- Dashboards: `bdctelemetryhelper/dashboards/`
-- Tests docs: `bdctelemetryhelper/{dotnet,python}/TESTS.md`
-- HOW-TO guides: `bdctelemetryhelper/{dotnet,python}/HOW-TO.md`
+- Repo: `/home/karlipegomes/Documents/<ORG>/01-DEVOPS/LABS/<org>telemetryhelper`
+- Sample apps: `<org>telemetryhelper/{dotnet,python}/example/`
+- Dashboards: `<org>telemetryhelper/dashboards/`
+- Tests docs: `<org>telemetryhelper/{dotnet,python}/TESTS.md`
+- HOW-TO guides: `<org>telemetryhelper/{dotnet,python}/HOW-TO.md`

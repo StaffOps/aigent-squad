@@ -178,7 +178,7 @@ Key metrics for this controller:
 
 ---
 
-## Deployment Context (BDC k8s-setup)
+## Deployment Context (<ORG> k8s-setup)
 
 - **Chart**: `argo/argo-rollouts` version `2.40.9` (appVersion `v1.9.0`)
 - **Namespace**: `argo`

@@ -311,4 +311,4 @@ LIMIT 30;
 - Karpenter consolidation: https://karpenter.sh/docs/concepts/disruption/
 - ScaleOps: https://www.scaleops.com/
 - Related skills: `cost-explorer`, `savings-plans-strategy`, `eks-management`
-- Related steering: `k8s-best-practices-bdc` (resource requests mandatory)
+- Related steering: `k8s-best-practices-<org>` (resource requests mandatory)

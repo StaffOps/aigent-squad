@@ -1,13 +1,13 @@
 ---
 name: helmfile-applicationset
-description: "Helmfile + bedag/raw chart pattern for ArgoCD ApplicationSets at BDC. Use when onboarding services into GitOps, configuring multi-environment deployments, or understanding the *-applicationsets repo structure. Covers directory generators, values layering, and environment repos."
+description: "Helmfile + bedag/raw chart pattern for ArgoCD ApplicationSets at <ORG>. Use when onboarding services into GitOps, configuring multi-environment deployments, or understanding the *-applicationsets repo structure. Covers directory generators, values layering, and environment repos."
 keywords: [helmfile-applicationset, helmfile, applicationset, "helmfile applicationset", argocd]
 ---
 # Helmfile + ApplicationSet Pattern
 
 ## Overview
 
-At BDC, every business domain manages its ArgoCD ApplicationSets through a dedicated `*-applicationsets/` repository. These repos use **helmfile** to render ArgoCD `ApplicationSet` resources via the **bedag/raw** Helm chart, which outputs raw Kubernetes manifests without opinionated templates.
+At <ORG>, every business domain manages its ArgoCD ApplicationSets through a dedicated `*-applicationsets/` repository. These repos use **helmfile** to render ArgoCD `ApplicationSet` resources via the **bedag/raw** Helm chart, which outputs raw Kubernetes manifests without opinionated templates.
 
 The pattern decouples **what gets deployed** (ApplicationSet definition in `*-applicationsets/`) from **how it's configured per environment** (`*-environments/` repos).
 
@@ -46,7 +46,7 @@ Each domain's applicationsets repo follows this layout:
 
 ## bedag/raw chart
 
-The bedag/raw chart renders arbitrary YAML as Kubernetes resources. BDC uses it to generate `ApplicationSet` CRDs without needing a custom Helm chart.
+The bedag/raw chart renders arbitrary YAML as Kubernetes resources. <ORG> uses it to generate `ApplicationSet` CRDs without needing a custom Helm chart.
 
 ```yaml
 # applications/values.yaml.gotmpl produces:
@@ -179,7 +179,7 @@ syncPolicy:
 ## Onboarding a new service
 
 1. **Create directory** in the environments repo: `<env>/<service-name>/values.yaml`
-2. **Populate values.yaml** with BDC app chart values (image, replicas, env vars, labels)
+2. **Populate values.yaml** with <ORG> app chart values (image, replicas, env vars, labels)
 3. **Commit and push** — ArgoCD auto-discovers the new directory via Git generator
 4. **ArgoCD syncs** — creates the Application and deploys the service
 
@@ -211,6 +211,6 @@ helmfile -e prd apply
 
 ## Related
 
-- `helm-chart-app-bdc` skill — the BDC app chart consumed by ApplicationSets
+- `helm-chart-app` skill — the <ORG> app chart consumed by ApplicationSets
 - `helmfile-templating` skill — escaping gotchas in gotmpl files
 - `gitlab-branch-flow` steering — branch-to-environment mapping

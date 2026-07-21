@@ -1,15 +1,15 @@
 ---
-name: bdc-telemetry-standard
-description: "BDC OTel Helper library standard for .NET and Python. Use when integrating telemetry into BDC apps, choosing between manual OTel SDK config vs the BDC libs, or designing new services that emit traces/metrics/logs. Covers the corporate observability standard, lib API, env vars, behavior per environment."
+name: telemetry-standard
+description: "<ORG> OTel Helper library standard for .NET and Python. Use when integrating telemetry into <ORG> apps, choosing between manual OTel SDK config vs the <ORG> libs, or designing new services that emit traces/metrics/logs. Covers the corporate observability standard, lib API, env vars, behavior per environment."
 keywords: [telemetry, otel, python, net, sdk]
 ---
-# BDC OTel Helper — Corporate Observability Standard
+# <ORG> OTel Helper — Corporate Observability Standard
 
-The libraries `BDCOtelHelper` (.NET) and `bdc_otel` (Python) abstract OpenTelemetry complexity. **One call configures everything** — apps shouldn't manually configure OTel.
+The libraries `<ORG>OtelHelper` (.NET) and `<org>_otel` (Python) abstract OpenTelemetry complexity. **One call configures everything** — apps shouldn't manually configure OTel.
 
 ## Goal
 
-Every BDC app emits standardized telemetry with zero effort from app teams:
+Every <ORG> app emits standardized telemetry with zero effort from app teams:
 - Distributed traces
 - Metrics (RED + business + runtime)
 - Structured logs (with trace correlation)
@@ -33,19 +33,19 @@ Apps that don't comply are not production-ready.
 
 ## Lib repositories
 
-Monorepo: `/home/karlipegomes/Documents/BDC/01-DEVOPS/LABS/bdctelemetryhelper`
+Monorepo: `/home/karlipegomes/Documents/<ORG>/01-DEVOPS/LABS/<org>telemetryhelper`
 
 ```
-bdctelemetryhelper/
+<org>telemetryhelper/
 ├── README.md
 ├── .gitlab-ci.yml
 ├── dashboards/                    # Shared Grafana dashboards
 ├── dotnet/                        # .NET lib
-│   ├── BDCOtelHelper/
-│   ├── BDCOtelHelper.Tests/       # 61 tests, 90% coverage
+│   ├── <ORG>OtelHelper/
+│   ├── <ORG>OtelHelper.Tests/       # 61 tests, 90% coverage
 │   └── example/                   # Sample apps (api/backend/process)
 └── python/                        # Python lib
-    ├── bdc_otel/
+    ├── <org>_otel/
     ├── tests/                     # 63 tests, 94% coverage
     └── example/                   # Notification service
 ```
@@ -54,10 +54,10 @@ bdctelemetryhelper/
 
 ```csharp
 // Minimal — endpoints from OTEL_EXPORTER_OTLP_ENDPOINT env var
-services.AddBDCOtel();
+services.Add<ORG>Otel();
 
 // With overrides
-services.AddBDCOtel(opts =>
+services.Add<ORG>Otel(opts =>
 {
     opts.ServiceName = "checkout-api";
     opts.ResourceAttributes = new Dictionary<string, object>
@@ -68,18 +68,18 @@ services.AddBDCOtel(opts =>
 });
 ```
 
-Note: API was renamed from `AddBDCTelemetry` to `AddBDCOtel` in May 2026.
+Note: API was renamed from `Add<ORG>Telemetry` to `Add<ORG>Otel` in May 2026.
 
 ## Usage — Python
 
 ```python
-from bdc_otel import setup_telemetry
+from <org>_otel import setup_telemetry
 
 # Call inside main(), not at module level (avoids silent failures)
 setup_telemetry()
 
 # Helpers
-from bdc_otel import get_tracer, get_meter, start_root_span
+from <org>_otel import get_tracer, get_meter, start_root_span
 
 tracer = get_tracer(__name__)
 meter = get_meter(__name__)
@@ -96,10 +96,10 @@ with start_root_span("queue-consume") as span:
 | ServiceName | string | `my-service` | `SERVICE_NAME` env > `OTEL_SERVICE_NAME` env > code |
 | Environment | enum | LOCAL | `ENVIRONMENT` env |
 | OtelCollectorEndpoint | string | derived | `OTEL_EXPORTER_OTLP_ENDPOINT` + port 4317 |
-| EnableProfiling | bool | false | `BDC_OTEL_PROFILING_ENABLED` (currently no-op) |
-| DebugLevel | bool | false | `BDC_OTEL_DEBUG_LEVEL` |
-| ExtraInstrumentation | string | `SQL` | `BDC_OTEL_EXTRA_INSTRUMENTATION` (e.g. `SQL,AWS,REDIS`) |
-| SampleRatio | float | 1.0 | `BDC_OTEL_SAMPLE_RATIO` (0.0-1.0) |
+| EnableProfiling | bool | false | `<ORG>_OTEL_PROFILING_ENABLED` (currently no-op) |
+| DebugLevel | bool | false | `<ORG>_OTEL_DEBUG_LEVEL` |
+| ExtraInstrumentation | string | `SQL` | `<ORG>_OTEL_EXTRA_INSTRUMENTATION` (e.g. `SQL,AWS,REDIS`) |
+| SampleRatio | float | 1.0 | `<ORG>_OTEL_SAMPLE_RATIO` (0.0-1.0) |
 
 ## Environment enum (.NET) / values (Python)
 
@@ -113,7 +113,7 @@ BTC   → log WARN,  100% sampling (renamed from PRD_BATCH/PRD-BATCH)
 
 Aliases: `PRD-BATCH`, `PRD_BATCH` → maps to `BTC`.
 
-When `BDC_OTEL_DEBUG_LEVEL=true`: log Debug, profiling force-enabled, all extra instrumentations enabled. Overrides any environment.
+When `<ORG>_OTEL_DEBUG_LEVEL=true`: log Debug, profiling force-enabled, all extra instrumentations enabled. Overrides any environment.
 
 ## Auto-configured instrumentation
 
@@ -123,7 +123,7 @@ When `BDC_OTEL_DEBUG_LEVEL=true`: log Debug, profiling force-enabled, all extra 
 - gRPC client (auto via OpenTelemetry.Instrumentation.GrpcNetClient 1.15.1-beta.1)
 - .NET runtime metrics
 
-### .NET (conditional via `BDC_OTEL_EXTRA_INSTRUMENTATION`)
+### .NET (conditional via `<ORG>_OTEL_EXTRA_INSTRUMENTATION`)
 - SqlClient (`SQL` — default enabled)
 - AWS SDK (`AWS` — opt-in)
 
@@ -146,7 +146,7 @@ Why NOT head sampling in SDK:
 - Can't make decisions based on outcome (latency, errors)
 - Tail sampling at Collector evaluates after execution
 
-`BDC_OTEL_SAMPLE_RATIO < 1.0` enables `TraceIdRatioBasedSampler` — use only if there's a specific reason.
+`<ORG>_OTEL_SAMPLE_RATIO < 1.0` enables `TraceIdRatioBasedSampler` — use only if there's a specific reason.
 
 ## Logs — native ILogger integration (.NET) / Logger (Python)
 

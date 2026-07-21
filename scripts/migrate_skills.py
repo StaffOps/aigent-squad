@@ -30,14 +30,14 @@ PERTINENT = [
     SRC / "skills/finops",
     SRC / "skills/infrastructure",
     SRC / "skills/security",
-    SRC / "overlays/bdc/skills",  # recurse: has subcategories
+    SRC / "overlays/<org>/skills",  # recurse: has subcategories
 ]
 
 # name-suffixes that are generic (drop from keyword derivation)
 DROP = {"metrics", "patterns", "config", "configuration", "strategy", "framework",
         "templates", "template", "integration", "management", "mgmt", "self",
         "deep", "cross", "runtime", "reference", "overview", "standard", "helper",
-        "bdc", "apm"}
+        "<org>", "apm"}
 # high-signal acronyms/components to keep if present in the description
 KEEP_TERMS = {
     "vminsert","vmselect","vmstorage","vmagent","vmalert","victoriametrics","prometheus",

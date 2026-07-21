@@ -351,5 +351,5 @@ aws ce get-cost-and-usage \
 - AWS Resource Groups Tagging API: https://docs.aws.amazon.com/resourcegroupstagging/latest/APIReference/
 - AWS Config required-tags rule: https://docs.aws.amazon.com/config/latest/developerguide/required-tags.html
 - AWS Tag Policies: https://docs.aws.amazon.com/organizations/latest/userguide/orgs_manage_policies_tag-policies.html
-- Related skills: `cost-explorer`, `terraform-modules-bdc`
+- Related skills: `cost-explorer`, `terraform-modules`
 - Related steering: `aws-tag-policies` (mandatory tags list + enforcement)

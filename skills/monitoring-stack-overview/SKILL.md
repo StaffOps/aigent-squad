@@ -1,9 +1,9 @@
 ---
 name: monitoring-stack-overview
-description: "BDC monitoring stack architecture overview. Use when understanding how signals flow from applications to backends, choosing which tool to query, or debugging missing telemetry. Covers the complete pipeline from app SDK to Grafana visualization."
+description: "<ORG> monitoring stack architecture overview. Use when understanding how signals flow from applications to backends, choosing which tool to query, or debugging missing telemetry. Covers the complete pipeline from app SDK to Grafana visualization."
 keywords: [monitoring-stack, monitoring, stack, "monitoring stack", grafana, pipeline, sdk]
 ---
-# BDC Monitoring Stack Overview
+# <ORG> Monitoring Stack Overview
 
 > ⚠️ **Pipeline atual usa Kafka como buffer** (agent→gateway→Kafka→process). O fluxo
 > descrito abaixo é o **pré-Kafka**. Estado atual (SSOT):
@@ -61,9 +61,9 @@ Three-tier architecture in the core cluster:
 
 | Service | URL |
 |---------|-----|
-| OTel Collector (TLS) | `https://otelcollector-prd.bdc.internal:443` |
-| OTel Gateway instances | `otel-gateway-{0,1,2}.bdc.app.br:4317` |
-| OTel MDT | `https://otel-mdt.bdc.internal:443` |
+| OTel Collector (TLS) | `https://otelcollector-prd.<org>.internal:443` |
+| OTel Gateway instances | `otel-gateway-{0,1,2}.<org>.app.br:4317` |
+| OTel MDT | `https://otel-mdt.<org>.internal:443` |
 
 ## Backend components
 
@@ -81,10 +81,10 @@ Three-tier architecture in the core cluster:
 
 | Service | URL |
 |---------|-----|
-| VictoriaMetrics | `https://victoria-metrics-read.bdc.app.br/select/0/prometheus` |
-| Loki | `https://loki.bdc.app.br` |
-| Alertmanager | `https://alertmanager.bdc.app.br` |
-| Grafana | `https://grafana.bdc.app.br` |
+| VictoriaMetrics | `https://victoria-metrics-read.<org>.app.br/select/0/prometheus` |
+| Loki | `https://loki.<org>.app.br` |
+| Alertmanager | `https://alertmanager.<org>.app.br` |
+| Grafana | `https://grafana.<org>.app.br` |
 
 ## Grafana datasources
 

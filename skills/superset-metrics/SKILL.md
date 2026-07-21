@@ -59,7 +59,7 @@ Standard Kubernetes metrics from kubelet/cAdvisor:
 
 ### 2. Backing PostgreSQL Health → `backing-services-metrics`
 
-Superset connects to `eks-postgres.bdc.internal` (database: `superset`):
+Superset connects to `eks-postgres.<org>.internal` (database: `superset`):
 
 | Metric | Use |
 |--------|-----|

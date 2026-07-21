@@ -189,7 +189,7 @@ IAT=$(aws secretsmanager get-secret-value --secret-id STAFFOPS_AIGENT_SQUAD \
   python3 -c "import json,sys; print(json.load(sys.stdin)['internal-api-token'])")
 ```
 
-1. **Health**: `curl -s https://aigent-squad.bdc.app.br/ready` → `{"status":"ready",...}`.
+1. **Health**: `curl -s https://aigent-squad.<org>.app.br/ready` → `{"status":"ready",...}`.
 2. **Real query per critical agent** — at minimum `aws` (e.g. "How many EC2
    instances are running?") and one other agent touched by this cycle's
    changes; confirm `agent` field in the response matches expectation and

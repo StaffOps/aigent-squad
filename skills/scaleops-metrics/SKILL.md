@@ -35,7 +35,7 @@ Grounded on: helmfile at `k8s-setup/scaleops/helmfile.yaml.gotmpl` (deployed to
 Additional configuration:
 - `workloadAutomation.excludeTypes: [argoworkflows]`
 - `cloudBillingIntegration.aws.enabled: true` (reads CUR from S3)
-- Parent URL (PRD): `https://bigdatacorp.scaleops.com` (multi-cluster SaaS control plane)
+- Parent URL (PRD): `https://<org>.scaleops.com` (multi-cluster SaaS control plane)
 
 ---
 

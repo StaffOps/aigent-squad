@@ -1,13 +1,13 @@
 ---
 name: gitops-environment-onboard
-description: "Use when onboarding a new service into BDC GitOps pipeline. Covers the 4-step workflow from ApplicationSet registration through environment values, CI/CD pipeline, and domain catalog. Includes validation checklist and common pitfalls."
+description: "Use when onboarding a new service into <ORG> GitOps pipeline. Covers the 4-step workflow from ApplicationSet registration through environment values, CI/CD pipeline, and domain catalog. Includes validation checklist and common pitfalls."
 keywords: [gitops-environment-onboard, gitops, environment, onboard, "gitops environment", "environment onboard", pipeline, ci, cd]
 ---
 # GitOps Environment Onboarding
 
 ## Overview
 
-Onboarding a new service into BDC's GitOps pipeline requires changes across 3-4 repositories. This workflow ensures the service is properly registered, configured per environment, and validated before first deployment.
+Onboarding a new service into <ORG>'s GitOps pipeline requires changes across 3-4 repositories. This workflow ensures the service is properly registered, configured per environment, and validated before first deployment.
 
 **Reference implementation**: DPM domain (`dpm-applicationsets`, `dpm-environments-{dev,prd,btc}`)
 
@@ -16,7 +16,7 @@ Onboarding a new service into BDC's GitOps pipeline requires changes across 3-4 
 Before starting:
 - [ ] Service code exists in its own Git repo
 - [ ] Dockerfile builds successfully (multi-arch: amd64 + arm64)
-- [ ] Image pushed to Harbor (`harbor.bigdatacorp.com.br/bdc-images/<service>`)
+- [ ] Image pushed to Harbor (`harbor.<org>.com/<org>-images/<service>`)
 - [ ] Image signed with cosign
 - [ ] CostCenter identified (from official `tags.md`)
 - [ ] Namespace exists or will be created
@@ -113,7 +113,7 @@ deploymentType: Rollout
 strategy: Canary
 
 image:
-  repository: harbor.bigdatacorp.com.br/bdc-images/dpm-my-new-service
+  repository: harbor.<org>.com/<org>-images/dpm-my-new-service
   tag: "initial"    # CI pipeline will update this
 
 service:
@@ -195,7 +195,7 @@ deploymentType: Rollout
 strategy: Canary
 
 image:
-  repository: harbor.bigdatacorp.com.br/bdc-images/dpm-my-new-service
+  repository: harbor.<org>.com/<org>-images/dpm-my-new-service
   tag: "initial"
 
 service:
@@ -388,8 +388,8 @@ curl http://my-new-service.dpm.svc.cluster.local:8080/healthz
 ## Related
 
 - `helmfile-applicationset` skill — ApplicationSet rendering pattern
-- `helm-chart-app-bdc` skill — all values.yaml options for the app chart
-- `helm-chart-cronworkflow-bdc` skill — batch job onboarding
+- `helm-chart-app` skill — all values.yaml options for the app chart
+- `helm-chart-cronworkflow` skill — batch job onboarding
 - `argocd-patterns` skill — sync policies, hooks, generators
 - `ci-cd-conventions` steering — pipeline stages, image tagging
 - `aws-tag-policies` steering — mandatory tag values

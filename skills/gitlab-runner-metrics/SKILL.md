@@ -22,7 +22,7 @@ scraped into VictoriaMetrics by vmagent via ServiceMonitor.
 |-----------|-------|
 | **Helm chart** | `gitlab/gitlab-runner` v0.84.1 |
 | **App version** | GitLab Runner ~v17.10 |
-| **Releases** | `bigdatacorp` (3 replicas, amd64), `bigdatacorp-graviton` (2 replicas, arm64) |
+| **Releases** | `<org>` (3 replicas, amd64), `<org>-graviton` (2 replicas, arm64) |
 | **Namespace** | `gitlab-runner` |
 | **Cluster** | `devops-core` |
 | **Executor** | Kubernetes (pods spawned per job) |
@@ -127,7 +127,7 @@ Runner manager is a Go process; key runtime metrics:
 | API 401/403 responses | `gitlab_runner_api_request_statuses_total{status=~"40[13]"}` | Runner token invalid/expired; re-register runner |
 | Runner not picking up jobs | `gitlab_runner_request_concurrency`, `gitlab_runner_request_concurrency_exceeded_total` | Polling saturated; check network to GitLab |
 | Mixed runner versions after upgrade | `gitlab_runner_version_info` grouped by `version` | Rolling update incomplete; check Deployment rollout |
-| Graviton jobs failing | Filter by pod label (`bigdatacorp-graviton`); check `gitlab_runner_errors_total` | helper_image mismatch, arm64-incompatible build steps |
+| Graviton jobs failing | Filter by pod label (`<org>-graviton`); check `gitlab_runner_errors_total` | helper_image mismatch, arm64-incompatible build steps |
 | SLO breach on queue time | `gitlab_runner_acceptable_job_queuing_duration_exceeded_total` | Scale up runner fleet or increase `concurrent` |
 
 ---
@@ -166,8 +166,8 @@ This environment runs **two runner releases** on the same cluster:
 
 | Release | Architecture | Replicas | Node selector |
 |---------|-------------|----------|---------------|
-| `bigdatacorp` | amd64 | 3 | `purpose=runners`, zone=us-east-1c, arch=amd64 |
-| `bigdatacorp-graviton` | arm64 | 2 | `purpose=runners`, zone=us-east-1c, arch=arm64 |
+| `<org>` | amd64 | 3 | `purpose=runners`, zone=us-east-1c, arch=amd64 |
+| `<org>-graviton` | arm64 | 2 | `purpose=runners`, zone=us-east-1c, arch=arm64 |
 
 Both use `concurrent: 10`. Total cluster capacity: 5 managers × 10 = **50 parallel jobs**.
 
@@ -203,4 +203,4 @@ These appear only when using the Docker Machine or Instance executor with autosc
 - [Fleet Scaling — Monitoring Runners](https://docs.gitlab.com/runner/fleet_scaling/#monitoring-runners) — full metric table
 - [High Cardinality Metrics](https://docs.gitlab.com/runner/fleet_scaling/#high-cardinality-metrics) — `job_stage_duration_seconds` opt-in
 - Deployed config: `k8s-setup/gitlab-runner/helmfile.yaml.gotmpl` (chart version 0.84.1)
-- Deployed values: `bigdatacorp/values.yaml.gotmpl`, `bigdatacorp-graviton/values.yaml.gotmpl`
+- Deployed values: `<org>/values.yaml.gotmpl`, `<org>-graviton/values.yaml.gotmpl`

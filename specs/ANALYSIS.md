@@ -192,7 +192,7 @@ app fallback + distinguish transient from permanent errors.
   `.github/workflows/`. **Nothing builds the images the `05-helm-chart` spec
   assumes exist.** It's the missing link between code and deploy.
 - **F4 — Dockerfiles**: single-stage, `python:3.12-alpine` (should be
-  `3.11-slim`), no multi-arch (BDC runs Graviton/arm64), no `USER`.
+  `3.11-slim`), no multi-arch (<ORG> runs Graviton/arm64), no `USER`.
 - **F3 — each image contains the whole `src/`** (all 5 agents) — surface + size.
 - **F5 — `.gitignore` ignores `.dockerignore`** (inverted logic) → the build
   context ships the whole repo.

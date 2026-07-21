@@ -167,7 +167,7 @@ contents:
     - '@local /packages'  # Local build output (CI)
   keyring:
     - https://dl-cdn.alpinelinux.org/alpine/alpine-keys/alpine-keys.rsa.pub
-    - https://devops-files.<org-domain>/apk-repo/edge/bdc.rsa.pub  # <org> key
+    - https://devops-files.<org-domain>/apk-repo/edge/<org>.rsa.pub  # <org> key
   packages:
     - ca-certificates-bundle
     - <org>-custom-tool  # melange-built package

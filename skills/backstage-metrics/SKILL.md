@@ -1,12 +1,12 @@
 ---
 name: backstage-metrics
-description: "Use when assessing Backstage developer portal observability. The deployed chart (backstage/backstage 2.5.2) has metrics.serviceMonitor.enabled=false \u2014 Prometheus metrics are NOT scraped into VictoriaMetrics. The custom image (bdc-images/backstage:latest) MAY expose /metrics if the OTel Metrics Service or legacy prom-client was configured, but there is NO evidence of this and NO ServiceMonitor exists. For workload-level health use k8s-workload-metrics; for Node.js runtime use nodejs-apm-metrics (if prom-client is enabled in a future config)."
+description: "Use when assessing Backstage developer portal observability. The deployed chart (backstage/backstage 2.5.2) has metrics.serviceMonitor.enabled=false \u2014 Prometheus metrics are NOT scraped into VictoriaMetrics. The custom image (<org>-images/backstage:latest) MAY expose /metrics if the OTel Metrics Service or legacy prom-client was configured, but there is NO evidence of this and NO ServiceMonitor exists. For workload-level health use k8s-workload-metrics; for Node.js runtime use nodejs-apm-metrics (if prom-client is enabled in a future config)."
 keywords: [backstage, node, otel, prometheus, victoriametrics]
 ---
 # Backstage Metrics — Status: NOT SCRAPED
 
 **Grounded on**: Helm chart `backstage/backstage` version **2.5.2** from
-`https://backstage.github.io/charts`. Image: `harbor.bigdatacorp.com.br/bdc-images/backstage:latest`.
+`https://backstage.github.io/charts`. Image: `harbor.<org>.com/<org>-images/backstage:latest`.
 Backstage stable version: aligned with **v1.52.0** (current stable as of 2026-07).
 
 ---
@@ -84,7 +84,7 @@ These use OTel naming conventions (dots) and would appear in VictoriaMetrics as
 underscore-separated if scraped via a Prometheus exporter.
 
 > ⚠️ **ALL of the above are UNCONFIRMED for this deployment.** The custom image build
-> (`bdc-images/backstage:latest`) has not been inspected for OTel or prom-client setup.
+> (`<org>-images/backstage:latest`) has not been inspected for OTel or prom-client setup.
 
 ---
 

@@ -1,13 +1,13 @@
 ---
-name: helm-chart-cronworkflow-bdc
-description: "Use when deploying scheduled batch jobs via Argo CronWorkflows on BDC EKS clusters. Covers the corporate cronworkflow Helm chart, schedule/concurrency config, IRSA, ExternalSecrets, mandatory labels, multi-step workflows, and BDC cron namespaces."
+name: helm-chart-cronworkflow
+description: "Use when deploying scheduled batch jobs via Argo CronWorkflows on <ORG> EKS clusters. Covers the corporate cronworkflow Helm chart, schedule/concurrency config, IRSA, ExternalSecrets, mandatory labels, multi-step workflows, and <ORG> cron namespaces."
 keywords: [helm-chart-cronworkflow, helm, chart, cronworkflow, "helm chart", "chart cronworkflow", argo, eks, irsa]
 ---
-# BDC Corporate CronWorkflow Helm Chart
+# <ORG> Corporate CronWorkflow Helm Chart
 
 ## Overview
 
-The `cronworkflow/` chart standardizes Argo CronWorkflow deployments across BDC EKS clusters. It enforces mandatory labels, resource limits, retry strategies, and integrates with External Secrets Operator for AWS credentials.
+The `cronworkflow/` chart standardizes Argo CronWorkflow deployments across <ORG> EKS clusters. It enforces mandatory labels, resource limits, retry strategies, and integrates with External Secrets Operator for AWS credentials.
 
 - **Location**: `02-KUBE/00-CONFIG/helm-charts/cronworkflow/`
 - **Chart version**: `0.5.0`
@@ -26,7 +26,7 @@ CronWorkflow (schedule) → Workflow (instance) → Pod(s) (execution)
 
 ### Key fields
 
-| Field | Purpose | BDC default |
+| Field | Purpose | <ORG> default |
 |-------|---------|-------------|
 | `schedule` | Cron expression (5-field) | Required |
 | `timezone` | IANA timezone | `UTC` |
@@ -104,7 +104,7 @@ kind: ServiceAccount
 metadata:
   name: argo-workflow
   annotations:
-    eks.amazonaws.com/role-arn: arn:aws:iam::524040971621:role/ArgoWorkflowsAccessRole-bdc-eks-prd
+    eks.amazonaws.com/role-arn: arn:aws:iam::524040971621:role/ArgoWorkflowsAccessRole-<org>-eks-prd
 ```
 
 ### Node Configuration
@@ -163,7 +163,7 @@ retryStrategy:
 steps:
   - name: sync-data
     container:
-      image: harbor.bigdatacorp.com.br/bdc-images/dpm-people-batch:a1b2c3d
+      image: harbor.<org>.com/<org>-images/dpm-people-batch:a1b2c3d
       imagePullPolicy: IfNotPresent
       command: ["python"]
       args: ["/app/sync.py", "--full"]
@@ -189,7 +189,7 @@ steps:
 steps:
   - name: extract
     container:
-      image: harbor.bigdatacorp.com.br/bdc-images/dpm-etl:a1b2c3d
+      image: harbor.<org>.com/<org>-images/dpm-etl:a1b2c3d
       command: ["python", "/app/extract.py"]
       resources:
         requests: { cpu: 250m, memory: 512Mi }
@@ -198,7 +198,7 @@ steps:
   - name: transform
     when: "{{steps.extract.status}} == Succeeded"
     container:
-      image: harbor.bigdatacorp.com.br/bdc-images/dpm-etl:a1b2c3d
+      image: harbor.<org>.com/<org>-images/dpm-etl:a1b2c3d
       command: ["python", "/app/transform.py"]
       resources:
         requests: { cpu: 1000m, memory: 2Gi }
@@ -207,7 +207,7 @@ steps:
 
 Steps execute sequentially. The `when` field uses Argo Workflows expression syntax.
 
-## BDC Cron Namespaces
+## <ORG> Cron Namespaces
 
 | Namespace | Cluster | Domain | Purpose |
 |-----------|---------|--------|---------|
@@ -297,7 +297,7 @@ retryStrategy:
 steps:
   - name: sync-people
     container:
-      image: harbor.bigdatacorp.com.br/bdc-images/dpm-people-batch:f4e5d6c
+      image: harbor.<org>.com/<org>-images/dpm-people-batch:f4e5d6c
       imagePullPolicy: IfNotPresent
       command: ["dotnet", "DPM.PeopleBatch.dll"]
       args: ["--mode", "full-sync"]
@@ -335,6 +335,6 @@ steps:
 ## Related
 
 - `helmfile-applicationset` skill — how CronWorkflows are managed via ApplicationSets
-- `helm-chart-app-bdc` skill — long-running service chart (complementary)
+- `helm-chart-app` skill — long-running service chart (complementary)
 - `external-secrets-aws-sm` skill — ESO integration details
 - `aws-tag-policies` steering — mandatory tag values

@@ -1,17 +1,17 @@
 ---
 name: pipeline-template-apps
-description: "GitLab CI pipeline patterns for BDC application domains. Use when creating or modifying CI/CD pipelines, understanding stage flow, or troubleshooting pipeline failures. Covers shared templates, domain-specific repos, branch-to-environment mapping, and common patterns."
+description: "GitLab CI pipeline patterns for <ORG> application domains. Use when creating or modifying CI/CD pipelines, understanding stage flow, or troubleshooting pipeline failures. Covers shared templates, domain-specific repos, branch-to-environment mapping, and common patterns."
 keywords: [pipeline-apps, pipeline, apps, "pipeline apps", gitlab, ci, cd]
 ---
-# BDC GitLab CI Pipeline Patterns
+# <ORG> GitLab CI Pipeline Patterns
 
 ## Overview
 
-BDC uses modular GitLab CI pipelines with domain-specific repos and shared templates. Each business domain has its own CI/CD repo containing pipeline definitions for all services in that domain.
+<ORG> uses modular GitLab CI pipelines with domain-specific repos and shared templates. Each business domain has its own CI/CD repo containing pipeline definitions for all services in that domain.
 
 ## Domain-Specific Pipeline Repos
 
-9 repos in `/home/karlipegomes/Documents/BDC/00-GITLAB/PIPELINES/`:
+9 repos in `/home/karlipegomes/Documents/<ORG>/00-GITLAB/PIPELINES/`:
 
 | Repo | Domain | CostCenter |
 |------|--------|------------|
@@ -70,10 +70,10 @@ release_notes -> pre-build -> build -> test -> review -> deploy -> rollback
 | Branch | Environment | Cluster | Auto-deploy |
 |--------|-------------|---------|-------------|
 | `feature/*` | — (CI only) | — | No |
-| `development` | DEV | `bdc-workloads-dev-nv` | Yes |
-| `homologation` | HML | `bdc-workloads-prd-nv` (hml namespace) | Yes |
-| `production` | PRD | `bdc-workloads-prd-nv` | Yes |
-| `production` + `BTC_ON_EKS` | BTC | `bdc-workloads-prd-nv` (batch namespace) | Yes |
+| `development` | DEV | `<org>-workloads-dev-nv` | Yes |
+| `homologation` | HML | `<org>-workloads-prd-nv` (hml namespace) | Yes |
+| `production` | PRD | `<org>-workloads-prd-nv` | Yes |
+| `production` + `BTC_ON_EKS` | BTC | `<org>-workloads-prd-nv` (batch namespace) | Yes |
 
 ## Feature Flags (ECS to EKS Migration)
 
@@ -150,7 +150,7 @@ build:sign:
 | `<short_sha>-arm64-graviton` | Every build (arm64) | `a1b2c3d-arm64-graviton` |
 | `latest` | Merge to main/production only | `latest` |
 
-Registry: `harbor.bigdatacorp.com.br/<HARBOR_PROJECT>/<service-name>`
+Registry: `harbor.<org>.com/<HARBOR_PROJECT>/<service-name>`
 
 ## Deploy Patterns
 
@@ -208,8 +208,8 @@ rollback:
 ```yaml
 variables:
   CI_COMMIT_SHORT_SHA: ${CI_COMMIT_SHORT_SHA}  # Auto-set by GitLab
-  IMAGE: "harbor.bigdatacorp.com.br/${HARBOR_PROJECT}/${CI_PROJECT_NAME}"
-  HARBOR_PROJECT: "bdc-images"
+  IMAGE: "harbor.<org>.com/${HARBOR_PROJECT}/${CI_PROJECT_NAME}"
+  HARBOR_PROJECT: "<org>-images"
   COSIGN_KEY_PATH: "/run/secrets/cosign.key"
   AWS_REGION: "us-east-1"
 ```
@@ -222,7 +222,7 @@ Short-lived AWS credentials via GitLab OIDC federation (no long-lived access key
 .oidc_aws:
   id_tokens:
     AWS_TOKEN:
-      aud: https://gitlab.bdc.internal
+      aud: https://gitlab.<org>.internal
   before_script:
     - >
       export $(printf "AWS_ACCESS_KEY_ID=%s AWS_SECRET_ACCESS_KEY=%s AWS_SESSION_TOKEN=%s"

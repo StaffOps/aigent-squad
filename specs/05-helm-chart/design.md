@@ -43,7 +43,7 @@ helm/aigent-squad/
 ```yaml
 global:
   image:
-    repository: harbor.bdc.app.br/aigent-squad   # Kyverno reescreve p/ proxy
+    repository: harbor.<org>.app.br/aigent-squad   # Kyverno reescreve p/ proxy
     tag: ""                                       # default = .Chart.AppVersion
   environment: DEV                                # DEV/HML/PRD/BTC
   costCenter: Platform-Infrastructure             # CONFIRMAR com tags.md
@@ -67,8 +67,8 @@ ingress:
   enabled: true
   className: alb
   hosts:
-    supervisor: aigent.bdc.app.br
-    mcp: aigent-mcp.bdc.app.br
+    supervisor: aigent.<org>.app.br
+    mcp: aigent-mcp.<org>.app.br
 
 # Mapa de serviços — fonte da verdade do range
 services:
@@ -234,7 +234,7 @@ KEDA, Argo Rollouts, External Secrets Operator, cert-manager, Istio Ambient, Kyv
 ## Decisões em aberto (CONFIRMAR com o usuário)
 
 1. `CostCenter` correto (steering `clarification-protocol`: não inventar). Placeholder `Platform-Infrastructure`.
-2. Domínios de Ingress (`aigent.bdc.app.br`?).
+2. Domínios de Ingress (`aigent.<org>.app.br`?).
 3. Conta AWS / ARNs das roles IRSA.
 4. Namespace alvo (`aigent-squad-<env>`?).
 5. `kubernetes-agent` precisa mesmo de `ClusterRole` (all namespaces) ou escopo por namespace?

@@ -144,7 +144,7 @@ aws securityhub update-standards-control \
 ```json
 {
   "SchemaVersion": "2018-10-08",
-  "Id": "bdc/trivy/<harbor-project>-dotnet-api/CVE-2026-1234",
+  "Id": "<org>/trivy/<harbor-project>-dotnet-api/CVE-2026-1234",
   "ProductArn": "arn:aws:securityhub:us-east-1:<ACCOUNT_ID>:product/<ACCOUNT_ID>/default",
   "GeneratorId": "trivy-container-scan",
   "AwsAccountId": "<ACCOUNT_ID>",
@@ -195,7 +195,7 @@ SEVERITY_MAP = {"CRITICAL": 95, "HIGH": 75, "MEDIUM": 50, "LOW": 20}
 def import_findings(vulns: list[dict]) -> None:
     findings = [{
         "SchemaVersion": "2018-10-08",
-        "Id": f"bdc/trivy/{v['target']}/{v['id']}",
+        "Id": f"<org>/trivy/{v['target']}/{v['id']}",
         "ProductArn": PRODUCT_ARN,
         "GeneratorId": "trivy-container-scan",
         "AwsAccountId": ACCOUNT_ID,
@@ -406,4 +406,4 @@ aws securityhub batch-update-findings \
 - `security/security-hub-findings-mgmt` — triage, SLAs, lifecycle
 - `aws/iam-patterns` — IAM role design, IRSA, least privilege
 - `security/sbom-vulnerability-management` — Trivy scans, SBOM ingestion
-- `cloud-security-bdc` steering — baseline security rules
+- `cloud-security-<org>` steering — baseline security rules

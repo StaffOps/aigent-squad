@@ -285,9 +285,9 @@ Build (Packer) → Trivy fs scan → Tag (mandatory) → Share cross-account →
 
 ```bash
 # Store latest AMI ID per variant/arch/region
-# Pattern: /bdc/ami/<variant>/<arch>/latest
+# Pattern: /<org>/ami/<variant>/<arch>/latest
 aws ssm put-parameter \
-  --name "/bdc/ami/ubuntu-hardened/amd64/latest" \
+  --name "/<org>/ami/ubuntu-hardened/amd64/latest" \
   --value "ami-0abc123def456" \
   --type String \
   --overwrite \
@@ -298,7 +298,7 @@ aws ssm put-parameter \
 
 ```hcl
 data "aws_ssm_parameter" "ami" {
-  name = "/bdc/ami/ubuntu-hardened/amd64/latest"
+  name = "/<org>/ami/ubuntu-hardened/amd64/latest"
 }
 
 resource "aws_instance" "this" {
@@ -371,7 +371,7 @@ publish:ssm:
   stage: publish
   needs: [scan:ami]
   script:
-    - aws ssm put-parameter --name "/bdc/ami/ubuntu-hardened/amd64/latest" --value "${AMI_ID}" --type String --overwrite
+    - aws ssm put-parameter --name "/<org>/ami/ubuntu-hardened/amd64/latest" --value "${AMI_ID}" --type String --overwrite
 ```
 
 ## Encryption
@@ -417,6 +417,6 @@ source "amazon-ebs" "ubuntu" {
 
 - `container-image-apko` skill — container golden images (complementary to AMI)
 - `aws-ftr-compliance` skill — CIS benchmark alignment
-- `cloud-security-bdc` steering — encryption and access requirements
-- `terraform-modules-bdc` skill — EC2 instance module consumes AMI via SSM
+- `cloud-security-<org>` steering — encryption and access requirements
+- `terraform-modules` skill — EC2 instance module consumes AMI via SSM
 - Path: `<workspace>/01-DEVOPS/AUTOMATIONS/AMIS/`

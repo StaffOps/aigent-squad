@@ -151,13 +151,13 @@ The audit script enumerates the ServiceAccount's EFFECTIVE permissions via
 make mcp-rbac-audit SA=kube-mcp NS=mcp-servers
 
 # With explicit context
-make mcp-rbac-audit SA=kube-mcp NS=mcp-servers CTX=bdc-workloads-dev-nv
+make mcp-rbac-audit SA=kube-mcp NS=mcp-servers CTX=<org>-workloads-dev-nv
 
 # Direct invocation
 python3 scripts/mcp_rbac_audit.py \
   --serviceaccount kube-mcp \
   --namespace mcp-servers \
-  --context bdc-workloads-dev-nv
+  --context <org>-workloads-dev-nv
 ```
 
 ### CI integration

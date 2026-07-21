@@ -315,7 +315,7 @@ resource "aws_config_config_rule" "encrypted_volumes" {
 ## Related
 
 - `iam-patterns` skill — IAM role design and least privilege
-- `cloud-security-bdc` steering — baseline security rules
+- `cloud-security-<org>` steering — baseline security rules
 - `aws-tag-policies` steering — mandatory tagging (compliance requirement)
-- `terraform-modules-bdc` skill — module patterns with built-in compliance
+- `terraform-modules` skill — module patterns with built-in compliance
 - Path: `<workspace>/03-TESTS/FTR/` — <org> FTR findings

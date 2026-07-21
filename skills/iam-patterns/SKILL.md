@@ -392,16 +392,16 @@ For multiple profiles:
 ```ini
 # ~/.aws/config
 [profile <org>-dev]
-sso_session = bdc
+sso_session = <org>
 sso_account_id = 111111111111
 sso_role_name = DeveloperAccess
 
 [profile <org>-prd]
-sso_session = bdc
+sso_session = <org>
 sso_account_id = <ACCOUNT_ID>
 sso_role_name = ReadOnly
 
-[sso-session bdc]
+[sso-session <org>]
 sso_start_url = https://<org>.awsapps.com/start
 sso_region = us-east-1
 sso_registration_scopes = sso:account:access

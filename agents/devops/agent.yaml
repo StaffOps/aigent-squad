@@ -32,8 +32,8 @@ skills:
   - argocd-metrics
   - argocd-patterns
   - backstage-metrics
-  - bdc-telemetry-helper
-  - bdc-telemetry-standard
+  - telemetry-helper
+  - telemetry-standard
   - cosign-image-signing
   - crossplane-metrics
   - datahub-metrics
@@ -41,10 +41,10 @@ skills:
   - gitlab-runner-metrics
   - gitops-environment-onboard
   - harbor-metrics
-  - helm-chart-app-bdc
-  - helm-chart-cronworkflow-bdc
+  - helm-chart-app
+  - helm-chart-cronworkflow
   - helmfile-applicationset
-  - kyverno-bdc-policies
+  - kyverno-policies
   - monitoring-stack-overview
   - nexus3-metrics
   - opensearch-metrics
@@ -52,4 +52,4 @@ skills:
   - sonarqube-metrics
   - strimzi-kafka-metrics
   - superset-metrics
-  - terraform-modules-bdc
+  - terraform-modules
