@@ -228,14 +228,27 @@ async def sse_stream_agentic(
     agentic loop runs — thinking, tool calls, results, and final answer chunks
     render progressively in LibreChat.
 
-    Protocol:
+    Stream shape (visual UX):
+      <details>
+      <summary>🔧 Tool trace</summary>
+
+      🧭 Routed to **obs** (confidence 92%)
+      🔧 query_metrics(namespace="monitoring")
+      📦 3 items
+      🔧 get_pods(namespace="monitoring")
+      📦 12 items
+
+      </details>
+
+      [final answer streamed here, clean and separated]
+
+    Protocol (OpenAI SSE):
       1. Role prelude (role="assistant", content="")
-      2. For each step event:
-         - StepThinking → content delta with thinking prefix
-         - StepToolCall → content delta with 🔧 emoji + tool(args)
-         - StepToolResult → content delta with summary
-         - StepFinalChunk → content delta (the actual answer)
-      3. StepDone → finish_reason delta + [DONE]
+      2. Details-open block before first trace step
+      3. Terse step events (tool calls + results, no raw JSON)
+      4. Details-close right before the first final-answer chunk
+      5. Final answer chunks (the actual answer)
+      6. StepDone → finish_reason delta + [DONE]
 
     Security (S4): step events already contain guardrail-scanned/sanitized text.
     This encoder trusts the upstream loop's B3 enforcement.
@@ -252,6 +265,14 @@ async def sse_stream_agentic(
     cid = _completion_id()
     created = _now()
 
+    def _make_chunk(content: str) -> str:
+        """Helper: build an SSE frame with a content delta."""
+        c = ChatCompletionChunk(
+            id=cid, created=created, model=model,
+            choices=[ChunkChoice(delta=DeltaContent(content=content))],
+        )
+        return f"data: {c.model_dump_json()}\n\n"
+
     # 1. Role prelude
     prelude = ChatCompletionChunk(
         id=cid, created=created, model=model,
@@ -259,54 +280,50 @@ async def sse_stream_agentic(
     )
     yield f"data: {prelude.model_dump_json()}\n\n"
 
-    # 2. Stream step events as content deltas
+    # State: whether the <details> block is open (trace steps are flowing)
+    details_opened = False
+    details_closed = False
+
+    # 2. Stream step events
     async for event in step_events:
-        if isinstance(event, StepRouting):
-            # Auto-route classification step (G-4): show which agent was picked
-            text = f"🧭 Routed to **{event.agent}** (confidence {event.confidence:.0%})\n\n"
-            chunk = ChatCompletionChunk(
-                id=cid, created=created, model=model,
-                choices=[ChunkChoice(delta=DeltaContent(content=text))],
-            )
-            yield f"data: {chunk.model_dump_json()}\n\n"
+        if isinstance(event, (StepRouting, StepThinking, StepToolCall, StepToolResult)):
+            # Open <details> block on the first trace-type event
+            if not details_opened:
+                yield _make_chunk(
+                    "<details>\n<summary>🔧 Tool trace</summary>\n\n"
+                )
+                details_opened = True
 
-        elif isinstance(event, StepThinking):
-            # Thinking text as a distinct block (LibreChat renders it)
-            text = f"💭 {event.text}\n\n"
-            chunk = ChatCompletionChunk(
-                id=cid, created=created, model=model,
-                choices=[ChunkChoice(delta=DeltaContent(content=text))],
-            )
-            yield f"data: {chunk.model_dump_json()}\n\n"
-
-        elif isinstance(event, StepToolCall):
-            # Concise tool invocation line
-            if event.args_display:
-                text = f"🔧 {event.tool_name}({event.args_display})\n"
-            else:
-                text = f"🔧 {event.tool_name}()\n"
-            chunk = ChatCompletionChunk(
-                id=cid, created=created, model=model,
-                choices=[ChunkChoice(delta=DeltaContent(content=text))],
-            )
-            yield f"data: {chunk.model_dump_json()}\n\n"
-
-        elif isinstance(event, StepToolResult):
-            text = f"{event.summary}\n\n"
-            chunk = ChatCompletionChunk(
-                id=cid, created=created, model=model,
-                choices=[ChunkChoice(delta=DeltaContent(content=text))],
-            )
-            yield f"data: {chunk.model_dump_json()}\n\n"
+            if isinstance(event, StepRouting):
+                yield _make_chunk(
+                    f"🧭 Routed to **{event.agent}** "
+                    f"(confidence {event.confidence:.0%})\n"
+                )
+            elif isinstance(event, StepThinking):
+                yield _make_chunk(f"💭 {event.text}\n")
+            elif isinstance(event, StepToolCall):
+                if event.args_display:
+                    yield _make_chunk(
+                        f"🔧 {event.tool_name}({event.args_display})\n"
+                    )
+                else:
+                    yield _make_chunk(f"🔧 {event.tool_name}()\n")
+            elif isinstance(event, StepToolResult):
+                yield _make_chunk(f"{event.summary}\n")
 
         elif isinstance(event, StepFinalChunk):
-            chunk = ChatCompletionChunk(
-                id=cid, created=created, model=model,
-                choices=[ChunkChoice(delta=DeltaContent(content=event.text))],
-            )
-            yield f"data: {chunk.model_dump_json()}\n\n"
+            # Close <details> right before first answer chunk
+            if details_opened and not details_closed:
+                yield _make_chunk("\n</details>\n\n")
+                details_closed = True
+            yield _make_chunk(event.text)
 
         elif isinstance(event, StepDone):
+            # Close <details> if no final chunk followed the trace
+            if details_opened and not details_closed:
+                yield _make_chunk("\n</details>\n\n")
+                details_closed = True
+
             # 3. Terminal frame
             final = ChatCompletionChunk(
                 id=cid, created=created, model=model,
@@ -320,6 +337,8 @@ async def sse_stream_agentic(
             return
 
     # Safety: if generator exhausts without StepDone, still close cleanly
+    if details_opened and not details_closed:
+        yield _make_chunk("\n</details>\n\n")
     final = ChatCompletionChunk(
         id=cid, created=created, model=model,
         choices=[ChunkChoice(delta=DeltaContent(), finish_reason="stop")],

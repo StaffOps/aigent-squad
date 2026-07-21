@@ -149,9 +149,10 @@ class TestSummarizeToolResult:
     def test_json_object(self):
         data = json.dumps({"status": "ok", "count": 5, "data": []})
         result = _summarize_tool_result("get_status", data)
-        # count_items returns None for object with empty list → first-line fallback
+        # Object with empty "data" list → count_items returns None → "📦 ok"
         assert "📦" in result
-        assert "status" in result
+        # Terse: never emits raw JSON content or char counts
+        assert "chars" not in result
 
     def test_short_text(self):
         result = _summarize_tool_result("simple_tool", "ok")
@@ -168,7 +169,9 @@ class TestSummarizeToolResult:
     def test_long_single_line(self):
         text = "x" * 200
         result = _summarize_tool_result("big_result", text)
-        assert "chars" in result
+        # Terse mode: single line → "📦 ok", never shows char count
+        assert "📦" in result
+        assert "chars" not in result
 
 
 # ---------------------------------------------------------------------------
@@ -394,10 +397,10 @@ class TestSseStreamAgentic:
         async for frame in sse_stream_agentic(_events(), "test-model"):
             frames.append(frame)
 
-        # Find the tool call frame
+        # Find the tool call frame (exclude the <details> summary wrapper)
         tool_frames = [
             f for f in frames
-            if "🔧" in f
+            if "🔧" in f and "get_pods" in f
         ]
         assert len(tool_frames) == 1
         assert "get_pods" in tool_frames[0]
@@ -573,7 +576,7 @@ class TestStreamingBudgetPaths:
         assert events[-1].finish_reason == "length"
         # Should contain the degraded note in a FinalChunk
         final_chunks = [e for e in events if isinstance(e, StepFinalChunk)]
-        assert any("incomplete" in e.text or "budget" in e.text for e in final_chunks)
+        assert any("⚠️" in e.text or "concluir" in e.text for e in final_chunks)
 
 
 class TestStreamingAdapterErrors:

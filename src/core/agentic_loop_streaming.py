@@ -159,29 +159,38 @@ def _sanitize_args_for_display(args: dict) -> str:
 
 
 def _summarize_tool_result(tool_name: str, result: str) -> str:
-    """Build a concise summary of a tool result for the stream (S4).
+    """Build a TERSE summary of a tool result for the stream (S4).
 
-    Never outputs the raw result — just a size indicator or first-line excerpt.
-    Uses shared count_items() so the count here matches _truncate_with_marker.
+    NEVER emits raw JSON, raw text, or internal char counts to the user.
+    Returns only a human-friendly count: 'empty', 'N items', 'error <code>',
+    or '~N items'. This is a UX summary — the full content goes to the model
+    via the message context, not to the user's eyes.
     """
     from src.core.truncation import count_items
 
-    lines = result.strip().splitlines()
-    char_count = len(result)
+    stripped = result.strip()
 
-    # Try shared item-counting logic (handles JSON, text tables, etc.)
+    # Empty result
+    if not stripped:
+        return "📦 empty"
+
+    # Error-like result (HTTP code or explicit error text)
+    if stripped.startswith("error") or stripped.startswith("Error"):
+        first_line = stripped.splitlines()[0][:60]
+        return f"📦 error: {first_line}"
+
+    # Try shared item-counting logic (handles JSON arrays, objects, tables)
     item_count = count_items(result)
     if item_count is not None:
-        return f"📦 ~{item_count} items ({char_count} chars)"
+        if item_count == 0:
+            return "📦 empty"
+        return f"📦 {item_count} items"
 
-    # Fallback: first line (truncated) + total size
-    first_line = lines[0][:80] if lines else ""
-    if len(lines) > 1:
-        return f"📦 {first_line}... ({len(lines)} lines, {char_count} chars)"
-    elif char_count > 80:
-        return f"📦 {first_line}... ({char_count} chars)"
-    else:
-        return f"📦 {first_line}"
+    # Fallback: line count as a rough size indicator (never raw content)
+    lines = [ln for ln in result.splitlines() if ln.strip()]
+    if len(lines) <= 1:
+        return "📦 ok"
+    return f"📦 ~{len(lines)} items"
 
 
 # ---------------------------------------------------------------------------
@@ -463,6 +472,21 @@ async def run_agentic_loop_streaming(
             # --- Budget exhausted → finalize with degraded answer ---
             _emit_metrics(agent_id, total_tool_calls, loop_start)
 
+            # Log internal counters (debug — never leaked to user)
+            logger.info(
+                "Agentic loop budget exhausted",
+                extra={
+                    "agent_id": agent_id,
+                    "steps": step,
+                    "max_steps": MAX_TOOL_STEPS,
+                    "elapsed_ms": f"{elapsed_ms:.0f}",
+                    "max_duration_ms": MAX_LOOP_DURATION_MS,
+                    "tokens_used": total_tokens_used,
+                    "max_tokens": MAX_LOOP_TOKENS,
+                    "unfulfilled_tools": unfulfilled_tools,
+                },
+            )
+
             partial_texts = []
             if content_blocks:
                 partial_texts = [
@@ -470,18 +494,16 @@ async def run_agentic_loop_streaming(
                     if block.get("type") == "text" and block.get("text")
                 ]
 
+            # Graceful user-facing message (no raw counters)
             degraded_note = (
-                "[Note: This answer may be incomplete — the tool-calling budget was "
-                f"exhausted (steps={step}/{MAX_TOOL_STEPS}, "
-                f"elapsed={elapsed_ms:.0f}ms/{MAX_LOOP_DURATION_MS}ms, "
-                f"tokens={total_tokens_used}/{MAX_LOOP_TOKENS})."
+                "⚠️ Não consegui concluir a investigação completa no tempo "
+                "disponível — segue o que consegui coletar:"
             )
-            if unfulfilled_tools:
-                degraded_note += f" Unfulfilled tools: {', '.join(unfulfilled_tools)}."
-            degraded_note += "]"
 
             if partial_texts:
-                yield StepFinalChunk(text="\n".join(partial_texts) + "\n\n" + degraded_note)
+                yield StepFinalChunk(
+                    text=degraded_note + "\n\n" + "\n".join(partial_texts)
+                )
             else:
                 yield StepFinalChunk(text=degraded_note)
             yield StepDone(finish_reason="length")

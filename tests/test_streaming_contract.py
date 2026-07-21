@@ -444,10 +444,10 @@ class TestContract4_BudgetExhaustion:
         assert isinstance(events[-1], StepDone)
         assert events[-1].finish_reason == "length"
 
-        # Must contain a degraded note mentioning "budget" or "incomplete"
+        # Must contain the graceful degradation note (no raw counters)
         final_texts = [e.text for e in events if isinstance(e, StepFinalChunk)]
         combined = " ".join(final_texts)
-        assert "budget" in combined.lower() or "incomplete" in combined.lower()
+        assert "⚠️" in combined or "concluir" in combined.lower()
 
     @pytest.mark.asyncio
     @patch("src.core.agentic_loop_streaming.bedrock")
@@ -705,16 +705,19 @@ class TestSummarizeToolResultEdgeCases:
         assert "📦" in result
 
     def test_invalid_json_prefix(self):
-        """String starting with [ but not valid JSON → falls back to text."""
+        """String starting with [ but not valid JSON → falls back to line count or 'ok'."""
         result = _summarize_tool_result("tool", "[not valid json at all")
         assert "📦" in result
-        assert "chars" in result or "not valid" in result
+        # Terse mode: no char counts, no raw content
+        assert "chars" not in result
 
     def test_json_object_keys_preview(self):
-        """JSON object shows first keys in preview."""
+        """JSON object without collection key → terse 'ok' (no key preview)."""
         data = json.dumps({"alpha": 1, "beta": 2, "gamma": 3, "delta": 4})
         result = _summarize_tool_result("tool", data)
-        assert "alpha" in result or "object" in result
+        # Terse: no raw content leaked, just a status indicator
+        assert "📦" in result
+        assert "chars" not in result
 
 
 class TestSanitizeArgsEdgeCases:

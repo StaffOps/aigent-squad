@@ -151,3 +151,18 @@ on its ServiceAccount + **per-consumer scope (G-5)** for sensitive agents + **NO
 
 **Recommended order:** P0 (metric catalogs + eval harness; count-marker already shipped) → P1
 (calibrated honesty, classifier→planner, cross-signal RCA) → P2 (model-tier, feedback).
+
+## Live-feedback follow-ups (2026-07-21)
+
+- **Streaming UX — DONE (agentic16):** step-trace wrapped in a collapsible `<details>` block,
+  terse `📦` result summaries (no raw JSON), graceful budget-exhaustion note with raw counters
+  logged (not leaked to the user) + partial answer synthesized.
+- **FU-1 (accuracy, P1):** metric-catalog skills only trigger by keyword, so a query by **service
+  name** (e.g. `dpm-people-prd-nv`) triggers no skill → the agent guesses non-existent metric names
+  (`http_requests_total`, label `app=`) and flails until the budget is exhausted. Fix: always-load a
+  general **APM-query skill** for observability (canonical `http_server_request_duration_seconds*`
+  pattern + label conventions `service`/`service_name`/`job`, not `app`), AND/OR make the agent do
+  **metric discovery first** (`label_values`/`metrics` before guessing). Complements WS2.
+- **FU-2 (M-1, BLOCKS WS1):** the grafana-mcp Grafana SA token (`sa-1-k8s-mcp`) is **write-capable**
+  (create/write/delete perms; Editor/Admin), NOT Viewer — proven via `/api/access-control/user/permissions`.
+  Reprovision as a **Viewer** token (terraform / Grafana admin) before wiring grafana-mcp (WS1).
