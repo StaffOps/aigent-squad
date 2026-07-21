@@ -109,9 +109,10 @@ def require_edge_auth(
         # Check plain API keys
         if x_api_key in _API_KEYS:
             return AuthResult(consumer_default_agent=_resolve_default_agent(x_api_key))
-        # Check key-agent map keys (they are implicitly valid)
-        if x_api_key in _KEY_AGENT_MAP:
-            return AuthResult(consumer_default_agent=_resolve_default_agent(x_api_key))
+        # Check key-agent map keys (timing-safe lookup; they are implicitly valid)
+        _mapped = _resolve_default_agent(x_api_key)
+        if _mapped is not None:
+            return AuthResult(consumer_default_agent=_mapped)
 
     # 3. Authorization: Bearer <token>
     bearer = _extract_bearer(authorization)
@@ -120,7 +121,8 @@ def require_edge_auth(
             return AuthResult(consumer_default_agent=None)
         if bearer in _API_KEYS:
             return AuthResult(consumer_default_agent=_resolve_default_agent(bearer))
-        if bearer in _KEY_AGENT_MAP:
-            return AuthResult(consumer_default_agent=_resolve_default_agent(bearer))
+        _mapped = _resolve_default_agent(bearer)
+        if _mapped is not None:
+            return AuthResult(consumer_default_agent=_mapped)
 
     raise HTTPException(status_code=401, detail="Unauthorized")
