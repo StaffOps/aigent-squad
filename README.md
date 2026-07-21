@@ -329,9 +329,12 @@ curl http://localhost:8000/ready   # gateway (public front door)
 - [`docs/architecture/decisions/`](docs/architecture/decisions/README.md) - **ADRs** 0001–0006: Bedrock-direct, in-process agents, read-only posture, fail-closed vs fail-open, two-tier gateway, standalone product
 
 ### Specs & Planning (spec-driven — `specs/`)
-- [`specs/ROADMAP.md`](specs/ROADMAP.md) - **Authoritative** phased roadmap + real status of every spec
-- [`specs/AUDIT.md`](specs/AUDIT.md) - Historical audit (2026-05-30) that seeded the spec backlog — findings since fixed
-- [`HANDOFF.md`](HANDOFF.md) - Session-by-session state (what shipped, what's pending)
+- [`specs/README.md`](specs/README.md) - **How the spec process works** — lifecycle, status frontmatter (the SSOT), spec tiers (full spec vs `bugfix.md`), verification pipeline, conventions
+- [`specs/ROADMAP.md`](specs/ROADMAP.md) - Phased plan + the single **canonical status table** (CI-validated by `scripts/specs_status.py`; status itself is authored in each spec's frontmatter)
+- [`specs/BACKLOG.md`](specs/BACKLOG.md) - Live items: findings (`F-*`), product backlog (`B-*`), dormant work, deferred register
+- [`specs/VISION.md`](specs/VISION.md) - Long-term maturity levels (autonomous multi-agent north star)
+- [`specs/AUDIT.md`](specs/AUDIT.md) - Historical audit (2026-05-30) that seeded the spec backlog — findings since fixed (frozen)
+- [`HANDOFF.md`](HANDOFF.md) - Current session + next steps (overwritten each session; prior sessions in `archive/handoffs/`)
 - [`specs/01-fix-blockers/`](specs/01-fix-blockers/) - Unblock build and broken code
 - [`specs/02-unify-agent-architecture/`](specs/02-unify-agent-architecture/) - Unify agents on the base pattern
 - [`specs/03-fix-cache-observability/`](specs/03-fix-cache-observability/) - Deterministic cache + OTel

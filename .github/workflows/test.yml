@@ -32,6 +32,18 @@ jobs:
       # Same target devs/agents run locally (make lint) — spec 36 same-harness
       - run: make lint
 
+  # Spec-status SSOT gate (spec 32) — frontmatter consistency; fast, no image build.
+  specs_status:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install "pyyaml==6.0.2"
+      # Same target devs/agents run locally (make specs-status) — spec 36 same-harness
+      - run: make specs-status
+
   # SCA — vulnerable dependencies in requirements.txt (no image build; fast PR feedback).
   dep_scan:
     runs-on: ubuntu-latest

@@ -10,27 +10,28 @@
 > - `[helm-charts]` — `github.com:StaffOps/helm-charts`, chart `charts/aigent-squad`
 > - `[k8s-setup]` — `gitlab.com:.../k8s-setup`, `staffops/` (helmfile + values)
 >
-> **Two tooling gaps this runbook works around, honestly, not silently**:
-> the spec-32 automated status-gate script (`scripts/specs_status.py`) and
-> `specs/README.md`'s verification pipeline don't exist yet (specs 32/33 are
-> themselves unfinished, even though spec 34 formally depends on them) — Phase
-> 0's status check is manual until that script ships. `steering/
-> version-management.md` (a "global steering" file referenced by
-> `steering/project.md`) also isn't present in this repo or found anywhere on
-> this machine — the operative local rule is `steering/milestone-criteria.md`
-> + the bump-gate tracked in `specs/ROADMAP.md`'s "Suggested real version"
-> line. Both gaps are BACKLOG items, not blockers for this runbook (design.md:
-> "any CI gap found in T4 is a BACKLOG item, not scope").
+> **Tooling note (updated 2026-07-17)**: spec 32 shipped, so Phase 0's status
+> check is now automated — `make specs-status` (`scripts/specs_status.py`)
+> validates the `specs/ROADMAP.md` canonical table against every spec's
+> frontmatter, and the verification pipeline lives in `specs/README.md`. Spec 33
+> (operational review) is still unstarted, so Phase 6's review step stays
+> not-yet-active. `steering/version-management.md` (a "global steering" file
+> referenced by `steering/project.md`) isn't present in this repo — the operative
+> local rule is `steering/milestone-criteria.md` + the bump-gate tracked in
+> `specs/ROADMAP.md`'s "Suggested real version" line. That remaining gap is a
+> BACKLOG item, not a blocker for this runbook (design.md: "any CI gap found in
+> T4 is a BACKLOG item, not scope").
 
 ---
 
 ## Phase 0 — Pre-flight `[app]`
 
 1. **CI green on `dev`**: `gh run list --branch dev -L 5` — all `completed success`.
-2. **Spec status sanity** (manual — no `scripts/specs_status.py` yet): read
-   `specs/ROADMAP.md`'s status table; confirm no spec claims "✅ done" while its
-   own `tasks.md` still has unchecked boxes that aren't explicitly noted as
-   deferred. Confirm `HANDOFF.md`'s most recent entries match `git log`.
+2. **Spec status gate**: `make specs-status` — `scripts/specs_status.py`
+   validates the `specs/ROADMAP.md` canonical table against every spec's
+   frontmatter and fails on any drift (unknown status, a `done` carrying
+   deferrals, a `deferred:` item missing from `specs/BACKLOG.md`). Confirm
+   `HANDOFF.md`'s most recent entries match `git log`.
 3. **`CHANGES.md` `[Unreleased]` accurate**: read the section top-to-bottom;
    every entry must correspond to something actually shipped and reachable
    from `dev`. Stale/superseded entries get folded or removed before the cut,
@@ -227,9 +228,9 @@ IAT=$(aws secretsmanager get-secret-value --secret-id STAFFOPS_AIGENT_SQUAD \
    version + the honest next bump gate.
 4. **`specs/<NN>/tasks.md`** for every spec that shipped this cycle: confirm
    `[x]` + completion dates are accurate (not just "some things checked").
-5. **`HANDOFF.md` overwrite** (spec 32 rule, once spec 32 ships — until then,
-   HANDOFF stays append-only; note here as a known future change, don't
-   pretend the rule is active yet).
+5. **`HANDOFF.md` overwrite** (spec 32 rule, now active): overwrite `HANDOFF.md`
+   with the current session + next steps only, moving the prior content to
+   `archive/handoffs/YYYY-MM-DD.md`.
 6. **Run the operational review** (spec 33, once it ships — same
    not-yet-active note as above).
 

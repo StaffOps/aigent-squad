@@ -1,7 +1,7 @@
 # Canonical command surface (spec 36). Every golden path is a target here;
 # AGENTS.md/QUICKSTART reference these instead of raw commands. CI calls the
 # same targets (same-harness principle — spec 23 extended to the entrypoint).
-.PHONY: up down smoke test test-one test-ci lint eval specs-status install-hooks help
+.PHONY: up down smoke test test-one test-ci lint eval specs-status mcp-rbac-audit install-hooks help
 
 help: ## List targets
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-14s %s\n", $$1, $$2}'
@@ -40,8 +40,16 @@ eval: ## Quality eval T2 (spec 35) — golden sets + LLM judge, real Bedrock cos
 eval-rca: ## RCA scenario eval T8/T9 (spec 35 Phase 3) — fixture-fed, real Bedrock cost (~$0.50-1.50)
 	./scripts/eval-rca-local.sh
 
-specs-status: ## Spec status lint (spec 32) — not implemented yet
-	@echo "spec 32 pending — see specs/32-spec-lifecycle-ssot/"; exit 1
+specs-status: ## Spec status SSOT lint (spec 32) — frontmatter consistency + ROADMAP table check
+	@python3 -c "import yaml" >/dev/null 2>&1 && python3 scripts/specs_status.py || \
+	docker run --rm -v "$$(pwd):/app" -w /app python:3.11-slim \
+	  sh -c "pip install -q pyyaml==6.0.2 && python3 scripts/specs_status.py"
+
+mcp-rbac-audit: ## Prove MCP ServiceAccount is read-only (spec 37 gate). SA=<name> NS=<ns> [CTX=<ctx>]
+	@test -n "$(SA)" || { echo "ERROR: SA env var required (ServiceAccount name)"; exit 1; }
+	@test -n "$(NS)" || { echo "ERROR: NS env var required (namespace)"; exit 1; }
+	@python3 scripts/mcp_rbac_audit.py --serviceaccount "$(SA)" --namespace "$(NS)" \
+	  $(if $(CTX),--context "$(CTX)",)
 
 install-hooks: ## One-time opt-in: enforce "docs ship with code" via a pre-commit hook (.githooks/)
 	git config core.hooksPath .githooks

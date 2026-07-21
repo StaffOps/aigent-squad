@@ -302,20 +302,11 @@ in `docs/METRICS.md`.
 
 ## Phase status
 
-| Phase | Description | Status |
-|-------|-------------|--------|
-| 0 | Stabilization (fix blockers, unify architecture, harden security) | ✅ Complete |
-| 1 | Quality + docs (tests ~93% w/ 90% gate, cost metrics, MkDocs site, CI/CD) | ✅ Complete |
-| 2 | Deploy (Helm chart 0.9.x, EKS/IRSA, gateway two-tier) | ✅ Cluster-validated (devops-core, 2026-07; `0.3.0`) |
-| 2.5 | Hardening (spec 14 L1–L6, spec 11 tiering, budget TOCTOU) | ✅ Shipped; all findings (A/B/C/D/E1/E2/F/F-005) CLOSED |
-| 3+ | Features (Slack v2, multi-round RCA, distributed topology, RAG bench) | ⏳ Next — see `specs/ROADMAP.md` |
-
-Current work: spec 14 and spec 35 (quality eval harness) are both fully
-shipped and cluster-homologated (devops-core, `0.3.0-dev`, digest `e94a901`,
-2026-07-15). `0.4.0` is not gated on anything technical — it stays uncut
-because the team is deliberately accumulating more improvements first (see
-`HANDOFF.md` for the live session state). Next real item: spec 18 Phase 1.5
-(EVIDENCE-MODEL correlator).
+Phase/spec status is **not duplicated here**. Authoritative per-spec status lives in
+each spec's `requirements.md` frontmatter and the single canonical table in
+[`specs/ROADMAP.md`](specs/ROADMAP.md) (CI-validated by `scripts/specs_status.py`).
+Live session state + next steps: `HANDOFF.md`. Live items (findings/backlog/deferred):
+[`specs/BACKLOG.md`](specs/BACKLOG.md).
 
 ---
 
@@ -340,7 +331,13 @@ because the team is deliberately accumulating more improvements first (see
 
 ## Workflow rules
 
-- **Spec-driven**: update `specs/<NN>/design.md` BEFORE implementing
+> **Spec process** — lifecycle, status frontmatter (the SSOT), full-spec vs `bugfix.md`
+> tiers, the verification-independence pipeline, the mandatory security-review rule, and
+> numbering + language conventions — is defined once in
+> [`specs/README.md`](specs/README.md). Don't restate it here. The bullets below are the
+> repo's dev conventions.
+
+- **Spec-driven**: update the spec's `design.md` BEFORE implementing (process: `specs/README.md`)
 - **Tests ship with code**: ≥90% coverage, Docker-measured, independent author
 - **Metrics ship with code**: new feature = new `aigent.*` metric in `metrics.py` + `docs/METRICS.md`
 - **Docs ship with code**: update relevant `docs/` files in the same change.
@@ -359,8 +356,11 @@ because the team is deliberately accumulating more improvements first (see
 
 | Need to... | Go to |
 |------------|-------|
-| Understand real state / blockers | `specs/AUDIT.md` |
+| Understand real state / blockers | historical audit (frozen): `specs/AUDIT.md`; **current** per-spec status: `specs/ROADMAP.md` canonical table + spec frontmatter |
+| How the spec process works (lifecycle, status, tiers, review) | `specs/README.md` |
 | See phased plan | `specs/ROADMAP.md` |
+| Live items (findings `F-*`, product `B-*`, decisions `D-*`, deferred, dormant) | `specs/BACKLOG.md` |
+| Long-term vision (maturity levels) | `specs/VISION.md` |
 | Work a feature | `specs/<NN-feature>/requirements.md` + `design.md` + `tasks.md` |
 | Add a new agent | `docs/HOW-TO-NEW-AGENT.md` |
 | Architecture overview | `docs/ARCHITECTURE.md` |

@@ -8,9 +8,12 @@ prohibitions) and everything below assumes you've skimmed it.
 ## Before you start
 
 - **Spec-driven**: non-trivial changes start with a spec under `specs/<NN-name>/`
-  (`requirements.md` + `design.md` + `tasks.md`). Check `specs/ROADMAP.md` for
-  what's already planned before proposing something new — it may already have a
-  spec number and a design decision you'd want to align with.
+  (`requirements.md` + `design.md` + `tasks.md`). **`specs/README.md` is the
+  process guide** — lifecycle, status frontmatter (the SSOT), full-spec vs
+  `bugfix.md` tiers, the verification pipeline, and when a security review is
+  mandatory. Check `specs/ROADMAP.md` for what's already planned before proposing
+  something new — it may already have a spec number and a design decision you'd
+  want to align with.
 - **Open an issue first** for anything beyond a small fix (typo, obvious bug,
   a test gap) — saves both of us from a PR built on a misunderstanding of intent.
 - **Read the prohibitions in `AGENTS.md`** before writing code — a few of them
