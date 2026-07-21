@@ -166,3 +166,15 @@ on its ServiceAccount + **per-consumer scope (G-5)** for sensitive agents + **NO
 - **FU-2 (M-1, BLOCKS WS1):** the grafana-mcp Grafana SA token (`sa-1-k8s-mcp`) is **write-capable**
   (create/write/delete perms; Editor/Admin), NOT Viewer — proven via `/api/access-control/user/permissions`.
   Reprovision as a **Viewer** token (terraform / Grafana admin) before wiring grafana-mcp (WS1).
+
+## Assertiveness roadmap — status update (2026-07-21)
+
+- ✅ **P0 metric-catalog skills (WS2)** — 110 migrated + wired + live (canonical names).
+- ✅ **P0 count-marker** — shipped in spec 37.
+- ✅ **P0 eval harness** — `scripts/eval_squad.py` + `evals/golden_queries.yaml`, 6/6 live (accuracy gate).
+- ✅ **P1 calibrated honesty (B-16 Phase-1)** — `<calibrated_honesty>` on all agents.
+- ✅ **FU-1 metric-query discipline** — discover-first + label conventions in the observability prompt.
+- ✅ **Loop-budget + gateway-timeout tuning** — steps 5→8, loop 30s→60s, gateway first_byte 15→65s / job 45→75s.
+- ⏳ **P1 classifier→planner (B-14)** — NEXT.
+- ⏳ **P1 cross-signal RCA (WS3)** · **P2 model-tier (spec 38)** · **P2 feedback (B-03)** · **B-16 Phase-2** (structured field).
+- 🔴 **WS1 grafana-mcp** blocked on **M-1** (Grafana token must become Viewer — ops/terraform).

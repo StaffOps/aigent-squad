@@ -1,6 +1,6 @@
 ---
 spec: 39-observability-rca-uplift
-status: not-started
+status: in-progress
 completed: null
 superseded_by: null
 depends_on: ["37-agentic-tool-calling"]

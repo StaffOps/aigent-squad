@@ -2,6 +2,28 @@
 
 ## [Unreleased]
 
+### Added — spec 39 (`observability-rca-uplift`) + accuracy & hardening
+- **WS2 — metric-catalog skills:** migrated ~110 org ops catalogs into the squad skill registry
+  (canonical metric names + generated keywords), wired per agent — kills metric-name hallucination.
+  `scripts/migrate_skills.py` + `scripts/wire_agent_skills.py`. Fixed the Dockerfile (never copied
+  `skills/` → skills never loaded live) + enforced `MAX_SKILLS_PER_TURN`.
+- **FU-1 — metric-query discipline:** observability prompt now mandates discover-before-query, label
+  conventions (`service`/`job`, not `app`), canonical OTel RED metrics, and graceful "no such metric".
+- **B-16 Phase-1 — calibrated honesty:** shared `<calibrated_honesty>` system-prompt instruction on
+  all agents (verified-vs-inferred, no fabricated values, ends with a confidence + unverified list).
+- **Eval harness:** `scripts/eval_squad.py` + `evals/golden_queries.yaml` — golden-query accuracy gate
+  against the live gateway (routing, canonical metrics, count-framing, calibration, guardrail). 6/6 live.
+- **Streaming UX:** collapsible `<details>` tool-trace, terse `📦` summaries, graceful budget exhaustion
+  (no leaked internal counters) + partial answer.
+- **Loop budgets:** `MAX_TOOL_STEPS` 5→8, `MAX_LOOP_DURATION_MS` 30s→60s (discover-first); gateway
+  timeouts raised (first_byte 15→65s, job 45→75s).
+- **Security scrub:** all BigDataCorp/BDC references removed from the project → `<ORG>` placeholders
+  (`scripts/scrub_org.py`); 6 skills renamed; zero traces remain.
+
+### Known / blocked
+- **WS1 grafana-mcp (M-1):** the Grafana SA token is write-capable (Editor/Admin), NOT Viewer — proven
+  via `/api/access-control/user/permissions`. WS1 blocked until the token is reprovisioned as Viewer.
+
 ### Added — spec 37 (`agentic-tool-calling`)
 - **Agentic tool-calling** — agents now let the LLM select tools + arguments via
   the Bedrock **Converse API** in a bounded loop (supersedes the non-agentic

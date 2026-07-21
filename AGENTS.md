@@ -87,6 +87,11 @@ User (LibreChat /v1 · HTTP /query · Alertmanager · MCP :8006)
     the Bedrock **Converse** loop (`src/core/agentic_loop.py`, bounded steps/tokens/time); a new
     MCP server = URL + read-only allowlist, **zero code**. The gateway accepts any model id
     (unknown → auto-route) and streams the loop's steps (🔧 tool call / 📦 result).
+12. **Calibrated honesty + accuracy discipline** — agents separate verified (tool-backed) facts from
+    inferred ones, never fabricate an unretrieved value/state, and end with a confidence + unverified
+    list (`<calibrated_honesty>`, all agents); observability DISCOVERS metric names/labels before
+    querying (canonical OTel names, `service`/`job` not `app`). Regression-guarded by the eval harness
+    (`scripts/eval_squad.py` + `evals/golden_queries.yaml`). Loop budgets: 8 steps / 60s / 150K tokens.
 
 ---
 

@@ -3,6 +3,12 @@
 Legenda: `[ ]` pendente · `[~]` parcial · `[x]` done. Código segue o harness
 (`dev` implementa → `dev` testa independente → `code-review` → gate ≥90%).
 
+> **Status 2026-07-21 (in-progress):** WS2 (metric-catalog skills) **DONE + live** (110 skills,
+> canonical names, eval-gated). Round-table done. Shipped + validated (6/6 eval on agentic18): FU-1
+> (metric-query discipline), B-16 (calibrated honesty), eval harness, loop-budget (steps 5→8, 30s→60s)
+> + gateway-timeout tuning. **WS1 BLOCKED on M-1** — the Grafana SA token is write-capable (proven),
+> must be reprovisioned as Viewer (terraform/admin). WS3 (RCA Phase-1) pending.
+
 ## Phase 0 — Spec & round-table
 - [ ] T0.1 Round-table (observability + security + sre + code-review) — refute WS1/WS2/WS3.
 - [ ] T0.2 Verify the Grafana SA token backing grafana-mcp is **Viewer/read-only** (blocking WS1).
