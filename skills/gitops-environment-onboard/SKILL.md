@@ -1,6 +1,6 @@
 ---
 name: gitops-environment-onboard
-description: Use when onboarding a new service into BDC GitOps pipeline. Covers the 4-step workflow from ApplicationSet registration through environment values, CI/CD pipeline, and domain catalog. Includes validation checklist and common pitfalls.
+description: "Use when onboarding a new service into BDC GitOps pipeline. Covers the 4-step workflow from ApplicationSet registration through environment values, CI/CD pipeline, and domain catalog. Includes validation checklist and common pitfalls."
 keywords: [gitops-environment-onboard, gitops, environment, onboard, "gitops environment", "environment onboard", pipeline, ci, cd]
 ---
 # GitOps Environment Onboarding

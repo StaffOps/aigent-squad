@@ -1,6 +1,6 @@
 ---
 name: sla-slo-design
-description: SLI/SLO/SLA design framework. Use when defining reliability targets for services, creating error budgets, designing burn rate alerts, or establishing service tiers. Covers indicator selection, objective setting, budget policies, multi-window alerting, and <org>-specific patterns.
+description: "SLI/SLO/SLA design framework. Use when defining reliability targets for services, creating error budgets, designing burn rate alerts, or establishing service tiers. Covers indicator selection, objective setting, budget policies, multi-window alerting, and <org>-specific patterns."
 keywords: [sla-slo-design, sla, slo, design, "sla slo", "slo design", sli]
 ---
 # SLI/SLO/SLA Design Framework

@@ -1,6 +1,6 @@
 ---
 name: golden-ami-creation
-description: Use when building hardened AMIs with Packer and Ansible, applying CIS benchmarks, managing AMI lifecycle, or sharing images cross-account. Covers Ubuntu 22.04 hardening, MongoDB-ready variants, Trivy filesystem scan, SSM Parameter Store for AMI IDs, and <org> automation patterns.
+description: "Use when building hardened AMIs with Packer and Ansible, applying CIS benchmarks, managing AMI lifecycle, or sharing images cross-account. Covers Ubuntu 22.04 hardening, MongoDB-ready variants, Trivy filesystem scan, SSM Parameter Store for AMI IDs, and <org> automation patterns."
 keywords: [golden-ami-creation, golden, ami, creation, "golden ami", "ami creation", trivy, cis, ssm]
 ---
 # Golden AMI Creation (Packer + Ansible)

@@ -1,6 +1,6 @@
 ---
 name: cosign-image-signing
-description: Image signing with cosign at <org>. Use when configuring image signing pipelines, debugging Harbor signature visibility, key rotation, or verifying signed images. Covers cosign v3 vs v2 differences, --new-bundle-format=false fix, key management in AWS Secrets Manager, ECDSA key pair.
+description: "Image signing with cosign at <org>. Use when configuring image signing pipelines, debugging Harbor signature visibility, key rotation, or verifying signed images. Covers cosign v3 vs v2 differences, --new-bundle-format=false fix, key management in AWS Secrets Manager, ECDSA key pair."
 keywords: [cosign-image-signing, cosign, image, signing, "cosign image", "image signing", harbor, aws, ecdsa]
 ---
 # Cosign Image Signing

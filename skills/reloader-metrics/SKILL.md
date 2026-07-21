@@ -1,6 +1,6 @@
 ---
 name: reloader-metrics
-description: "Use when monitoring Stakater Reloader operational health — reload success/failure rates, per-namespace breakdown, RBAC problems causing patch failures. Covers reloader_reload_executed_total, reloader_reload_executed_total_by_namespace, plus standard Go runtime (go_*) metrics. Grounded on Helm chart stakater/reloader v2.1.5 (appVersion v1.4.5)."
+description: "Use when monitoring Stakater Reloader operational health \u2014 reload success/failure rates, per-namespace breakdown, RBAC problems causing patch failures. Covers reloader_reload_executed_total, reloader_reload_executed_total_by_namespace, plus standard Go runtime (go_*) metrics. Grounded on Helm chart stakater/reloader v2.1.5 (appVersion v1.4.5)."
 keywords: [reloader, go, rbac]
 ---
 # Stakater Reloader Metrics

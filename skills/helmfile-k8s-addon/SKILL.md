@@ -1,6 +1,6 @@
 ---
 name: helmfile-k8s-addon
-description: Use when managing cluster add-ons via helmfile in 02-KUBE/00-CONFIG/k8s-setup/. Covers multi-environment helmfile patterns, bootstrapping order, diff workflow, environment-specific values, and the bedag/raw companion release pattern.
+description: "Use when managing cluster add-ons via helmfile in 02-KUBE/00-CONFIG/k8s-setup/. Covers multi-environment helmfile patterns, bootstrapping order, diff workflow, environment-specific values, and the bedag/raw companion release pattern."
 keywords: [helmfile-k8s-addon, helmfile, k8s, addon, "helmfile k8s", "k8s addon", kube]
 ---
 # Helmfile K8s Add-on Pattern

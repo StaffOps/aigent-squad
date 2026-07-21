@@ -1,6 +1,6 @@
 ---
 name: vmalert-configuration
-description: VMAlert configuration including extraArgs, evalDelay, queryStep, and Grafana link generation in alert source. Use when configuring VMRule resources, debugging alert evaluation, or setting up HA. Covers vm-operator CRD specifics and the helmfile triple-template escaping for `external.alert.source`.
+description: "VMAlert configuration including extraArgs, evalDelay, queryStep, and Grafana link generation in alert source. Use when configuring VMRule resources, debugging alert evaluation, or setting up HA. Covers vm-operator CRD specifics and the helmfile triple-template escaping for `external.alert.source`."
 keywords: [vmalert, alert, grafana, helmfile, ha, crd]
 ---
 # VMAlert Configuration

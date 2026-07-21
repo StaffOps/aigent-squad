@@ -1,6 +1,6 @@
 ---
 name: metrics-server-metrics
-description: "Use when diagnosing Kubernetes metrics-server health — kubelet scrape failures, stale metrics, storage readiness, API extension server saturation, or HPA/VPA data gaps. Covers metrics_server_kubelet_request_*, metrics_server_manager_tick_duration_seconds, metrics_server_storage_points, metrics_server_api_metric_freshness_seconds, plus apiserver_request_total and apiserver_request_duration_seconds (extension API server). Grounded on Helm chart metrics-server/metrics-server 3.12.2 (appVersion v0.7.2)."
+description: "Use when diagnosing Kubernetes metrics-server health \u2014 kubelet scrape failures, stale metrics, storage readiness, API extension server saturation, or HPA/VPA data gaps. Covers metrics_server_kubelet_request_*, metrics_server_manager_tick_duration_seconds, metrics_server_storage_points, metrics_server_api_metric_freshness_seconds, plus apiserver_request_total and apiserver_request_duration_seconds (extension API server). Grounded on Helm chart metrics-server/metrics-server 3.12.2 (appVersion v0.7.2)."
 keywords: [server, hpa, vpa]
 ---
 # Kubernetes Metrics Server Self-Metrics

@@ -1,6 +1,6 @@
 ---
 name: kyverno-bdc-policies
-description: Kyverno policies enforced at BDC. Use when debugging pod admission failures, understanding mandatory labels, image mutation rules, or designing new policies. Covers ClusterPolicy patterns, BDC-specific rules, exceptions, and troubleshooting.
+description: "Kyverno policies enforced at BDC. Use when debugging pod admission failures, understanding mandatory labels, image mutation rules, or designing new policies. Covers ClusterPolicy patterns, BDC-specific rules, exceptions, and troubleshooting."
 keywords: [kyverno-policies, kyverno, policies, "kyverno policies"]
 ---
 # Kyverno Policies at BDC

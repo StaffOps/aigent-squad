@@ -1,6 +1,6 @@
 ---
 name: cost-explorer
-description: AWS Cost Explorer and CUR analysis patterns. Use when investigating cost spikes, identifying optimization opportunities, generating finops reports, or setting up cost allocation tags. Covers Cost Explorer queries, Cost and Usage Report (CUR) via Athena, common waste patterns, <org>-specific cost drivers.
+description: "AWS Cost Explorer and CUR analysis patterns. Use when investigating cost spikes, identifying optimization opportunities, generating finops reports, or setting up cost allocation tags. Covers Cost Explorer queries, Cost and Usage Report (CUR) via Athena, common waste patterns, <org>-specific cost drivers."
 keywords: [cost-explorer, cost, explorer, "cost explorer", aws, cur]
 ---
 # AWS Cost Explorer & FinOps

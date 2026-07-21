@@ -1,6 +1,6 @@
 ---
 name: k8s-pvc-tagger-metrics
-description: "Use when diagnosing k8s-pvc-tagger volume tagging operations — tag application success/failure rates, ignored PVCs, invalid tag annotations, and legacy EBS tagger counters. Covers k8s_pvc_tagger_*, k8s_aws_ebs_tagger_* (legacy), plus go_* and process_*. Grounded on Helm chart mtougeron/k8s-pvc-tagger 2.3.1 (appVersion ~v1.3.x), source confirmed from github.com/mtougeron/k8s-pvc-tagger main.go."
+description: "Use when diagnosing k8s-pvc-tagger volume tagging operations \u2014 tag application success/failure rates, ignored PVCs, invalid tag annotations, and legacy EBS tagger counters. Covers k8s_pvc_tagger_*, k8s_aws_ebs_tagger_* (legacy), plus go_* and process_*. Grounded on Helm chart mtougeron/k8s-pvc-tagger 2.3.1 (appVersion ~v1.3.x), source confirmed from github.com/mtougeron/k8s-pvc-tagger main.go."
 keywords: [k8s-pvc-tagger, k8s, pvc, tagger, "k8s pvc", "pvc tagger", ebs, go]
 ---
 # k8s-pvc-tagger Metrics

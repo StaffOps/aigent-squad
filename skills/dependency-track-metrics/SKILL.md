@@ -1,6 +1,6 @@
 ---
 name: dependency-track-metrics
-description: "Use when diagnosing OWASP Dependency-Track API server health — ORM persistence operations, HikariCP connection pool saturation, event/notification system throughput, executor thread pool pressure, Lucene search index state, and resilience4j retry behavior. Covers datanucleus_*, hikaricp_*, alpine_*, executor_*, search_index_*, resilience4j_*, plus standard JVM metrics (jvm_*, process_*). Grounded on Helm chart DependencyTrack/dependency-track 0.44.0 (appVersion ~4.12.x), official docs v4.14 monitoring reference."
+description: "Use when diagnosing OWASP Dependency-Track API server health \u2014 ORM persistence operations, HikariCP connection pool saturation, event/notification system throughput, executor thread pool pressure, Lucene search index state, and resilience4j retry behavior. Covers datanucleus_*, hikaricp_*, alpine_*, executor_*, search_index_*, resilience4j_*, plus standard JVM metrics (jvm_*, process_*). Grounded on Helm chart DependencyTrack/dependency-track 0.44.0 (appVersion ~4.12.x), official docs v4.14 monitoring reference."
 keywords: [dependency-track, dependency, track, "dependency track", owasp, orm, jvm]
 ---
 # Dependency-Track API Server Metrics

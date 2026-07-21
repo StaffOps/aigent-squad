@@ -1,6 +1,6 @@
 ---
 name: karpenter-consolidation
-description: Karpenter node consolidation patterns. Use when investigating why nodes aren't consolidating, debugging disruption blocks, optimizing instance types, or reducing node count for cost savings.
+description: "Karpenter node consolidation patterns. Use when investigating why nodes aren't consolidating, debugging disruption blocks, optimizing instance types, or reducing node count for cost savings."
 keywords: [karpenter-consolidation, karpenter, consolidation, "karpenter consolidation", cost, node, savings]
 ---
 # Karpenter Consolidation Patterns

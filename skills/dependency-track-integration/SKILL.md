@@ -1,6 +1,6 @@
 ---
 name: dependency-track-integration
-description: Use when integrating DependencyTrack with CI/CD pipelines, configuring project hierarchies, uploading SBOMs via API, or managing vulnerability policies and notifications. Covers REST API patterns, project structure, BOM upload, policy configuration, webhooks, and <org>-specific deployment.
+description: "Use when integrating DependencyTrack with CI/CD pipelines, configuring project hierarchies, uploading SBOMs via API, or managing vulnerability policies and notifications. Covers REST API patterns, project structure, BOM upload, policy configuration, webhooks, and <org>-specific deployment."
 keywords: [dependency-track, dependency, track, "dependency track", ci, cd, rest, bom]
 ---
 # DependencyTrack Integration

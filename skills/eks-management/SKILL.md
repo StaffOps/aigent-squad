@@ -1,6 +1,6 @@
 ---
 name: eks-management
-description: AWS EKS cluster management patterns. Use when troubleshooting node provisioning, designing node groups, working with Karpenter, debugging IRSA, or managing cluster upgrades. Covers <org> clusters layout, Karpenter usage, IAM Roles for Service Accounts, common failure modes.
+description: "AWS EKS cluster management patterns. Use when troubleshooting node provisioning, designing node groups, working with Karpenter, debugging IRSA, or managing cluster upgrades. Covers <org> clusters layout, Karpenter usage, IAM Roles for Service Accounts, common failure modes."
 keywords: [eks, iam, karpenter, node, aws, irsa]
 ---
 # AWS EKS Management

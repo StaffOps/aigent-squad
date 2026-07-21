@@ -1,6 +1,6 @@
 ---
 name: sonarqube-metrics
-description: "Use when diagnosing SonarQube health — Compute Engine queue saturation, Elasticsearch disk pressure, database connection pool exhaustion, Web/CE JVM process health, or Tomcat thread saturation. Covers sonarqube_* (Web API), SonarQube_* + Tomcat_* + process_* (JMX exporter). Grounded on Helm chart sonarqube/sonarqube version 2025.4.2 (SonarQube Server 2025.4 LTA), official docs https://docs.sonarsource.com/sonarqube-server/2025.4/server-installation/on-kubernetes-or-openshift/set-up-monitoring/prometheus-metrics. WARNING: JMX exporter is DISABLED and PodMonitor is NOT deployed in the current c
+description: "Use when diagnosing SonarQube health \u2014 Compute Engine queue saturation, Elasticsearch disk pressure, database connection pool exhaustion, Web/CE JVM process health, or Tomcat thread saturation. Covers sonarqube_* (Web API), SonarQube_* + Tomcat_* + process_* (JMX exporter). Grounded on Helm chart sonarqube/sonarqube version 2025.4.2 (SonarQube Server 2025.4 LTA), official docs https://docs.sonarsource.com/sonarqube-server/2025.4/server-installation/on-kubernetes-or-openshift/set-up-monitoring/prometheus-metrics. WARNING: JMX exporter is DISABLED and PodMonitor is NOT deployed in the current co"
 keywords: [sonarqube, ce, jvm, jmx, lta]
 ---
 # SonarQube Metrics

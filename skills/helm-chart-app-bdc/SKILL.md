@@ -1,6 +1,6 @@
 ---
 name: helm-chart-app-bdc
-description: BDC corporate app Helm chart. Use when deploying services to EKS, configuring Rollouts/Deployments/StatefulSets, KEDA autoscaling, Istio routing, ExternalSecrets, or mandatory labels. Covers all values.yaml options, deployment types, strategies, and common patterns.
+description: "BDC corporate app Helm chart. Use when deploying services to EKS, configuring Rollouts/Deployments/StatefulSets, KEDA autoscaling, Istio routing, ExternalSecrets, or mandatory labels. Covers all values.yaml options, deployment types, strategies, and common patterns."
 keywords: [helm-chart-app, helm, chart, app, "helm chart", "chart app", eks, istio, keda]
 ---
 # BDC Corporate App Helm Chart

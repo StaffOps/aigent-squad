@@ -1,6 +1,6 @@
 ---
 name: pyroscope-profiling-patterns
-description: Use when querying Pyroscope, designing continuous profiling pipelines, or correlating profiles with traces. Covers pprof profile types, eBPF vs SDK profiling, Pyroscope architecture, trace-to-profile correlation, and <org>-specific status.
+description: "Use when querying Pyroscope, designing continuous profiling pipelines, or correlating profiles with traces. Covers pprof profile types, eBPF vs SDK profiling, Pyroscope architecture, trace-to-profile correlation, and <org>-specific status."
 keywords: [pyroscope-profiling, pyroscope, profiling, "pyroscope profiling", sdk]
 ---
 # Pyroscope Continuous Profiling Patterns

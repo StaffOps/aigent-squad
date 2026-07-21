@@ -1,6 +1,6 @@
 ---
 name: defectdojo-metrics
-description: "Use when assessing DefectDojo observability. The deployed chart (defectdojo/defectdojo 1.6.193) enables an nginx-prometheus-exporter sidecar exposing nginx_connections_*, nginx_http_requests_total, nginx_up. Django application metrics (django_http_*, django_db_*, celery_*) are NOT available — the chart does not integrate django-prometheus. For workload health use k8s-workload-metrics; for backing Postgres use backing-services-metrics."
+description: "Use when assessing DefectDojo observability. The deployed chart (defectdojo/defectdojo 1.6.193) enables an nginx-prometheus-exporter sidecar exposing nginx_connections_*, nginx_http_requests_total, nginx_up. Django application metrics (django_http_*, django_db_*, celery_*) are NOT available \u2014 the chart does not integrate django-prometheus. For workload health use k8s-workload-metrics; for backing Postgres use backing-services-metrics."
 keywords: [defectdojo, postgres]
 ---
 # DefectDojo Metrics — Honest Assessment

@@ -1,6 +1,6 @@
 ---
 name: istio-ambient-metrics
-description: >   Use when querying Istio Ambient mesh metrics in VictoriaMetrics, diagnosing   L7/L4 failures via response_flags, building RED dashboards from mesh telemetry,   alerting on mTLS cert expiry, or understanding reporter=source vs destination in   Ambient mode (ztunnel/waypoint). Covers all standard Istio metrics confirmed   present in the live environment.
+description: "Use when querying Istio Ambient mesh metrics in VictoriaMetrics, diagnosing L7/L4 failures via response_flags, building RED dashboards from mesh telemetry, alerting on mTLS cert expiry, or understanding reporter=source vs destination in Ambient mode (ztunnel/waypoint). Covers all standard Istio metrics confirmed present in the live environment."
 keywords: [istio-ambient, istio, ambient, "istio ambient", mtls, victoriametrics]
 ---
 # Istio Ambient Metrics

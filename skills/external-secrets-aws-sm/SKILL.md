@@ -1,6 +1,6 @@
 ---
 name: external-secrets-aws-sm
-description: External Secrets Operator with AWS Secrets Manager at <org>. Use when configuring secrets for applications, debugging sync failures, or designing secret rotation patterns. Covers ExternalSecret CRD, SecretStore, refresh intervals, and common patterns.
+description: "External Secrets Operator with AWS Secrets Manager at <org>. Use when configuring secrets for applications, debugging sync failures, or designing secret rotation patterns. Covers ExternalSecret CRD, SecretStore, refresh intervals, and common patterns."
 keywords: [external-secrets-aws-sm, external, secrets, aws, sm, "external secrets", "secrets aws", "aws sm", crd]
 ---
 # External Secrets Operator + AWS Secrets Manager

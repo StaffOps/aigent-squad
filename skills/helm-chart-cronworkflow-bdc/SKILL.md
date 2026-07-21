@@ -1,6 +1,6 @@
 ---
 name: helm-chart-cronworkflow-bdc
-description: Use when deploying scheduled batch jobs via Argo CronWorkflows on BDC EKS clusters. Covers the corporate cronworkflow Helm chart, schedule/concurrency config, IRSA, ExternalSecrets, mandatory labels, multi-step workflows, and BDC cron namespaces.
+description: "Use when deploying scheduled batch jobs via Argo CronWorkflows on BDC EKS clusters. Covers the corporate cronworkflow Helm chart, schedule/concurrency config, IRSA, ExternalSecrets, mandatory labels, multi-step workflows, and BDC cron namespaces."
 keywords: [helm-chart-cronworkflow, helm, chart, cronworkflow, "helm chart", "chart cronworkflow", argo, eks, irsa]
 ---
 # BDC Corporate CronWorkflow Helm Chart

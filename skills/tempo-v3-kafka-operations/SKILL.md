@@ -1,6 +1,6 @@
 ---
 name: tempo-v3-kafka-operations
-description: Use when migrating Grafana Tempo v2→v3, operating the v3 Kafka-based ingest path, or debugging partition-ring errors, orphan partitions, OOM on replay, or missing PDBs. Covers the ingester→block-builder/live-store architecture change, partition ownership (1:1 live-store↔partition), Kafka topic partition-count gotchas, memberlist ring reset, and the tempo-distributed chart's missing PDB templates.
+description: "Use when migrating Grafana Tempo v2\u2192v3, operating the v3 Kafka-based ingest path, or debugging partition-ring errors, orphan partitions, OOM on replay, or missing PDBs. Covers the ingester\u2192block-builder/live-store architecture change, partition ownership (1:1 live-store\u2194partition), Kafka topic partition-count gotchas, memberlist ring reset, and the tempo-distributed chart's missing PDB templates."
 keywords: [tempo-v3-kafka-operations, tempo, v3, kafka, operations, "tempo v3", "v3 kafka", "kafka operations", grafana, oom, pdb]
 ---
 # Tempo v3 Kafka Operations

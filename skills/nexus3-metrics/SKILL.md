@@ -1,6 +1,6 @@
 ---
 name: nexus3-metrics
-description: "Use when diagnosing Sonatype Nexus Repository 3 health — JVM heap pressure, Jetty thread pool saturation, HTTP request latency, connection exhaustion, or GC overhead. Nexus exposes Dropwizard Metrics in Prometheus format at /service/metrics/prometheus. Covers jvm_*, org_eclipse_jetty_*, nexus_*, process_*. Grounded on Helm chart stevehipwell/nexus3 v5.5.1 (appVersion 3.75.1). Metrics ENABLED and SCRAPED via ServiceMonitor in the deployed config."
+description: "Use when diagnosing Sonatype Nexus Repository 3 health \u2014 JVM heap pressure, Jetty thread pool saturation, HTTP request latency, connection exhaustion, or GC overhead. Nexus exposes Dropwizard Metrics in Prometheus format at /service/metrics/prometheus. Covers jvm_*, org_eclipse_jetty_*, nexus_*, process_*. Grounded on Helm chart stevehipwell/nexus3 v5.5.1 (appVersion 3.75.1). Metrics ENABLED and SCRAPED via ServiceMonitor in the deployed config."
 keywords: [nexus3, gc, nexus, prometheus, jvm]
 ---
 # Sonatype Nexus Repository 3 — Prometheus Metrics

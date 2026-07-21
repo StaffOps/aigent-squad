@@ -1,6 +1,6 @@
 ---
 name: istio-ambient-otel
-description: Istio Ambient mesh configuration for OTel and cross-cluster traffic. Use when configuring ServiceEntry for cross-cluster routing, setting up TLS receivers, or designing services that work with ambient mode. Covers ztunnel + waypoint, namespace labels, ServiceEntry patterns, gateway listeners.
+description: "Istio Ambient mesh configuration for OTel and cross-cluster traffic. Use when configuring ServiceEntry for cross-cluster routing, setting up TLS receivers, or designing services that work with ambient mode. Covers ztunnel + waypoint, namespace labels, ServiceEntry patterns, gateway listeners."
 keywords: [istio-ambient-otel, istio, ambient, otel, "istio ambient", "ambient otel", tls]
 ---
 # Istio Ambient Mode — Configuration Patterns

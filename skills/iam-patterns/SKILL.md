@@ -1,6 +1,6 @@
 ---
 name: iam-patterns
-description: AWS IAM patterns, least privilege design, and <org> conventions. Use when designing IAM roles/policies, debugging access denied errors, or implementing IRSA (IAM Roles for Service Accounts). Covers role structures, policy patterns, IRSA, SCP, common pitfalls.
+description: "AWS IAM patterns, least privilege design, and <org> conventions. Use when designing IAM roles/policies, debugging access denied errors, or implementing IRSA (IAM Roles for Service Accounts). Covers role structures, policy patterns, IRSA, SCP, common pitfalls."
 keywords: [iam, aws, irsa, scp]
 ---
 # AWS IAM Patterns

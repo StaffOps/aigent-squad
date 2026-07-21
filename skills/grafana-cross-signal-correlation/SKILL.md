@@ -1,6 +1,6 @@
 ---
 name: grafana-cross-signal-correlation
-description: Grafana datasource configuration for cross-signal correlation (metric→trace→log→profile). Use when setting up exemplars, tracesToLogsV2, tracesToMetrics, derivedFields, or service map. Covers all <org> datasource UIDs and required configuration.
+description: "Grafana datasource configuration for cross-signal correlation (metric\u2192trace\u2192log\u2192profile). Use when setting up exemplars, tracesToLogsV2, tracesToMetrics, derivedFields, or service map. Covers all <org> datasource UIDs and required configuration."
 keywords: [grafana-signal-correlation, grafana, signal, correlation, "grafana signal", "signal correlation"]
 ---
 # Grafana Cross-Signal Correlation

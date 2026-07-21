@@ -1,6 +1,6 @@
 ---
 name: incident-response-runbook
-description: Use when responding to production incidents, defining severity levels, assigning incident roles, or establishing communication cadence. Covers severity definitions, IC/Comms/Ops roles, response phases (detect→recover), Slack-based coordination, and <org>-specific tooling.
+description: "Use when responding to production incidents, defining severity levels, assigning incident roles, or establishing communication cadence. Covers severity definitions, IC/Comms/Ops roles, response phases (detect\u2192recover), Slack-based coordination, and <org>-specific tooling."
 keywords: [incident-response-runbook, incident, response, runbook, "incident response", "response runbook", ic]
 ---
 # Incident Response Runbook

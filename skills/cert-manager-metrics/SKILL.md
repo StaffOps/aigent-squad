@@ -1,6 +1,6 @@
 ---
 name: cert-manager-metrics
-description: "Use when diagnosing cert-manager certificate lifecycle issues — expiring certs, failed issuance, ACME rate limits, controller reconciliation backlog, or aws-privateca-issuer health. Covers certmanager_certificate_*, certmanager_controller_sync_*, certmanager_acme_client_*, certmanager_clock_*, workqueue_*, and aws-privateca-issuer controller-runtime metrics. Grounded on Helm chart jetstack/cert-manager v1.20.1 + awspca/aws-privateca-issuer 1.4.0."
+description: "Use when diagnosing cert-manager certificate lifecycle issues \u2014 expiring certs, failed issuance, ACME rate limits, controller reconciliation backlog, or aws-privateca-issuer health. Covers certmanager_certificate_*, certmanager_controller_sync_*, certmanager_acme_client_*, certmanager_clock_*, workqueue_*, and aws-privateca-issuer controller-runtime metrics. Grounded on Helm chart jetstack/cert-manager v1.20.1 + awspca/aws-privateca-issuer 1.4.0."
 keywords: [cert-manager, cert, manager, "cert manager", acme]
 ---
 # cert-manager Prometheus Metrics Catalog

@@ -1,6 +1,6 @@
 ---
 name: multicluster-label-strategy
-description: Multi-cluster label strategy for VictoriaMetrics. Use when integrating kubernetes-mixin dashboards, cross-cluster trace correlation, or when external labels need both `cluster` (k8s name) and `eks_cluster` (<org> env). Covers vmagent externalLabels, scrape config alignment, recording rule joins.
+description: "Multi-cluster label strategy for VictoriaMetrics. Use when integrating kubernetes-mixin dashboards, cross-cluster trace correlation, or when external labels need both `cluster` (k8s name) and `eks_cluster` (<org> env). Covers vmagent externalLabels, scrape config alignment, recording rule joins."
 keywords: [multicluster-label, multicluster, label, "multicluster label", victoriametrics, vmagent]
 ---
 # Multi-Cluster Label Strategy

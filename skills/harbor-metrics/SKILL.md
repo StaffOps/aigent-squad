@@ -1,6 +1,6 @@
 ---
 name: harbor-metrics
-description: "Use when diagnosing Harbor container registry health — image push/pull latency, registry storage performance, job queue saturation, quota exhaustion, component availability, or project artifact counts. Covers harbor_core_http_*, harbor_project_*, harbor_artifact_pulled, harbor_up, harbor_task_*, harbor_jobservice_*, registry_http_*, registry_storage_*. Grounded on Helm chart harbor/harbor 1.17.1 (appVersion v2.13.1), official docs https://goharbor.io/docs/2.13.0/administration/metrics/."
+description: "Use when diagnosing Harbor container registry health \u2014 image push/pull latency, registry storage performance, job queue saturation, quota exhaustion, component availability, or project artifact counts. Covers harbor_core_http_*, harbor_project_*, harbor_artifact_pulled, harbor_up, harbor_task_*, harbor_jobservice_*, registry_http_*, registry_storage_*. Grounded on Helm chart harbor/harbor 1.17.1 (appVersion v2.13.1), official docs https://goharbor.io/docs/2.13.0/administration/metrics/."
 keywords: [harbor]
 ---
 # Harbor Container Registry Metrics

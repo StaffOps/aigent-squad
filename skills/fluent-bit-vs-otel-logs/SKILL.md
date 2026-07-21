@@ -1,6 +1,6 @@
 ---
 name: fluent-bit-vs-otel-logs
-description: Comparison between Fluent Bit and OTel Collector filelog receiver for log collection. Use when planning migration, debugging dual log pipelines (OTLP + stdout), or understanding why naming conventions diverge between logs and traces/metrics.
+description: "Comparison between Fluent Bit and OTel Collector filelog receiver for log collection. Use when planning migration, debugging dual log pipelines (OTLP + stdout), or understanding why naming conventions diverge between logs and traces/metrics."
 keywords: [fluent-bit-vs-otel-logs, fluent, bit, vs, otel, logs, "fluent bit", "bit vs", "vs otel", "otel logs", collector, otlp]
 ---
 # Fluent Bit vs OTel Collector for Logs

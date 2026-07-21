@@ -1,6 +1,6 @@
 ---
 name: scaleops-metrics
-description: "Use when assessing ScaleOps platform observability. ScaleOps is a commercial closed-source Kubernetes optimization platform (chart scaleops/scaleops 1.31.1). Its Prometheus metric names are NOT publicly documented — no official metrics reference exists outside gated vendor documentation. This skill documents the deployed component topology, likely metric endpoints (go_*, controller-runtime workqueue_*), and points to k8s-workload-metrics for pod-level health. Do NOT invent scaleops_* metric names."
+description: "Use when assessing ScaleOps platform observability. ScaleOps is a commercial closed-source Kubernetes optimization platform (chart scaleops/scaleops 1.31.1). Its Prometheus metric names are NOT publicly documented \u2014 no official metrics reference exists outside gated vendor documentation. This skill documents the deployed component topology, likely metric endpoints (go_*, controller-runtime workqueue_*), and points to k8s-workload-metrics for pod-level health. Do NOT invent scaleops_* metric names."
 keywords: [scaleops, prometheus]
 ---
 # ScaleOps Platform Metrics — Observability Status

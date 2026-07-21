@@ -1,6 +1,6 @@
 ---
 name: tempo-traceql-patterns
-description: Use when querying Tempo with TraceQL, searching traces by attributes, debugging distributed traces, or correlating exemplars from VictoriaMetrics to traces. Covers TraceQL syntax, span set operators, service graph, <org> endpoints, and common query patterns.
+description: "Use when querying Tempo with TraceQL, searching traces by attributes, debugging distributed traces, or correlating exemplars from VictoriaMetrics to traces. Covers TraceQL syntax, span set operators, service graph, <org> endpoints, and common query patterns."
 keywords: [tempo-traceql, tempo, traceql, "tempo traceql", victoriametrics]
 ---
 # Tempo TraceQL Patterns

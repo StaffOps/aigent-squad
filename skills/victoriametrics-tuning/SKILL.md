@@ -1,6 +1,6 @@
 ---
 name: victoriametrics-tuning
-description: VictoriaMetrics cluster performance tuning. Use when adjusting vminsert/vmselect/vmstorage flags, diagnosing slow inserts, goroutine scheduling latency, RPC saturation, or cache warm-up issues.
+description: "VictoriaMetrics cluster performance tuning. Use when adjusting vminsert/vmselect/vmstorage flags, diagnosing slow inserts, goroutine scheduling latency, RPC saturation, or cache warm-up issues."
 keywords: [victoriametrics-tuning, victoriametrics, tuning, "victoriametrics tuning", vminsert, vmselect, vmstorage, rpc]
 ---
 # VictoriaMetrics Cluster — Performance Tuning

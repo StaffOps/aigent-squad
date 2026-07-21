@@ -1,6 +1,6 @@
 ---
 name: traefik-metrics
-description: >   Use when diagnosing Traefik ingress health — request routing errors, backend   server failures, TLS certificate expiry, configuration reload issues, or   latency at entrypoint/router/service layers. Covers traefik_entrypoint_*,   traefik_router_*, traefik_service_*, traefik_config_*, traefik_open_connections,   traefik_tls_certs_not_after, plus go_* runtime. Grounded on Helm chart   traefik/traefik 40.2.0 (appVersion Traefik v3.6.x).
+description: "Use when diagnosing Traefik ingress health \u2014 request routing errors, backend server failures, TLS certificate expiry, configuration reload issues, or latency at entrypoint/router/service layers. Covers traefik_entrypoint_*, traefik_router_*, traefik_service_*, traefik_config_*, traefik_open_connections, traefik_tls_certs_not_after, plus go_* runtime. Grounded on Helm chart traefik/traefik 40.2.0 (appVersion Traefik v3.6.x)."
 keywords: [traefik, ingress, tls]
 ---
 # Traefik Ingress Controller Metrics

@@ -1,6 +1,6 @@
 ---
 name: crossplane-metrics
-description: "Use when diagnosing Crossplane control-plane health — reconciliation failures, managed resource readiness drift, workqueue saturation, API server request pressure, or provider cloud API latency. Covers controller_runtime_reconcile_*, controller_runtime_active_workers, workqueue_*, rest_client_requests_total, crossplane_managed_resource_*, plus go_*. Grounded on Helm chart crossplane-stable/crossplane 1.19.0 with metrics.enabled=true and crossplane-contrib/provider-aws-* v1.21.1."
+description: "Use when diagnosing Crossplane control-plane health \u2014 reconciliation failures, managed resource readiness drift, workqueue saturation, API server request pressure, or provider cloud API latency. Covers controller_runtime_reconcile_*, controller_runtime_active_workers, workqueue_*, rest_client_requests_total, crossplane_managed_resource_*, plus go_*. Grounded on Helm chart crossplane-stable/crossplane 1.19.0 with metrics.enabled=true and crossplane-contrib/provider-aws-* v1.21.1."
 keywords: [crossplane]
 ---
 # Crossplane Metrics

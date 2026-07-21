@@ -1,6 +1,6 @@
 ---
 name: nodejs-apm-metrics
-description: Use when troubleshooting Node.js services via runtime metrics from prom-client default metrics — event loop lag, GC duration, heap memory, active handles/requests, and process stats. All metric names are the REAL Prometheus/VictoriaMetrics names confirmed present in live inventory. OTel semconv (nodejs.*/v8js.*) is NOT used in this environment.
+description: "Use when troubleshooting Node.js services via runtime metrics from prom-client default metrics \u2014 event loop lag, GC duration, heap memory, active handles/requests, and process stats. All metric names are the REAL Prometheus/VictoriaMetrics names confirmed present in live inventory. OTel semconv (nodejs.*/v8js.*) is NOT used in this environment."
 keywords: [nodejs, gc, node, otel, prometheus, victoriametrics, real]
 ---
 # Node.js APM Metrics Reference (prom-client)

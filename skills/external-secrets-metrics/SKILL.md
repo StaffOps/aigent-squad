@@ -1,6 +1,6 @@
 ---
 name: external-secrets-metrics
-description: >   Use when diagnosing External Secrets Operator health — sync failures,   provider API errors, reconciliation latency, store readiness. Covers   externalsecret_*, secretstore_*, clustersecretstore_*, pushsecret_*,   clusterexternalsecret_*, externalsecret_provider_api_calls_count, plus   controller-runtime controller_runtime_reconcile_*, workqueue_*,   rest_client_*, controller_runtime_webhook_*. Complement (do NOT duplicate)   skills/infrastructure/external-secrets-aws-sm (config/CRD patterns).   Grounded on Helm chart external-secrets/external-secrets 0.17.0.
+description: "Use when diagnosing External Secrets Operator health \u2014 sync failures, provider API errors, reconciliation latency, store readiness. Covers externalsecret_*, secretstore_*, clustersecretstore_*, pushsecret_*, clusterexternalsecret_*, externalsecret_provider_api_calls_count, plus controller-runtime controller_runtime_reconcile_*, workqueue_*, rest_client_*, controller_runtime_webhook_*. Complement (do NOT duplicate) skills/infrastructure/external-secrets-aws-sm (config/CRD patterns). Grounded on Helm chart external-secrets/external-secrets 0.17.0."
 keywords: [external-secrets, external, secrets, "external secrets", crd]
 ---
 # External Secrets Operator — Prometheus Metrics Catalog

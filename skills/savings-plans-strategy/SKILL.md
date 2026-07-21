@@ -1,6 +1,6 @@
 ---
 name: savings-plans-strategy
-description: Use when evaluating Savings Plans purchases, comparing SP vs Reserved Instances, setting coverage targets, or analyzing commitment utilization. Covers SP types, coverage targets (70-80%), term/payment trade-offs, renewal tracking, and <org>-specific Karpenter+Spot+Graviton context.
+description: "Use when evaluating Savings Plans purchases, comparing SP vs Reserved Instances, setting coverage targets, or analyzing commitment utilization. Covers SP types, coverage targets (70-80%), term/payment trade-offs, renewal tracking, and <org>-specific Karpenter+Spot+Graviton context."
 keywords: [savings-plans, savings, plans, "savings plans", karpenter, sp]
 ---
 # Savings Plans Strategy

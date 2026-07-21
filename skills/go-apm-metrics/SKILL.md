@@ -1,6 +1,6 @@
 ---
 name: go-apm-metrics
-description: Use when troubleshooting Go services via runtime metrics confirmed present in the organization's live VictoriaMetrics. Covers client_golang + runtime/metrics collector names (go_memstats_*, go_gc_*, go_sched_*, go_memory_classes_*, go_cpu_classes_*, go_sync_*, go_sql_*). NOT OTel semconv go.* names — those do NOT exist in this environment.
+description: "Use when troubleshooting Go services via runtime metrics confirmed present in the organization's live VictoriaMetrics. Covers client_golang + runtime/metrics collector names (go_memstats_*, go_gc_*, go_sched_*, go_memory_classes_*, go_cpu_classes_*, go_sync_*, go_sql_*). NOT OTel semconv go.* names \u2014 those do NOT exist in this environment."
 keywords: [go, collector, otel, victoriametrics]
 ---
 # Go APM Metrics — Environment-Anchored Reference

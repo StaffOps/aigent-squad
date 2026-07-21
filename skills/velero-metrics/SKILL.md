@@ -1,6 +1,6 @@
 ---
 name: velero-metrics
-description: "Use when diagnosing Velero backup/restore health — backup failures, partial failures, schedule staleness, restore errors, volume snapshot issues, CSI snapshot failures, backup deletion tracking, and backup duration anomalies. Covers velero_backup_*, velero_restore_*, velero_volume_snapshot_*, velero_csi_snapshot_*, velero_backup_deletion_*, plus go_*. Grounded on Helm chart vmware-tanzu/velero 12.0.2 (appVersion v1.15.x)."
+description: "Use when diagnosing Velero backup/restore health \u2014 backup failures, partial failures, schedule staleness, restore errors, volume snapshot issues, CSI snapshot failures, backup deletion tracking, and backup duration anomalies. Covers velero_backup_*, velero_restore_*, velero_volume_snapshot_*, velero_csi_snapshot_*, velero_backup_deletion_*, plus go_*. Grounded on Helm chart vmware-tanzu/velero 12.0.2 (appVersion v1.15.x)."
 keywords: [velero, csi]
 ---
 # Velero Backup/Restore Metrics

@@ -1,6 +1,6 @@
 ---
 name: backstage-metrics
-description: "Use when assessing Backstage developer portal observability. The deployed chart (backstage/backstage 2.5.2) has metrics.serviceMonitor.enabled=false — Prometheus metrics are NOT scraped into VictoriaMetrics. The custom image (bdc-images/backstage:latest) MAY expose /metrics if the OTel Metrics Service or legacy prom-client was configured, but there is NO evidence of this and NO ServiceMonitor exists. For workload-level health use k8s-workload-metrics; for Node.js runtime use nodejs-apm-metrics (if prom-client is enabled in a future config)."
+description: "Use when assessing Backstage developer portal observability. The deployed chart (backstage/backstage 2.5.2) has metrics.serviceMonitor.enabled=false \u2014 Prometheus metrics are NOT scraped into VictoriaMetrics. The custom image (bdc-images/backstage:latest) MAY expose /metrics if the OTel Metrics Service or legacy prom-client was configured, but there is NO evidence of this and NO ServiceMonitor exists. For workload-level health use k8s-workload-metrics; for Node.js runtime use nodejs-apm-metrics (if prom-client is enabled in a future config)."
 keywords: [backstage, node, otel, prometheus, victoriametrics]
 ---
 # Backstage Metrics — Status: NOT SCRAPED

@@ -1,6 +1,6 @@
 ---
 name: grafana-self-metrics
-description: >   Use when diagnosing Grafana server health — HTTP latency, datasource proxy   errors, unified alerting performance, database connection issues, dashboard   rendering problems, or Go runtime pressure. Covers grafana_http_request_duration_seconds*,   grafana_stat_totals_*, grafana_datasource_request_total, grafana_alerting_*,   grafana_database_*, plus Go runtime (go_*, process_*) metrics emitted by   Grafana ≥13.0. Grounded on Grafana 13.1.0 deployed via kube-prometheus-stack   87.2.1 (grafana subchart 12.7.1).
+description: "Use when diagnosing Grafana server health \u2014 HTTP latency, datasource proxy errors, unified alerting performance, database connection issues, dashboard rendering problems, or Go runtime pressure. Covers grafana_http_request_duration_seconds*, grafana_stat_totals_*, grafana_datasource_request_total, grafana_alerting_*, grafana_database_*, plus Go runtime (go_*, process_*) metrics emitted by Grafana \u226513.0. Grounded on Grafana 13.1.0 deployed via kube-prometheus-stack 87.2.1 (grafana subchart 12.7.1)."
 keywords: [grafana, go]
 ---
 # Grafana Self-Metrics — Environment-Anchored Reference

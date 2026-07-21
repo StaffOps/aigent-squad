@@ -1,6 +1,6 @@
 ---
 name: loki-logql-patterns
-description: Use when querying Loki with LogQL, filtering logs by labels/content, building metric queries from logs, or correlating logs with traces. Covers LogQL syntax, parsers, structured metadata, derived fields, and <org>-specific patterns.
+description: "Use when querying Loki with LogQL, filtering logs by labels/content, building metric queries from logs, or correlating logs with traces. Covers LogQL syntax, parsers, structured metadata, derived fields, and <org>-specific patterns."
 keywords: [loki-logql, loki, logql, "loki logql"]
 ---
 # Loki LogQL Patterns

@@ -1,6 +1,6 @@
 ---
 name: cloudfront-patterns
-description: Use when configuring CloudFront distributions, cache behaviors, WAF integration, or S3/ALB origins. Covers OAI vs OAC, signed URLs, ACM certificates, <org> Terraform templates, and cache invalidation patterns.
+description: "Use when configuring CloudFront distributions, cache behaviors, WAF integration, or S3/ALB origins. Covers OAI vs OAC, signed URLs, ACM certificates, <org> Terraform templates, and cache invalidation patterns."
 keywords: [cloudfront, s3, terraform, waf, alb, oai, oac, acm]
 ---
 # AWS CloudFront Patterns

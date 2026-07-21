@@ -1,6 +1,6 @@
 ---
 name: opensearch-metrics
-description: "Use when diagnosing OpenSearch cluster health — cluster status (RED/YELLOW), JVM heap pressure, disk watermarks, bulk rejection, threadpool saturation, indexing/search latency, circuit breaker trips, and transport layer health. Covers opensearch_cluster_*, opensearch_jvm_*, opensearch_indices_*, opensearch_fs_*, opensearch_os_*, opensearch_process_*, opensearch_transport_*, opensearch_threadpool_*, opensearch_circuitbreaker_*. Grounded on Helm chart opensearch/opensearch 2.27.0 (appVersion ~2.17.x) with Aiven/opensearch-project prometheus-exporter-plugin 2.17.1.0 exposed at /_prometheus/metri
+description: "Use when diagnosing OpenSearch cluster health \u2014 cluster status (RED/YELLOW), JVM heap pressure, disk watermarks, bulk rejection, threadpool saturation, indexing/search latency, circuit breaker trips, and transport layer health. Covers opensearch_cluster_*, opensearch_jvm_*, opensearch_indices_*, opensearch_fs_*, opensearch_os_*, opensearch_process_*, opensearch_transport_*, opensearch_threadpool_*, opensearch_circuitbreaker_*. Grounded on Helm chart opensearch/opensearch 2.27.0 (appVersion ~2.17.x) with Aiven/opensearch-project prometheus-exporter-plugin 2.17.1.0 exposed at /_prometheus/metric"
 keywords: [opensearch, threadpool, jvm]
 ---
 # OpenSearch Prometheus Metrics

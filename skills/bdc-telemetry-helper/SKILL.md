@@ -1,6 +1,6 @@
 ---
 name: bdc-telemetry-helper
-description: BDC OTel Helper monorepo overview — current state, structure, versions, sample apps, CI/CD pipeline, Harbor images. Use when working on the bdctelemetryhelper repo, releasing new versions, or referring to sample apps. Cross-references to detailed skills for specific topics.
+description: "BDC OTel Helper monorepo overview \u2014 current state, structure, versions, sample apps, CI/CD pipeline, Harbor images. Use when working on the bdctelemetryhelper repo, releasing new versions, or referring to sample apps. Cross-references to detailed skills for specific topics."
 keywords: [telemetry, harbor, otel, pipeline, ci, cd]
 ---
 # BDC OTel Helper — Project Overview

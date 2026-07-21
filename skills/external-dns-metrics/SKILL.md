@@ -1,6 +1,6 @@
 ---
 name: external-dns-metrics
-description: "Use when diagnosing ExternalDNS health — DNS record sync failures, source/registry endpoint drift, provider API errors, reconciliation staleness, or split-horizon (private/public) divergence. Covers external_dns_controller_*, external_dns_registry_*, external_dns_source_*, external_dns_provider_*, external_dns_http_*, plus go_* and process_* runtime. Grounded on Helm chart external-dns/external-dns 1.21.1 (appVersion v0.21.0)."
+description: "Use when diagnosing ExternalDNS health \u2014 DNS record sync failures, source/registry endpoint drift, provider API errors, reconciliation staleness, or split-horizon (private/public) divergence. Covers external_dns_controller_*, external_dns_registry_*, external_dns_source_*, external_dns_provider_*, external_dns_http_*, plus go_* and process_* runtime. Grounded on Helm chart external-dns/external-dns 1.21.1 (appVersion v0.21.0)."
 keywords: [external-dns, external, dns, "external dns"]
 ---
 # ExternalDNS Prometheus Metrics Catalog

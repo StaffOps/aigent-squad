@@ -1,6 +1,6 @@
 ---
 name: datahub-metrics
-description: "Use when diagnosing DataHub metadata platform health — GMS/MAE/MCE JVM performance, Kafka consumer lag, GraphQL request latency, thread pool saturation, or cache efficiency. Covers JMX exporter metrics (jvm_*, kafka_consumer_*, java_lang_*) on port 4318 and Micrometer metrics (graphql.request.duration, messaging.queue.time, executor.*, cache.*) on port 4319 (newer versions). Grounded on Helm chart datahub/datahub 0.8.21 with global.datahub.monitoring.enablePrometheus: true. IMPORTANT: No ServiceMonitor/PodMonitor is configured in the deployed helmfile — metrics are EXPOSED but may NOT be acti
+description: "Use when diagnosing DataHub metadata platform health \u2014 GMS/MAE/MCE JVM performance, Kafka consumer lag, GraphQL request latency, thread pool saturation, or cache efficiency. Covers JMX exporter metrics (jvm_*, kafka_consumer_*, java_lang_*) on port 4318 and Micrometer metrics (graphql.request.duration, messaging.queue.time, executor.*, cache.*) on port 4319 (newer versions). Grounded on Helm chart datahub/datahub 0.8.21 with global.datahub.monitoring.enablePrometheus: true. IMPORTANT: No ServiceMonitor/PodMonitor is configured in the deployed helmfile \u2014 metrics are EXPOSED but may NOT be activ"
 keywords: [datahub, helmfile, kafka, gms, mae, mce, jvm, jmx]
 ---
 # DataHub Metrics — Metadata Platform Observability

@@ -1,6 +1,6 @@
 ---
 name: keda-metrics
-description: >   Use when diagnosing KEDA autoscaling health — scaler failures, metric fetch   latency, ScaledObject/ScaledJob errors, paused objects, or scaling loop   saturation. Covers keda_scaler_*, keda_scaled_object_*, keda_scaled_job_*,   keda_resource_registered_total, keda_trigger_registered_total,   keda_internal_scale_loop_latency_seconds, keda_internal_metricsservice_grpc_*,   plus controller-runtime and go_* runtime metrics. Grounded on Helm chart   kedacore/keda 2.18.0 (appVersion v2.18.0).
+description: "Use when diagnosing KEDA autoscaling health \u2014 scaler failures, metric fetch latency, ScaledObject/ScaledJob errors, paused objects, or scaling loop saturation. Covers keda_scaler_*, keda_scaled_object_*, keda_scaled_job_*, keda_resource_registered_total, keda_trigger_registered_total, keda_internal_scale_loop_latency_seconds, keda_internal_metricsservice_grpc_*, plus controller-runtime and go_* runtime metrics. Grounded on Helm chart kedacore/keda 2.18.0 (appVersion v2.18.0)."
 keywords: [keda]
 ---
 # KEDA Operator & Metrics Server Self-Metrics

@@ -1,6 +1,6 @@
 ---
 name: kubescape-metrics
-description: "Use when understanding Kubescape operator Prometheus metrics availability and posture-monitoring potential. Covers kubescape_controls_*, kubescape_vulnerabilities_*, node_agent_* metric families. IMPORTANT: the Prometheus exporter is DISABLED in the deployed config (chart v1.27.7) — only standard Go runtime metrics (go_*, process_*) from the kubescape component are scraped via ServiceMonitor. This skill documents what IS and what COULD BE exposed."
+description: "Use when understanding Kubescape operator Prometheus metrics availability and posture-monitoring potential. Covers kubescape_controls_*, kubescape_vulnerabilities_*, node_agent_* metric families. IMPORTANT: the Prometheus exporter is DISABLED in the deployed config (chart v1.27.7) \u2014 only standard Go runtime metrics (go_*, process_*) from the kubescape component are scraped via ServiceMonitor. This skill documents what IS and what COULD BE exposed."
 keywords: [kubescape, go, prometheus, could]
 ---
 # Kubescape Operator Metrics

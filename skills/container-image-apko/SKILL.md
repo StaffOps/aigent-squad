@@ -1,6 +1,6 @@
 ---
 name: container-image-apko
-description: Chainguard apko container image build patterns. Use when building hardened base images, creating minimal container images, or working with the <org> golden image catalog. Covers apko.yaml structure, multi-arch builds, SBOM inclusion, melange integration, and <org>-specific image patterns.
+description: "Chainguard apko container image build patterns. Use when building hardened base images, creating minimal container images, or working with the <org> golden image catalog. Covers apko.yaml structure, multi-arch builds, SBOM inclusion, melange integration, and <org>-specific image patterns."
 keywords: [container-image-apko, container, image, apko, "container image", "image apko", melange, sbom]
 ---
 # Container Image Builds with apko (Chainguard)

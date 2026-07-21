@@ -1,6 +1,6 @@
 ---
 name: victoriametrics-troubleshooting
-description: VictoriaMetrics distributed cluster troubleshooting and capacity planning. Use when diagnosing ingestion bottlenecks, vminsert/vmstorage issues, scaling decisions, or remote_write backpressure.
+description: "VictoriaMetrics distributed cluster troubleshooting and capacity planning. Use when diagnosing ingestion bottlenecks, vminsert/vmstorage issues, scaling decisions, or remote_write backpressure."
 keywords: [victoriametrics-troubleshooting, victoriametrics, troubleshooting, "victoriametrics troubleshooting", vminsert, vmstorage]
 ---
 # VictoriaMetrics Distributed — Troubleshooting & Capacity Planning

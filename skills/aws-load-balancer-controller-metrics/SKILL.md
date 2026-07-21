@@ -1,6 +1,6 @@
 ---
 name: aws-load-balancer-controller-metrics
-description: "Use when diagnosing AWS Load Balancer Controller health — reconciliation failures, AWS API throttling/permission errors, webhook failures, workqueue saturation, readiness gate latency. Covers awslbc_*, aws_api_*, api_call_*, controller_runtime_reconcile_*, workqueue_*, rest_client_requests_total. Grounded on Helm chart eks/aws-load-balancer-controller 3.4.0 (appVersion v3.4.0), official docs v2.13 metrics reference."
+description: "Use when diagnosing AWS Load Balancer Controller health \u2014 reconciliation failures, AWS API throttling/permission errors, webhook failures, workqueue saturation, readiness gate latency. Covers awslbc_*, aws_api_*, api_call_*, controller_runtime_reconcile_*, workqueue_*, rest_client_requests_total. Grounded on Helm chart eks/aws-load-balancer-controller 3.4.0 (appVersion v3.4.0), official docs v2.13 metrics reference."
 keywords: [aws-load-balancer-controller, aws, load, balancer, controller, "aws load", "load balancer", "balancer controller", eks]
 ---
 # AWS Load Balancer Controller Metrics

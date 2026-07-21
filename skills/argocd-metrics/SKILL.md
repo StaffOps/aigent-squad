@@ -1,6 +1,6 @@
 ---
 name: argocd-metrics
-description: "Use when diagnosing Argo CD health — application sync failures, reconciliation saturation, Git/Redis latency, cluster cache staleness, workqueue backlog, kubectl throttling. Covers argocd_app_*, argocd_cluster_*, argocd_git_*, argocd_redis_*, argocd_kubectl_*, argocd_appset_*, workqueue_*, grpc_server_*. Grounded on argo-cd helm chart v10.0.1 (ArgoCD ~v2.14+), official docs, and live TUNING-CHANGES.md observations."
+description: "Use when diagnosing Argo CD health \u2014 application sync failures, reconciliation saturation, Git/Redis latency, cluster cache staleness, workqueue backlog, kubectl throttling. Covers argocd_app_*, argocd_cluster_*, argocd_git_*, argocd_redis_*, argocd_kubectl_*, argocd_appset_*, workqueue_*, grpc_server_*. Grounded on argo-cd helm chart v10.0.1 (ArgoCD ~v2.14+), official docs, and live TUNING-CHANGES.md observations."
 keywords: [argocd, argo, redis, cd, tuning]
 ---
 # Argo CD Self-Metrics — Prometheus Catalog

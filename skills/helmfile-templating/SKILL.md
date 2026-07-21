@@ -1,6 +1,6 @@
 ---
 name: helmfile-templating
-description: Helmfile triple-template escaping patterns. Use when configuring values that pass through helmfile + Helm + tpl (e.g., VMAlert external.alert.source, alertmanager templates, extraObjects with Go templates). Covers escaping rules, raw string syntax, common gotchas with $labels and $value.
+description: "Helmfile triple-template escaping patterns. Use when configuring values that pass through helmfile + Helm + tpl (e.g., VMAlert external.alert.source, alertmanager templates, extraObjects with Go templates). Covers escaping rules, raw string syntax, common gotchas with $labels and $value."
 keywords: [helmfile-templating, helmfile, templating, "helmfile templating", alert, alertmanager, go, vmalert]
 ---
 # Helmfile Templating Tricks

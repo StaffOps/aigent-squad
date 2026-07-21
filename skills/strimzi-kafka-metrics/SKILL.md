@@ -1,6 +1,6 @@
 ---
 name: strimzi-kafka-metrics
-description: Use when troubleshooting Strimzi-managed Kafka via Prometheus metrics — broker/controller JMX metrics (kafka_server_*, kafka_controller_*, kafka_network_*, kafka_log_*), KRaft quorum metrics, Kafka Exporter consumer lag (kafka_consumergroup_lag), Strimzi operator reconciliation metrics (strimzi_*), Cruise Control, Kafka Connect / MirrorMaker 2 / Bridge. Covers the Prometheus JMX Exporter naming rules from the Strimzi kafka-metrics.yaml ConfigMap.
+description: "Use when troubleshooting Strimzi-managed Kafka via Prometheus metrics \u2014 broker/controller JMX metrics (kafka_server_*, kafka_controller_*, kafka_network_*, kafka_log_*), KRaft quorum metrics, Kafka Exporter consumer lag (kafka_consumergroup_lag), Strimzi operator reconciliation metrics (strimzi_*), Cruise Control, Kafka Connect / MirrorMaker 2 / Bridge. Covers the Prometheus JMX Exporter naming rules from the Strimzi kafka-metrics.yaml ConfigMap."
 keywords: [strimzi-kafka, strimzi, kafka, "strimzi kafka", prometheus, jmx]
 ---
 # Strimzi Kafka Metrics — Environment-Anchored Reference

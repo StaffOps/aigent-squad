@@ -1,6 +1,6 @@
 ---
 name: security-hub-findings-mgmt
-description: Use when triaging Security Hub findings, defining remediation playbooks, configuring suppression patterns, or integrating with DefectDojo/Jira. Covers finding lifecycle, prioritization framework, SLAs by severity, automated remediation via Lambda/SSM Automation, KPIs, and <org> SecOps workflow.
+description: "Use when triaging Security Hub findings, defining remediation playbooks, configuring suppression patterns, or integrating with DefectDojo/Jira. Covers finding lifecycle, prioritization framework, SLAs by severity, automated remediation via Lambda/SSM Automation, KPIs, and <org> SecOps workflow."
 keywords: [security-hub-findings, security, hub, findings, "security hub", "hub findings", defectdojo, lambda, ssm]
 ---
 # Security Hub Findings Management

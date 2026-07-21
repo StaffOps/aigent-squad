@@ -1,6 +1,6 @@
 ---
 name: aws-ftr-compliance
-description: Use when preparing for AWS Foundational Technical Review, remediating Security Hub findings, or auditing CIS/FSBP controls. Covers Security Hub standards, remediation patterns, Prowler/ScoutSuite tooling, and <org>-specific compliance posture.
+description: "Use when preparing for AWS Foundational Technical Review, remediating Security Hub findings, or auditing CIS/FSBP controls. Covers Security Hub standards, remediation patterns, Prowler/ScoutSuite tooling, and <org>-specific compliance posture."
 keywords: [aws-ftr-compliance, aws, ftr, compliance, "aws ftr", "ftr compliance", cis, fsbp]
 ---
 # AWS Foundational Technical Review (FTR) Compliance

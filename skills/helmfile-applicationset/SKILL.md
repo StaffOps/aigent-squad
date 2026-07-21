@@ -1,6 +1,6 @@
 ---
 name: helmfile-applicationset
-description: Helmfile + bedag/raw chart pattern for ArgoCD ApplicationSets at BDC. Use when onboarding services into GitOps, configuring multi-environment deployments, or understanding the *-applicationsets repo structure. Covers directory generators, values layering, and environment repos.
+description: "Helmfile + bedag/raw chart pattern for ArgoCD ApplicationSets at BDC. Use when onboarding services into GitOps, configuring multi-environment deployments, or understanding the *-applicationsets repo structure. Covers directory generators, values layering, and environment repos."
 keywords: [helmfile-applicationset, helmfile, applicationset, "helmfile applicationset", argocd]
 ---
 # Helmfile + ApplicationSet Pattern

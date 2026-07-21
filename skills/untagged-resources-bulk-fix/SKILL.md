@@ -1,6 +1,6 @@
 ---
 name: untagged-resources-bulk-fix
-description: Use when detecting and remediating untagged AWS resources at scale. Covers Resource Groups Tagging API, AWS Config required-tags rule, CUR queries for untagged cost, bulk tagging scripts (boto3), SCP enforcement, and <org> mandatory tag compliance.
+description: "Use when detecting and remediating untagged AWS resources at scale. Covers Resource Groups Tagging API, AWS Config required-tags rule, CUR queries for untagged cost, bulk tagging scripts (boto3), SCP enforcement, and <org> mandatory tag compliance."
 keywords: [untagged-resources-bulk-fix, untagged, resources, bulk, fix, "untagged resources", "resources bulk", "bulk fix", cost, aws, cur, scp]
 ---
 # Untagged Resources — Bulk Detection & Fix

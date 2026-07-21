@@ -1,6 +1,6 @@
 ---
 name: alerting-strategy
-description: Use when designing alerting rules, reducing alert fatigue, configuring Alertmanager routing, or evaluating alert quality. Covers symptom-based alerting philosophy, severity levels, quality metrics (MTTA/MTTR), routing trees, silence/inhibit patterns, and <org>-specific Slack channel routing.
+description: "Use when designing alerting rules, reducing alert fatigue, configuring Alertmanager routing, or evaluating alert quality. Covers symptom-based alerting philosophy, severity levels, quality metrics (MTTA/MTTR), routing trees, silence/inhibit patterns, and <org>-specific Slack channel routing."
 keywords: [alerting, alert, alertmanager, mtta, mttr]
 ---
 # Alerting Strategy

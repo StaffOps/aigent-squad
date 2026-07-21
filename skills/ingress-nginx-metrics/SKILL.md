@@ -1,6 +1,6 @@
 ---
 name: ingress-nginx-metrics
-description: "Use when diagnosing ingress-nginx controller health — request RED metrics per host/ingress/controller instance, TLS certificate expiry, config reload failures, upstream latency, connection saturation, or NGINX process resource usage. Covers nginx_ingress_controller_requests, nginx_ingress_controller_request_duration_seconds, nginx_ingress_controller_response_duration_seconds, nginx_ingress_controller_ssl_expire_time_seconds, nginx_ingress_controller_config_last_reload_successful, nginx_ingress_controller_nginx_process_*, nginx_ingress_controller_build_info, plus go_*. Grounded on Helm chart i
+description: "Use when diagnosing ingress-nginx controller health \u2014 request RED metrics per host/ingress/controller instance, TLS certificate expiry, config reload failures, upstream latency, connection saturation, or NGINX process resource usage. Covers nginx_ingress_controller_requests, nginx_ingress_controller_request_duration_seconds, nginx_ingress_controller_response_duration_seconds, nginx_ingress_controller_ssl_expire_time_seconds, nginx_ingress_controller_config_last_reload_successful, nginx_ingress_controller_nginx_process_*, nginx_ingress_controller_build_info, plus go_*. Grounded on Helm chart in"
 keywords: [ingress-nginx, ingress, nginx, "ingress nginx", tls]
 ---
 # Ingress-NGINX Controller Metrics

@@ -1,6 +1,6 @@
 ---
 name: descheduler-metrics
-description: "Use when diagnosing Kubernetes Descheduler health — eviction counts by strategy/namespace/result, loop duration, strategy execution time, and build info. Covers descheduler_pods_evicted_total, descheduler_loop_duration_seconds, descheduler_strategy_duration_seconds, descheduler_build_info, plus go_*/process_*. Grounded on Helm chart descheduler/descheduler 0.35.1 (appVersion v0.35.1)."
+description: "Use when diagnosing Kubernetes Descheduler health \u2014 eviction counts by strategy/namespace/result, loop duration, strategy execution time, and build info. Covers descheduler_pods_evicted_total, descheduler_loop_duration_seconds, descheduler_strategy_duration_seconds, descheduler_build_info, plus go_*/process_*. Grounded on Helm chart descheduler/descheduler 0.35.1 (appVersion v0.35.1)."
 keywords: [descheduler]
 ---
 # Kubernetes Descheduler Metrics

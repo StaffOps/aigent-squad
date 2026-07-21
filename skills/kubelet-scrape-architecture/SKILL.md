@@ -1,7 +1,7 @@
 ---
 name: kubelet-scrape-architecture
-description: Unified kubelet scrape configuration for VictoriaMetrics. Use when integrating kubernetes-mixin dashboards, fixing missing cadvisor metrics, dealing with Karpenter ephemeral nodes, or replacing broken VMServiceScrape kubelet. Covers `role: node` discovery, metrics_path label, cadvisor job rewrite.
-keywords: [kubelet-scrape-architecture, kubelet, scrape, architecture, "kubelet scrape", "scrape architecture", karpenter, node, victoriametrics]
+description: ""
+keywords: [kubelet-scrape-architecture, kubelet, scrape, architecture, "kubelet scrape", "scrape architecture"]
 ---
 # Kubelet Scrape Architecture
 

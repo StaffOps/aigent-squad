@@ -1,6 +1,6 @@
 ---
 name: bdc-telemetry-standard
-description: BDC OTel Helper library standard for .NET and Python. Use when integrating telemetry into BDC apps, choosing between manual OTel SDK config vs the BDC libs, or designing new services that emit traces/metrics/logs. Covers the corporate observability standard, lib API, env vars, behavior per environment.
+description: "BDC OTel Helper library standard for .NET and Python. Use when integrating telemetry into BDC apps, choosing between manual OTel SDK config vs the BDC libs, or designing new services that emit traces/metrics/logs. Covers the corporate observability standard, lib API, env vars, behavior per environment."
 keywords: [telemetry, otel, python, net, sdk]
 ---
 # BDC OTel Helper — Corporate Observability Standard

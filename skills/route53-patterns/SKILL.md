@@ -1,6 +1,6 @@
 ---
 name: route53-patterns
-description: Use when configuring DNS zones, routing policies, health checks, or External-DNS integration with EKS. Covers public/private hosted zones, routing policies, subdomain delegation, ACME DNS-01 validation, and <org> context.
+description: "Use when configuring DNS zones, routing policies, health checks, or External-DNS integration with EKS. Covers public/private hosted zones, routing policies, subdomain delegation, ACME DNS-01 validation, and <org> context."
 keywords: [route53, dns, eks, external-dns, acme]
 ---
 # AWS Route 53 Patterns

@@ -1,6 +1,6 @@
 ---
 name: terraform-modules-bdc
-description: BDC Terraform modules catalog. Use when provisioning AWS resources (ECS services/clusters, S3 buckets, CloudFront distributions, EC2 instances) or migrating ECS to EKS. Covers module interfaces, common variables, tagging patterns, and usage examples.
+description: "BDC Terraform modules catalog. Use when provisioning AWS resources (ECS services/clusters, S3 buckets, CloudFront distributions, EC2 instances) or migrating ECS to EKS. Covers module interfaces, common variables, tagging patterns, and usage examples."
 keywords: [terraform-modules, terraform, modules, "terraform modules", cloudfront, ec2, eks, s3, aws, ecs]
 ---
 # BDC Terraform Modules

@@ -1,6 +1,6 @@
 ---
 name: alertmanager-slack-config
-description: Alertmanager configuration with Slack integration. Use when configuring receivers, routing, templates with Grafana links and runbook URLs, or troubleshooting silent alerts. Covers <org> standard config, helmfile escaping, secret regeneration patterns.
+description: "Alertmanager configuration with Slack integration. Use when configuring receivers, routing, templates with Grafana links and runbook URLs, or troubleshooting silent alerts. Covers <org> standard config, helmfile escaping, secret regeneration patterns."
 keywords: [alertmanager-slack, alertmanager, slack, "alertmanager slack", grafana, helmfile]
 ---
 # Alertmanager Slack Configuration

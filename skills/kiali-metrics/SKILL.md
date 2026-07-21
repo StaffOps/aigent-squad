@@ -1,6 +1,6 @@
 ---
 name: kiali-metrics
-description: >   Use when diagnosing Kiali server health — API latency, API failures, graph   generation performance, Prometheus/tracing query duration, cache efficiency,   validation processing time, and Kubernetes client count. Covers kiali_api_*,   kiali_graph_*, kiali_prometheus_*, kiali_checker_*, kiali_cache_*,   kiali_tracing_*, kiali_kubernetes_clients. Grounded on Helm chart   kiali/kiali-server 2.17.0 (appVersion v2.17.0). For MESH traffic metrics   (istio_requests_total, etc.) see istio-ambient-metrics skill instead.
+description: "Use when diagnosing Kiali server health \u2014 API latency, API failures, graph generation performance, Prometheus/tracing query duration, cache efficiency, validation processing time, and Kubernetes client count. Covers kiali_api_*, kiali_graph_*, kiali_prometheus_*, kiali_checker_*, kiali_cache_*, kiali_tracing_*, kiali_kubernetes_clients. Grounded on Helm chart kiali/kiali-server 2.17.0 (appVersion v2.17.0). For MESH traffic metrics (istio_requests_total, etc.) see istio-ambient-metrics skill instead."
 keywords: [kiali, prometheus, mesh]
 ---
 # Kiali Server & Operator Self-Metrics

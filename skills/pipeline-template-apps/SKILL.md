@@ -1,6 +1,6 @@
 ---
 name: pipeline-template-apps
-description: GitLab CI pipeline patterns for BDC application domains. Use when creating or modifying CI/CD pipelines, understanding stage flow, or troubleshooting pipeline failures. Covers shared templates, domain-specific repos, branch-to-environment mapping, and common patterns.
+description: "GitLab CI pipeline patterns for BDC application domains. Use when creating or modifying CI/CD pipelines, understanding stage flow, or troubleshooting pipeline failures. Covers shared templates, domain-specific repos, branch-to-environment mapping, and common patterns."
 keywords: [pipeline-apps, pipeline, apps, "pipeline apps", gitlab, ci, cd]
 ---
 # BDC GitLab CI Pipeline Patterns

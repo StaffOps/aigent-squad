@@ -1,6 +1,6 @@
 ---
 name: kyverno-metrics
-description: "Use when diagnosing Kyverno policy engine health — admission webhook latency, policy execution failures, controller reconciliation pressure, API server query volume, cleanup errors. Covers kyverno_policy_results, kyverno_admission_requests_total, kyverno_admission_review_duration_seconds, kyverno_policy_execution_duration_seconds, kyverno_controller_reconcile_total, kyverno_client_queries_total, kyverno_cleanup_controller_*, kyverno_http_requests_*, plus go_*. Grounded on Helm chart kyverno/kyverno 3.6.2 (appVersion v1.13.x), official docs https://release-1-13-0.kyverno.io/docs/monitoring/ an
+description: "Use when diagnosing Kyverno policy engine health \u2014 admission webhook latency, policy execution failures, controller reconciliation pressure, API server query volume, cleanup errors. Covers kyverno_policy_results, kyverno_admission_requests_total, kyverno_admission_review_duration_seconds, kyverno_policy_execution_duration_seconds, kyverno_controller_reconcile_total, kyverno_client_queries_total, kyverno_cleanup_controller_*, kyverno_http_requests_*, plus go_*. Grounded on Helm chart kyverno/kyverno 3.6.2 (appVersion v1.13.x), official docs https://release-1-13-0.kyverno.io/docs/monitoring/ and"
 keywords: [kyverno]
 ---
 # Kyverno Policy Engine Metrics

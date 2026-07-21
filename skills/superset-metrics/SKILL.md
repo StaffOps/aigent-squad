@@ -1,6 +1,6 @@
 ---
 name: superset-metrics
-description: "Use when assessing Apache Superset observability. The deployed chart (superset/superset 0.14.0) does NOT expose first-class Prometheus metrics — no statsd-exporter sidecar, no Flask /metrics endpoint, no ServiceMonitor/PodMonitor. For workload health use k8s-workload-metrics; for backing Postgres/Redis use backing-services-metrics; for Python runtime (if OTel-instrumented) use python-apm-metrics."
+description: "Use when assessing Apache Superset observability. The deployed chart (superset/superset 0.14.0) does NOT expose first-class Prometheus metrics \u2014 no statsd-exporter sidecar, no Flask /metrics endpoint, no ServiceMonitor/PodMonitor. For workload health use k8s-workload-metrics; for backing Postgres/Redis use backing-services-metrics; for Python runtime (if OTel-instrumented) use python-apm-metrics."
 keywords: [superset, postgres, prometheus, python, redis]
 ---
 # Apache Superset — Prometheus Metrics Status

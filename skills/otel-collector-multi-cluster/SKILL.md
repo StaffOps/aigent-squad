@@ -1,6 +1,6 @@
 ---
 name: otel-collector-multi-cluster
-description: OTel Collector multi-cluster topology at <org>. Use when troubleshooting cross-cluster trace routing, k8sattributes processor issues, gateway loadbalancing, or designing collector pipelines. Covers agent → gateway → OTLP collector chain, RBAC requirements, hostname matching for GRPCRoutes.
+description: "OTel Collector multi-cluster topology at <org>. Use when troubleshooting cross-cluster trace routing, k8sattributes processor issues, gateway loadbalancing, or designing collector pipelines. Covers agent \u2192 gateway \u2192 OTLP collector chain, RBAC requirements, hostname matching for GRPCRoutes."
 keywords: [otel-collector-multi-cluster, otel, collector, multi, cluster, "otel collector", "collector multi", "multi cluster", otlp, rbac]
 ---
 # OTel Collector Multi-Cluster Topology

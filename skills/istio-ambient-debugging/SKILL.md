@@ -1,6 +1,6 @@
 ---
 name: istio-ambient-debugging
-description: Istio Ambient mode debugging and gotchas. Use when troubleshooting unexpected 400 errors on gRPC, source IP issues, missing pod metadata, ServiceEntry loops, or routing failures in cross-cluster setups. Covers waypoint SNAT, ServiceEntry protocol behavior, hostname mismatch errors, ephemeral pod limitations.
+description: "Istio Ambient mode debugging and gotchas. Use when troubleshooting unexpected 400 errors on gRPC, source IP issues, missing pod metadata, ServiceEntry loops, or routing failures in cross-cluster setups. Covers waypoint SNAT, ServiceEntry protocol behavior, hostname mismatch errors, ephemeral pod limitations."
 keywords: [istio-ambient-debugging, istio, ambient, debugging, "istio ambient", "ambient debugging", ip, snat]
 ---
 # Istio Ambient Mode — Debugging & Gotchas

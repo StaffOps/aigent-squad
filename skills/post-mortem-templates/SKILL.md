@@ -1,6 +1,6 @@
 ---
 name: post-mortem-templates
-description: Use when writing blameless post-mortems, structuring incident reviews, or tracking action items after incidents. Covers timeline construction, RCA techniques (5 Whys, fishbone), severity-based templates, action item tracking via Jira, and <org>-specific toolchain.
+description: "Use when writing blameless post-mortems, structuring incident reviews, or tracking action items after incidents. Covers timeline construction, RCA techniques (5 Whys, fishbone), severity-based templates, action item tracking via Jira, and <org>-specific toolchain."
 keywords: [post-mortem, post, mortem, "post mortem", incident, rca]
 ---
 # Post-Mortem Templates

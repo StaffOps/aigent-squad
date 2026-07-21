@@ -1,6 +1,6 @@
 ---
 name: argocd-patterns
-description: Use when configuring ArgoCD ApplicationSets, sync policies, hooks, multi-cluster deployments, or troubleshooting sync failures. Covers generators, sync waves, health checks, sharding, and <org> multi-cluster topology.
+description: "Use when configuring ArgoCD ApplicationSets, sync policies, hooks, multi-cluster deployments, or troubleshooting sync failures. Covers generators, sync waves, health checks, sharding, and <org> multi-cluster topology."
 keywords: [argocd]
 ---
 # ArgoCD Patterns

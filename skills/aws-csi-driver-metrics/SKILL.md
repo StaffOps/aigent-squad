@@ -1,6 +1,6 @@
 ---
 name: aws-csi-driver-metrics
-description: "Use when diagnosing AWS CSI driver health — EBS volume provisioning/attach failures, EC2 API throttling, NVMe I/O saturation, EFS mount latency, or S3 Mountpoint OTLP metrics. Covers aws_ebs_csi_*, csi_sidecar_operations_seconds, workqueue_*, leader_election_*, rest_client_*, and kubelet_volume_stats_*. Grounded on Helm charts aws-ebs-csi-driver v2.38.1, aws-efs-csi-driver v4.3.0, aws-mountpoint-s3-csi-driver v2.5.0."
+description: "Use when diagnosing AWS CSI driver health \u2014 EBS volume provisioning/attach failures, EC2 API throttling, NVMe I/O saturation, EFS mount latency, or S3 Mountpoint OTLP metrics. Covers aws_ebs_csi_*, csi_sidecar_operations_seconds, workqueue_*, leader_election_*, rest_client_*, and kubelet_volume_stats_*. Grounded on Helm charts aws-ebs-csi-driver v2.38.1, aws-efs-csi-driver v4.3.0, aws-mountpoint-s3-csi-driver v2.5.0."
 keywords: [aws-csi-driver, aws, csi, driver, "aws csi", "csi driver", ebs, ec2, efs, s3, otlp]
 ---
 # AWS CSI Driver Metrics — EBS, EFS, Mountpoint-S3

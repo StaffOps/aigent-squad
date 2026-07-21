@@ -1,6 +1,6 @@
 ---
 name: root-cause-analysis
-description: Use when investigating production incidents, diagnosing failures, or performing RCA. Covers 5 Whys, fault tree, cross-signal correlation, timeline construction, empirical validation, and common failure patterns in K8s/cloud-native systems.
+description: "Use when investigating production incidents, diagnosing failures, or performing RCA. Covers 5 Whys, fault tree, cross-signal correlation, timeline construction, empirical validation, and common failure patterns in K8s/cloud-native systems."
 keywords: [root-cause-analysis, root, cause, analysis, "root cause", "cause analysis", rca]
 ---
 # Root Cause Analysis

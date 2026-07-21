@@ -1,6 +1,6 @@
 ---
 name: keycloak-metrics
-description: "Use when diagnosing Keycloak identity provider health — authentication latency, login failures, JVM heap/GC pressure, database connection pool exhaustion, HTTP request throughput. Covers native Keycloak 26 Quarkus/Micrometer metrics (http_server_requests_seconds_*, keycloak_user_events_total, agroal_*, jvm_*, base_*) and legacy keycloak-metrics-spi names (keycloak_failed_login_attempts, keycloak_logins_total, keycloak_request_duration_*). CRITICAL: metrics are currently DISABLED in the deployed config (chart 24.3.2). Alert rules reference keycloak-metrics-spi names."
+description: "Use when diagnosing Keycloak identity provider health \u2014 authentication latency, login failures, JVM heap/GC pressure, database connection pool exhaustion, HTTP request throughput. Covers native Keycloak 26 Quarkus/Micrometer metrics (http_server_requests_seconds_*, keycloak_user_events_total, agroal_*, jvm_*, base_*) and legacy keycloak-metrics-spi names (keycloak_failed_login_attempts, keycloak_logins_total, keycloak_request_duration_*). CRITICAL: metrics are currently DISABLED in the deployed config (chart 24.3.2). Alert rules reference keycloak-metrics-spi names."
 keywords: [keycloak, alert, gc, jvm]
 ---
 # Keycloak Metrics — Environment-Anchored Reference

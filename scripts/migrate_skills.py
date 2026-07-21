@@ -10,9 +10,12 @@ Idempotent: skips a target skill that already exists (preserves hand-tuned ones,
 e.g. the 3 P0 catalogs). Run via Docker python:3.11-slim.
 """
 from __future__ import annotations
+import json
 import re
 import sys
 from pathlib import Path
+
+import yaml
 
 SRC = Path("/src/platform-agents-definition")
 DST = Path("/src/1-agentic/aigent-squad/skills")
@@ -95,16 +98,18 @@ def main() -> int:
         if not m:
             print(f"  !! no frontmatter: {f}"); continue
         fm, body = m.group(1), m.group(2)
-        nm = re.search(r"^name:\s*(.+)$", fm, re.M)
-        dm = re.search(r"^description:\s*(.+)$", fm, re.M | re.S)
-        sk_name = (nm.group(1).strip() if nm else name)
-        desc = (dm.group(1).strip().replace("\n", " ") if dm else "")[:600]
+        try:
+            meta = yaml.safe_load(fm) or {}
+        except Exception:
+            meta = {}
+        sk_name = str(meta.get("name") or name)
+        desc = " ".join(str(meta.get("description") or "").split())[:600]
         if target.exists():
             skipped.append(name); continue
         kws = derive_keywords(name, desc)
         target.parent.mkdir(parents=True, exist_ok=True)
         kw_yaml = "[" + ", ".join(f'"{k}"' if (" " in k) else k for k in kws) + "]"
-        new_fm = f"name: {sk_name}\ndescription: {desc}\nkeywords: {kw_yaml}"
+        new_fm = f"name: {sk_name}\ndescription: {json.dumps(desc)}\nkeywords: {kw_yaml}"
         target.write_text(f"---\n{new_fm}\n---\n{body}", encoding="utf-8")
         migrated.append((name, kws))
     print(f"MIGRATED {len(migrated)} | SKIPPED (exists) {len(skipped)}")

@@ -1,6 +1,6 @@
 ---
 name: loki-tempo-self-metrics
-description: >   Use when diagnosing Loki or Tempo backend health — ingest loss, flush failures,   query latency, WAL corruption, metrics-generator series pressure. Complements   collector-internal-metrics (OTel pipeline) and victoriametrics-troubleshooting   (metrics backend). All metric names confirmed present in live VictoriaMetrics   inventory (2026-07-06).
+description: "Use when diagnosing Loki or Tempo backend health \u2014 ingest loss, flush failures, query latency, WAL corruption, metrics-generator series pressure. Complements collector-internal-metrics (OTel pipeline) and victoriametrics-troubleshooting (metrics backend). All metric names confirmed present in live VictoriaMetrics inventory (2026-07-06)."
 keywords: [loki-tempo, loki, tempo, "loki tempo", otel, pipeline, victoriametrics, wal]
 ---
 # Loki & Tempo Backend Self-Metrics

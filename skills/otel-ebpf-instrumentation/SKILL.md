@@ -1,6 +1,6 @@
 ---
 name: otel-ebpf-instrumentation
-description: OpenTelemetry eBPF Instrumentation (OBI) configuration at <org>. Use when configuring auto-instrumentation for apps without SDK, network metrics, context propagation, service discovery, or tuning eBPF performance. Covers DaemonSet deployment, discovery by namespace, network inter-zone (FinOps), context propagation, routes/filters, and cardinality control.
+description: "OpenTelemetry eBPF Instrumentation (OBI) configuration at <org>. Use when configuring auto-instrumentation for apps without SDK, network metrics, context propagation, service discovery, or tuning eBPF performance. Covers DaemonSet deployment, discovery by namespace, network inter-zone (FinOps), context propagation, routes/filters, and cardinality control."
 keywords: [otel-ebpf-instrumentation, otel, ebpf, instrumentation, "otel ebpf", "ebpf instrumentation", opentelemetry, obi, sdk]
 ---
 # OTel eBPF Instrumentation (OBI)

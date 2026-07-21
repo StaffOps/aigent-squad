@@ -1,6 +1,6 @@
 ---
 name: apm-metrics-cross-runtime
-description: Use when comparing APM metrics across .NET/Go/Node/Python runtimes, building SLI recording rules, understanding OTel→Prometheus name translation, exemplar correlation, histogram pitfalls, or diagnosing saturation signals per language.
+description: "Use when comparing APM metrics across .NET/Go/Node/Python runtimes, building SLI recording rules, understanding OTel\u2192Prometheus name translation, exemplar correlation, histogram pitfalls, or diagnosing saturation signals per language."
 keywords: [go, node, otel, prometheus, python, sli, net]
 ---
 # APM Metrics — Cross-Runtime Cheat Sheet

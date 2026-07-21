@@ -1,6 +1,6 @@
 ---
 name: runbook-authoring
-description: Use when writing operational runbooks for alerts and incident response at <org>. Covers structure, Alertmanager integration, diagnostics commands, mitigation steps, escalation, and copy-paste template.
+description: "Use when writing operational runbooks for alerts and incident response at <org>. Covers structure, Alertmanager integration, diagnostics commands, mitigation steps, escalation, and copy-paste template."
 keywords: [runbook-authoring, runbook, authoring, "runbook authoring", alertmanager, incident]
 ---
 # Runbook Authoring

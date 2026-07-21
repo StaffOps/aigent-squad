@@ -1,6 +1,6 @@
 ---
 name: security-hub-patterns
-description: Use when configuring AWS Security Hub at platform level — enabling multi-account/region aggregator, defining automation rules, integrating third-party scanners via BatchImportFindings, or working with ASFF format. Covers Security Hub service architecture, Organizations integration, custom insights, EventBridge integration, <org> multi-account context.
+description: "Use when configuring AWS Security Hub at platform level \u2014 enabling multi-account/region aggregator, defining automation rules, integrating third-party scanners via BatchImportFindings, or working with ASFF format. Covers Security Hub service architecture, Organizations integration, custom insights, EventBridge integration, <org> multi-account context."
 keywords: [security-hub, security, hub, "security hub", aws, asff]
 ---
 # AWS Security Hub — Platform Operations

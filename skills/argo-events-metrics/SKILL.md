@@ -1,6 +1,6 @@
 ---
 name: argo-events-metrics
-description: >   Use when troubleshooting Argo Events event delivery, sensor trigger execution,   or controller reconciliation health. Covers argo_events_* (EventSource + Sensor   user metrics), controller_runtime_* (reconciliation), workqueue_* (queue depth/   latency), rest_client_* (K8s API calls), and go_* (runtime) emitted by the   controller-manager on port 7777. Grounded on Argo Events v1.9.10 (Helm chart   argo/argo-events 2.4.22).
+description: "Use when troubleshooting Argo Events event delivery, sensor trigger execution, or controller reconciliation health. Covers argo_events_* (EventSource + Sensor user metrics), controller_runtime_* (reconciliation), workqueue_* (queue depth/ latency), rest_client_* (K8s API calls), and go_* (runtime) emitted by the controller-manager on port 7777. Grounded on Argo Events v1.9.10 (Helm chart argo/argo-events 2.4.22)."
 keywords: [argo-events, argo, events, "argo events"]
 ---
 # Argo Events Metrics Catalog

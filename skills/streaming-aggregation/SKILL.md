@@ -1,6 +1,6 @@
 ---
 name: streaming-aggregation
-description: VictoriaMetrics streaming aggregation configuration. Use when reducing cardinality at scrape time without losing critical labels, or aggregating high-volume histograms (kubelet operations, storage operations). Covers `streamAggrConfig` syntax and gotchas.
+description: "VictoriaMetrics streaming aggregation configuration. Use when reducing cardinality at scrape time without losing critical labels, or aggregating high-volume histograms (kubelet operations, storage operations). Covers `streamAggrConfig` syntax and gotchas."
 keywords: [streaming-aggregation, streaming, aggregation, "streaming aggregation", victoriametrics]
 ---
 # Streaming Aggregation (vmagent)

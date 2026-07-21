@@ -1,6 +1,6 @@
 ---
 name: vm-cardinality-management
-description: VictoriaMetrics cardinality control — detect and fix high-cardinality explosions. Use when vmselect OOMs, slow inserts increase, or new metrics appear with thousands of series. Covers label removal patterns, BigBoost-style anti-patterns, scrape config tuning.
+description: "VictoriaMetrics cardinality control \u2014 detect and fix high-cardinality explosions. Use when vmselect OOMs, slow inserts increase, or new metrics appear with thousands of series. Covers label removal patterns, BigBoost-style anti-patterns, scrape config tuning."
 keywords: [vm-cardinality, vm, cardinality, "vm cardinality", victoriametrics, vmselect]
 ---
 # VictoriaMetrics Cardinality Management

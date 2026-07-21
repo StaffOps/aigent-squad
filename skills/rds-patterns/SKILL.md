@@ -1,6 +1,6 @@
 ---
 name: rds-patterns
-description: Use when designing database infrastructure, choosing between RDS/Aurora/Serverless, configuring HA/DR, or optimizing performance. Covers decision matrix, Multi-AZ, read replicas, Performance Insights, backup/PITR, RDS Proxy, and <org> context.
+description: "Use when designing database infrastructure, choosing between RDS/Aurora/Serverless, configuring HA/DR, or optimizing performance. Covers decision matrix, Multi-AZ, read replicas, Performance Insights, backup/PITR, RDS Proxy, and <org> context."
 keywords: [rds, ha, dr, az, pitr]
 ---
 # AWS RDS Patterns

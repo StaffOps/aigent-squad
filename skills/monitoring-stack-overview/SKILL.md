@@ -1,6 +1,6 @@
 ---
 name: monitoring-stack-overview
-description: BDC monitoring stack architecture overview. Use when understanding how signals flow from applications to backends, choosing which tool to query, or debugging missing telemetry. Covers the complete pipeline from app SDK to Grafana visualization.
+description: "BDC monitoring stack architecture overview. Use when understanding how signals flow from applications to backends, choosing which tool to query, or debugging missing telemetry. Covers the complete pipeline from app SDK to Grafana visualization."
 keywords: [monitoring-stack, monitoring, stack, "monitoring stack", grafana, pipeline, sdk]
 ---
 # BDC Monitoring Stack Overview

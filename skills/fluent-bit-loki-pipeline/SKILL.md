@@ -1,6 +1,6 @@
 ---
 name: fluent-bit-loki-pipeline
-description: Fluent Bit configuration for log collection at <org>. Use when configuring labels vs structured metadata, multiline parsers (.NET, Go, Java stacktraces), or troubleshooting log pipeline. Covers <org> standard config, Loki output plugin, kubernetes filter, multiline parsing.
+description: "Fluent Bit configuration for log collection at <org>. Use when configuring labels vs structured metadata, multiline parsers (.NET, Go, Java stacktraces), or troubleshooting log pipeline. Covers <org> standard config, Loki output plugin, kubernetes filter, multiline parsing."
 keywords: [fluent-bit-loki-pipeline, fluent, bit, loki, pipeline, "fluent bit", "bit loki", "loki pipeline", go, net]
 ---
 # Fluent Bit Log Pipeline (<org> Standard)

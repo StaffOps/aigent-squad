@@ -1,6 +1,6 @@
 ---
 name: container-package-melange
-description: Use when building custom APK packages with Chainguard melange, creating Alpine/Wolfi packages for apko images, or managing the <org> custom package repository. Covers melange.yaml structure, multi-arch builds, signing keys, S3 publishing, apko integration, and <org>-specific patterns.
+description: "Use when building custom APK packages with Chainguard melange, creating Alpine/Wolfi packages for apko images, or managing the <org> custom package repository. Covers melange.yaml structure, multi-arch builds, signing keys, S3 publishing, apko integration, and <org>-specific patterns."
 keywords: [container-package-melange, container, package, melange, "container package", "package melange", apko, s3, apk]
 ---
 # Container Package Builds with melange (Chainguard)

@@ -1,6 +1,6 @@
 ---
 name: lambda-patterns
-description: Use when designing Lambda functions, optimizing cold starts, configuring VPC access, or integrating observability. Covers cold start mitigation, layers, memory/CPU tuning, OTel integration, execution roles, and <org> context.
+description: "Use when designing Lambda functions, optimizing cold starts, configuring VPC access, or integrating observability. Covers cold start mitigation, layers, memory/CPU tuning, OTel integration, execution roles, and <org> context."
 keywords: [lambda, otel, vpc, cpu]
 ---
 # AWS Lambda Patterns

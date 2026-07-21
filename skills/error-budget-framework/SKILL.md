@@ -1,6 +1,6 @@
 ---
 name: error-budget-framework
-description: Use when implementing error budget tracking, burn rate alerting, or defining budget exhaustion policies. Covers budget calculation, multi-window burn rate alerts (Google SRE workbook), VMAlert recording rules, budget policies, and <org>-specific VictoriaMetrics patterns.
+description: "Use when implementing error budget tracking, burn rate alerting, or defining budget exhaustion policies. Covers budget calculation, multi-window burn rate alerts (Google SRE workbook), VMAlert recording rules, budget policies, and <org>-specific VictoriaMetrics patterns."
 keywords: [error-budget, error, budget, "error budget", victoriametrics, vmalert, sre]
 ---
 # Error Budget Framework

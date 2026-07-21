@@ -1,6 +1,6 @@
 ---
 name: dotnet-apm-metrics
-description: Use when troubleshooting .NET services via runtime metrics, interpreting GC/ThreadPool/JIT/HTTP telemetry, or building Grafana dashboards for .NET 6–10 workloads. Covers LEGACY (process.runtime.dotnet.* via Instrumentation.Runtime NuGet) and NATIVE (.NET 9+ dotnet.* via System.Runtime meter) eras, ASP.NET Core hosting/Kestrel/HttpClient metrics (.NET 8+), EF Core, SignalR, and DNS.
+description: "Use when troubleshooting .NET services via runtime metrics, interpreting GC/ThreadPool/JIT/HTTP telemetry, or building Grafana dashboards for .NET 6\u201310 workloads. Covers LEGACY (process.runtime.dotnet.* via Instrumentation.Runtime NuGet) and NATIVE (.NET 9+ dotnet.* via System.Runtime meter) eras, ASP.NET Core hosting/Kestrel/HttpClient metrics (.NET 8+), EF Core, SignalR, and DNS."
 keywords: [dotnet, dns, gc, grafana, jit, threadpool, net, legacy, native, asp, ef]
 ---
 # .NET APM Metrics Reference

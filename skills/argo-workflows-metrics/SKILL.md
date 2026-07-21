@@ -1,6 +1,6 @@
 ---
 name: argo-workflows-metrics
-description: >   Use when diagnosing Argo Workflows controller health, workflow execution   backlogs, workqueue saturation, K8s API pressure, or pod scheduling failures.   Covers argo_workflows_gauge, argo_workflows_queue_*, argo_workflows_operation_duration_seconds,   argo_workflows_error_count, argo_workflows_k8s_request_*, argo_workflows_pods_gauge,   argo_workflows_is_leader, argo_workflows_workers_busy_count, and go_* runtime   metrics from the workflow-controller.
+description: "Use when diagnosing Argo Workflows controller health, workflow execution backlogs, workqueue saturation, K8s API pressure, or pod scheduling failures. Covers argo_workflows_gauge, argo_workflows_queue_*, argo_workflows_operation_duration_seconds, argo_workflows_error_count, argo_workflows_k8s_request_*, argo_workflows_pods_gauge, argo_workflows_is_leader, argo_workflows_workers_busy_count, and go_* runtime metrics from the workflow-controller."
 keywords: [argo-workflows, argo, workflows, "argo workflows"]
 ---
 # Argo Workflows Controller Metrics

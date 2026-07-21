@@ -1,6 +1,6 @@
 ---
 name: gitlab-runner-metrics
-description: "Use when diagnosing GitLab Runner manager health — job execution capacity, queue saturation, API communication failures, autoscaling machine states, or runner concurrency limits. Covers gitlab_runner_jobs, gitlab_runner_job_duration_seconds, gitlab_runner_jobs_total, gitlab_runner_errors_total, gitlab_runner_api_request_statuses_total, gitlab_runner_concurrent, gitlab_runner_limit, gitlab_runner_request_concurrency, gitlab_runner_acceptable_job_queuing_duration_exceeded_total, gitlab_runner_version_info, plus go_* and process_*. Grounded on Helm chart gitlab/gitlab-runner 0.84.1 (appVersion ~
+description: "Use when diagnosing GitLab Runner manager health \u2014 job execution capacity, queue saturation, API communication failures, autoscaling machine states, or runner concurrency limits. Covers gitlab_runner_jobs, gitlab_runner_job_duration_seconds, gitlab_runner_jobs_total, gitlab_runner_errors_total, gitlab_runner_api_request_statuses_total, gitlab_runner_concurrent, gitlab_runner_limit, gitlab_runner_request_concurrency, gitlab_runner_acceptable_job_queuing_duration_exceeded_total, gitlab_runner_version_info, plus go_* and process_*. Grounded on Helm chart gitlab/gitlab-runner 0.84.1 (appVersion ~v"
 keywords: [gitlab-runner, gitlab, runner, "gitlab runner"]
 ---
 # GitLab Runner Manager Metrics

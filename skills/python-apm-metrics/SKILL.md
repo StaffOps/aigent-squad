@@ -1,6 +1,6 @@
 ---
 name: python-apm-metrics
-description: Use when troubleshooting Python services, designing dashboards, or querying VictoriaMetrics for CPython runtime, HTTP, gRPC, and database client metrics emitted by OTel SDK instrumentations.
+description: "Use when troubleshooting Python services, designing dashboards, or querying VictoriaMetrics for CPython runtime, HTTP, gRPC, and database client metrics emitted by OTel SDK instrumentations."
 keywords: [python, otel, victoriametrics, sdk]
 ---
 # Python APM Metrics Reference

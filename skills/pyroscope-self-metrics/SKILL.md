@@ -1,6 +1,6 @@
 ---
 name: pyroscope-self-metrics
-description: >   Use when operating or troubleshooting the Grafana Pyroscope backend itself —   ingestion failures, flush bottlenecks, query latency, series pressure, storage   health. Covers pyroscope_distributor_*, pyroscope_tsdb_head_*, pyroscope_head_*,   pyroscope_request_duration_seconds, pyroscopedb_*, and Go runtime. This is the   SELF-TELEMETRY catalog for operating the Pyroscope server; for profiling usage   patterns (pprof types, trace correlation, client SDK), see   observability/pyroscope-profiling-patterns.
+description: "Use when operating or troubleshooting the Grafana Pyroscope backend itself \u2014 ingestion failures, flush bottlenecks, query latency, series pressure, storage health. Covers pyroscope_distributor_*, pyroscope_tsdb_head_*, pyroscope_head_*, pyroscope_request_duration_seconds, pyroscopedb_*, and Go runtime. This is the SELF-TELEMETRY catalog for operating the Pyroscope server; for profiling usage patterns (pprof types, trace correlation, client SDK), see observability/pyroscope-profiling-patterns."
 keywords: [pyroscope, go, grafana, sdk]
 ---
 # Pyroscope Backend Self-Metrics

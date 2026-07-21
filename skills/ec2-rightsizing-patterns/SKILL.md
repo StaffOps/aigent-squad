@@ -1,6 +1,6 @@
 ---
 name: ec2-rightsizing-patterns
-description: Use when right-sizing EC2 instances, analyzing Compute Optimizer recommendations, transitioning instance families, or optimizing Karpenter NodePools. Covers CPU+memory utilization analysis, instance family transitions (m5→m6g→m7g), burstable vs general purpose decision tree, ScaleOps integration, and <org> Karpenter+Bottlerocket context.
+description: "Use when right-sizing EC2 instances, analyzing Compute Optimizer recommendations, transitioning instance families, or optimizing Karpenter NodePools. Covers CPU+memory utilization analysis, instance family transitions (m5\u2192m6g\u2192m7g), burstable vs general purpose decision tree, ScaleOps integration, and <org> Karpenter+Bottlerocket context."
 keywords: [ec2-rightsizing, ec2, rightsizing, "ec2 rightsizing", karpenter, cpu]
 ---
 # EC2 Right-Sizing Patterns
