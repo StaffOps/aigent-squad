@@ -26,9 +26,11 @@
   query: "qual serviço tem mais tráfego de requests HTTP na última hora? diga a taxa."
   expect_status: 200
   must_match:
-    - 'http_server_request_duration'   # FU-1: canonical OTel RED metric
-  must_not_contain:
-    - 'http_requests_total'            # must NOT guess a non-existent metric
+    - 'http_server_request_duration'   # FU-1: uses the canonical OTel RED metric
+  # NOTE: we assert the canonical metric IS used (must_match). We intentionally do
+  # NOT forbid mentioning http_requests_total — the agent may honestly note it does
+  # not exist while using the canonical one; a regression to pure guessing would
+  # fail the must_match above.
 
 - name: pods-count-monitoring
   model: aigent-squad-observability

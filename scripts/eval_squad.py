@@ -39,6 +39,7 @@ def _load_cases() -> list[dict]:
 
 def run_case(c: dict) -> tuple[list[str], int, int]:
     body = json.dumps({"model": c["model"], "stream": True,
+                       "user": f"eval-{c['name']}",  # unique session per case (fresh token budget)
                        "messages": [{"role": "user", "content": c["query"]}]}).encode()
     req = urllib.request.Request(
         f"{GATEWAY}/v1/chat/completions", data=body,
