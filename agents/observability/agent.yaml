@@ -7,6 +7,32 @@ datasources:
   - type: http
     name: prometheus
     url: "${PROMETHEUS_URL}/api/v1/query?query=up"
+  # VictoriaMetrics MCP (mcp-servers ns) — full read-only MetricsQL surface.
+  # vm-mcp talks to vmselect (read path). Uses streamable-http (/mcp): homolog
+  # 2026-07-18 showed its /sse endpoint returns text/html (not a real SSE
+  # stream) so SSE times out — /mcp is the working transport. Same rationale as
+  # k8s-mcp on the kubernetes agent: the mcp-victoriametrics catalog is
+  # query-only (no write/delete tools), so the allowlist is a readability/audit
+  # aid, not the security boundary.
+  - type: mcp
+    name: vm-mcp
+    url: http://vm-mcp.mcp-servers.svc.cluster.local:8080/mcp
+    transport: streamable-http
+    tools:
+      - query
+      - query_range
+      - series
+      - labels
+      - label_values
+      - metrics
+      - metrics_metadata
+      - metric_statistics
+      - tsdb_status
+      - rules
+      - alerts
+      - active_queries
+      - top_queries
+      - explain_query
 cache:
   ttl: 60
 model:

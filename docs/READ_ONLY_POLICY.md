@@ -41,6 +41,14 @@ IAM role attached via IRSA has explicit Deny on all write actions:
 ### 4. Kyverno policies (production)
 K8s RBAC restricts the ServiceAccount to `get`/`list`/`watch` verbs. Kyverno validates no privilege escalation.
 
+## Agentic tool-calling (spec 37)
+
+Agentic tool-calling keeps the 100% read-only invariant via three independent layers: the positive,
+fail-closed **tool allowlist** (only read-only tools are exposed), the MCP server's own **ServiceAccount
+RBAC** (read-only), and the **guardrail** on tool arguments and results. A new MCP server is onboarded
+by config only — its read-only status must be proven by a ServiceAccount audit (the MCP SA-RBAC audit
+gate). `converse()` adds guardContent input-tagging (see SECURITY.md).
+
 ## Agent behavior
 
 Agents analyze and recommend. They never execute changes. Correct response pattern:

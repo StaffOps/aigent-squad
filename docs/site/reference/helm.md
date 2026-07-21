@@ -131,7 +131,10 @@ helm install aigent-squad staffops/aigent-squad \
 |-----|---------|-------------|
 | `librechat.enabled` | `false` | Deploy [LibreChat](https://github.com/danny-avila/LibreChat) + an in-cluster MongoDB `StatefulSet`, pre-wired to this release's gateway via the OpenAI-compatible bridge (spec 29) |
 | `librechat.baseURL` | auto | Gateway URL LibreChat talks to; auto-computed to this release's own gateway Service when left empty |
-| `librechat.apiKey` / `apiKeySecretName` | `""` | Token LibreChat sends as `X-Internal-Token`. If both are empty and `externalSecrets.enabled` is `true`, the chart reuses the existing `externalSecrets.secrets[]`-provisioned Secret automatically |
+| `librechat.apiKey` / `apiKeySecretName` | `""` | Token LibreChat sends as `X-Internal-Token`. If both are empty and `externalSecrets.enabled` is `true`, the chart injects `AIGENT_SQUAD_API_KEY` from the gateway's `INTERNAL_API_TOKEN` automatically |
+| `librechat.allowRegistration` | `false` | Self-service signup. Off by default (internal tool → no default user). Enable temporarily to create the first account, then turn back off |
+| `librechat.route.enabled` / `host` | `false` / `""` | Expose the UI via an Istio GatewayAPI HTTPRoute at `host`. Off → ClusterIP only (`port-forward svc/<release>-librechat 3080`) |
+| `librechat.route.parentRef` / `annotations` / `labels` / `path` / `pathType` | `{}` / `PathPrefix` / `/` | Route customization; `parentRef` empty inherits `routing.gatewayapi.parentRef`. Set the `external-dns` hostname in `route.annotations` (same convention as the gateway route) |
 
 !!! info "Minimal by design, not production-grade"
     This is a quick homologation/demo aid, not a hardened deployment: single

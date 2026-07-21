@@ -115,19 +115,28 @@ def resolve_target(model: str, agent_names: list[str]) -> Optional[str]:
     """Map an OpenAI model id to a routing target.
 
     Returns:
-        None              → auto-route via the classifier (model == "aigent-squad")
-        "<agent>"         → force that specialist
+        None              → auto-route via the classifier (model == "aigent-squad",
+                            or any unrecognized model id — e.g. "base", "large",
+                            "gpt-4" sent by external clients like Grafana LLM app)
+        "<agent>"         → force that specialist (model == "aigent-squad-<agent>")
 
-    Raises:
-        UnknownModelError → the id is neither the auto model nor a known agent.
+    Unrecognized model ids are auto-routed (returns None) with a debug log instead
+    of raising UnknownModelError. This allows external integrations that cannot set
+    an arbitrary model id (e.g. Grafana LLM app) to work without HTTP 400.
     """
+    import logging
+
     if model == MODEL_PREFIX:
         return None
     if model.startswith(f"{MODEL_PREFIX}-"):
         agent = model[len(MODEL_PREFIX) + 1:]
         if agent in agent_names:
             return agent
-    raise UnknownModelError(f"model '{model}' not found")
+    # Unrecognized model id → auto-route (same as bare "aigent-squad").
+    logging.getLogger(__name__).debug(
+        "unrecognized model id '%s' auto-routed (treated as auto)", model
+    )
+    return None
 
 
 # ─── Prompt translation ─────────────────────────────────────────────
@@ -179,10 +188,10 @@ def build_completion(result: dict, model: str) -> ChatCompletionResponse:
 async def sse_stream(result: dict, model: str) -> AsyncGenerator[str, None]:
     """Streaming: emit OpenAI SSE frames for a completed supervisor result.
 
-    Pseudo-streaming: the supervisor returns a full answer today (no token
-    streaming until spec 06), so we emit a role prelude, the whole answer as one
-    content delta, a finish frame, then the [DONE] sentinel. The frame format is
-    forward-compatible with real per-token streaming.
+    Pseudo-streaming fallback: used when the agentic streaming path is not
+    available (e.g. classifier/synthesis or legacy non-agentic agents). Emits
+    a role prelude, the whole answer as one content delta, a finish frame, then
+    the [DONE] sentinel.
     """
     cid = _completion_id()
     created = _now()
@@ -201,6 +210,116 @@ async def sse_stream(result: dict, model: str) -> AsyncGenerator[str, None]:
         )
         yield f"data: {body.model_dump_json()}\n\n"
 
+    final = ChatCompletionChunk(
+        id=cid, created=created, model=model,
+        choices=[ChunkChoice(delta=DeltaContent(), finish_reason="stop")],
+    )
+    yield f"data: {final.model_dump_json()}\n\n"
+    yield "data: [DONE]\n\n"
+
+
+async def sse_stream_agentic(
+    step_events: AsyncGenerator,
+    model: str,
+) -> AsyncGenerator[str, None]:
+    """Real incremental streaming: convert agentic step events to SSE deltas.
+
+    Phase 3.5 (S1/S2): emits proper OpenAI chat.completion.chunk frames as the
+    agentic loop runs — thinking, tool calls, results, and final answer chunks
+    render progressively in LibreChat.
+
+    Protocol:
+      1. Role prelude (role="assistant", content="")
+      2. For each step event:
+         - StepThinking → content delta with thinking prefix
+         - StepToolCall → content delta with 🔧 emoji + tool(args)
+         - StepToolResult → content delta with summary
+         - StepFinalChunk → content delta (the actual answer)
+      3. StepDone → finish_reason delta + [DONE]
+
+    Security (S4): step events already contain guardrail-scanned/sanitized text.
+    This encoder trusts the upstream loop's B3 enforcement.
+    """
+    from src.core.agentic_loop_streaming import (
+        StepDone,
+        StepFinalChunk,
+        StepRouting,
+        StepThinking,
+        StepToolCall,
+        StepToolResult,
+    )
+
+    cid = _completion_id()
+    created = _now()
+
+    # 1. Role prelude
+    prelude = ChatCompletionChunk(
+        id=cid, created=created, model=model,
+        choices=[ChunkChoice(delta=DeltaContent(role="assistant", content=""))],
+    )
+    yield f"data: {prelude.model_dump_json()}\n\n"
+
+    # 2. Stream step events as content deltas
+    async for event in step_events:
+        if isinstance(event, StepRouting):
+            # Auto-route classification step (G-4): show which agent was picked
+            text = f"🧭 Routed to **{event.agent}** (confidence {event.confidence:.0%})\n\n"
+            chunk = ChatCompletionChunk(
+                id=cid, created=created, model=model,
+                choices=[ChunkChoice(delta=DeltaContent(content=text))],
+            )
+            yield f"data: {chunk.model_dump_json()}\n\n"
+
+        elif isinstance(event, StepThinking):
+            # Thinking text as a distinct block (LibreChat renders it)
+            text = f"💭 {event.text}\n\n"
+            chunk = ChatCompletionChunk(
+                id=cid, created=created, model=model,
+                choices=[ChunkChoice(delta=DeltaContent(content=text))],
+            )
+            yield f"data: {chunk.model_dump_json()}\n\n"
+
+        elif isinstance(event, StepToolCall):
+            # Concise tool invocation line
+            if event.args_display:
+                text = f"🔧 {event.tool_name}({event.args_display})\n"
+            else:
+                text = f"🔧 {event.tool_name}()\n"
+            chunk = ChatCompletionChunk(
+                id=cid, created=created, model=model,
+                choices=[ChunkChoice(delta=DeltaContent(content=text))],
+            )
+            yield f"data: {chunk.model_dump_json()}\n\n"
+
+        elif isinstance(event, StepToolResult):
+            text = f"{event.summary}\n\n"
+            chunk = ChatCompletionChunk(
+                id=cid, created=created, model=model,
+                choices=[ChunkChoice(delta=DeltaContent(content=text))],
+            )
+            yield f"data: {chunk.model_dump_json()}\n\n"
+
+        elif isinstance(event, StepFinalChunk):
+            chunk = ChatCompletionChunk(
+                id=cid, created=created, model=model,
+                choices=[ChunkChoice(delta=DeltaContent(content=event.text))],
+            )
+            yield f"data: {chunk.model_dump_json()}\n\n"
+
+        elif isinstance(event, StepDone):
+            # 3. Terminal frame
+            final = ChatCompletionChunk(
+                id=cid, created=created, model=model,
+                choices=[ChunkChoice(
+                    delta=DeltaContent(),
+                    finish_reason=event.finish_reason,
+                )],
+            )
+            yield f"data: {final.model_dump_json()}\n\n"
+            yield "data: [DONE]\n\n"
+            return
+
+    # Safety: if generator exhausts without StepDone, still close cleanly
     final = ChatCompletionChunk(
         id=cid, created=created, model=model,
         choices=[ChunkChoice(delta=DeltaContent(), finish_reason="stop")],

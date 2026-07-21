@@ -18,7 +18,7 @@ import uvicorn  # noqa: E402
 from src.core.config import settings  # noqa: E402
 from src.core.rate_limiter import AdmissionGuard, estimate_cost  # noqa: E402
 from src.gateway import __version__  # noqa: E402
-from src.gateway.auth import require_edge_auth  # noqa: E402
+from src.gateway.auth import AuthResult, get_key_agent_map, require_edge_auth  # noqa: E402
 from src.gateway.supervisor_client import (  # noqa: E402
     SupervisorClient,
     SupervisorUnavailableError,
@@ -68,6 +68,27 @@ _agent_names: list[str] = []
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # G-5: validate GATEWAY_KEY_AGENT_MAP agent names against registry at startup.
+    # Best-effort: warn and skip unknown agents (don't crash the gateway).
+    import logging as _logging
+    _log = _logging.getLogger("aigent_squad.gateway")
+    key_agent_map = get_key_agent_map()
+    if key_agent_map:
+        startup_agents = await _refresh_agents()
+        if startup_agents:
+            for _masked_key, agent_name in key_agent_map.items():
+                if agent_name not in startup_agents:
+                    _log.warning(
+                        "GATEWAY_KEY_AGENT_MAP: agent '%s' not found in registry "
+                        "(available: %s). Key will auth but scoping will be ignored.",
+                        agent_name,
+                        ", ".join(startup_agents),
+                    )
+        else:
+            _log.warning(
+                "GATEWAY_KEY_AGENT_MAP configured but could not fetch agent list from "
+                "supervisor at startup — agent name validation deferred."
+            )
     yield
     await supervisor_client.aclose()
 
@@ -193,12 +214,19 @@ async def openai_list_models():
     return list_models(names).model_dump()
 
 
-@app.post("/v1/chat/completions", dependencies=[Depends(require_edge_auth)])
+@app.post("/v1/chat/completions")
 async def openai_chat_completions(
     request: ChatCompletionRequest,
+    auth: AuthResult = Depends(require_edge_auth),
     x_session_id: str = Header(default=""),
 ):
-    """OpenAI Chat Completions → admission → supervisor (shaping reused, spec 29)."""
+    """OpenAI Chat Completions → admission → supervisor (shaping reused, spec 29).
+
+    Agent resolution priority (G-5):
+      (a) Explicit forced model (aigent-squad-<agent>) → honor it always.
+      (b) Auto-route model + consumer has mapped default agent → use that.
+      (c) Else → normal classifier auto-route (None).
+    """
     names = _agent_names or await _refresh_agents()
     try:
         force_agent = resolve_target(request.model, names)
@@ -207,6 +235,10 @@ async def openai_chat_completions(
             status_code=404,
             content={"error": {"type": "invalid_request_error", "message": str(exc)}},
         )
+
+    # G-5: apply consumer default agent when model is auto-route (force_agent is None)
+    if force_agent is None and auth and auth.consumer_default_agent:
+        force_agent = auth.consumer_default_agent
 
     user_id = request.user or "librechat"
     denied = await _check_admission(user_id, max_tokens=request.max_tokens or 4096)
@@ -221,6 +253,61 @@ async def openai_chat_completions(
     session_id = x_session_id or f"openai-{user_id}"
     job_id = str(uuid.uuid4())
 
+    # --- Phase 3.5 FIX: check request.stream BEFORE any LLM call ---
+    # A streaming request makes exactly ONE agentic invocation (process_stream).
+    # Only on failure does it fall back to non-streaming process() + pseudo-stream.
+    # This prevents the double-invocation that was 2x-ing token cost + latency.
+    if request.stream:
+        try:
+            resp = await supervisor_client.process_stream(
+                user_input=user_input,
+                user_id=user_id,
+                session_id=session_id,
+                force_agent=force_agent,
+            )
+
+            async def _proxy_sse():
+                """Proxy supervisor SSE body verbatim to the client.
+
+                The supervisor already emits properly-framed SSE (data: ...\n\n).
+                We forward raw bytes as-is to preserve valid SSE framing.
+                """
+                try:
+                    async for chunk in resp.aiter_bytes():
+                        yield chunk
+                finally:
+                    await resp.aclose()
+
+            return StreamingResponse(
+                _proxy_sse(),
+                media_type="text/event-stream",
+                headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+            )
+        except (SupervisorUnavailableError, Exception):
+            # Streaming endpoint unavailable — fall back to non-streaming
+            # process() + pseudo-stream (single invocation fallback).
+            pass
+
+        # Fallback: non-streaming call + pseudo-stream to the client
+        try:
+            fallback_result = await supervisor_client.process(
+                user_input=user_input,
+                user_id=user_id,
+                session_id=session_id,
+                force_agent=force_agent,
+            )
+        except SupervisorUnavailableError:
+            return _busy_response("backend_unavailable", "supervisor backend unavailable")
+        except Exception as exc:
+            return _forward_error(exc)
+
+        return StreamingResponse(
+            sse_stream(fallback_result, request.model),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        )
+
+    # --- Non-streaming path: existing _one_shot + worker-pool logic unchanged ---
     async def _one_shot():
         yield await supervisor_client.process(
             user_input=user_input,
@@ -241,12 +328,6 @@ async def openai_chat_completions(
     except Exception as exc:
         return _forward_error(exc)
 
-    if request.stream:
-        return StreamingResponse(
-            sse_stream(result, request.model),
-            media_type="text/event-stream",
-            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
-        )
     return build_completion(result, request.model).model_dump()
 
 

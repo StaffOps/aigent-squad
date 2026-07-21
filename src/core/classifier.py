@@ -116,6 +116,11 @@ If unable to classify, return an empty agents list."""
                 role="classifier",  # spec 11: uses Haiku (fast/cheap routing)
                 user_id=user_id,
                 session_id=session_id,
+                # G-6 fix: ingress already guarded the genuine user question;
+                # skip the per-stage INPUT scan that false-positives on the
+                # assembled system_prompt (agent catalog with verbs like
+                # "manage/delete/execute" tripping PROMPT_ATTACK filter).
+                skip_input_guardrail=True,
             )
         except GuardrailBlockedError:
             # Fail-closed: a blocked input must NOT silently fall back to

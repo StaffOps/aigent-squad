@@ -232,6 +232,9 @@ Produce the RCA JSON."""
         agent_id="rca-synthesizer",
         user_id=user_id,
         session_id=session_id,
+        # G-6: ingress already guarded the user question; this prompt is our
+        # framing + trusted evidence/timeline — do not re-scan (FP source).
+        skip_input_guardrail=True,
     )
 
     # Parse JSON

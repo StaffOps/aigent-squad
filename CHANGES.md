@@ -2,7 +2,86 @@
 
 ## [Unreleased]
 
-_Nothing yet — this section starts fresh after the [0.4.0] cut._
+### Added — spec 37 (`agentic-tool-calling`)
+- **Agentic tool-calling** — agents now let the LLM select tools + arguments via
+  the Bedrock **Converse API** in a bounded loop (supersedes the non-agentic
+  "Caminho A" of ADR-001; see ADR-0008). Generic/config-driven: a new MCP server
+  = config only (URL + read-only allowlist), zero code. Adds `converse()`
+  (`src/core/bedrock.py`), an MCP→Converse schema normalizer, the loop
+  (`src/core/agentic_loop.py`) with hard budgets (steps/duration/tokens), MCP
+  session pooling + circuit breaker, and fail-open on tool errors.
+- **100% read-only preserved** — positive fail-closed allowlist + the MCP
+  server's own SA RBAC + Bedrock guardrail on **input, tool args, and tool
+  results** (3-tier: intermediate tool-result turns are app-level redacted, not
+  hard-blocked — fixes benign K8s queries tripping the guardrail).
+- **Live streaming/transparency** — real SSE step deltas (🔧 tool call / 📦
+  result / answer) so LibreChat shows the subagent think + act live; `stream:true`
+  makes exactly one agentic invocation (replaces pseudo-streaming). Forced-agent
+  models today; auto-route deferred.
+- Homologated live on devops-core: the "pods in namespace monitoring" query that
+  previously returned a false negative now calls the right tool and answers from
+  real data.
+- **Scale** — `MAX_TOOL_RESULT_CHARS` 8K→40K + `MAX_LOOP_TOKENS` 50K→150K + count-framing:
+  the model reports the truncation marker's true total ("N items total") and treats shown
+  rows as a sample (live-verified: "monitoring" now answers 267, not the truncated 38).
+  Scale strategy (filter/aggregate + count-marker + bounded sample) documented in the design.
+- **G-1 — accept any model id** — the gateway maps an unknown/`base`/`large` model to
+  auto-route (returns None) instead of HTTP 400; known `aigent-squad-<agent>` still forces
+  that specialist. Unblocks OpenAI-style consumers (e.g. the Grafana LLM app).
+- **G-2 — `Authorization: Bearer`** — gateway edge auth now accepts a Bearer token
+  (matches `INTERNAL_API_TOKEN` via `hmac.compare_digest`, or `GATEWAY_API_KEYS`), alongside
+  `X-Internal-Token`/`X-API-Key`; the X-Internal-Token compare is now timing-safe (closed F-009/S1).
+- **guardContent input-tagging (Tier-2, defense-in-depth)** — `converse()` wraps only the
+  latest user message in a Bedrock `guardContent` block so the server-side guardrail evaluates
+  the genuine user turn, not the system/tool framing.
+- **G-4 — auto-route streaming** — `process_request_streaming` classifies on the auto-route path
+  and streams the selected agentic agent's steps (routing + 🔧 tool call / 📦 result), not only
+  forced-agent models; falls back for fan-out/investigation/non-agentic.
+- **G-5 / G-3 per-consumer scope** — `GATEWAY_KEY_AGENT_MAP` maps a consumer key → a default agent
+  (e.g. observability) on auto-route models (an explicit `aigent-squad-<agent>` still wins; not an
+  auth bypass).
+- **G-3 endpoint** — stable prod exposure confirmed (HTTPRoute `aigent-squad.bdc.app.br/v1` +
+  in-cluster `aigent-squad-gateway.staffops.svc:8000/v1`); per-consumer key mechanism ready.
+- **MCP SA-RBAC audit gate** — `scripts/mcp_rbac_audit.py` (+ Makefile + REQUIRED onboarding doc)
+  proves a new MCP server's ServiceAccount is read-only (fails on any mutating verb). Live-validated:
+  the `mcp-kube` SA = 26 read-only rules, PASS.
+
+### Resolved — spec 37
+- **G-6 — guardrail PROMPT_ATTACK false-positive on our own framing (FIXED 2026-07-21).** Two layers:
+  (1) skip the per-stage app-level INPUT scan on assembled framing + guard the genuine user question
+  once at ingress (`agent_id=ingress`); (2) disable the redundant Bedrock server-side converse
+  guardrail (input is guarded at ingress; the app-level OUTPUT guardrail + B3 tool-args/result cover
+  the rest). Live: "quais namespaces existem no cluster?" → 200 "74 namespaces"; a blatant injection
+  → 403. PROMPT_ATTACK not disabled (security invariant preserved).
+
+### Process / docs — spec 32 (`spec-lifecycle-ssot`)
+- **Spec status is now single-source-of-truth in frontmatter.** Every spec's
+  `requirements.md` carries YAML frontmatter (`status`, `completed`,
+  `superseded_by`, `depends_on`, `deferred`), backfilled across all 28 full-spec
+  dirs. The 8-value status vocabulary is defined once in `specs/README.md`.
+- **`scripts/specs_status.py`** — CI-gated validator (`make specs-status`, job in
+  `test.yml`): rejects an unknown status, `superseded` without `superseded_by`, a
+  plain `done` carrying deferrals, a `deferred:` item missing from
+  `specs/BACKLOG.md`, and drift between the `ROADMAP` canonical table and
+  frontmatter. `--table` regenerates the table. Tests in
+  `tests/test_specs_status.py` (independent author, 95% coverage of the script).
+- **New process/home docs**: `specs/README.md` (lifecycle, spec tiers,
+  verification pipeline, mandatory-security-review rule, numbering/language
+  conventions), `specs/VISION.md` (long-term maturity levels, moved out of
+  ROADMAP), and a formalized `specs/BACKLOG.md` (findings `F-*`, product `B-*`,
+  dormant work, deferred register).
+- **ROADMAP slimmed to plan-only** — one CI-validated canonical status table
+  replacing three drifting tables; backlog and vision replaced by pointers.
+- **HANDOFF is now overwrite-style** (current session + next steps only); prior
+  sessions archived under `archive/handoffs/`.
+- **`AGENTS.md`** points spec-process rules to `specs/README.md` (no
+  duplication); `Status: frozen` banners added to
+  `specs/{ANALYSIS,ECOSYSTEM,EVIDENCE-MODEL}.md`.
+- Correction while backfilling: specs **34** and **36** are `done-with-deferrals`
+  (not `not-started` — they shipped after the stale 2026-07-03 audit snapshot the
+  backfill first trusted).
+
+> Not a version bump — process/docs only, no runtime change.
 
 ## [0.4.0] - 2026-07-15
 

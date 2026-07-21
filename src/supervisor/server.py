@@ -10,17 +10,19 @@ from typing import Optional
 import boto3
 import redis as redis_lib
 from fastapi import FastAPI, HTTPException, Depends
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 from src.core.auth import require_token
 from src.core.config import settings
 from src.core.guardrail import GuardrailBlockedError
 from src.core.health import DependencyChecker
 from src.core.internal_auth import require_internal_token
+from src.core.logger import logger
 from src.core.kb.store import kb_store
 
 from src.supervisor.agent import supervisor
 from src.supervisor.alert_handler import AlertmanagerPayload, handle_alert_payload
+from src.supervisor.openai_compat import sse_stream_agentic
 from src.supervisor.slack_notifier import post_rca_to_slack
 import uvicorn
 
@@ -87,14 +89,69 @@ async def internal_process(request: QueryRequest):
         )
     except GuardrailBlockedError as e:
         raise HTTPException(status_code=403, detail="Request blocked by security guardrail") from e
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        logger.exception("Unhandled error in supervisor request handler")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.get("/internal/agents", dependencies=[Depends(require_internal_token)])
 async def internal_agents():
     """Agent names for the gateway's OpenAI /v1/models listing (spec 31)."""
     return {"agents": supervisor.registry.agent_names()}
+
+
+@app.post("/internal/process/stream", dependencies=[Depends(require_internal_token)])
+async def internal_process_stream(request: QueryRequest):
+    """Streaming process endpoint (Phase 3.5, S1).
+
+    Returns an SSE stream of OpenAI chat.completion.chunk frames as the agentic
+    loop executes — reasoning, tool calls, results, and final answer stream live.
+    Falls back to pseudo-streaming (full answer as one delta) for non-agentic paths
+    (classifier, investigation, fan-out).
+    """
+    try:
+        step_gen = await supervisor.process_request_streaming(
+            user_input=request.user_input,
+            user_id=request.user_id,
+            session_id=request.session_id,
+            mode=request.mode or "query",
+            force_agent=request.force_agent,
+        )
+    except GuardrailBlockedError:
+        raise HTTPException(status_code=403, detail="Request blocked by security guardrail")
+    except Exception:
+        logger.exception("Unhandled error in supervisor streaming handler")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+    if step_gen is None:
+        # Non-agentic path returned None — fall back to non-streaming
+        try:
+            result = await supervisor.process_request(
+                user_input=request.user_input,
+                user_id=request.user_id,
+                session_id=request.session_id,
+                mode=request.mode or "query",
+                force_agent=request.force_agent,
+            )
+        except GuardrailBlockedError:
+            raise HTTPException(status_code=403, detail="Request blocked by security guardrail")
+        except Exception:
+            logger.exception("Unhandled error in supervisor streaming fallback")
+            raise HTTPException(status_code=500, detail="Internal server error")
+
+        from src.supervisor.openai_compat import sse_stream
+        return StreamingResponse(
+            sse_stream(result, "aigent-squad"),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        )
+
+    # Real streaming from the agentic loop
+    return StreamingResponse(
+        sse_stream_agentic(step_gen, "aigent-squad"),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @app.get("/healthz")

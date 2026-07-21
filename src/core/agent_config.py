@@ -1,5 +1,36 @@
 """Agent configuration schema — defines what an agent IS via YAML."""
+from __future__ import annotations
+
+import os
+from typing import Literal
+
 from pydantic import BaseModel, Field
+
+
+# ---------------------------------------------------------------------------
+# Agentic loop budget defaults (B4 — spec 37, Decisão 5).
+# Env-overridable; enforcement happens in Phase 3 (agentic loop).
+#
+# SCALE cost/latency tradeoff (spec 37 scale requirement):
+#   MAX_TOOL_RESULT_CHARS (40000 ≈ 10K tokens) defines the SAMPLE size the
+#   model sees from a single tool result — NOT a way to ingest entire lists.
+#   The true total count comes from the truncation marker (e.g. "267 items
+#   total"); specifics come from follow-up filtered queries. This gives a rich
+#   sample for pattern recognition while keeping per-call cost bounded.
+#
+#   MAX_LOOP_TOKENS (150000) provides headroom for a few large-sample results
+#   + reasoning within the ~200K context window.  Still cost-conscious: a
+#   typical 3-tool loop uses ~30K tokens; the 150K ceiling is for complex
+#   multi-step investigations, not routine queries.
+#
+#   MAX_LOOP_DURATION_MS (30000) accommodates the slower Converse turns that
+#   naturally result from larger context windows.
+# ---------------------------------------------------------------------------
+
+MAX_TOOL_STEPS: int = int(os.environ.get("AIGENT_MAX_TOOL_STEPS", "5"))
+MAX_LOOP_DURATION_MS: int = int(os.environ.get("AIGENT_MAX_LOOP_DURATION_MS", "30000"))
+MAX_LOOP_TOKENS: int = int(os.environ.get("AIGENT_MAX_LOOP_TOKENS", "150000"))
+MAX_TOOL_RESULT_CHARS: int = int(os.environ.get("AIGENT_MAX_TOOL_RESULT_CHARS", "40000"))
 
 
 class DatasourceConfig(BaseModel):
@@ -16,6 +47,7 @@ class DatasourceConfig(BaseModel):
     tools: list[str] = []
     tool_arguments: dict[str, str] = {}  # static args merged into each tool call
     inject_query_as: str = ""  # if set, the user query is passed under this arg key; else not passed
+    transport: Literal["sse", "streamable-http"] = "streamable-http"  # mcp transport: 'streamable-http' (default) or 'sse' (legacy, explicit opt-in)
 
 
 class CacheConfig(BaseModel):

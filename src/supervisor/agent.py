@@ -106,6 +106,31 @@ class SupervisorAgent:
                     session_id=session_id,
                 )
 
+                # G-6 fix: single ingress INPUT guardrail — guard the GENUINE
+                # end-user question ONCE here at the trust boundary, before any
+                # routing/classify/agent call. This replaces the per-stage INPUT
+                # scans that previously ran inside bedrock.invoke()/converse()
+                # on ASSEMBLED prompts (classifier agent-catalog + agent
+                # instructions), which false-positived PROMPT_ATTACK because the
+                # squad's own framing contains verbs like "manage/delete/execute".
+                #
+                # Root cause (proven with apply-guardrail): the bare user phrase
+                # passes cleanly; a real injection still blocks. The per-stage
+                # calls were scanning trusted framing as if it were user input.
+                #
+                # Security invariant: fail-closed. A real injection in the user
+                # text raises GuardrailBlockedError → 403. The OUTPUT guardrail,
+                # tool-args guardrail (B3), tool-result guardrail (B3), and
+                # guardContent server-side tagging all remain active downstream.
+                from src.core.guardrail import guardrail
+                guardrail.apply(
+                    user_input,
+                    source="INPUT",
+                    agent_id="ingress",
+                    user_id=user_id,
+                    session_id=session_id,
+                )
+
                 # Forced agent (OpenAI bridge per-agent model): bypass classifier.
                 if force_agent and force_agent in self.agents:
                     direct = ClassifierResult(
@@ -219,6 +244,159 @@ class SupervisorAgent:
                     "confidence": 0.0,
                     "error": str(e)
                 }
+
+    async def process_request_streaming(
+        self,
+        user_input: str,
+        user_id: str,
+        session_id: str,
+        mode: str = "query",
+        force_agent: str | None = None,
+    ):
+        """Streaming-aware process (Phase 3.5, S1 + G-4 auto-route).
+
+        Returns an async generator of AgenticStepEvent if the request can be
+        served by a single agentic agent. Covers both the forced-agent path
+        (OpenAI bridge per-agent models) AND the auto-route path (G-4) when the
+        classifier resolves to exactly one agentic agent.
+
+        Returns None (fall back to non-streaming) for:
+          - Multi-agent/fan-out classifications
+          - Investigation/RCA mode
+          - Resolved agent that is NOT agentic (has_agentic_tools() false)
+          - Token budget exceeded
+          - Unknown/unclassifiable input
+        """
+        from src.core.agentic_loop_streaming import StepRouting, run_agentic_loop_streaming
+
+        start_time = time.time()
+
+        with tracer.start_as_current_span("supervisor.process_request_streaming") as span:
+            span.set_attribute("user_id", user_id)
+            span.set_attribute("session_id", session_id)
+
+            # Budget check
+            try:
+                budget_tracker.check_budget(session_id)
+            except TokenBudgetExceeded:
+                return None  # fall back to non-streaming for budget error
+
+            # Input scanner
+            user_input = InputScanner().scan(
+                user_input,
+                agent_id="supervisor",
+                user_id=user_id,
+                session_id=session_id,
+            )
+
+            # G-6 fix: single ingress INPUT guardrail for streaming path
+            # (same logic as process_request — guard genuine user question once).
+            from src.core.guardrail import guardrail
+            guardrail.apply(
+                user_input,
+                source="INPUT",
+                agent_id="ingress",
+                user_id=user_id,
+                session_id=session_id,
+            )
+
+            # ------------------------------------------------------------------
+            # Path A: Forced agent (OpenAI bridge per-agent model)
+            # ------------------------------------------------------------------
+            if force_agent and force_agent in self.agents:
+                agent = self.agents[force_agent]
+
+                if not agent.has_agentic_tools():
+                    return None  # legacy non-agentic agent → fall back
+
+                # Save user message
+                user_message = ConversationMessage(
+                    role="user",
+                    content=user_input,
+                    timestamp=datetime.now(timezone.utc).isoformat(),
+                    agent_id=force_agent,
+                )
+                await storage.save_chat_message(user_id, session_id, force_agent, user_message)
+
+                # Get the streaming generator from the agent
+                step_gen = await agent.process_request_streaming(
+                    input_text=user_input,
+                    user_id=user_id,
+                    session_id=session_id,
+                    chat_history=await storage.fetch_chat(user_id, session_id, force_agent),
+                )
+                return step_gen
+
+            # ------------------------------------------------------------------
+            # Path B: Auto-route (G-4) — classify and stream if single agentic
+            # ------------------------------------------------------------------
+
+            # Investigation mode → fall back (produces synthesized answer, not steps)
+            force_investigate = mode == "investigate"
+            if should_investigate(user_input, force=force_investigate):
+                return None
+
+            # Classify intent (reuses the same classifier as process_request)
+            chat_history = await storage.fetch_all_chats(user_id, session_id)
+            classification: ClassifierResult = await self.classifier.classify(
+                user_input,
+                chat_history,
+                user_id=user_id,
+                session_id=session_id,
+            )
+
+            # No match or unknown → fall back
+            if not classification.agents or classification.selected_agent == "unknown":
+                return None
+
+            # Filter to known agents, cap at max_agents
+            agents = [
+                a for a in classification.agents[:self.max_agents]
+                if a.agent in self.agents
+            ]
+            if not agents:
+                return None
+
+            # Multi-agent (fan-out) → fall back (needs synthesis, not streaming)
+            if len(agents) > 1:
+                return None
+
+            # Single agent resolved — check if it's agentic
+            resolved_name = agents[0].agent
+            resolved_agent = self.agents[resolved_name]
+
+            if not resolved_agent.has_agentic_tools():
+                return None  # non-agentic agent → fall back to non-streaming path
+
+            # Save user message tagged to the resolved agent
+            user_message = ConversationMessage(
+                role="user",
+                content=user_input,
+                timestamp=datetime.now(timezone.utc).isoformat(),
+                agent_id=resolved_name,
+            )
+            await storage.save_chat_message(user_id, session_id, resolved_name, user_message)
+
+            # Build a wrapper generator that emits StepRouting first, then the
+            # agent's agentic loop steps.
+            agent_step_gen = await resolved_agent.process_request_streaming(
+                input_text=user_input,
+                user_id=user_id,
+                session_id=session_id,
+                chat_history=await storage.fetch_chat(user_id, session_id, resolved_name),
+            )
+
+            async def _routed_stream():
+                """Yield a routing step, then proxy all agent loop steps."""
+                yield StepRouting(
+                    agent=resolved_name,
+                    confidence=agents[0].confidence,
+                    reasoning=classification.reasoning or "",
+                )
+                async for event in agent_step_gen:
+                    yield event
+
+            return _routed_stream()
 
     async def _single_agent_call(
         self, agent_name: str, classification: ClassifierResult,

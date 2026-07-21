@@ -9,6 +9,8 @@ misconfigured supervisor refuses internal traffic rather than accepting it
 unauthenticated. This is the L7 layer; NetworkPolicy (L3) and future Istio mTLS
 (identity) are independent layers — the link trusts no single control alone.
 """
+import hmac
+
 from fastapi import Header, HTTPException
 
 from src.core.config import settings
@@ -17,5 +19,5 @@ from src.core.config import settings
 def require_internal_token(x_supervisor_token: str = Header(default="")):
     """FastAPI dependency validating the gateway→supervisor internal token."""
     expected = settings.supervisor_internal_token or ""
-    if not expected or x_supervisor_token != expected:
+    if not expected or not hmac.compare_digest(x_supervisor_token.encode(), expected.encode()):
         raise HTTPException(status_code=401, detail="Unauthorized (internal)")
