@@ -27,8 +27,8 @@ from pydantic import BaseModel, Field
 #   naturally result from larger context windows.
 # ---------------------------------------------------------------------------
 
-MAX_TOOL_STEPS: int = int(os.environ.get("AIGENT_MAX_TOOL_STEPS", "5"))
-MAX_LOOP_DURATION_MS: int = int(os.environ.get("AIGENT_MAX_LOOP_DURATION_MS", "30000"))
+MAX_TOOL_STEPS: int = int(os.environ.get("AIGENT_MAX_TOOL_STEPS", "8"))
+MAX_LOOP_DURATION_MS: int = int(os.environ.get("AIGENT_MAX_LOOP_DURATION_MS", "60000"))
 MAX_LOOP_TOKENS: int = int(os.environ.get("AIGENT_MAX_LOOP_TOKENS", "150000"))
 MAX_TOOL_RESULT_CHARS: int = int(os.environ.get("AIGENT_MAX_TOOL_RESULT_CHARS", "40000"))
 
