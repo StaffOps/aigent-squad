@@ -1,3 +1,12 @@
+---
+spec: 32-spec-lifecycle-ssot
+status: done
+completed: 2026-07-17
+superseded_by: null
+depends_on: []
+deferred: []
+---
+
 # Feature: Spec Lifecycle SSOT (status frontmatter + process doc + backlog home)
 
 **Spec**: `32-spec-lifecycle-ssot`

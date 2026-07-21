@@ -1,5 +1,10 @@
 # Cross-Domain Analysis — AIgent-squad
 
+> **Status: frozen (2026-06-02)** — historical cross-domain deliberation that seeded
+> specs 06–31. NOT current state: per-spec status lives in each spec's `requirements.md`
+> frontmatter and the canonical table in `ROADMAP.md`. Kept as-is (not retranslated,
+> not maintained) per the spec-process convention (`specs/README.md`).
+
 **Date**: 2026-06-02
 **Branch**: `dev`
 **Method**: 8 specialists (dev, security, observability, aws, finops, gitops, sre,

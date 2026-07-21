@@ -1,3 +1,12 @@
+---
+spec: 26-agent-skills
+status: done
+completed: null
+superseded_by: null
+depends_on: ["02-unify-agent-architecture"]
+deferred: []
+---
+
 # Feature: Agent Skills (lazy-loaded knowledge)
 
 ## Context

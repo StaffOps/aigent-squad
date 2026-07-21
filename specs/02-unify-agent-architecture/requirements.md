@@ -1,3 +1,12 @@
+---
+spec: 02-unify-agent-architecture
+status: done
+completed: null
+superseded_by: null
+depends_on: []
+deferred: []
+---
+
 # Feature: Unify Agent Architecture
 
 **Spec**: `02-unify-agent-architecture`

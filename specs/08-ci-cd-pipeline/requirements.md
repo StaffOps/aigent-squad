@@ -1,3 +1,12 @@
+---
+spec: 08-ci-cd-pipeline
+status: done-with-deferrals
+completed: null
+superseded_by: null
+depends_on: []
+deferred: ["T7 demo stage"]
+---
+
 # Feature: CI/CD Pipeline (GitHub Actions)
 
 **Spec**: `08-ci-cd-pipeline`

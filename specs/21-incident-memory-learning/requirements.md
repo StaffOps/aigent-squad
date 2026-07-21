@@ -1,3 +1,12 @@
+---
+spec: 21-incident-memory-learning
+status: done-with-deferrals
+completed: null
+superseded_by: null
+depends_on: []
+deferred: ["Opus enricher (Sonnet-only for now)", "Slack approval flow"]
+---
+
 # Feature: Incident Memory & Learning
 
 **Spec**: `21-incident-memory-learning`

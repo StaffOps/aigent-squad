@@ -1,3 +1,12 @@
+---
+spec: 05-helm-chart
+status: superseded
+completed: null
+superseded_by: "22-agent-capability-manifest"
+depends_on: []
+deferred: []
+---
+
 # Feature: Helm Chart
 
 **Spec**: `05-helm-chart`

@@ -1,3 +1,12 @@
+---
+spec: 18-rca-investigation-workflow
+status: in-progress
+completed: null
+superseded_by: null
+depends_on: []
+deferred: ["T11 formal smoke"]
+---
+
 # Feature: RCA Investigation Workflow
 
 **Spec**: `18-rca-investigation-workflow`

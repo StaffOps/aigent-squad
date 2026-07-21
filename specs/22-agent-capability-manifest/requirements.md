@@ -1,3 +1,12 @@
+---
+spec: 22-agent-capability-manifest
+status: done
+completed: null
+superseded_by: null
+depends_on: []
+deferred: []
+---
+
 # Feature: Config-Driven Agent Platform
 
 **Spec**: `22-agent-capability-manifest`

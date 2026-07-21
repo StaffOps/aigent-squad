@@ -1,3 +1,12 @@
+---
+spec: 31-edge-gateway-worker-pool
+status: done-with-deferrals
+completed: 2026-07-01
+superseded_by: null
+depends_on: []
+deferred: ["T21 k6 load test"]
+---
+
 # Feature: Edge Gateway + Worker Pool (multi-replica supervisor front door)
 
 **Spec**: `31-edge-gateway-worker-pool`

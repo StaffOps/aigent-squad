@@ -1,6 +1,6 @@
 # ADR-001 — Bedrock-direct vs. an agent framework (Strands)
 
-**Status**: Accepted
+**Status**: Accepted — the Bedrock-direct/no-framework decision stands; the **"Caminho A" (MCP-as-adapter, non-agentic) part is superseded by ADR-0008** (spec 37, agentic tool-calling via the Bedrock Converse API — still no framework).
 **Date**: 2026-06-16
 **Decision context**: AIgent-squad multi-agent orchestration
 **Related**: `02-unify-agent-architecture`, `17-multi-agent-collaboration`, `18-rca-investigation-workflow`, steering `project.md` ("do not reintroduce LangGraph")

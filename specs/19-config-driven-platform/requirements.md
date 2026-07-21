@@ -1,3 +1,12 @@
+---
+spec: 19-config-driven-platform
+status: superseded
+completed: null
+superseded_by: "22-agent-capability-manifest"
+depends_on: []
+deferred: []
+---
+
 # Feature: Config-Driven Platform
 
 **Spec**: `19-config-driven-platform`

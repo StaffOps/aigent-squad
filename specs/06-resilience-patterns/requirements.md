@@ -1,3 +1,12 @@
+---
+spec: 06-resilience-patterns
+status: done-with-deferrals
+completed: null
+superseded_by: null
+depends_on: []
+deferred: ["T11 formal smoke"]
+---
+
 # Feature: Resilience Patterns + Async-First
 
 **Spec**: `06-resilience-patterns`

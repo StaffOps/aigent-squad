@@ -1,3 +1,12 @@
+---
+spec: 28-llm-provider-abstraction
+status: design-only
+completed: null
+superseded_by: null
+depends_on: []
+deferred: []
+---
+
 # Feature: LLM Provider Abstraction (multi-provider layer)
 
 **Spec**: `28-llm-provider-abstraction`

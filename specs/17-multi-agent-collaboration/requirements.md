@@ -1,3 +1,12 @@
+---
+spec: 17-multi-agent-collaboration
+status: done-with-deferrals
+completed: null
+superseded_by: null
+depends_on: []
+deferred: ["T11 formal smoke"]
+---
+
 # Feature: Multi-Agent Collaboration
 
 **Spec**: `17-multi-agent-collaboration`

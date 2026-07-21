@@ -1,3 +1,12 @@
+---
+spec: 04-harden-security
+status: done
+completed: null
+superseded_by: null
+depends_on: []
+deferred: []
+---
+
 # Feature: Harden Security
 
 **Spec**: `04-harden-security`

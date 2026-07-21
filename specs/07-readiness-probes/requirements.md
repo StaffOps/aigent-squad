@@ -1,3 +1,12 @@
+---
+spec: 07-readiness-probes
+status: done
+completed: 2026-06-17
+superseded_by: null
+depends_on: []
+deferred: []
+---
+
 # Feature: Health Probes + Graceful Shutdown
 
 **Spec**: `07-readiness-probes`

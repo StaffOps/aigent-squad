@@ -1,3 +1,12 @@
+---
+spec: 11-bedrock-resilience-cost
+status: done
+completed: 2026-07-02
+superseded_by: null
+depends_on: []
+deferred: []
+---
+
 # Feature: Bedrock Cost & Model Tiering
 
 **Spec**: `11-bedrock-resilience-cost`

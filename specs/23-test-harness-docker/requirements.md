@@ -1,3 +1,12 @@
+---
+spec: 23-test-harness-docker
+status: done
+completed: 2026-06-18
+superseded_by: null
+depends_on: []
+deferred: []
+---
+
 # Feature: Dockerized Test Harness
 
 **Spec**: `23-test-harness-docker`

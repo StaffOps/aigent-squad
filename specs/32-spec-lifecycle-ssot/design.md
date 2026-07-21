@@ -91,6 +91,40 @@ existing "pre-push gate" culture (lint before push).
 read time). CHANGES.md already covers permanent history — appending to HANDOFF duplicates
 it badly.
 
+### Decision 5: the "done-with-open-tasks" check is frontmatter-internal, not a tasks.md checkbox count
+
+**Choice**: the CI gate validates status consistency **within frontmatter** (a plain
+`done` may carry no `deferred[]`; `done-with-deferrals` must carry a non-empty one). It
+does **not** count `tasks.md` checkboxes to decide whether a `done` spec is "really" done.
+
+**Justification, in order of strength**:
+1. **The backfill (T2) proved checkbox state is not ground truth.** Measured 2026-07-16:
+   spec 23 (`done`) had 10/10 boxes *unchecked*; spec 24 (`done`) 12/12 unchecked; spec 31
+   (shipped, `done-with-deferrals`) 29/30 unchecked — all demonstrably shipped. Meanwhile
+   spec 34 (`not-started`) had all 7 boxes *checked*. A "done ⇒ all boxes checked" gate
+   would fail on genuinely-done specs and pass on unstarted ones — it would enforce the
+   very drift this spec exists to kill.
+2. **Consistency with Decision 1.** Frontmatter is the SSOT; deriving the gate from a
+   *different* (unreliable) signal would reintroduce two-sources-of-truth by the back door.
+3. **Honesty (steering `evidence-before-assertion`).** Blanket-ticking historical boxes to
+   satisfy a mechanical gate would assert completion of individual sub-tasks — including
+   spec 14's security tasks — that were never verified box-by-box. "Open work" belongs in
+   `deferred[]` (a deliberate, authored statement), not inferred from a checkbox left stale.
+
+**Trade-off accepted**:
+| Cost | Reality |
+|------|---------|
+| The gate can't catch "marked done but a real task is silently unfinished" | That failure mode is caught by the independent-review task in each spec's `tasks.md`, not by counting boxes. The gate's job is *cross-view consistency*, not task auditing. |
+| `tasks.md` checkbox state stays drifted for historical specs | Reconciling ~28 historical `tasks.md` is out of scope for spec 32 (and risky for the security spec). Going-forward specs keep boxes current; the operate/measure loop (spec 33) can reconcile opportunistically. |
+
+**Supersedes** the Risks note's original assumption that backfill would "derive from
+tasks.md checkboxes (mechanical)" — that assumption was tested against the real tree and
+found false.
+
+**When this would be wrong**: if a future discipline keeps `tasks.md` boxes reliably in
+sync (e.g. spec 36's agent-native loop enforces it), a checkbox-vs-status cross-check could
+be *added* as a second gate — but even then, additive, never replacing frontmatter as SSOT.
+
 ## Invariants
 
 - One status vocabulary, defined once in specs/README.md — the script rejects others.
@@ -108,13 +142,16 @@ it badly.
 python3 scripts/specs_status.py            # exit 0 = consistent
 python3 scripts/specs_status.py --table    # prints the canonical table
 ```
-Negative tests: flip a frontmatter to `done` with an open task → script exits ≠0;
-add a `deferred:` item absent from BACKLOG.md → exits ≠0.
+Negative tests (script exits ≠0): unknown status value; `superseded` without
+`superseded_by`; plain `done` carrying a `deferred:` entry; `done-with-deferrals` with an
+empty `deferred:`; a `deferred:` item absent from BACKLOG.md; the ROADMAP canonical table
+(once its markers exist) out of sync with frontmatter.
 
 ## Risks
 
-- Backfill mislabels a spec → mitigated by deriving from tasks.md checkboxes (mechanical),
-  and the reconciliation pass done in this spec's T2 was already ground-truthed on
-  2026-07-03 (full read).
+- Backfill mislabels a spec → mitigated by using the 2026-07-03 full-read ground truth
+  (ROADMAP's Audit Summary + Remaining-specs tables) as the status source, NOT raw
+  `tasks.md` checkbox counts (which were measured drifted at backfill time — see
+  Decision 5). Statuses cross-checked against the ROADMAP tables during T2.
 - The script becomes its own maintenance burden → kept dependency-free (PyYAML + stdlib),
   <150 LoC, no config.

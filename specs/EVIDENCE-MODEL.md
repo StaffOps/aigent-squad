@@ -1,5 +1,9 @@
 # Evidence Model — Cross-Signal Catalog & Correlation Rules
 
+> **Status: frozen (2026-06-02)** — agreed deliberation that feeds spec 18; NOT a living
+> doc. The correlator implementation is tracked in spec 18 (Phase 1.5); live status is in
+> spec frontmatter + `ROADMAP.md`. Kept as-is per the spec-process convention.
+
 **Status**: Agreed by observability + sre + troubleshoot (3-round deliberation, 2026-06-02)
 **Feeds**: spec 18 (evidence model), specs 09/10 (metric catalog)
 **Respects**: `observability-principles.md` (cardinality), `investigation-protocol.md` (evidence hierarchy, causal ordering), `k8s-safety.md` (read-only)

@@ -42,7 +42,7 @@ layers add admission, scaling, validation. Reuses `staffops-chaitops` patterns
 - [ ] T20: `docs/ARCHITECTURE.md` (or site) — two-tier topology + contract + 3-layer link security + concurrency model (local vs global)
 - [ ] T21: Reuse spec 25 k6 load test against the gateway; confirm backpressure (503s under burst, no OOM) + p99
 - [ ] T22: Update `docs/METRICS.md` with gateway metrics
-- [ ] T23: Code review (independent) of the whole gateway
+- [x] T23: Code review (independent) of the whole gateway — APPROVE-WITH-NITS (2026-07-18); non-blocking hardening nits tracked as `specs/BACKLOG.md` F-009
 
 ## Phase 1 status table (update when implementing)
 | Task | State | Note |
@@ -63,7 +63,7 @@ layers add admission, scaling, validation. Reuses `staffops-chaitops` patterns
 | T12 (tests L2) | ✅ done | 62 tests, **92% coverage** (internal_auth 100%, auth 100%, main 93%, client 97%, pool 89%); code-review APPROVE-WITH-NITS (nits fixed) |
 | T13–T15 (admission L3) | ✅ done | `src/core/rate_limiter.py` (`AdmissionGuard` + `estimate_cost`, fail-open, global rate+budget); wired into both gateway routes before pool/preflight; 429 rate / 503 budget with headers; `rate_limit.blocks` metric. 100% coverage on rate_limiter; main.py 99%. Independent author + review (APPROVE-WITH-NITS). Budget TOCTOU hardening → T19d |
 | T16–T19b (deploy L4) | 🔶 in progress | Chart lives in `StaffOps/helm-charts` repo (chart `aigent-squad`, existing `services` map + KEDA + per-service `networkPolicy.allowFrom`). Adding `gateway` service + making `supervisor` backend-only. docker-compose two-tier + mcp-server repointed (T19c) ✅. CostCenter `devops-team`. Pending: chart edits in helm-charts repo + real-cluster install |
-| T20–T23 (docs/validation L5) | 🔶 in progress | T20 architecture doc (two-tier topology + concurrency model + endpoints) ✅; T22 metrics doc (gateway + admission) ✅; Dockerfile two-tier + pipelines confirmed ✅. Pending: T21 k6 load test, T23 final independent review |
+| T20–T23 (docs/validation L5) | 🔶 in progress | T20 architecture doc (two-tier topology + concurrency model + endpoints) ✅; T22 metrics doc (gateway + admission) ✅; Dockerfile two-tier + pipelines confirmed ✅. Pending: T21 k6 load test. T23 final independent review ✅ done 2026-07-18 (APPROVE-WITH-NITS → F-009). |
 
 ## Dependencies / sequencing
 - **Land spec 31 first (L1–L2)** — round-table consensus (4/4). No spec-25 dependency

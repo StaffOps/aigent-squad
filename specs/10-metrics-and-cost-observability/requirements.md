@@ -1,3 +1,12 @@
+---
+spec: 10-metrics-and-cost-observability
+status: done
+completed: 2026-06-18
+superseded_by: null
+depends_on: []
+deferred: []
+---
+
 # Requirements: Metrics & Cost Observability (efficiency + quality)
 
 ## Context

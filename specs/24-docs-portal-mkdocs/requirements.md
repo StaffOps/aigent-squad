@@ -1,3 +1,12 @@
+---
+spec: 24-docs-portal-mkdocs
+status: done
+completed: null
+superseded_by: null
+depends_on: []
+deferred: []
+---
+
 # Feature: Documentation Portal (MkDocs) + Consolidation
 
 **Spec**: `24-docs-portal-mkdocs`

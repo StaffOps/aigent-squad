@@ -1,3 +1,12 @@
+---
+spec: 33-operational-review-loop
+status: not-started
+completed: null
+superseded_by: null
+depends_on: ["32-spec-lifecycle-ssot"]
+deferred: []
+---
+
 # Feature: Operational Review Loop (measure triggers · reconcile cost · triage findings)
 
 **Spec**: `33-operational-review-loop`

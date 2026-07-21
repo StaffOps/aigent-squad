@@ -1,3 +1,12 @@
+---
+spec: 27-bedrock-cost-attribution
+status: done
+completed: null
+superseded_by: null
+depends_on: []
+deferred: []
+---
+
 # Feature: Bedrock Cost Attribution (AIP per model + per-agent showback)
 
 ## Objective
