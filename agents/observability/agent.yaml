@@ -38,6 +38,11 @@ cache:
 model:
   tier: standard
   temperature: 0.1
+skills:
+  - victoriametrics-self-metrics
+  - k8s-workload-metrics
+  - collector-internal-metrics
+  - oomkill-investigation
 read_only: true
 evidence_types: [metric, log, trace]
 delegates_to:

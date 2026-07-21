@@ -113,6 +113,15 @@ class SkillRegistry:
                 continue
             if skill.matches(query):
                 selected.append(skill)
+        # spec 39 WS2 invariant: cap injected skills per turn to protect the
+        # prompt/token budget (large metric catalogs). Env-overridable.
+        max_skills = int(os.environ.get("AIGENT_MAX_SKILLS_PER_TURN", "3"))
+        if len(selected) > max_skills:
+            logger.info(
+                "Skill selection capped %d -> %d (prompt budget)",
+                len(selected), max_skills,
+            )
+            selected = selected[:max_skills]
         return selected
 
     @staticmethod
