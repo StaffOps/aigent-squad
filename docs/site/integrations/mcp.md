@@ -85,9 +85,11 @@ preserving conversation history stored in DynamoDB.
 ## Outbound — agents as MCP clients
 
 An agent can pull read-only context from an **external** MCP server by declaring a
-`type: mcp` datasource in its `agent.yaml`. This follows the adapter pattern from
-ADR-001: the collector calls the allowlisted tools and injects results into the
-prompt — the model never selects tools autonomously.
+`type: mcp` datasource in its `agent.yaml`. As of **spec 37 / ADR-0008 this is agentic**:
+the LLM selects the tool and its arguments via the Bedrock Converse tool-use loop
+(superseding ADR-001's adapter pattern, where fixed tools were pre-called and their results
+injected). Read-only holds via the allowlist + the MCP server's own ServiceAccount RBAC + the
+guardrail (tool args + results).
 
 ```yaml
 # agents/kubernetes/agent.yaml

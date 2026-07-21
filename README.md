@@ -26,7 +26,7 @@ Agent Squad is a multi-agent system with 1 supervisor + 6 specialist agents for 
 - 📊 OpenTelemetry distributed tracing
 - 🔒 Read-only by default (current posture; execution is an open roadmap item, gated by guardrails + human-in-the-loop)
 - 🚀 Kubernetes-native deployment
-- 🔌 MCP integration (squad as server for Kiro + agents as MCP clients)
+- 🔌 MCP integration (squad as server for Kiro + agents as **agentic** MCP clients — the LLM selects read-only tools+args via Bedrock Converse, spec 37)
 - 🤖 OpenAI-compatible API (`/v1`) — plugs into LibreChat or any OpenAI client ([docs](docs/LIBRECHAT.md))
 - 💲 Per-agent Bedrock cost attribution (Application Inference Profiles + token metrics)
 

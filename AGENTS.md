@@ -28,7 +28,7 @@ User (LibreChat /v1 · HTTP /query · Alertmanager · MCP :8006)
          │
          ▼
   Gateway :8000 (public front door — spec 31)
-  ├── Edge auth (INTERNAL_API_TOKEN / GATEWAY_API_KEYS, fail-closed)
+  ├── Edge auth (INTERNAL_API_TOKEN / GATEWAY_API_KEYS / Authorization: Bearer, fail-closed; per-consumer GATEWAY_KEY_AGENT_MAP scope)
   ├── AdmissionGuard: per-user rate + global daily budget (Redis, fail-open)
   ├── WorkerPool backpressure (semaphore 20, 503 + Retry-After)
   └── OpenAI /v1 shaping (spec 29) · /jobs/{id}/cancel
@@ -39,7 +39,7 @@ User (LibreChat /v1 · HTTP /query · Alertmanager · MCP :8006)
   ├── Classifier (Bedrock Haiku) → routes to 1–3 agents
   ├── Fan-out (parallel) → synthesizer merges N responses
   ├── RCA investigation → agents collect evidence in parallel
-  ├── Bedrock Guardrail (input+output, fail-closed 403) + canary + output filter
+  ├── Guardrail: ingress INPUT + agentic tool-args + tool-result + OUTPUT (fail-closed 403) + canary + guardContent input-tagging
   └── DynamoDB (history, 24h TTL, per-agent isolated)
          │
   ┌──────┴──────────────────────────────┐
@@ -61,7 +61,10 @@ User (LibreChat /v1 · HTTP /query · Alertmanager · MCP :8006)
 4. **Model tiering from config, never hardcoded** (spec 11) — `src/core/model_tier.py`
    resolves role→model: `BEDROCK_CLASSIFIER_MODEL_ID` (Haiku) / `BEDROCK_MODEL_ID`
    (agents) / `BEDROCK_SYNTHESIS_MODEL_ID`; misconfig fails loudly at startup
-5. **Read-only posture** — 4 layers: system prompt + IAM deny + K8s RBAC + response templates
+5. **Read-only posture** — system prompt + IAM deny + K8s RBAC + response templates; for
+   **agentic tool-calling (spec 37)** it holds via a positive fail-closed tool **allowlist** +
+   the MCP server's own ServiceAccount RBAC + guardrail on tool args+results (proven by the MCP
+   SA-RBAC audit gate, `scripts/mcp_rbac_audit.py`)
 6. **Fail-open for availability, fail-closed for security** — Redis/DynamoDB loss =
    service continues (empty history/cache miss); rate/budget guards fail-open. BUT
    security layers (Guardrail, InputScanner, output filter — spec 14) are
@@ -80,6 +83,10 @@ User (LibreChat /v1 · HTTP /query · Alertmanager · MCP :8006)
 10. **Two-tier trust boundary** — supervisor `/internal/*` accepts only the gateway
     (`SUPERVISOR_INTERNAL_TOKEN`, distinct secret, + NetworkPolicy); public routes
     live exclusively on the gateway
+11. **Agentic tool-calling is config-only** (spec 37) — the LLM selects read-only tools+args via
+    the Bedrock **Converse** loop (`src/core/agentic_loop.py`, bounded steps/tokens/time); a new
+    MCP server = URL + read-only allowlist, **zero code**. The gateway accepts any model id
+    (unknown → auto-route) and streams the loop's steps (🔧 tool call / 📦 result).
 
 ---
 
@@ -129,7 +136,7 @@ curl -X POST http://localhost:8000/query \
 | Symptom | Cause | Fix |
 |---------|-------|-----|
 | `403` on any query | Fail-closed security (spec 14): guardrail block, InputScanner, or `GUARDRAIL_ENABLED=true` with no `GUARDRAIL_ID` | Local compose defaults guardrail OFF — check env overrides; prod: this is working as designed |
-| `401` on `/query` or `/v1/*` | Edge token mismatch | Header `X-Internal-Token` must equal `INTERNAL_API_TOKEN` (NOT `SUPERVISOR_INTERNAL_TOKEN` — that's the gateway→supervisor link only) |
+| `401` on `/query` or `/v1/*` | Edge token mismatch | `X-Internal-Token` (or `X-API-Key` / `Authorization: Bearer`) must match `INTERNAL_API_TOKEN` or a `GATEWAY_API_KEYS` entry (NOT `SUPERVISOR_INTERNAL_TOKEN` — that's the gateway→supervisor link only) |
 | `503 backend_unavailable` | Supervisor down/unreachable | `docker compose logs supervisor` — usual cause: invalid `agent.yaml` (Pydantic fails at startup) |
 | `503 service_overloaded` | WorkerPool full (backpressure) | Self-healing; persistent → raise `GATEWAY_MAX_CONCURRENT` |
 | Empty history / no context | DynamoDB fail-open (by design) | Check `dynamodb-local` health; the query still answers |
