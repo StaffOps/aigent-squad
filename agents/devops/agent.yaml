@@ -25,3 +25,31 @@ delegates_to:
   - agent: kubernetes
     when: "need deployment/rollout status"
 port: 8004
+skills:
+  - argo-events-metrics
+  - argo-rollouts-metrics
+  - argo-workflows-metrics
+  - argocd-metrics
+  - argocd-patterns
+  - backstage-metrics
+  - bdc-telemetry-helper
+  - bdc-telemetry-standard
+  - cosign-image-signing
+  - crossplane-metrics
+  - datahub-metrics
+  - external-secrets-aws-sm
+  - gitlab-runner-metrics
+  - gitops-environment-onboard
+  - harbor-metrics
+  - helm-chart-app-bdc
+  - helm-chart-cronworkflow-bdc
+  - helmfile-applicationset
+  - kyverno-bdc-policies
+  - monitoring-stack-overview
+  - nexus3-metrics
+  - opensearch-metrics
+  - pipeline-template-apps
+  - sonarqube-metrics
+  - strimzi-kafka-metrics
+  - superset-metrics
+  - terraform-modules-bdc

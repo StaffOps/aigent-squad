@@ -18,3 +18,9 @@ delegates_to:
     when: "need resource details to attribute costs"
 required_env: [AWS_REGION]
 port: 8003
+skills:
+  - cost-explorer
+  - ec2-rightsizing-patterns
+  - kubecost-metrics
+  - savings-plans-strategy
+  - untagged-resources-bulk-fix

@@ -20,3 +20,17 @@ delegates_to:
     when: "finding involves RBAC, NetworkPolicy, or pod security"
 required_env: [AWS_REGION]
 port: 8010
+skills:
+  - aws-ftr-compliance
+  - container-image-apko
+  - container-package-melange
+  - cosign-image-signing
+  - defectdojo-metrics
+  - dependency-track-integration
+  - dependency-track-metrics
+  - golden-ami-creation
+  - harbor-metrics
+  - keycloak-metrics
+  - kubescape-metrics
+  - sbom-vulnerability-management
+  - security-hub-findings-mgmt

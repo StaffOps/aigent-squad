@@ -3,8 +3,6 @@ description: "Kubernetes cluster specialist. Queries pods, nodes, deployments, s
 domain: container-orchestration
 capabilities: [pod_status, node_health, deployment_management, service_discovery]
 routing_keywords: [pod, node, deployment, service, namespace, kubectl, k8s, cluster, replica, hpa]
-skills:
-  - oomkill-investigation
 datasources:
   # Access to the cluster via the kube-mcp server (mcp-servers namespace).
   # Caminho A of ADR-001: MCP-as-adapter, not autonomous tool-calling.
@@ -62,3 +60,31 @@ delegates_to:
   - agent: observability
     when: "need metrics to correlate with pod behavior"
 port: 8002
+skills:
+  - aws-csi-driver-metrics
+  - aws-load-balancer-controller-metrics
+  - backing-services-metrics
+  - cert-manager-metrics
+  - descheduler-metrics
+  - external-dns-metrics
+  - external-secrets-aws-sm
+  - external-secrets-metrics
+  - helmfile-applicationset
+  - helmfile-k8s-addon
+  - helmfile-templating
+  - ingress-nginx-metrics
+  - istio-ambient-debugging
+  - istio-ambient-metrics
+  - istio-ambient-otel
+  - k8s-pvc-tagger-metrics
+  - k8s-workload-metrics
+  - karpenter-consolidation
+  - karpenter-metrics
+  - keda-metrics
+  - kubescape-metrics
+  - kyverno-metrics
+  - metrics-server-metrics
+  - oomkill-investigation
+  - reloader-metrics
+  - scaleops-metrics
+  - traefik-metrics

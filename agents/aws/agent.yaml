@@ -20,3 +20,14 @@ delegates_to:
     when: "question involves cost attribution"
 required_env: [AWS_REGION]
 port: 8001
+skills:
+  - aws-csi-driver-metrics
+  - aws-load-balancer-controller-metrics
+  - cloudfront-patterns
+  - cost-explorer
+  - eks-management
+  - iam-patterns
+  - lambda-patterns
+  - rds-patterns
+  - route53-patterns
+  - security-hub-patterns
