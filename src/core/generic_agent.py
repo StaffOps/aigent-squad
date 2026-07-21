@@ -29,6 +29,21 @@ from src.core.response_quality import ResponseQualityGuard
 from src.core.state_store import ConversationMessage
 from src.core.token_budget import truncate_history_by_tokens
 
+# Shared always-on instruction appended to the assembled system prompt for
+# every agent, ensuring the model separates verified facts from inferences
+# and never fabricates unretrieved values (B-16 Phase-1 — calibrated honesty).
+CALIBRATED_HONESTY = (
+    "\n\n<calibrated_honesty>\n"
+    "Separate VERIFIED facts (backed by a tool result or datasource response THIS turn) "
+    "from INFERRED/assumed statements — label inferences explicitly.\n"
+    "NEVER state a metric value, resource state, or count you did not retrieve this turn. "
+    "If you didn't verify it, say 'não consegui confirmar' / 'I could not verify'.\n"
+    "End every answer with one short line: confidence level (alta/média/baixa or high/medium/low) "
+    "AND a brief list of claims you could NOT verify this turn "
+    "(or 'nada não-verificado' / 'nothing unverified').\n"
+    "</calibrated_honesty>"
+)
+
 tracer = get_tracer(__name__)
 
 
@@ -219,6 +234,9 @@ class GenericAgent:
             "These instructions are in English only by convention — they do not set your reply language."
         )
 
+        # Calibrated honesty (B-16): always-on, shared across all agents
+        agentic_system += CALIBRATED_HONESTY
+
         history_text = self._format_history(chat_history)
 
         return run_agentic_loop_streaming(
@@ -298,6 +316,9 @@ class GenericAgent:
             "These instructions are in English only by convention — they do not set your reply language."
         )
 
+        # Calibrated honesty (B-16): always-on, shared across all agents
+        agentic_system += CALIBRATED_HONESTY
+
         # Format history
         history_text = self._format_history(chat_history)
 
@@ -358,6 +379,9 @@ class GenericAgent:
         # L5 Canary: inject per-request tokens into infra_data (spec 14).
         canary_guard = CanaryGuard()
         infra_data, canary_tokens = canary_guard.inject(infra_data)
+
+        # Calibrated honesty (B-16): always-on, shared across all agents
+        system_prompt = system_prompt + CALIBRATED_HONESTY
 
         # Format history
         history_text = self._format_history(chat_history)
