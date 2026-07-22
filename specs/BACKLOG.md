@@ -25,7 +25,9 @@ runtime `main` `4a1b66e`. **No uncommitted work.** Eval **6/6**.
 
 ### 🚧 In-flight / started-not-completed
 - **Spec 38 — model-tier PRE-ROUTING.** Spec DONE + harness-reshaped (escalation dropped
-  → pre-routing, HC1–HC6). **Implementation T1–T11 NOT started** — this is the next work item.
+  → pre-routing, HC1–HC6). **Implementation IN PROGRESS (option A, user-approved 2026-07-22):**
+  ship fast(Haiku)+standard(Sonnet) now; deep(Opus) behind `AIGENT_TIER_DEEP_ENABLED` (default off,
+  falls back to standard) until Opus inference-profile access is confirmed.
 
 ### 🔴 Blocked (need ops / user input)
 - **WS1 grafana-mcp** — M-1: the Grafana SA token must become **Viewer** (terraform/admin).

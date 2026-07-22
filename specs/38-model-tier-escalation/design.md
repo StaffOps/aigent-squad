@@ -125,3 +125,9 @@ faster, more debuggable than escalation.
 Complexity-from-classifier + tier map + downshift-simple + escalate-once. NOT
 multi-hop, NOT per-agent tier overrides. Opus must be enabled/available in the
 Bedrock account (verify inference-profile access before enabling `deep`).
+
+### Phase 1 rollout decision (2026-07-22, user-approved — option A)
+Ship **fast (Haiku) + standard (Sonnet)** pre-routing **now**; keep **deep (Opus)
+behind `AIGENT_TIER_DEEP_ENABLED` (default `false`)** until Opus inference-profile
+access is confirmed. When `deep` is disabled, a `complex` classification falls back
+to `standard` (Sonnet) — never blocks. Flip the flag once Opus access is verified.
