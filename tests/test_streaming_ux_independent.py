@@ -3,8 +3,8 @@
 Tests written AGAINST the spec/contract, NOT against the implementation:
   (1) Tool-result step deltas are terse (📦 N items / empty / ok / error)
       and NEVER contain raw JSON body text (no '"status":"success"', no braces).
-  (2) The SSE stream wraps trace steps in <details>...</details>; the final
-      answer comes AFTER the closed </details>.
+  (2) The SSE stream wraps trace steps in <think>...</think>; the final
+      answer comes AFTER the closed </think>.
   (3) On budget/step/time exhaustion the user-visible text has a graceful message
       and does NOT contain raw counters (steps=, elapsed=, tokens=, ms/).
   (4) The raw counters ARE logged (captured from logger).
@@ -175,8 +175,8 @@ class TestTerseToolResultSummary:
 # ---------------------------------------------------------------------------
 
 class TestDetailsWrapping:
-    """sse_stream_agentic wraps trace steps in <details>...</details>.
-    Final answer comes AFTER the closed </details> block.
+    """sse_stream_agentic wraps trace steps in <think>...</think>.
+    Final answer comes AFTER the closed </think> block.
     """
 
     async def _collect_stream_content(self, events_gen) -> str:
@@ -204,10 +204,10 @@ class TestDetailsWrapping:
             yield StepDone(finish_reason="stop")
 
         full = await self._collect_stream_content(events())
-        assert "<details>" in full
-        assert "<summary>🔧 Tool trace</summary>" in full
-        # <details> appears before tool call text
-        assert full.index("<details>") < full.index("🔧 query")
+        assert "<think>" in full
+        assert "🔧 Tool trace" in full
+        # <think> appears before tool call text
+        assert full.index("<think>") < full.index("🔧 query")
 
     @pytest.mark.asyncio
     async def test_details_closes_before_final_answer(self):
@@ -223,13 +223,13 @@ class TestDetailsWrapping:
             yield StepDone(finish_reason="stop")
 
         full = await self._collect_stream_content(events())
-        assert "</details>" in full
-        # Final answer AFTER </details>
-        assert full.index("</details>") < full.index("The pods are healthy.")
+        assert "</think>" in full
+        # Final answer AFTER </think>
+        assert full.index("</think>") < full.index("The pods are healthy.")
 
     @pytest.mark.asyncio
     async def test_no_details_when_no_trace_steps(self):
-        """Direct answer without tools → no <details> block emitted."""
+        """Direct answer without tools → no <think> block emitted."""
         from src.core.agentic_loop_streaming import StepDone, StepFinalChunk
 
         async def events():
@@ -237,8 +237,8 @@ class TestDetailsWrapping:
             yield StepDone(finish_reason="stop")
 
         full = await self._collect_stream_content(events())
-        assert "<details>" not in full
-        assert "</details>" not in full
+        assert "<think>" not in full
+        assert "</think>" not in full
         assert "Here is a direct answer." in full
 
     @pytest.mark.asyncio
@@ -258,9 +258,9 @@ class TestDetailsWrapping:
             yield StepDone(finish_reason="stop")
 
         full = await self._collect_stream_content(events())
-        # All tool calls between <details> and </details>
-        details_start = full.index("<details>")
-        details_end = full.index("</details>")
+        # All tool calls between <think> and </think>
+        details_start = full.index("<think>")
+        details_end = full.index("</think>")
         trace_section = full[details_start:details_end]
         assert "🔧 tool_a" in trace_section
         assert "🔧 tool_b" in trace_section
@@ -270,7 +270,7 @@ class TestDetailsWrapping:
 
     @pytest.mark.asyncio
     async def test_routing_event_inside_details(self):
-        """StepRouting (auto-route) is also inside the <details> block."""
+        """StepRouting (auto-route) is also inside the <think> block."""
         from src.core.agentic_loop_streaming import (
             StepDone, StepFinalChunk, StepRouting, StepToolCall, StepToolResult
         )
@@ -283,8 +283,8 @@ class TestDetailsWrapping:
             yield StepDone(finish_reason="stop")
 
         full = await self._collect_stream_content(events())
-        details_start = full.index("<details>")
-        details_end = full.index("</details>")
+        details_start = full.index("<think>")
+        details_end = full.index("</think>")
         trace_section = full[details_start:details_end]
         assert "kubernetes" in trace_section
         assert "88%" in trace_section or "0.88" in trace_section
@@ -441,7 +441,7 @@ class TestCountersLogged:
 
 class TestForcedAgentAndAutoRoute:
     """Both forced-agent (aigent-squad-observability) and auto-route
-    (aigent-squad) streaming apply the same <details> wrapping format.
+    (aigent-squad) streaming apply the same <think> wrapping format.
     """
 
     async def _collect_frames(self, events_gen, model: str) -> str:
@@ -473,18 +473,18 @@ class TestForcedAgentAndAutoRoute:
     @pytest.mark.asyncio
     async def test_auto_route_model_applies_details(self):
         full = await self._collect_frames(self._make_events(), "aigent-squad")
-        assert "<details>" in full
-        assert "</details>" in full
-        assert full.index("</details>") < full.index("Answer from agent.")
+        assert "<think>" in full
+        assert "</think>" in full
+        assert full.index("</think>") < full.index("Answer from agent.")
 
     @pytest.mark.asyncio
     async def test_forced_agent_model_applies_details(self):
         full = await self._collect_frames(
             self._make_events(), "aigent-squad-observability"
         )
-        assert "<details>" in full
-        assert "</details>" in full
-        assert full.index("</details>") < full.index("Answer from agent.")
+        assert "<think>" in full
+        assert "</think>" in full
+        assert full.index("</think>") < full.index("Answer from agent.")
 
     @pytest.mark.asyncio
     async def test_model_id_appears_in_frames(self):

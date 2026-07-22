@@ -77,16 +77,16 @@ async def test_details_wrapping():
                 full_content += c
 
     # Structure assertions
-    assert "<details>" in full_content, f"Missing <details>"
-    assert "<summary>🔧 Tool trace</summary>" in full_content
-    assert "</details>" in full_content, f"Missing </details>"
-    assert full_content.index("<details>") < full_content.index("🔧 query_metrics")
-    assert full_content.index("</details>") < full_content.index("Here is the answer")
+    assert "<think>" in full_content, f"Missing <think>"
+    assert "🔧 Tool trace" in full_content
+    assert "</think>" in full_content, f"Missing </think>"
+    assert full_content.index("<think>") < full_content.index("🔧 query_metrics")
+    assert full_content.index("</think>") < full_content.index("Here is the answer")
     # No raw JSON / chars leaked
     assert "chars" not in full_content
     assert "[DONE]" in frames[-1]
 
-    print("✅ sse_stream_agentic: <details> wrapping correct")
+    print("✅ sse_stream_agentic: <think> wrapping correct")
     print(f"   Full stream content:\n---\n{full_content}\n---")
 
 
@@ -127,7 +127,7 @@ async def test_no_counters_leaked():
 
 @pytest.mark.asyncio
 async def test_no_details_when_no_trace():
-    """When there are no tool calls, no <details> block should appear."""
+    """When there are no tool calls, no <think> block should appear."""
     from src.core.agentic_loop_streaming import StepDone, StepFinalChunk
     from src.supervisor.openai_compat import sse_stream_agentic
 
@@ -143,9 +143,9 @@ async def test_no_details_when_no_trace():
             if c:
                 full += c
 
-    assert "<details>" not in full
+    assert "<think>" not in full
     assert "Direct answer without tools." in full
-    print("✅ No <details> emitted when no trace steps present")
+    print("✅ No <think> emitted when no trace steps present")
 
 
 if __name__ == "__main__":

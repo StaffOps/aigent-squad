@@ -14,6 +14,27 @@ Models exposed:
 
 from __future__ import annotations
 
+import os
+
+# Tool-trace presentation (streaming). Chat UIs (LibreChat, Open WebUI) render
+# <think>/<thinking> as a collapsible "Thinking" panel but SANITIZE raw HTML like
+# <details> (shows as plain text). Configurable via AIGENT_TRACE_STYLE so it adapts
+# to the client: think (default) | details | plain | off.
+_TRACE_STYLE = os.environ.get("AIGENT_TRACE_STYLE", "think").lower()
+_TRACE_OFF = _TRACE_STYLE == "off"
+_TRACE_OPEN = {
+    "think": "<think>\n🔧 Tool trace\n\n",
+    "details": "<details>\n<summary>🔧 Tool trace</summary>\n\n",
+    "plain": "🔧 Tool trace\n",
+    "off": "",
+}.get(_TRACE_STYLE, "<think>\n🔧 Tool trace\n\n")
+_TRACE_CLOSE = {
+    "think": "\n</think>\n\n",
+    "details": "\n</details>\n\n",
+    "plain": "\n\n",
+    "off": "",
+}.get(_TRACE_STYLE, "\n</think>\n\n")
+
 import time
 import uuid
 from typing import AsyncGenerator, Optional
@@ -228,17 +249,17 @@ async def sse_stream_agentic(
     agentic loop runs — thinking, tool calls, results, and final answer chunks
     render progressively in LibreChat.
 
-    Stream shape (visual UX):
-      <details>
-      <summary>🔧 Tool trace</summary>
+    Stream shape (visual UX; wrapper via AIGENT_TRACE_STYLE, default <think> which
+    LibreChat/Open WebUI render as a collapsible "Thinking" panel):
+      <think>
+      🔧 Tool trace
 
       🧭 Routed to **obs** (confidence 92%)
       🔧 query_metrics(namespace="monitoring")
       📦 3 items
       🔧 get_pods(namespace="monitoring")
       📦 12 items
-
-      </details>
+      </think>
 
       [final answer streamed here, clean and separated]
 
@@ -287,11 +308,11 @@ async def sse_stream_agentic(
     # 2. Stream step events
     async for event in step_events:
         if isinstance(event, (StepRouting, StepThinking, StepToolCall, StepToolResult)):
-            # Open <details> block on the first trace-type event
+            if _TRACE_OFF:
+                continue  # trace suppressed for this client
+            # Open the trace block on the first trace-type event
             if not details_opened:
-                yield _make_chunk(
-                    "<details>\n<summary>🔧 Tool trace</summary>\n\n"
-                )
+                yield _make_chunk(_TRACE_OPEN)
                 details_opened = True
 
             if isinstance(event, StepRouting):
@@ -314,14 +335,14 @@ async def sse_stream_agentic(
         elif isinstance(event, StepFinalChunk):
             # Close <details> right before first answer chunk
             if details_opened and not details_closed:
-                yield _make_chunk("\n</details>\n\n")
+                yield _make_chunk(_TRACE_CLOSE)
                 details_closed = True
             yield _make_chunk(event.text)
 
         elif isinstance(event, StepDone):
             # Close <details> if no final chunk followed the trace
             if details_opened and not details_closed:
-                yield _make_chunk("\n</details>\n\n")
+                yield _make_chunk(_TRACE_CLOSE)
                 details_closed = True
 
             # 3. Terminal frame
@@ -338,7 +359,7 @@ async def sse_stream_agentic(
 
     # Safety: if generator exhausts without StepDone, still close cleanly
     if details_opened and not details_closed:
-        yield _make_chunk("\n</details>\n\n")
+        yield _make_chunk(_TRACE_CLOSE)
     final = ChatCompletionChunk(
         id=cid, created=created, model=model,
         choices=[ChunkChoice(delta=DeltaContent(), finish_reason="stop")],
