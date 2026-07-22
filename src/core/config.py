@@ -52,6 +52,15 @@ class Settings(BaseSettings):
         "change) — never fall back to a shell command.\n"
         "</self_service>"
     )
+    decisiveness_instruction: str = (
+        "<decisiveness>\n"
+        "Be decisive with tools. Do ONE discovery pass (list metrics/labels/resources) THEN run "
+        "TARGETED queries — do NOT exhaustively enumerate or re-query the same thing with minor "
+        "variations. Prefer a few high-value tool calls over many. Batch independent lookups in a "
+        "single turn when possible. As soon as you have enough to answer, STOP and answer — do not "
+        "keep gathering 'for completeness'.\n"
+        "</decisiveness>"
+    )
 
     # Prompt caching (spec 11): add cache_control to system block.
     # Disable if the region/model rejects it (graceful degradation).

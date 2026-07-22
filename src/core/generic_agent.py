@@ -40,6 +40,7 @@ from src.core.config import settings
 SHARED_INSTRUCTIONS = (
     f"\n\n{settings.calibrated_honesty_instruction}"
     f"\n\n{settings.self_service_instruction}"
+    f"\n\n{settings.decisiveness_instruction}"
 )
 
 tracer = get_tracer(__name__)
