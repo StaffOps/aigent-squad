@@ -62,6 +62,35 @@ promote to an LLM-based summarizer (Phase 2).
 | `AIGENT_CONTEXT_TRIM_ENABLED` | `true` | Master switch |
 | `AIGENT_CONTEXT_KEEP_LAST_N` | `3` | Verbatim tool-result turns |
 
+## Harness review outcomes (mandatory — supersede the above where they conflict)
+
+The design round-table (code-review + observability) returned **NO-GO as written,
+GO after DC1–DC5**. These are binding:
+
+- **DC1 — new summary function (do NOT reuse `_summarize_tool_result`).** That
+  function emits shape-only ("📦 12 items") → the model cannot cite values or
+  correlate. Add `_summarize_for_context(tool_name, tool_args, result_text)` in
+  `truncation.py`, deterministic (no LLM), output: `[context-trimmed] <tool> | args:<…200> | shape:<n items/chars> | sample:<first 3 lines/values> | keys:<top-5>`.
+  Acceptance: model can answer "what did step 2 show?" with a specific sample value.
+- **DC2 — replace ONLY `toolResult.content[i].text`.** Never touch the `toolResult`
+  dict or `toolUseId`; no count-framing on summaries. `toolUseId` pairing is a
+  tested invariant (else Bedrock `ValidationException`).
+- **DC3 — per-block within fan-out turns.** Trim iterates INSIDE `msg["content"]`
+  (a list of `toolResult` blocks). Counting unit = toolResult-bearing user messages.
+  Discriminator: a user msg is a toolResult turn iff `any(b.get("toolResult") for b in content)`; the original question (has `text` blocks) is NEVER trimmed.
+- **DC4 — N default = 5** (not 3; N=3 trims foundational steps 1-4 of an 8-step
+  loop). Floor `effective_n = max(N, 1)`; never trim the last 2 messages
+  (`assistant tool_use` + `user toolResult`).
+- **DC5 — shared module `src/core/truncation.py`** (already hosts
+  `truncate_tool_output`). Both loops call one `trim_message_history(...)`; no
+  inline duplication.
+
+**Residual risks (accepted, eval-gated):** R1 enriched summary still loses some
+cross-step detail (mitigate: N=5 + eval case citing a trimmed-step value); R2
+fan-out makes the bound worst-case N×tools-per-turn (document; Phase-2 byte-cap);
+R4 add approx token counting (chars/4) + WARN when trimmed history >80% of
+`MAX_LOOP_TOKENS`.
+
 ## Phase 1 (this spec)
 
 Deterministic keep-last-N + shape summary. **NOT** an LLM-based summarizer.
