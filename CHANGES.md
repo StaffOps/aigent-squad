@@ -31,11 +31,13 @@
   Shared `truncation.py`, both loops. Env `AIGENT_CONTEXT_TRIM_ENABLED` / `AIGENT_CONTEXT_KEEP_LAST_N`.
   Homologated: a 16-step query completed with per-turn input **plateauing** (102122→102825, flat) and
   no exhaustion; eval 6/6. Harness-reviewed (DC1–DC5); 48 tests, 90.95% cov.
-- **Spec 38 (model-tier) — SPEC DRAFTED + harness-reshaped, implementation pending.** Round-table
+- **Spec 38 (model-tier) — Phase 1 DELIVERED + homologated (agentic24).** Round-table
   (code-review + finops + sre) refuted runtime escalation → reshaped to complexity-aware
   **pre-routing** (classifier picks fast/standard/deep one-shot; downshift to Haiku only for
   provably-simple; transient-only same-tier retry; startup validation; per-tier cost/latency SLO).
-  Not yet implemented (blocked partly on Opus inference-profile access).
+  Live-confirmed: a simple query routed to **fast (Haiku)** (complexity=simple, conf=0.95).
+  `deep`(Opus) behind `AIGENT_TIER_DEEP_ENABLED` (default off → falls back to standard) pending Opus
+  inference-profile access. 56 tests, 100% cov, code-review APPROVE.
 - **Session token budget:** `session_token_budget` 200K→2M (env `SESSION_TOKEN_BUDGET`) — agentic
   queries cost ~30-60K tokens each; the old per-session cap blocked a LibreChat conversation after
   ~5 queries ("reached its token budget"). Still a runaway guardrail (~40 heavy queries / 24h).

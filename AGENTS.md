@@ -260,6 +260,8 @@ No code changes needed — `AgentRegistry` auto-discovers at startup.
 | `SESSION_TOKEN_BUDGET` | | `2000000` | Per-session cumulative token cap (spec 11); raised from 200K for agentic loop cost (~30-60K/query) |
 | `AIGENT_MAX_LOOP_DURATION_MS` / `AIGENT_MAX_LOOP_TOKENS` | | `120000` / `300000` | Agentic loop wall-clock + cumulative-token budgets (deep analyses; context accumulates across turns) |
 | `AIGENT_CONTEXT_TRIM_ENABLED` / `AIGENT_CONTEXT_KEEP_LAST_N` | | `true` / `5` | Spec 40 context-trimming: keep last N tool-result turns verbatim, summarize older (bounds per-turn context) |
+| `AIGENT_TIER_ROUTING_ENABLED` / `AIGENT_TIER_DEEP_ENABLED` | | `true` / `false` | Spec 38 model-tier pre-routing; `deep`(Opus) off by default → falls back to standard until Opus access confirmed |
+| `AIGENT_TIER_CONFIDENCE_HIGH` / `BEDROCK_TIER_{FAST,STANDARD,DEEP}_MODEL_ID` | | `0.85` / haiku,sonnet,opus | Downshift threshold + tier→model map (spec 38) |
 | `BEDROCK_READ_TIMEOUT_SECONDS` | | `120` | boto3 Bedrock read timeout (default 60s cut slow Converse → stream "terminated") |
 | `GATEWAY_JOB/FIRST_BYTE/IDLE_STREAM_TIMEOUT_SECONDS` | | `150`/`90`/`35` | Gateway stream timeouts; must exceed the loop budget + Bedrock read timeout |
 | `SELF_SERVICE_INSTRUCTION` / `CALIBRATED_HONESTY_INSTRUCTION` | | baked default | Env-overridable shared system-prompt instructions (no rebuild to tune) |

@@ -24,10 +24,11 @@ runtime `main` `4a1b66e`. **No uncommitted work.** Eval **6/6**.
 - **P0 observability accuracy** — RESOLVED (was crash-pod artifact, not vm-mcp; + Rule 5).
 
 ### 🚧 In-flight / started-not-completed
-- **Spec 38 — model-tier PRE-ROUTING.** Spec DONE + harness-reshaped (escalation dropped
-  → pre-routing, HC1–HC6). **Implementation IN PROGRESS (option A, user-approved 2026-07-22):**
-  ship fast(Haiku)+standard(Sonnet) now; deep(Opus) behind `AIGENT_TIER_DEEP_ENABLED` (default off,
-  falls back to standard) until Opus inference-profile access is confirmed.
+- **Spec 38 — model-tier PRE-ROUTING.** ✅ **Phase 1 DELIVERED + homologated (agentic24, option A):**
+  fast(Haiku)+standard(Sonnet) live; classifier emits complexity; dispatch one-shot (no escalation).
+  Live-confirmed: simple query → fast/Haiku (conf 0.95). deep(Opus) behind `AIGENT_TIER_DEEP_ENABLED`
+  (default off → standard fallback) pending Opus inference-profile access. 56 tests, 100% cov.
+  Follow-ups (code-review recs): document dispatch condition for Phase 2; move startup-validation into `__init__`.
 
 ### 🔴 Blocked (need ops / user input)
 - **WS1 grafana-mcp** — M-1: the Grafana SA token must become **Viewer** (terraform/admin).
