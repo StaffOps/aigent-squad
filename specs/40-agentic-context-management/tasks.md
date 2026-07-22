@@ -1,7 +1,7 @@
 ---
 spec: 40-agentic-context-management
-status: in-progress
-completed: null
+status: done
+completed: 2026-07-22
 superseded_by: null
 depends_on: ["37-agentic-tool-calling"]
 deferred: []

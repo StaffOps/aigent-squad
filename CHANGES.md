@@ -23,6 +23,14 @@
   `read_timeout` 60→120s** (`BEDROCK_READ_TIMEOUT_SECONDS`) — the 60s default cut slow Converse turns
   → `ReadTimeoutError` → stream "terminated". **Deploy gotcha:** set numeric envs via
   `helm --set-string` — plain `--set` renders large ints as `2e+06` → pydantic int-parse crash.
+- **Context-trimming (spec 40 — durable fix, ends the budget whack-a-mole):** the agentic loop kept
+  re-sending all prior tool results each turn → per-turn input grew (15K→44K…) → `MAX_LOOP_TOKENS`
+  exhaustion + rising latency. Now `trim_message_history` keeps the last N=5 tool-result turns
+  verbatim and replaces older `toolResult` content with a deterministic enriched summary (args +
+  shape + sample values + keys), preserving `tool_use`↔`toolResult` pairing (`toolUseId` invariant).
+  Shared `truncation.py`, both loops. Env `AIGENT_CONTEXT_TRIM_ENABLED` / `AIGENT_CONTEXT_KEEP_LAST_N`.
+  Homologated: a 16-step query completed with per-turn input **plateauing** (102122→102825, flat) and
+  no exhaustion; eval 6/6. Harness-reviewed (DC1–DC5); 48 tests, 90.95% cov.
 - **Session token budget:** `session_token_budget` 200K→2M (env `SESSION_TOKEN_BUDGET`) — agentic
   queries cost ~30-60K tokens each; the old per-session cap blocked a LibreChat conversation after
   ~5 queries ("reached its token budget"). Still a runaway guardrail (~40 heavy queries / 24h).
