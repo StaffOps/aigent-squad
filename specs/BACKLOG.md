@@ -37,7 +37,7 @@ runtime `main` `4a1b66e`. **No uncommitted work.** Eval **6/6**.
 - **vmselect / Pyroscope OOMKilled** on devops-core — infra; file in `devops-platform-knowledge` + bump memory (also slows the squad's queries).
 
 ### 🟡 Quick wins (not started)
-- **Thinking enrichment (user-requested):** surface the model's narration text as 💭 + show `sub_query` in the routing line. NOT done.
+- ✅ **Thinking enrichment (DELIVERED agentic25):** model narration text on tool_use turns now surfaces as 💭 (was discarded) + `sub_query` shown in the routing line (`🧭 … — foco: "…"`). Feature B (foco) live-confirmed; A unit-tested (11 tests, code-review APPROVE).
 - **Decisiveness prompt** — reduce open-ended over-exploration (complements trimming).
 - **`<self_service>` tone** — soften (env-overridable, no rebuild).
 - **Kubernetes dashboard** — the DevOps-GenericMonitoring/Kubernetes folder is empty → offer to build (workload health).

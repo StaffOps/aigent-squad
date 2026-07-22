@@ -17,6 +17,10 @@
   "Thinking" panel — raw `<details>` HTML was shown as plain text), configurable via
   `AIGENT_TRACE_STYLE` (`think` | `details` | `plain` | `off`); terse `📦` summaries; graceful
   budget exhaustion (no leaked counters) + partial answer.
+- **Thinking-trace enrichment (agentic25):** (A) the model's natural narration text on tool_use
+  turns now surfaces as `💭` (was discarded) — real "why I'm calling this tool"; (B) the classifier
+  `sub_query` shows in the routing line (`🧭 Routed to X (conf) — foco: "…"`), per-agent on fan-out.
+  Feature B live-confirmed; A unit-tested (11 tests). Stays inside the `<think>` wrapper.
 - **Loop / gateway / Bedrock budgets & timeouts:** `MAX_TOOL_STEPS` 5→8; `MAX_LOOP_DURATION_MS`
   30s→60s→**120s**; `MAX_LOOP_TOKENS` 150K→**300K** (context accumulates across turns — 166K hit at
   step 5/8); gateway `first_byte`→90s, `job`→150s, `idle_stream` 10→**35s**; **Bedrock boto3
