@@ -98,6 +98,7 @@ class StepRouting:
     agent: str
     confidence: float
     reasoning: str = ""
+    sub_query: str = ""
 
 
 @dataclass
@@ -343,6 +344,16 @@ async def run_agentic_loop_streaming(
                 for block in content_blocks:
                     if block.get("type") == "reasoning" and block.get("text"):
                         yield StepThinking(text=block["text"])
+
+                # --- A: Surface model narration text on tool_use turns as
+                # StepThinking (💭). On a non-tool turn, text becomes the
+                # final answer; on a tool_use turn it's the model's brief
+                # explanation of WHY it's calling tools — currently discarded.
+                # Emit it here so the trace shows the model's intent. ---
+                if stop_reason == "tool_use":
+                    for block in content_blocks:
+                        if block.get("type") == "text" and block.get("text"):
+                            yield StepThinking(text=block["text"])
 
                 # --- Final answer (not tool_use) ---
                 if stop_reason != "tool_use":

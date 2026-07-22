@@ -316,9 +316,10 @@ async def sse_stream_agentic(
                 details_opened = True
 
             if isinstance(event, StepRouting):
+                foco = f' — foco: "{event.sub_query}"' if event.sub_query else ""
                 yield _make_chunk(
                     f"🧭 Routed to **{event.agent}** "
-                    f"(confidence {event.confidence:.0%})\n"
+                    f"(confidence {event.confidence:.0%}){foco}\n"
                 )
             elif isinstance(event, StepThinking):
                 yield _make_chunk(f"💭 {event.text}\n")

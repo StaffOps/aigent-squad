@@ -447,6 +447,7 @@ class SupervisorAgent:
                     agent=resolved_name,
                     confidence=agents[0].confidence,
                     reasoning=classification.reasoning or "",
+                    sub_query=agents[0].sub_query or "",
                 )
                 async for event in agent_step_gen:
                     yield event
