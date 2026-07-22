@@ -27,6 +27,10 @@ Agent Squad is a multi-agent system with 1 supervisor + 6 specialist agents for 
 - 🔒 Read-only by default (current posture; execution is an open roadmap item, gated by guardrails + human-in-the-loop)
 - 🚀 Kubernetes-native deployment
 - 🔌 MCP integration (squad as server for Kiro + agents as **agentic** MCP clients — the LLM selects read-only tools+args via Bedrock Converse, spec 37)
+- 🎚️ Complexity-aware model **pre-routing** (spec 38) — simple→Haiku, standard→Sonnet, complex→Opus (flagged), one-shot from the classifier
+- ✂️ Agentic **context-trimming** (spec 40) — keeps the last N tool-result turns verbatim + summarizes older, so deep multi-step queries don't exhaust the token budget
+- 🧭 **Self-service** posture — never suggests `kubectl`; the agent fetches data itself or points to the specific Grafana/ArgoCD dashboard
+- 🧠 Collapsible **Thinking** trace (LibreChat `<think>`) with model narration + routing focus
 - 🤖 OpenAI-compatible API (`/v1`) — plugs into LibreChat or any OpenAI client ([docs](docs/LIBRECHAT.md))
 - 💲 Per-agent Bedrock cost attribution (Application Inference Profiles + token metrics)
 
@@ -279,8 +283,10 @@ User Query: "How many EC2 instances are running?"
 **Infrastructure**:
 - **DynamoDB**: Conversation state (24h TTL)
 - **Redis**: Datasource cache (1-60min TTL) + rate/budget counters + job lifecycle
-- **Bedrock**: model tiering (spec 11) — Haiku classifier / Sonnet agents &
-  synthesis, prompt caching, Application Inference Profiles for cost attribution
+- **Bedrock**: complexity-aware model tiering (spec 11 + **spec 38**) — Haiku classifier;
+  agents **pre-routed** per query complexity (fast Haiku / standard Sonnet / deep Opus one-shot,
+  `deep` flag-gated); prompt caching; **context-trimming** (spec 40) to bound per-turn context;
+  Application Inference Profiles for cost attribution
 - **Knowledge Base**: incident-memory RAG via PostgreSQL+pgvector (spec 21). The Bedrock Knowledge Bases / OpenSearch path in the diagram above is an aspirational alternative, not the current implementation.
 
 ---
