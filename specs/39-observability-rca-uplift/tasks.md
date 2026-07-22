@@ -8,6 +8,12 @@ Legenda: `[ ]` pendente · `[~]` parcial · `[x]` done. Código segue o harness
 > (metric-query discipline), B-16 (calibrated honesty), eval harness, loop-budget (steps 5→8, 30s→60s)
 > + gateway-timeout tuning. **WS1 BLOCKED on M-1** — the Grafana SA token is write-capable (proven),
 > must be reprovisioned as Viewer (terraform/admin). WS3 (RCA Phase-1) pending.
+>
+> **Update 2026-07-22 (post-homolog UX/robustness, live agentic20):** streaming tool-trace switched
+> to `<think>` (LibreChat-collapsible; raw `<details>` showed as plain text) — configurable via
+> `AIGENT_TRACE_STYLE`; `session_token_budget` raised 200K→2M (agentic queries cost ~30-60K each,
+> old cap blocked chats after ~5 queries), env `SESSION_TOKEN_BUDGET`. Open "tempo" levers: vmselect
+> OOM on devops-core (slow queries) + agent decisiveness on open-ended asks.
 
 ## Phase 0 — Spec & round-table
 - [ ] T0.1 Round-table (observability + security + sre + code-review) — refute WS1/WS2/WS3.

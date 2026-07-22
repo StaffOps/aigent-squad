@@ -256,6 +256,8 @@ No code changes needed — `AgentRegistry` auto-discovers at startup.
 | `SUPERVISOR_INTERNAL_TOKEN` | ✅ | — | Gateway→supervisor `/internal/*` link (distinct secret, fail-closed) |
 | `GUARDRAIL_ENABLED` | | `true` | Spec-14 Bedrock Guardrail (fail-closed; needs `GUARDRAIL_ID`) |
 | `GUARDRAIL_ID` / `GUARDRAIL_VERSION` | when enabled | — / `DRAFT` | From `infra/terraform/guardrail/` outputs |
+| `AIGENT_TRACE_STYLE` | | `think` | Streaming tool-trace wrapper: `think` (collapsible in LibreChat/Open WebUI) / `details` / `plain` / `off` |
+| `SESSION_TOKEN_BUDGET` | | `2000000` | Per-session cumulative token cap (spec 11); raised from 200K for agentic loop cost (~30-60K/query) |
 | `INPUT_SCANNER_ENABLED` / `OUTPUT_FILTER_ENABLED` / `CANARY_ENABLED` | | `true` | Spec-14 L2/L4/L5 toggles |
 | `RATE_BUDGET_ENABLED` | | `true` | Gateway admission guards (rate + daily budget) |
 | `GATEWAY_MAX_CONCURRENT` | | `20` | WorkerPool size (+ `GATEWAY_*_TIMEOUT_SECONDS`) |

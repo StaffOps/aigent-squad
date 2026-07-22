@@ -175,6 +175,13 @@ on its ServiceAccount + **per-consumer scope (G-5)** for sensitive agents + **NO
 - ✅ **P1 calibrated honesty (B-16 Phase-1)** — `<calibrated_honesty>` on all agents.
 - ✅ **FU-1 metric-query discipline** — discover-first + label conventions in the observability prompt.
 - ✅ **Loop-budget + gateway-timeout tuning** — steps 5→8, loop 30s→60s, gateway first_byte 15→65s / job 45→75s.
+
+### Update 2026-07-22 (live agentic20)
+- ✅ **Streaming `<think>` wrapper** — LibreChat/Open WebUI sanitize raw `<details>` HTML (rendered as plain text); switched the tool-trace to `<think>` (collapsible "Thinking" panel), configurable via `AIGENT_TRACE_STYLE` (`think`|`details`|`plain`|`off`). Verified live: `<think>` emits with trace + answer.
+- ✅ **Session token budget 200K→2M** — agentic queries cost ~30-60K each; the old per-session cap blocked LibreChat chats after ~5 queries ("reached its token budget"). Raised (env `SESSION_TOKEN_BUDGET`, persisted in the k8s-setup overlay) + `config.py` default 2M. Still a runaway guardrail.
+- ⏳ **"Tempo" (open-ended over-exploration) — 2 open levers:**
+  - **INFRA (also a devops-core finding):** VictoriaMetrics `vmselect` (×4) + Pyroscope compactor/store-gateway + Loki ingester + otel-ebpf **OOMKilled** on `devops-core` → slow metric queries → contributes to the agentic loop hitting the *time* budget. Bump vmselect/Pyroscope memory; file in `devops-platform-knowledge`.
+  - **Agent decisiveness:** open-ended asks ("faça uma análise") over-explore. Prompt lever: one discovery pass → targeted queries, no exhaustive enumeration (a direct ~8-query analysis completes fine).
 - ⏳ **P1 classifier→planner (B-14)** — NEXT.
 - ⏳ **P1 cross-signal RCA (WS3)** · **P2 model-tier (spec 38)** · **P2 feedback (B-03)** · **B-16 Phase-2** (structured field).
 - 🔴 **WS1 grafana-mcp** blocked on **M-1** (Grafana token must become Viewer — ops/terraform).

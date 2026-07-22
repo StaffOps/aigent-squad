@@ -13,10 +13,15 @@
   all agents (verified-vs-inferred, no fabricated values, ends with a confidence + unverified list).
 - **Eval harness:** `scripts/eval_squad.py` + `evals/golden_queries.yaml` — golden-query accuracy gate
   against the live gateway (routing, canonical metrics, count-framing, calibration, guardrail). 6/6 live.
-- **Streaming UX:** collapsible `<details>` tool-trace, terse `📦` summaries, graceful budget exhaustion
-  (no leaked internal counters) + partial answer.
+- **Streaming UX:** tool-trace rendered as `<think>` (LibreChat / Open WebUI collapse it into a
+  "Thinking" panel — raw `<details>` HTML was shown as plain text), configurable via
+  `AIGENT_TRACE_STYLE` (`think` | `details` | `plain` | `off`); terse `📦` summaries; graceful
+  budget exhaustion (no leaked counters) + partial answer.
 - **Loop budgets:** `MAX_TOOL_STEPS` 5→8, `MAX_LOOP_DURATION_MS` 30s→60s (discover-first); gateway
   timeouts raised (first_byte 15→65s, job 45→75s).
+- **Session token budget:** `session_token_budget` 200K→2M (env `SESSION_TOKEN_BUDGET`) — agentic
+  queries cost ~30-60K tokens each; the old per-session cap blocked a LibreChat conversation after
+  ~5 queries ("reached its token budget"). Still a runaway guardrail (~40 heavy queries / 24h).
 - **Security scrub:** all BigDataCorp/BDC references removed from the project → `<ORG>` placeholders
   (`scripts/scrub_org.py`); 6 skills renamed; zero traces remain.
 
