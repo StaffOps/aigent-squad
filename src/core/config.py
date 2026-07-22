@@ -93,6 +93,11 @@ class Settings(BaseSettings):
     gateway_job_timeout_seconds: int = 150
     gateway_first_byte_timeout_seconds: int = 90
     gateway_idle_stream_timeout_seconds: int = 35
+    # Bedrock boto3 client timeouts. Default read_timeout (60s) was cut on slow Converse
+    # turns (large context + Sonnet) → ReadTimeoutError → stream 'terminated'. Keep below
+    # gateway_job_timeout_seconds so the gateway doesn't cut first.
+    bedrock_read_timeout_seconds: int = 120
+    bedrock_connect_timeout_seconds: int = 10
     gateway_cancel_poll_seconds: float = 0.5
 
     # Admission guards (spec 31 L3 / spec 25 logic) — global, Redis-coordinated.

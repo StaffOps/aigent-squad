@@ -35,7 +35,11 @@ class BedrockClient:
         self.client = boto3.client(
             'bedrock-runtime',
             region_name=settings.aws_region,
-            config=Config(retries={'mode': 'adaptive', 'max_attempts': 3})
+            config=Config(
+                retries={'mode': 'adaptive', 'max_attempts': 3},
+                read_timeout=settings.bedrock_read_timeout_seconds,
+                connect_timeout=settings.bedrock_connect_timeout_seconds,
+            )
         )
         self.model_id = settings.bedrock_model_id
         self.max_retries = 3
