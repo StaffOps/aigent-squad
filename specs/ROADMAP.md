@@ -283,4 +283,5 @@ ROADMAP is plan-only from here.
 | 36-agent-native-dev-loop | done-with-deferrals | 2026-07-04 | deferred: T11 independent review (fresh-clone dry run + .claude contract) |
 | 37-agentic-tool-calling | done | 2026-07-20 |  |
 | 39-observability-rca-uplift | in-progress | — | depends_on: 37-agentic-tool-calling |
+| 40-agentic-context-management | in-progress | — | depends_on: 37-agentic-tool-calling |
 <!-- specs-status:end -->
