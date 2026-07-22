@@ -90,9 +90,9 @@ class Settings(BaseSettings):
     supervisor_url: str = "http://localhost:8001"
     # Worker pool (gateway-side admission). Defaults from spec 31 round-table.
     gateway_max_concurrent: int = 20
-    gateway_job_timeout_seconds: int = 45
-    gateway_first_byte_timeout_seconds: int = 15
-    gateway_idle_stream_timeout_seconds: int = 10
+    gateway_job_timeout_seconds: int = 150
+    gateway_first_byte_timeout_seconds: int = 90
+    gateway_idle_stream_timeout_seconds: int = 35
     gateway_cancel_poll_seconds: float = 0.5
 
     # Admission guards (spec 31 L3 / spec 25 logic) — global, Redis-coordinated.
