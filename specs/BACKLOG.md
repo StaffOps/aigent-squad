@@ -5,6 +5,48 @@
 > Rule: items leave this file by becoming a spec/task or being closed with a one-line
 > reason — they never silently vanish.
 
+## 📌 Current status & pending inventory (2026-07-22)
+
+**Live:** `0.4.0-homolog-agentic23` on devops-core (gateway + supervisor **2/2**). All
+session code committed — app `dev` `b49c143`, k8s-setup `main` `7ffe96a`, GitLab
+runtime `main` `4a1b66e`. **No uncommitted work.** Eval **6/6**.
+
+### ✅ Shipped + homologated this session
+- `<think>` collapsible tool-trace (LibreChat) — configurable `AIGENT_TRACE_STYLE`.
+- Budgets/timeouts: session 200K→2M, loop 120s, `MAX_LOOP_TOKENS` 300K, gateway
+  (job 150s / first_byte 90s / idle 35s), Bedrock `read_timeout` 120s — deep queries
+  complete, no "terminated"/exhaustion. Helm `--set-string` gotcha documented.
+- `<self_service>` (read-only, no kubectl, point to dashboards) + env-overridable
+  shared instructions; `devops-grafana-dashboards` skill (real catalog).
+- Observability **Rule 5** (no "healthy" without evidence; OOM/restarts = degraded).
+- **Spec 40 context-trimming** — DELIVERED (keep last N=5, summarize older; per-turn
+  input plateaus; 48 tests, 90.95%, eval 6/6).
+- **P0 observability accuracy** — RESOLVED (was crash-pod artifact, not vm-mcp; + Rule 5).
+
+### 🚧 In-flight / started-not-completed
+- **Spec 38 — model-tier PRE-ROUTING.** Spec DONE + harness-reshaped (escalation dropped
+  → pre-routing, HC1–HC6). **Implementation T1–T11 NOT started** — this is the next work item.
+
+### 🔴 Blocked (need ops / user input)
+- **WS1 grafana-mcp** — M-1: the Grafana SA token must become **Viewer** (terraform/admin).
+- **Opus inference-profile access** (Bedrock) — blocks the spec 38 `deep` tier (T9).
+- **`${GRAFANA_BASE}`** — real Grafana base URL for clickable dashboard links (user input).
+- **vmselect / Pyroscope OOMKilled** on devops-core — infra; file in `devops-platform-knowledge` + bump memory (also slows the squad's queries).
+
+### 🟡 Quick wins (not started)
+- **Thinking enrichment (user-requested):** surface the model's narration text as 💭 + show `sub_query` in the routing line. NOT done.
+- **Decisiveness prompt** — reduce open-ended over-exploration (complements trimming).
+- **`<self_service>` tone** — soften (env-overridable, no rebuild).
+- **Kubernetes dashboard** — the DevOps-GenericMonitoring/Kubernetes folder is empty → offer to build (workload health).
+
+### 🔵 Deferred (roadmap)
+WS3 cross-signal RCA Phase-1 (spec 39) · B-16 Phase-2 (structured confidence) ·
+B-03 feedback→KbDelta · spec 28 provider abstraction · MCP roadmap (GitLab / Kubecost /
+AWS read-only / tempo / kiali) · future agents (gitops / mesh / supply-chain / db /
+backup-DR) · **version bump 0.4.x → 0.5.0** (milestone candidate once agentic hardening stabilizes).
+
+---
+
 ## Findings (defects observed in the running system)
 
 | ID | Finding | Severity | Action | Status |
