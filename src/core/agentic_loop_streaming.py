@@ -211,6 +211,7 @@ async def run_agentic_loop_streaming(
     session_id: str,
     temperature: float = 0.1,
     budget_session_id: str | None = None,
+    model_id_override: str | None = None,
 ) -> AsyncGenerator[AgenticStepEvent, None]:
     """Execute the bounded agentic loop, yielding step events as it runs.
 
@@ -327,6 +328,7 @@ async def run_agentic_loop_streaming(
                     # agent's framed user turn — not wired here.
                     apply_bedrock_guardrail=False,
                     skip_input_guardrail=True,
+                    model_id_override=model_id_override,
                     **converse_kwargs,
                 )
 

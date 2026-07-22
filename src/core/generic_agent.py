@@ -62,6 +62,7 @@ class GenericAgent:
         chat_history: List[ConversationMessage],
         additional_params: Optional[dict] = None,
         budget_session_id: Optional[str] = None,
+        model_id_override: Optional[str] = None,
     ) -> ConversationMessage:
         start_time = time.time()
 
@@ -105,7 +106,7 @@ class GenericAgent:
                 if mcp_adapters:
                     response = await self._agentic_path(
                         input_text, system_prompt, chat_history, mcp_adapters,
-                        user_id, session_id, budget_session_id,
+                        user_id, session_id, budget_session_id, model_id_override,
                     )
                 else:
                     response = await self._legacy_path(
@@ -169,6 +170,7 @@ class GenericAgent:
         session_id: str,
         chat_history: List[ConversationMessage],
         budget_session_id: Optional[str] = None,
+        model_id_override: Optional[str] = None,
     ):
         """Return a streaming async generator for the agentic loop (Phase 3.5).
 
@@ -247,6 +249,7 @@ class GenericAgent:
             session_id=session_id,
             temperature=self.config.model.temperature,
             budget_session_id=budget_session_id,
+            model_id_override=model_id_override,
         )
 
     # ------------------------------------------------------------------
@@ -262,6 +265,7 @@ class GenericAgent:
         user_id: str,
         session_id: str,
         budget_session_id: Optional[str],
+        model_id_override: Optional[str] = None,
     ) -> str:
         """Agentic execution: LLM-driven tool selection via Converse loop.
 
@@ -332,6 +336,7 @@ class GenericAgent:
                 session_id=session_id,
                 temperature=self.config.model.temperature,
                 budget_session_id=budget_session_id,
+                model_id_override=model_id_override,
             )
 
         # L5 Canary detection on final response

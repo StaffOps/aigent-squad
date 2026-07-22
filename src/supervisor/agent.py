@@ -4,8 +4,10 @@ import time
 from datetime import datetime, timezone
 from opentelemetry import trace
 from src.core.classifier import Classifier, ClassifierResult, AgentMatch
+from src.core.config import settings
 from src.core.guardrail import GuardrailBlockedError
 from src.core.input_scanner import InputScanner
+from src.core.model_tier import resolve_model_for_tier, validate_tier_models_at_startup
 from src.core.state_store import storage, ConversationMessage
 from src.core.logger import logger, log_request, log_response, log_error
 from src.core.metrics import request_counter, error_counter, request_duration, fanout_calls, fanout_agents_consulted, fanout_agents_failed
@@ -20,6 +22,44 @@ from src.supervisor.investigation import run_investigation
 from src.supervisor.distillation import distill_rca
 
 tracer = trace.get_tracer(__name__)
+
+
+def _resolve_tier_model(classification: ClassifierResult) -> str | None:
+    """Spec 38 Phase 1: map (complexity, confidence) → tier → model_id.
+
+    Returns the model_id to use, or None when tier routing is disabled
+    (falls back to standard role-based resolution in the agentic loop).
+
+    Dispatch (one-shot, no escalation per HC1):
+      - simple AND confidence >= HIGH → fast (Haiku)
+      - complex OR confidence < HIGH  → deep (Opus → standard if deep disabled)
+      - else                          → standard (Sonnet)
+    """
+    if not settings.aigent_tier_routing_enabled:
+        return None  # routing disabled → use default role resolution
+
+    complexity = classification.complexity
+    confidence = classification.confidence
+    high = settings.aigent_tier_confidence_high
+
+    if complexity == "simple" and confidence >= high:
+        tier = "fast"
+    elif complexity == "complex" or confidence < high:
+        tier = "deep"
+    else:
+        tier = "standard"
+
+    model_id = resolve_model_for_tier(tier)
+
+    logger.info("Tier routing resolved", extra={
+        "complexity": complexity,
+        "confidence": confidence,
+        "tier": tier,
+        "model_id": model_id,
+        "deep_enabled": settings.aigent_tier_deep_enabled,
+    })
+
+    return model_id
 
 
 class SupervisorAgent:
@@ -219,17 +259,22 @@ class SupervisorAgent:
                     user_id, session_id, primary_agent, user_message
                 )
 
+                # Spec 38: resolve tier model based on complexity + confidence
+                tier_model_id = _resolve_tier_model(classification)
+
                 # 5. Single agent fast-path (current behavior)
                 if len(agents) == 1:
                     return await self._single_agent_call(
                         agents[0].agent, classification, user_input,
-                        user_id, session_id, start_time
+                        user_id, session_id, start_time,
+                        model_id_override=tier_model_id,
                     )
 
                 # 6. Fan-out to multiple agents
                 return await self._fan_out(
                     agents, classification, user_input,
-                    user_id, session_id, start_time
+                    user_id, session_id, start_time,
+                    model_id_override=tier_model_id,
                 )
 
             except GuardrailBlockedError:
@@ -368,6 +413,9 @@ class SupervisorAgent:
             if not resolved_agent.has_agentic_tools():
                 return None  # non-agentic agent → fall back to non-streaming path
 
+            # Spec 38: resolve tier model based on complexity + confidence
+            tier_model_id = _resolve_tier_model(classification)
+
             # B-14: use focused sub_query when available; fallback to raw input.
             agent_input = user_input
             sq = agents[0].sub_query
@@ -390,6 +438,7 @@ class SupervisorAgent:
                 user_id=user_id,
                 session_id=session_id,
                 chat_history=await storage.fetch_chat(user_id, session_id, resolved_name),
+                model_id_override=tier_model_id,
             )
 
             async def _routed_stream():
@@ -406,7 +455,8 @@ class SupervisorAgent:
 
     async def _single_agent_call(
         self, agent_name: str, classification: ClassifierResult,
-        user_input: str, user_id: str, session_id: str, start_time: float
+        user_input: str, user_id: str, session_id: str, start_time: float,
+        model_id_override: str | None = None,
     ) -> Dict:
         """Fast-path: route to a single agent."""
         agent_history = await storage.fetch_chat(user_id, session_id, agent_name)
@@ -428,6 +478,7 @@ class SupervisorAgent:
                     user_id=user_id,
                     session_id=session_id,
                     chat_history=agent_history,
+                    model_id_override=model_id_override,
                 )
             except GuardrailBlockedError:
                 # Fail-closed (spec 14): propagate to the entrypoint (→ 403).
@@ -457,7 +508,8 @@ class SupervisorAgent:
 
     async def _fan_out(
         self, agents, classification: ClassifierResult,
-        user_input: str, user_id: str, session_id: str, start_time: float
+        user_input: str, user_id: str, session_id: str, start_time: float,
+        model_id_override: str | None = None,
     ) -> Dict:
         """Fan-out: call multiple agents in parallel, then synthesize."""
         with tracer.start_as_current_span("supervisor.fan_out") as span:
@@ -471,6 +523,7 @@ class SupervisorAgent:
                     user_id=user_id,
                     session_id=session_id,
                     chat_history=[],
+                    model_id_override=model_id_override,
                 )
                 for a in agents
             ]
@@ -543,4 +596,8 @@ class SupervisorAgent:
 # Initialize registry and supervisor
 registry = AgentRegistry()
 registry.discover()
+
+# HC5: Fail loud at startup if tier model IDs are misconfigured.
+validate_tier_models_at_startup()
+
 supervisor = SupervisorAgent(registry)

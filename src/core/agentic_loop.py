@@ -255,6 +255,7 @@ async def run_agentic_loop(
     session_id: str,
     temperature: float = 0.1,
     budget_session_id: str | None = None,
+    model_id_override: str | None = None,
 ) -> str:
     """Execute the bounded agentic loop (non-streaming).
 
@@ -271,6 +272,8 @@ async def run_agentic_loop(
         session_id: Session identifier.
         temperature: Model temperature.
         budget_session_id: Budget accounting session key.
+        model_id_override: Spec 38 — when set, converse() uses this model
+            instead of resolving from the "agent" role.
 
     Returns:
         The model's final text answer (possibly degraded if budgets exhausted).
@@ -375,6 +378,7 @@ async def run_agentic_loop(
                     apply_bedrock_guardrail=False,
                     # skip the app-level per-stage INPUT scan on assembled messages.
                     skip_input_guardrail=True,
+                    model_id_override=model_id_override,
                 )
 
                 # Track token usage for budget

@@ -339,6 +339,7 @@ class BedrockClient:
         budget_session_id: Optional[str] = None,
         apply_bedrock_guardrail: bool = True,
         skip_input_guardrail: bool = False,
+        model_id_override: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Synchronous Bedrock Converse API invocation with retry + jitter.
 
@@ -392,7 +393,7 @@ class BedrockClient:
                     "usage": {"input_tokens": int, "output_tokens": int},
                 }
         """
-        model_id = resolve_model(role)
+        model_id = model_id_override if model_id_override else resolve_model(role)
 
         # Layer 1 (INPUT) — evaluate untrusted user content before spending an
         # invoke. Extracts text from last user message's content blocks.
@@ -694,6 +695,7 @@ class BedrockClient:
         budget_session_id: Optional[str] = None,
         apply_bedrock_guardrail: bool = True,
         skip_input_guardrail: bool = False,
+        model_id_override: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Async Bedrock Converse API invocation with circuit breaker.
 
@@ -710,6 +712,8 @@ class BedrockClient:
                 Default True preserves behavior for standalone/non-loop callers.
             skip_input_guardrail: G-6 fix — skip per-stage INPUT scan when
                 ingress already guarded the genuine user question.
+            model_id_override: Spec 38 — when set, bypasses resolve_model(role)
+                and uses this model_id directly (tier pre-routing).
 
         Returns:
             Structured result dict (see ``_converse_sync`` docstring).
@@ -722,7 +726,7 @@ class BedrockClient:
                 self._converse_sync, messages, system_prompt, max_tokens,
                 temperature, tool_config, agent_id, user_id, session_id,
                 role, budget_session_id, apply_bedrock_guardrail,
-                skip_input_guardrail,
+                skip_input_guardrail, model_id_override,
             )
             self.circuit_breaker.record_success()
             return result

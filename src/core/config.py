@@ -12,6 +12,18 @@ class Settings(BaseSettings):
     bedrock_agent_model_id: str = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
     bedrock_synthesis_model_id: str = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
 
+    # Model-tier PRE-ROUTING (spec 38): complexity-aware tier → model ID.
+    # Override via env BEDROCK_TIER_FAST_MODEL_ID / BEDROCK_TIER_STANDARD_MODEL_ID /
+    # BEDROCK_TIER_DEEP_MODEL_ID.
+    bedrock_tier_fast_model_id: str = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+    bedrock_tier_standard_model_id: str = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
+    bedrock_tier_deep_model_id: str = "us.anthropic.claude-opus-4-20250514-v1:0"
+
+    # Tier routing control flags (spec 38 Phase 1).
+    aigent_tier_routing_enabled: bool = True
+    aigent_tier_deep_enabled: bool = False  # Phase 1: keep false until Opus access confirmed
+    aigent_tier_confidence_high: float = 0.85
+
     # Shared always-on agent instructions — appended to EVERY agent's system prompt.
     # Env-overridable (CALIBRATED_HONESTY_INSTRUCTION / SELF_SERVICE_INSTRUCTION) so the
     # policy text is tunable via Helm values WITHOUT a rebuild.

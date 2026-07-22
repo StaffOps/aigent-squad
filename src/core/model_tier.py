@@ -78,6 +78,57 @@ def resolve_model(role: str) -> str:
     return role_map.get(role, settings.bedrock_agent_model_id)
 
 
+# ── Model-tier PRE-ROUTING (spec 38 Phase 1) ────────────────────────────────
+
+
+def resolve_model_for_tier(tier: str) -> str:
+    """Resolve a complexity tier to a concrete Bedrock model ID.
+
+    Tiers:
+        - "fast"     → bedrock_tier_fast_model_id (Haiku)
+        - "standard" → bedrock_tier_standard_model_id (Sonnet)
+        - "deep"     → bedrock_tier_deep_model_id (Opus), BUT falls back to
+                       standard when AIGENT_TIER_DEEP_ENABLED is false.
+
+    Unknown tiers resolve to standard (safe: Sonnet, the mid-tier).
+    """
+    if tier == "fast":
+        return settings.bedrock_tier_fast_model_id
+    if tier == "deep":
+        # Phase 1 rollout: deep disabled by default → falls back to standard.
+        if not settings.aigent_tier_deep_enabled:
+            return settings.bedrock_tier_standard_model_id
+        return settings.bedrock_tier_deep_model_id
+    # "standard" or anything unknown → standard
+    return settings.bedrock_tier_standard_model_id
+
+
+def validate_tier_models_at_startup() -> None:
+    """Fail loud at startup if any tier model ID is empty or unrecognizable.
+
+    HC5: startup validation — no silent fallback. A misconfigured tier must
+    crash the process before serving traffic.
+    """
+    tier_ids = {
+        "fast": settings.bedrock_tier_fast_model_id,
+        "standard": settings.bedrock_tier_standard_model_id,
+        "deep": settings.bedrock_tier_deep_model_id,
+    }
+    for tier_name, model_id in tier_ids.items():
+        if not model_id or not model_id.strip():
+            raise RuntimeError(
+                f"BEDROCK_TIER_{tier_name.upper()}_MODEL_ID is empty — "
+                f"cannot start. Set a valid inference-profile ID."
+            )
+        family = _model_family(model_id)
+        if family == "unknown":
+            raise RuntimeError(
+                f"BEDROCK_TIER_{tier_name.upper()}_MODEL_ID='{model_id}' — "
+                f"unrecognized model family (expected haiku/sonnet/opus in the ID). "
+                f"Fix the env var or update MODEL_PRICING for the new family."
+            )
+
+
 def get_pricing(model_id: str) -> ModelPricing:
     """Return pricing for a model ID (by family extraction)."""
     family = _model_family(model_id)
