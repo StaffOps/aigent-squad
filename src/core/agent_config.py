@@ -32,6 +32,16 @@ MAX_LOOP_DURATION_MS: int = int(os.environ.get("AIGENT_MAX_LOOP_DURATION_MS", "1
 MAX_LOOP_TOKENS: int = int(os.environ.get("AIGENT_MAX_LOOP_TOKENS", "300000"))
 MAX_TOOL_RESULT_CHARS: int = int(os.environ.get("AIGENT_MAX_TOOL_RESULT_CHARS", "40000"))
 
+# ---------------------------------------------------------------------------
+# Context-trimming config (spec 40, DC4/DC5).
+# Keep last N tool-result turns verbatim; older results get a deterministic
+# enriched summary (shape + sample + keys).  Reduces per-turn context size so
+# MAX_LOOP_TOKENS is not exhausted and latency drops.
+# ---------------------------------------------------------------------------
+
+CONTEXT_TRIM_ENABLED: bool = os.environ.get("AIGENT_CONTEXT_TRIM_ENABLED", "true").lower() in ("true", "1", "yes")
+CONTEXT_KEEP_LAST_N: int = max(int(os.environ.get("AIGENT_CONTEXT_KEEP_LAST_N", "5")), 1)
+
 
 class DatasourceConfig(BaseModel):
     type: str  # boto3, kubernetes, http, athena, mcp

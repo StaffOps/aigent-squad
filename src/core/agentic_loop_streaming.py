@@ -33,6 +33,7 @@ from src.core.agent_config import (
     MAX_LOOP_TOKENS,
     MAX_TOOL_RESULT_CHARS,
     MAX_TOOL_STEPS,
+    CONTEXT_KEEP_LAST_N,
 )
 from src.core.agentic_loop import (
     _McpSessionPool,
@@ -51,6 +52,7 @@ from src.core.bedrock import bedrock
 from src.core.config import settings
 from src.core.logger import logger
 from src.core.metrics import meter
+from src.core.truncation import trim_message_history
 
 tracer = get_tracer(__name__)
 
@@ -294,6 +296,10 @@ async def run_agentic_loop_streaming(
                     }
 
                 # --- Call Converse ---
+                # Context-trimming (spec 40): replace older toolResult content
+                # with enriched summaries to bound context size.
+                trim_message_history(messages, CONTEXT_KEEP_LAST_N)
+
                 # Guardrail strategy (spec 37, B3 + Decisão 3):
                 # - FIRST call (step==0): user input → Bedrock guardrail ON
                 #   (catches prompt-injection, PII in user query).
