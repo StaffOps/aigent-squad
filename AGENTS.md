@@ -265,6 +265,7 @@ No code changes needed — `AgentRegistry` auto-discovers at startup.
 | `BEDROCK_READ_TIMEOUT_SECONDS` | | `120` | boto3 Bedrock read timeout (default 60s cut slow Converse → stream "terminated") |
 | `GATEWAY_JOB/FIRST_BYTE/IDLE_STREAM_TIMEOUT_SECONDS` | | `150`/`90`/`35` | Gateway stream timeouts; must exceed the loop budget + Bedrock read timeout |
 | `SELF_SERVICE_INSTRUCTION` / `CALIBRATED_HONESTY_INSTRUCTION` / `DECISIVENESS_INSTRUCTION` | | baked default | Env-overridable shared system-prompt instructions (no rebuild to tune) |
+| `GRAFANA_BASE_URL` | | (empty) | Grafana root URL injected into agent context for clickable DevOps dashboard links; empty default keeps the repo scrub-clean, real value set in the k8s-setup overlay |
 
 > **Deploy gotcha:** set numeric envs via `helm --set-string` — plain `--set` renders large ints as `2e+06` → pydantic int-parse crash on startup.
 | `INPUT_SCANNER_ENABLED` / `OUTPUT_FILTER_ENABLED` / `CANARY_ENABLED` | | `true` | Spec-14 L2/L4/L5 toggles |

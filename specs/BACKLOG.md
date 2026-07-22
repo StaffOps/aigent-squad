@@ -33,7 +33,7 @@ runtime `main` `4a1b66e`. **No uncommitted work.** Eval **6/6**.
 ### 🔴 Blocked (need ops / user input)
 - **WS1 grafana-mcp** — M-1: the Grafana SA token must become **Viewer** (terraform/admin).
 - **Opus inference-profile access** (Bedrock) — blocks the spec 38 `deep` tier (T9).
-- **`${GRAFANA_BASE}`** — ✅ **found via Grafana MCP: `https://grafana.bdc.app.br`**. Wiring pending: inject as an env (`GRAFANA_BASE_URL`) via the k8s-setup overlay rather than hardcoding the host in the scrubbed app repo (keeps the org-scrub intact) so the `devops-grafana-dashboards` links are clickable.
+- **`${GRAFANA_BASE}`** — ✅ **WIRED (agentic27, config-driven):** `grafana_base_url` setting in the repo (empty default, scrub-clean) + real value `https://grafana.bdc.app.br` injected via `GRAFANA_BASE_URL` env in the k8s-setup overlay → appended to agent context as `<grafana_base>`. Live on both supervisor pods. (Link emission is model-dependent; strengthen the skill/self_service if links need to appear more consistently.)
 - **vmselect / Pyroscope OOMKilled** on devops-core — ⏸️ **DEPRIORITIZED (user 2026-07-22: not impacting the environment).** Left as an observation; no action unless it starts affecting query latency/availability.
 
 ### 🟡 Quick wins (not started)
