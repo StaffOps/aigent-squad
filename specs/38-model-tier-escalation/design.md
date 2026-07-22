@@ -87,6 +87,40 @@ session budget (FinOps-visible via `compute_cost`).
 | `AIGENT_TIER_CONFIDENCE_HIGH` / `_LOW` | `0.85` / `0.5` | downshift / escalate thresholds |
 | `AIGENT_TIER_MAX_ESCALATIONS` | `1` | bound |
 
+## Harness round-table outcomes (BINDING — reshape the design)
+
+code-review + finops + sre returned REQUEST-CHANGES with a unified conclusion:
+**runtime escalation-as-retry is the wrong mechanism — PRE-ROUTE to the correct
+tier instead.** Binding:
+
+- **HC1 — Eliminate runtime tier escalation.** Impossible on the streaming path
+  (bytes already flushed — can't retract a partial answer); restarts the whole loop
+  (doubles cost/latency; the failed attempt already spent the token budget so a
+  pricier retry is DOA); and masks real bugs (bad tool schema, missing context,
+  guard false-positive).
+- **HC2 — Tier from the classifier, ONE-SHOT:** confident-simple → `fast` (Haiku);
+  confident-complex → `deep` (Opus) DIRECTLY (skip Sonnet); else → `standard`
+  (Sonnet). A wrong tier = a classifier bug to fix, not a runtime retry.
+- **HC3 — Downshift to `fast` ONLY for a provably-simple class** (factual lookup,
+  high confidence, expected ≤1 tool call). Do NOT downshift investigative
+  single-agent queries ("why is X slow?" looks simple but is complex). When in
+  doubt → `standard`.
+- **HC4 — Retry survives ONLY as same-tier retry for TRANSIENT errors** (Bedrock
+  429/5xx) with backoff + a per-tier circuit breaker. NOT a tier bump.
+  Quality-guard defects keep current behavior (refuse/403 or same-tier reprompt) —
+  a bigger model does not fix format defects.
+- **HC5 — Startup validation (fail loud):** validate each tier model_id at startup
+  (settings validator / describe probe); no silent fallback. Confirm Opus
+  inference-profile access before enabling `deep`.
+- **HC6 — FinOps framing = QUALITY investment, not cost savings.** Haiku savings
+  are dwarfed by Opus cost. Add per-tier cost attribution
+  (`model_tier_cost_usd{tier}`), tier-distribution metric, and a latency SLO per
+  tier (fast<3s, standard<10s, deep<20s) + wall-clock kill.
+
+The escalation sections above are SUPERSEDED by HC1–HC4. The core deliverable is
+now **complexity-aware pre-routing** (classifier → tier, one-shot) — simpler,
+faster, more debuggable than escalation.
+
 ## Phase 1
 Complexity-from-classifier + tier map + downshift-simple + escalate-once. NOT
 multi-hop, NOT per-agent tier overrides. Opus must be enabled/available in the
