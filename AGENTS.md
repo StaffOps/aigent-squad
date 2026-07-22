@@ -258,6 +258,12 @@ No code changes needed — `AgentRegistry` auto-discovers at startup.
 | `GUARDRAIL_ID` / `GUARDRAIL_VERSION` | when enabled | — / `DRAFT` | From `infra/terraform/guardrail/` outputs |
 | `AIGENT_TRACE_STYLE` | | `think` | Streaming tool-trace wrapper: `think` (collapsible in LibreChat/Open WebUI) / `details` / `plain` / `off` |
 | `SESSION_TOKEN_BUDGET` | | `2000000` | Per-session cumulative token cap (spec 11); raised from 200K for agentic loop cost (~30-60K/query) |
+| `AIGENT_MAX_LOOP_DURATION_MS` / `AIGENT_MAX_LOOP_TOKENS` | | `120000` / `300000` | Agentic loop wall-clock + cumulative-token budgets (deep analyses; context accumulates across turns) |
+| `BEDROCK_READ_TIMEOUT_SECONDS` | | `120` | boto3 Bedrock read timeout (default 60s cut slow Converse → stream "terminated") |
+| `GATEWAY_JOB/FIRST_BYTE/IDLE_STREAM_TIMEOUT_SECONDS` | | `150`/`90`/`35` | Gateway stream timeouts; must exceed the loop budget + Bedrock read timeout |
+| `SELF_SERVICE_INSTRUCTION` / `CALIBRATED_HONESTY_INSTRUCTION` | | baked default | Env-overridable shared system-prompt instructions (no rebuild to tune) |
+
+> **Deploy gotcha:** set numeric envs via `helm --set-string` — plain `--set` renders large ints as `2e+06` → pydantic int-parse crash on startup.
 | `INPUT_SCANNER_ENABLED` / `OUTPUT_FILTER_ENABLED` / `CANARY_ENABLED` | | `true` | Spec-14 L2/L4/L5 toggles |
 | `RATE_BUDGET_ENABLED` | | `true` | Gateway admission guards (rate + daily budget) |
 | `GATEWAY_MAX_CONCURRENT` | | `20` | WorkerPool size (+ `GATEWAY_*_TIMEOUT_SECONDS`) |

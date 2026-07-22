@@ -17,11 +17,24 @@
   "Thinking" panel — raw `<details>` HTML was shown as plain text), configurable via
   `AIGENT_TRACE_STYLE` (`think` | `details` | `plain` | `off`); terse `📦` summaries; graceful
   budget exhaustion (no leaked counters) + partial answer.
-- **Loop budgets:** `MAX_TOOL_STEPS` 5→8, `MAX_LOOP_DURATION_MS` 30s→60s (discover-first); gateway
-  timeouts raised (first_byte 15→65s, job 45→75s).
+- **Loop / gateway / Bedrock budgets & timeouts:** `MAX_TOOL_STEPS` 5→8; `MAX_LOOP_DURATION_MS`
+  30s→60s→**120s**; `MAX_LOOP_TOKENS` 150K→**300K** (context accumulates across turns — 166K hit at
+  step 5/8); gateway `first_byte`→90s, `job`→150s, `idle_stream` 10→**35s**; **Bedrock boto3
+  `read_timeout` 60→120s** (`BEDROCK_READ_TIMEOUT_SECONDS`) — the 60s default cut slow Converse turns
+  → `ReadTimeoutError` → stream "terminated". **Deploy gotcha:** set numeric envs via
+  `helm --set-string` — plain `--set` renders large ints as `2e+06` → pydantic int-parse crash.
 - **Session token budget:** `session_token_budget` 200K→2M (env `SESSION_TOKEN_BUDGET`) — agentic
   queries cost ~30-60K tokens each; the old per-session cap blocked a LibreChat conversation after
   ~5 queries ("reached its token budget"). Still a runaway guardrail (~40 heavy queries / 24h).
+- **`<self_service>` policy + env-overridable shared instructions:** agents are read-only — never
+  suggest `kubectl`/CLI, fetch data themselves or point to the specific DevOps dashboard, and offer
+  to build a dashboard/PromQL if none fits. Shared instructions (`SELF_SERVICE_INSTRUCTION`,
+  `CALIBRATED_HONESTY_INSTRUCTION`) are now env-overridable (no rebuild) instead of hardcoded.
+- **`devops-grafana-dashboards` skill:** real catalog of the DevOps-GenericMonitoring Grafana folder
+  (APM, BDCOtelHelper, Synthetic Tests - Kuma) + flags the empty Kubernetes subfolder as a build
+  opportunity; wired into observability/kubernetes/devops.
+- **Observability Rule 5 (health-verdict discipline):** never declare "healthy/EXCELENTE" without a
+  tool result this turn; recurring OOM/restarts/errors = degraded, lead with the findings.
 - **Security scrub:** all BigDataCorp/BDC references removed from the project → `<ORG>` placeholders
   (`scripts/scrub_org.py`); 6 skills renamed; zero traces remain.
 
