@@ -368,6 +368,12 @@ class SupervisorAgent:
             if not resolved_agent.has_agentic_tools():
                 return None  # non-agentic agent → fall back to non-streaming path
 
+            # B-14: use focused sub_query when available; fallback to raw input.
+            agent_input = user_input
+            sq = agents[0].sub_query
+            if sq:
+                agent_input = sq
+
             # Save user message tagged to the resolved agent
             user_message = ConversationMessage(
                 role="user",
@@ -380,7 +386,7 @@ class SupervisorAgent:
             # Build a wrapper generator that emits StepRouting first, then the
             # agent's agentic loop steps.
             agent_step_gen = await resolved_agent.process_request_streaming(
-                input_text=user_input,
+                input_text=agent_input,
                 user_id=user_id,
                 session_id=session_id,
                 chat_history=await storage.fetch_chat(user_id, session_id, resolved_name),
@@ -406,12 +412,19 @@ class SupervisorAgent:
         agent_history = await storage.fetch_chat(user_id, session_id, agent_name)
         agent = self.agents[agent_name]
 
+        # B-14: use the focused sub_query when available; fallback to raw input.
+        agent_input = user_input
+        if classification.agents:
+            sq = classification.agents[0].sub_query
+            if sq:
+                agent_input = sq
+
         with tracer.start_as_current_span("agent.process") as agent_span:
             agent_span.set_attribute("agent_id", agent_name)
 
             try:
                 result = await agent.process_request(
-                    input_text=user_input,
+                    input_text=agent_input,
                     user_id=user_id,
                     session_id=session_id,
                     chat_history=agent_history,
@@ -452,7 +465,9 @@ class SupervisorAgent:
 
             tasks = [
                 self.agents[a.agent].process_request(
-                    input_text=user_input,
+                    # B-14: each agent gets its focused sub_query; fall back to
+                    # raw user_input when sub_query is absent/empty.
+                    input_text=a.sub_query if a.sub_query else user_input,
                     user_id=user_id,
                     session_id=session_id,
                     chat_history=[],

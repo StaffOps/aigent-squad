@@ -12,6 +12,11 @@ from src.core.logger import logger
 class AgentMatch:
     agent: str
     confidence: float
+    # B-14: focused sub-question for this agent (≤1-2 sentences), emitted by
+    # the classifier in the same Haiku call. Includes time window when the
+    # original question is time-bound. Empty string = not available (fallback
+    # to the raw user question at dispatch).
+    sub_query: str = ""
 
 
 @dataclass
@@ -69,10 +74,16 @@ Analyze the user's input and select one or more agents from:
 **Response Format** (JSON only, no preamble):
 {{
   "agents": [
-    {{"agent": "agent-name", "confidence": 0.95}}
+    {{"agent": "agent-name", "confidence": 0.95, "sub_query": "Focused 1-2 sentence question for this agent"}}
   ],
   "reasoning": "Brief explanation"
 }}
+
+**sub_query rules**:
+- For EACH selected agent, write a focused, self-contained sub-question (1-2 sentences max) that tells the agent exactly what to investigate or answer.
+- If the user's question is time-bound (e.g. "last 1h", "since yesterday", "últimas 2h"), include the time window in the sub_query.
+- If the query is a simple follow-up ("yes", "ok", "more"), leave sub_query as an empty string.
+- The sub_query should be in the SAME language as the user's original question.
 
 If unable to classify, return an empty agents list."""
 
@@ -134,7 +145,11 @@ If unable to classify, return an empty agents list."""
             result = json.loads(self._extract_json(response))
             agents_raw = result.get("agents", [])
             agents = [
-                AgentMatch(agent=a["agent"], confidence=a.get("confidence", 0.5))
+                AgentMatch(
+                    agent=a["agent"],
+                    confidence=a.get("confidence", 0.5),
+                    sub_query=a.get("sub_query", ""),
+                )
                 for a in agents_raw
                 if a.get("agent") in self._agent_names
             ]
