@@ -61,6 +61,10 @@ class Settings(BaseSettings):
         "keep gathering 'for completeness'.\n"
         "</decisiveness>"
     )
+    # Grafana root URL for clickable DevOps-GenericMonitoring dashboard links.
+    # Default empty (scrub-clean); real value injected via GRAFANA_BASE_URL in the
+    # k8s-setup overlay (internal infra config), not hardcoded in this repo.
+    grafana_base_url: str = ""
 
     # Prompt caching (spec 11): add cache_control to system block.
     # Disable if the region/model rejects it (graceful degradation).

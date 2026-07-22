@@ -41,6 +41,12 @@ SHARED_INSTRUCTIONS = (
     f"\n\n{settings.calibrated_honesty_instruction}"
     f"\n\n{settings.self_service_instruction}"
     f"\n\n{settings.decisiveness_instruction}"
+    + (
+        f"\n\n<grafana_base>The Grafana base URL is {settings.grafana_base_url} — "
+        f"prepend it to dashboard paths (e.g. {settings.grafana_base_url}/d/<uid>/<slug>) "
+        f"to give clickable links.</grafana_base>"
+        if settings.grafana_base_url else ""
+    )
 )
 
 tracer = get_tracer(__name__)
