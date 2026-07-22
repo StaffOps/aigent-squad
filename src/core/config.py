@@ -18,7 +18,7 @@ class Settings(BaseSettings):
 
     # Token budget (spec 11): hard cap per session (total input+output tokens).
     # Default 200k — generous but prevents runaway sessions.
-    session_token_budget: int = 200_000
+    session_token_budget: int = 2_000_000
 
     # History truncation by tokens (spec 11). Controls how many tokens of chat
     # history are included in each Bedrock call (not session-wide budget).
