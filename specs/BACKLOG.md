@@ -33,8 +33,8 @@ runtime `main` `4a1b66e`. **No uncommitted work.** Eval **6/6**.
 ### 🔴 Blocked (need ops / user input)
 - **WS1 grafana-mcp** — M-1: the Grafana SA token must become **Viewer** (terraform/admin).
 - **Opus inference-profile access** (Bedrock) — blocks the spec 38 `deep` tier (T9).
-- **`${GRAFANA_BASE}`** — real Grafana base URL for clickable dashboard links (user input).
-- **vmselect / Pyroscope OOMKilled** on devops-core — infra; file in `devops-platform-knowledge` + bump memory (also slows the squad's queries).
+- **`${GRAFANA_BASE}`** — ✅ **found via Grafana MCP: `https://grafana.bdc.app.br`**. Wiring pending: inject as an env (`GRAFANA_BASE_URL`) via the k8s-setup overlay rather than hardcoding the host in the scrubbed app repo (keeps the org-scrub intact) so the `devops-grafana-dashboards` links are clickable.
+- **vmselect / Pyroscope OOMKilled** on devops-core — ⏸️ **DEPRIORITIZED (user 2026-07-22: not impacting the environment).** Left as an observation; no action unless it starts affecting query latency/availability.
 
 ### 🟡 Quick wins (not started)
 - ✅ **Thinking enrichment (DELIVERED agentic25):** model narration text on tool_use turns now surfaces as 💭 (was discarded) + `sub_query` shown in the routing line (`🧭 … — foco: "…"`). Feature B (foco) live-confirmed; A unit-tested (11 tests, code-review APPROVE).
