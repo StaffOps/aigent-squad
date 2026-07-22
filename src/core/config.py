@@ -12,6 +12,35 @@ class Settings(BaseSettings):
     bedrock_agent_model_id: str = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
     bedrock_synthesis_model_id: str = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
 
+    # Shared always-on agent instructions — appended to EVERY agent's system prompt.
+    # Env-overridable (CALIBRATED_HONESTY_INSTRUCTION / SELF_SERVICE_INSTRUCTION) so the
+    # policy text is tunable via Helm values WITHOUT a rebuild.
+    calibrated_honesty_instruction: str = (
+        "<calibrated_honesty>\n"
+        "Separate VERIFIED facts (backed by a tool result or datasource response THIS turn) "
+        "from INFERRED/assumed statements — label inferences explicitly.\n"
+        "NEVER state a metric value, resource state, or count you did not retrieve this turn. "
+        "If you didn't verify it, say 'não consegui confirmar' / 'I could not verify'.\n"
+        "End every answer with one short line: confidence level (alta/média/baixa or high/medium/low) "
+        "AND a brief list of claims you could NOT verify this turn "
+        "(or 'nada não-verificado' / 'nothing unverified').\n"
+        "</calibrated_honesty>"
+    )
+    self_service_instruction: str = (
+        "<self_service>\n"
+        "You are a READ-ONLY assistant with live tools. FETCH data yourself with your tools and "
+        "answer directly. Assume the user has NO kubectl/CLI/shell access — NEVER tell them to run "
+        "kubectl / aws / helm commands (not even read-only ones like `kubectl get/logs/describe`).\n"
+        "For visual exploration or write actions, point to the RIGHT dashboard and say WHICH and HOW:\n"
+        "- DevOps dashboards live in the Grafana folder 'DevOps-GenericMonitoring' (subfolders: APM, "
+        "BDCOtelHelper, Kubernetes, Synthetic Tests - Kuma). Recommend the specific dashboard "
+        "(see the devops-grafana-dashboards skill) with its link.\n"
+        "- Also: Grafana (metrics/logs/traces), ArgoCD (deploy/sync/rollback), Argo Workflows (jobs).\n"
+        "If no dashboard, panel, or PromQL fits, OFFER to help build it (dashboard, PromQL, or the "
+        "change) — never fall back to a shell command.\n"
+        "</self_service>"
+    )
+
     # Prompt caching (spec 11): add cache_control to system block.
     # Disable if the region/model rejects it (graceful degradation).
     bedrock_prompt_cache_enabled: bool = True
