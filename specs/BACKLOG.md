@@ -38,7 +38,7 @@ runtime `main` `4a1b66e`. **No uncommitted work.** Eval **6/6**.
 
 ### 🟡 Quick wins (not started)
 - ✅ **Thinking enrichment (DELIVERED agentic25):** model narration text on tool_use turns now surfaces as 💭 (was discarded) + `sub_query` shown in the routing line (`🧭 … — foco: "…"`). Feature B (foco) live-confirmed; A unit-tested (11 tests, code-review APPROVE).
-- **Decisiveness prompt** — reduce open-ended over-exploration (complements trimming).
+- ✅ **Decisiveness (DELIVERED agentic26)** — `<decisiveness>` shared instruction (one discovery pass → targeted queries, stop when enough); env-overridable; eval 6/6, no regression. Completes the latency/accuracy triad with context-trimming + tiering.
 - **`<self_service>` tone** — soften (env-overridable, no rebuild).
 - **Kubernetes dashboard** — the DevOps-GenericMonitoring/Kubernetes folder is empty → offer to build (workload health).
 

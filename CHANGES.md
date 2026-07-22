@@ -49,6 +49,9 @@
   suggest `kubectl`/CLI, fetch data themselves or point to the specific DevOps dashboard, and offer
   to build a dashboard/PromQL if none fits. Shared instructions (`SELF_SERVICE_INSTRUCTION`,
   `CALIBRATED_HONESTY_INSTRUCTION`) are now env-overridable (no rebuild) instead of hardcoded.
+- **`<decisiveness>` shared instruction (agentic26):** one discovery pass → targeted queries, stop
+  when there's enough to answer — curbs open-ended over-exploration (latency + tokens). Env-overridable
+  (`DECISIVENESS_INSTRUCTION`); eval 6/6, no accuracy regression.
 - **`devops-grafana-dashboards` skill:** real catalog of the DevOps-GenericMonitoring Grafana folder
   (APM, BDCOtelHelper, Synthetic Tests - Kuma) + flags the empty Kubernetes subfolder as a build
   opportunity; wired into observability/kubernetes/devops.
