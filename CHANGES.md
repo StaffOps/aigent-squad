@@ -2,7 +2,7 @@
 
 ## [Unreleased]
 
-### Added — grafana-mcp read-only binding (observability)
+### Added — grafana-mcp + kubectl-mcp read-only bindings
 - **grafana-mcp bound to the observability agent** (2026-07-22) — the deployed `mcp-servers/grafana-mcp`
   server is now wired as a datasource with a **strict read-only tool allowlist** (44 read tools:
   Loki logs, Tempo traces, Pyroscope profiles, Prometheus, dashboards, alerts/incidents/OnCall/Sift
@@ -11,6 +11,16 @@
   read-only holds at the config layer even though the backing SA token is currently write-capable.
   Registry shows "observability (2 datasources)". Unlocks logs/traces/profiles for the squad (was
   metrics-only via vm-mcp). Hardening follow-up: reprovision the SA token as Viewer (M-1).
+- **kubectl-mcp bound to the kubernetes agent** (2026-07-22) — extended read surface beyond kube-mcp
+  (helm / Argo Rollouts / cert-manager / Istio / Cilium / GitOps / KEDA / Velero / CAPI / KubeVirt /
+  CRDs / cost & resource analysis + rich pod diagnostics), **strict read-only allowlist** (157 read
+  tools; validated 0 write, 0 duplicates). Excludes every mutating tool (kubectl_apply/delete/patch/
+  create/generic, scale/restart, exec_in_pod, run_pod, helm install/upgrade/uninstall, promote/abort
+  _rollout, create/delete_backup, kubevirt_vm lifecycle, node_management, all `kind_*`/`vind_*`),
+  plus get_secrets/kubeconfig_view/multi_cluster_*/probe-pod tools. Registry: "kubernetes (2 datasources)".
+- **Gotcha (learned):** Bedrock **Converse rejects duplicate tool names across merged MCP datasources**
+  (`ValidationException: The tool <x> is already defined`). When binding a 2nd MCP to an agent, dedupe
+  the allowlist against the existing datasource's tools (here `helm_list` overlapped k8s-mcp).
 
 ### Added — spec 39 (`observability-rca-uplift`) + accuracy & hardening
 - **WS2 — metric-catalog skills:** migrated ~110 org ops catalogs into the squad skill registry
