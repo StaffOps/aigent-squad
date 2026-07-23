@@ -41,7 +41,7 @@ runtime `main` `4a1b66e`. **No uncommitted work.** Eval **6/6**.
 - ✅ **Thinking enrichment (DELIVERED agentic25):** model narration text on tool_use turns now surfaces as 💭 (was discarded) + `sub_query` shown in the routing line (`🧭 … — foco: "…"`). Feature B (foco) live-confirmed; A unit-tested (11 tests, code-review APPROVE).
 - ✅ **Decisiveness (DELIVERED agentic26)** — `<decisiveness>` shared instruction (one discovery pass → targeted queries, stop when enough); env-overridable; eval 6/6, no regression. Completes the latency/accuracy triad with context-trimming + tiering.
 - **`<self_service>` tone** — soften (env-overridable, no rebuild).
-- **Kubernetes dashboard** — the DevOps-GenericMonitoring/Kubernetes folder is empty → offer to build (workload health).
+- **Kubernetes dashboards** — ✅ **RESOLVED (recheck 2026-07-23):** the DevOps-GenericMonitoring/Kubernetes folder is **NOT empty** — 3 subfolders: **Argo** (Rollouts Overview, ArgoCD App Overview), **EKS** (Cluster Global/Namespaces Overview, Compute Resources per Namespace/Node/Pod/Workload, App Issue View, App Workload, Persistent Volumes), **Istio** (RED, Traffic per Pod). Plus a full kubernetes-mixin in DevOps-Default/Kubernetes-Default. **No new dashboard needed;** the `devops-grafana-dashboards` skill was corrected to catalog them (was mis-labelled empty).
 
 ### 🔵 Deferred (roadmap)
 WS3 cross-signal RCA Phase-1 (spec 39) · B-16 Phase-2 (structured confidence) ·

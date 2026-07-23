@@ -76,8 +76,9 @@
   when there's enough to answer — curbs open-ended over-exploration (latency + tokens). Env-overridable
   (`DECISIVENESS_INSTRUCTION`); eval 6/6, no accuracy regression.
 - **`devops-grafana-dashboards` skill:** real catalog of the DevOps-GenericMonitoring Grafana folder
-  (APM, BDCOtelHelper, Synthetic Tests - Kuma) + flags the empty Kubernetes subfolder as a build
-  opportunity; wired into observability/kubernetes/devops.
+  (APM, BDCOtelHelper, Synthetic Tests - Kuma, and Kubernetes → Argo/EKS/Istio subfolders with
+  comprehensive workload/rollout/mesh dashboards — recheck 2026-07-23 corrected an earlier
+  "empty" mis-catalog); wired into observability/kubernetes/devops.
 - **Observability Rule 5 (health-verdict discipline):** never declare "healthy/EXCELENTE" without a
   tool result this turn; recurring OOM/restarts/errors = degraded, lead with the findings.
 - **Security scrub:** all BigDataCorp/BDC references removed from the project → `<ORG>` placeholders

@@ -41,14 +41,40 @@ Path: `/d/<uid>/<slug>` — e.g. `/d/apm-svc-overview/apm-service-overview`.
 | **Uptime Kuma - Metrics** | `synthetic-tests-kuma` | is the endpoint up (external synthetic checks)? |
 | **Uptime Kuma - SLA/Latency/Certs** | `uptime-kuma` | SLA %, synthetic latency, TLS certificate expiry |
 
-## Kubernetes subfolder (`bfqu5w5hje9s0a`) — ⚠️ EMPTY (build opportunity)
+## Kubernetes folder (`bfqu5w5hje9s0a`, under DevOps-GenericMonitoring) — 3 subfolders
 
-The Kubernetes subfolder exists but has **no dashboards yet**. For workload health
-questions (pod restarts, OOMKilled, resource usage, node pressure) there is **no dashboard
-to point to** — this is the first candidate to **help build**. Offer to build a
-"Kubernetes Workload Health" dashboard (restarts by namespace/pod, OOMKilled events,
-CPU/memory vs requests, node pressure) from `kube_pod_container_status_*`,
-`container_memory_working_set_bytes`, and `kube_node_status_*` in VictoriaMetrics.
+**Comprehensive coverage — do NOT build new K8s dashboards; point here.** (Corrected
+2026-07-23: this folder was previously mis-catalogued as empty. It holds 3 subfolders.)
+
+### `Argo` (`bfqucadu1zy0wf`)
+| Dashboard | uid | Use it when… |
+|-----------|-----|--------------|
+| **Argo Rollouts - Overview** | `argo-rollouts-overview` | canary/blue-green progress, rollout health, pause/abort/analysis |
+| **ArgoCD - Application Overview** | `dcfqusckg2t81sd` | app sync status, drift, reconciliation health |
+
+### `EKS` (`cfqucch8u1rlsc`) — workload health (the go-to for "is service X healthy?")
+| Dashboard | uid | Use it when… |
+|-----------|-----|--------------|
+| **Cluster - Global Overview** | `defqu7doew581sd` | cluster-wide CPU/mem/pod capacity |
+| **Cluster - Namespaces Overview** | `ddfqu7g7fly58gb` | per-namespace resource usage ranking |
+| **Compute Resources - Namespace (Pods)** | `dffqu6t0zi27eoa` | pods in a namespace: CPU/mem vs requests |
+| **Compute Resources - Namespace (Workloads)** | `dffqu6u5y41ou8d` | workloads (deploy/sts/ds) in a namespace |
+| **Compute Resources - Node (Pods)** | `ddfqu6uihxr3lsc` | node pressure, pods per node |
+| **Compute Resources - Pod** | `ddfqu6uumcfv9cf` | single-pod deep-dive: CPU/mem/restarts/throttling |
+| **Compute Resources - Workload** | `dcfqu6v1p4og74f` | a deployment/sts CPU/mem over time |
+| **Kubernetes - App Issue View** | `dffqu7i03wqcxsf` | triage an app's issues (restarts, OOM, errors) |
+| **Kubernetes - App Workload** | `dcfqu7htmk5af4c` | an app's workload health |
+| **Persistent Volumes** | `dafqu6z2bq0em8b` | PVC usage/capacity, volume pressure |
+
+### `Istio` (`bfqucb8lq8iyoe`) — service mesh
+| Dashboard | uid | Use it when… |
+|-----------|-----|--------------|
+| **Istio - RED** | `dcfqu73q4pgzcwc` | rate/errors/duration per service (mesh RED) |
+| **Istio - Traffic per Pod** | `dffqu6z75fvl6of` | per-pod mesh traffic |
+
+> A full **kubernetes-mixin** set (DVPS-tagged) also lives in **DevOps-Default/Kubernetes-Default**
+> (`7030053e-2ebb`) — API server, Kubelet, Networking, Proxy, Compute Resources, PV. Prefer the
+> **EKS** subfolder above for workload-health; use the mixin for control-plane/kubelet/networking depth.
 
 ## When nothing fits → offer to build
 
