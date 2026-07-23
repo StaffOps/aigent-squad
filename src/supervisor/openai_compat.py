@@ -166,17 +166,27 @@ def messages_to_user_input(messages: list[ChatMessage]) -> str:
     """Collapse an OpenAI messages array into the supervisor's user_input.
 
     The squad is turn-oriented and keeps history server-side (DynamoDB, keyed by
-    session). We forward the last user turn, prefixed by any system messages as
-    context. Prior assistant turns are dropped (the squad reloads its own
-    history). If there is no user message, fall back to the last message.
-    """
-    systems = [m.content for m in messages if m.role == "system" and m.content]
-    users = [m.content for m in messages if m.role == "user" and m.content]
+    session). We forward ONLY the last user turn. Prior assistant turns are
+    dropped (the squad reloads its own history).
 
-    last_user = users[-1] if users else (messages[-1].content if messages else "")
-    if systems:
-        return "\n\n".join(systems + [last_user]).strip()
-    return last_user.strip()
+    SYSTEM MESSAGES ARE DROPPED. Integration clients (Grafana LLM app, LibreChat,
+    Continue.dev) inject their own system prompts ("You are a helpful assistant"),
+    which (a) add no routing value — the squad has its own system prompt and
+    classifier catalog — and (b) are NOT end-user input, so guardrailing them
+    produces false positives: a benign persona prompt trips the Bedrock
+    prompt-injection detection and the whole request 403s.
+
+    INVARIANT: this is safe only while system messages originate from
+    authenticated *client code* (bearer-token admission control), never from
+    end-user free-text. If end-users ever gain system-message authoring, revisit
+    this decision (see the security section in AGENTS.md).
+    """
+    users = [m.content for m in messages if m.role == "user" and m.content]
+    if users:
+        return users[-1].strip()
+    # Fallback: last message of any NON-system role (never a system message).
+    non_system = [m.content for m in messages if m.role != "system" and m.content]
+    return non_system[-1].strip() if non_system else ""
 
 
 # ─── Helpers ────────────────────────────────────────────────────────
