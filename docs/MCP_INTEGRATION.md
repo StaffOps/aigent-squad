@@ -91,13 +91,29 @@ read-only invariant holds via the allowlist (fail-closed) + the MCP server's own
 ServiceAccount RBAC + the guardrail (input, tool args, tool results). Transport
 is streamable-http by default (`/mcp`), SSE opt-in (`transport: sse`).
 
+### Currently wired MCPs (2026-07-23)
+
+| Agent | MCP datasource | Server (in-cluster) | Read surface | Read-only enforcement |
+|-------|----------------|---------------------|--------------|-----------------------|
+| observability | `vm-mcp` | `vm-mcp:8080/mcp` | VictoriaMetrics (MetricsQL) | query-only server + allowlist |
+| observability | `grafana-mcp` | `grafana-mcp:8000/mcp` | Loki logs, Tempo traces, Pyroscope profiles, alerts/incidents/OnCall/Sift (44 tools) | **allowlist only** — the Grafana SA token is write-capable, so no mutating tool is exposed (Viewer token declined 2026-07-23) |
+| kubernetes | `k8s-mcp` (kube-mcp) | `kube-mcp:8080/mcp` | K8s core read (pods/nodes/resources/events/kiali) | allowlist + **SA RBAC read-only** |
+| kubernetes | `kubectl-mcp` | `kubectl-mcp:8080/mcp` | helm, Argo Rollouts, cert-manager, Istio, Cilium, GitOps, KEDA, Velero, CAPI, KubeVirt, CRDs, cost (157 tools) | allowlist + **SA RBAC read-only (audited 2026-07-22: 0 write perms)** |
+
+`aws`, `devops`, `finops`, `security` have no MCP datasource (skills + non-MCP adapters).
+
+> **Gotcha:** Bedrock Converse **rejects duplicate tool names across merged datasources**
+> (`ValidationException: The tool <x> is already defined`). When binding a 2nd MCP to an agent,
+> dedupe its allowlist against the existing datasource's tools.
+
 ```yaml
 # agents/kubernetes/agent.yaml
 datasources:
   - type: mcp
     name: k8s-mcp
-    url: ${K8S_MCP_URL}              # e.g. http://kube-mcp.mcp-servers.svc.cluster.local:8080/sse
-    tools: [list_pods, get_pod_metrics, list_events]   # read-only allowlist
+    url: ${K8S_MCP_URL}              # e.g. http://kube-mcp.mcp-servers.svc.cluster.local:8080/mcp
+    transport: streamable-http
+    tools: [pods_list, nodes_top, events_list]         # read-only allowlist
     tool_arguments:                  # static args merged into every call
       namespace: devops
 ```
@@ -114,7 +130,8 @@ datasources:
 
 ### Transport
 
-Uses MCP **SSE** transport (`mcp==1.0.0`). `url` supports `${ENV_VAR}`
+Uses MCP **streamable-http** (`/mcp`) by default; SSE (`transport: sse`) is the legacy,
+opt-in transport. `url` supports `${ENV_VAR}`
 interpolation so it differs per environment (local vs EKS). For stdio-based
 servers, a `type: mcp` over stdio variant is a future extension.
 
