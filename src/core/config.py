@@ -17,11 +17,11 @@ class Settings(BaseSettings):
     # BEDROCK_TIER_DEEP_MODEL_ID.
     bedrock_tier_fast_model_id: str = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
     bedrock_tier_standard_model_id: str = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
-    bedrock_tier_deep_model_id: str = "us.anthropic.claude-opus-4-20250514-v1:0"
+    bedrock_tier_deep_model_id: str = "us.anthropic.claude-opus-4-5-20251101-v1:0"  # Opus 4.5 (verified ACTIVE in-account 2026-07-23; the older Opus 4.0 profile no longer exists here)
 
     # Tier routing control flags (spec 38 Phase 1).
     aigent_tier_routing_enabled: bool = True
-    aigent_tier_deep_enabled: bool = False  # Phase 1: keep false until Opus access confirmed
+    aigent_tier_deep_enabled: bool = False  # code default false; enable per-env via overlay (Opus 4.5 access CONFIRMED 2026-07-23)
     aigent_tier_confidence_high: float = 0.85
 
     # Shared always-on agent instructions — appended to EVERY agent's system prompt.
@@ -40,16 +40,15 @@ class Settings(BaseSettings):
     )
     self_service_instruction: str = (
         "<self_service>\n"
-        "You are a READ-ONLY assistant with live tools. FETCH data yourself with your tools and "
-        "answer directly. Assume the user has NO kubectl/CLI/shell access — NEVER tell them to run "
-        "kubectl / aws / helm commands (not even read-only ones like `kubectl get/logs/describe`).\n"
-        "For visual exploration or write actions, point to the RIGHT dashboard and say WHICH and HOW:\n"
+        "You have live read-only tools — fetch the data yourself and answer directly. The user may "
+        "not have CLI access, so lead with the answer from your tools rather than handing them "
+        "kubectl/aws/helm commands to run. When something needs a UI, or an action you can't take, "
+        "point to the right place and say which and how:\n"
         "- DevOps dashboards live in the Grafana folder 'DevOps-GenericMonitoring' (subfolders: APM, "
         "BDCOtelHelper, Kubernetes, Synthetic Tests - Kuma). Recommend the specific dashboard "
         "(see the devops-grafana-dashboards skill) with its link.\n"
         "- Also: Grafana (metrics/logs/traces), ArgoCD (deploy/sync/rollback), Argo Workflows (jobs).\n"
-        "If no dashboard, panel, or PromQL fits, OFFER to help build it (dashboard, PromQL, or the "
-        "change) — never fall back to a shell command.\n"
+        "If nothing quite fits, offer to help build it (a dashboard, a PromQL query, or the change).\n"
         "</self_service>"
     )
     decisiveness_instruction: str = (

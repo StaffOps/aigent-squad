@@ -33,7 +33,9 @@ class ModelPricing:
 MODEL_PRICING: Dict[str, ModelPricing] = {
     "haiku": ModelPricing(input_per_1m=1.00, output_per_1m=5.00, cache_read_per_1m=0.10),
     "sonnet": ModelPricing(input_per_1m=3.00, output_per_1m=15.00, cache_read_per_1m=0.30),
-    "opus": ModelPricing(input_per_1m=15.00, output_per_1m=75.00, cache_read_per_1m=1.50),
+    # Opus 4.5 GA pricing ($5/$25 per 1M) — ~3x cheaper than Opus 4.0's $15/$75.
+    # Verify against current Bedrock pricing if it drifts; used for cost-estimate logging only.
+    "opus": ModelPricing(input_per_1m=5.00, output_per_1m=25.00, cache_read_per_1m=0.50),
 }
 
 # Prompt-cache WRITE tokens cost more than base input (Anthropic: 1.25x for the
