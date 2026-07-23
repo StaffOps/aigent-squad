@@ -26,5 +26,20 @@ GO on pre-routing (HC1–HC6, see design.md).**
 - [ ] T11 Docs (CHANGES/BACKLOG/AGENTS/spec) + ROADMAP regen + gate.
 
 ## Status
-Phase 1 — spec **reshaped by harness to pre-routing** (escalation dropped). Awaiting
-user go/no-go on implementation.
+Phase 1 **DELIVERED** (agentic24, pre-routing; escalation dropped by harness). Classifier emits
+`complexity`; `_resolve_tier_model` maps (complexity, confidence) → tier one-shot; 77 tier tests pass.
+- **T9 Opus access — RESOLVED 2026-07-23:** the originally-configured Opus 4.0 profile does NOT exist
+  in-account (ResourceNotFound); **Opus 4.5** (`us.anthropic.claude-opus-4-5-20251101-v1:0`) is ACTIVE
+  (cross-region). Fixed the deep model id + pricing ($5/$25, ~3× cheaper than Opus 4.0). Overlay flip
+  (`AIGENT_TIER_DEEP_ENABLED=true` + explicit model id) PREPARED — activates on push.
+
+### Post code-review follow-ups (Phase-1 polish, non-blocking)
+- [ ] **FU-A — document the Phase-2 dispatch condition.** Phase 1 pre-routes one-shot (no runtime
+  escalation). Phase 2 (if ever) would add a *dispatch condition* to bump tier mid-loop ONLY on a
+  measured signal (e.g. repeated low-confidence tool results), NOT on quality guesswork. Documented
+  here as the trigger; no code in Phase 1.
+- [ ] **FU-B — move startup validation out of import side-effect.** `validate_tier_models_at_startup()`
+  is currently a **module-level call at `src/supervisor/agent.py:602`** (runs on import → complicates
+  testing + import ordering). Move it into the app startup hook (FastAPI lifespan / explicit init) so
+  validation runs once at boot, not on every import. Medium-risk (must keep fail-loud on misconfig) →
+  do with a test that asserts boot fails on an invalid tier id. Deferred (not rushed at session tail).

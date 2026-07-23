@@ -2,6 +2,27 @@
 
 ## [Unreleased]
 
+### Added — MCP-usage reinforcement, RCA fold, Opus 4.5 deep tier (2026-07-23)
+- **Prompt reinforcement to leverage the bound MCPs** (harness-validated — code-review + observability
+  caught 2 blockers: an excluded Sift tool + missing `tempo_` prefix, both fixed):
+  - `observability`: cross-signal RCA (metric→trace→log→profile→alerts) + **Investigation Mode**
+    (≥3-signal gate, timeline, refute-first, structured RCA, delegation to kubernetes/devops/aws).
+  - `kubernetes`: **live read-only tools** table (helm/rollouts/cert-manager/istio/cilium/gitops/keda/
+    velero/capi/kubevirt/cost) + **fixed a stale pre-agentic instruction** ("never invoke tools") that
+    was suppressing MCP use; Jaeger→Tempo; static cluster-context caveat.
+- **spec 39 WS3 cross-signal RCA Phase-1 — FOLDED into observability** (round-table verdict: no
+  dedicated `rca` agent — routing ambiguity + duplicate allowlist + zero Phase-1 runtime diff). WS1 done.
+  T3.4 (`investigation.py` wiring) = Phase-2 with an explicit extraction trigger.
+- **Opus deep tier enabled (spec 38 T9)** — the configured Opus 4.0 profile no longer exists in-account;
+  corrected to verified-ACTIVE **Opus 4.5** (`us.anthropic.claude-opus-4-5`), pricing $5/$25 (~3× cheaper
+  than Opus 4.0); overlay flip prepared (activates on push). 77 tier tests pass.
+- **Kubernetes Grafana dashboards recheck** — the folder is NOT empty (was mis-catalogued): Argo/EKS/Istio
+  subfolders with comprehensive dashboards; `devops-grafana-dashboards` skill corrected, no new dashboard needed.
+- **`<self_service>` tone softened** — kept the self-serve/read-only intent, dropped the harsh imperative.
+- **Eval expansion** — 4 capability-oriented golden queries (logs / helm / cert / cross-signal RCA).
+- **spec 38 follow-ups documented** — Phase-2 dispatch condition; move startup-validation out of import.
+- _Committed locally, NOT pushed (user decides push). Live homologation of git-synced prompts pending push._
+
 ### Added — grafana-mcp + kubectl-mcp read-only bindings
 - **grafana-mcp bound to the observability agent** (2026-07-22) — the deployed `mcp-servers/grafana-mcp`
   server is now wired as a datasource with a **strict read-only tool allowlist** (44 read tools:

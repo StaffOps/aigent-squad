@@ -44,10 +44,14 @@ runtime `main` `4a1b66e`. **No uncommitted work.** Eval **6/6**.
 - **Kubernetes dashboards** — ✅ **RESOLVED (recheck 2026-07-23):** the DevOps-GenericMonitoring/Kubernetes folder is **NOT empty** — 3 subfolders: **Argo** (Rollouts Overview, ArgoCD App Overview), **EKS** (Cluster Global/Namespaces Overview, Compute Resources per Namespace/Node/Pod/Workload, App Issue View, App Workload, Persistent Volumes), **Istio** (RED, Traffic per Pod). Plus a full kubernetes-mixin in DevOps-Default/Kubernetes-Default. **No new dashboard needed;** the `devops-grafana-dashboards` skill was corrected to catalog them (was mis-labelled empty).
 
 ### 🔵 Deferred (roadmap)
-WS3 cross-signal RCA Phase-1 (spec 39) · B-16 Phase-2 (structured confidence) ·
-B-03 feedback→KbDelta · spec 28 provider abstraction · MCP roadmap (GitLab / Kubecost /
+✅ WS3 cross-signal RCA Phase-1 (spec 39) — **DONE 2026-07-23** (folded into observability) ·
+B-16 Phase-2 (structured confidence) ·
+B-03 feedback→KbDelta · spec 28 provider abstraction · spec 38 FU-A/FU-B (Phase-2 dispatch condition;
+startup-validation → lifespan) · MCP roadmap (GitLab / Kubecost /
 AWS read-only / tempo / kiali) · future agents (gitops / mesh / supply-chain / db /
-backup-DR) · **version bump 0.4.x → 0.5.0** (milestone candidate once agentic hardening stabilizes).
+backup-DR) · **version bump 0.4.x → 0.5.0** — milestone candidate; **NOT now** (version-management:
+bump only after prod-validation with measurable value; this session's work is committed locally, not
+pushed/validated live).
 
 ---
 
