@@ -91,13 +91,26 @@ the LLM selects the tool and its arguments via the Bedrock Converse tool-use loo
 injected). Read-only holds via the allowlist + the MCP server's own ServiceAccount RBAC + the
 guardrail (tool args + results).
 
+### Currently wired MCPs (2026-07-23)
+
+| Agent | MCP | Read surface | Read-only enforcement |
+|-------|-----|--------------|-----------------------|
+| observability | `vm-mcp` | VictoriaMetrics (metrics) | query-only + allowlist |
+| observability | `grafana-mcp` | Loki / Tempo / Pyroscope / alerts / incidents / OnCall / Sift (44) | **allowlist only** (Grafana SA token write-capable; no mutating tool exposed) |
+| kubernetes | `k8s-mcp` (kube-mcp) | K8s core read | allowlist + **SA RBAC read-only** |
+| kubernetes | `kubectl-mcp` | helm / rollouts / cert-manager / Istio / Cilium / GitOps / KEDA / Velero / CAPI / KubeVirt / CRDs / cost (157) | allowlist + **SA RBAC read-only (audited: 0 write)** |
+
+`aws`/`devops`/`finops`/`security` have no MCP datasource. **Gotcha:** Bedrock Converse rejects
+duplicate tool names across merged datasources — dedupe the allowlist when binding a 2nd MCP.
+
 ```yaml
 # agents/kubernetes/agent.yaml
 datasources:
   - type: mcp
     name: k8s-mcp
-    url: ${K8S_MCP_URL}                            # e.g. http://k8s-mcp.aigent-squad:8080/sse
-    tools: [list_pods, get_pod_metrics, list_events]  # read-only allowlist
+    url: ${K8S_MCP_URL}                            # e.g. http://kube-mcp.mcp-servers.svc.cluster.local:8080/mcp
+    transport: streamable-http
+    tools: [pods_list, nodes_top, events_list]     # read-only allowlist
     tool_arguments:                                # static args merged into every call
       namespace: devops
 ```
