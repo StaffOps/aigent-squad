@@ -18,6 +18,9 @@
   create/generic, scale/restart, exec_in_pod, run_pod, helm install/upgrade/uninstall, promote/abort
   _rollout, create/delete_backup, kubevirt_vm lifecycle, node_management, all `kind_*`/`vind_*`),
   plus get_secrets/kubeconfig_view/multi_cluster_*/probe-pod tools. Registry: "kubernetes (2 datasources)".
+  **RBAC audit (2026-07-22): the kubectl-mcp SA is read-only** — 0 write perms across 35 resource
+  types × 5 write verbs, no exec/portforward/impersonate/escalate, no `can-i * *`. So kubernetes is
+  read-only at BOTH layers (allowlist + RBAC); no modification is possible even if a write tool leaked.
 - **Gotcha (learned):** Bedrock **Converse rejects duplicate tool names across merged MCP datasources**
   (`ValidationException: The tool <x> is already defined`). When binding a 2nd MCP to an agent, dedupe
   the allowlist against the existing datasource's tools (here `helm_list` overlapped k8s-mcp).
