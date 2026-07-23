@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+### Added — grafana-mcp read-only binding (observability)
+- **grafana-mcp bound to the observability agent** (2026-07-22) — the deployed `mcp-servers/grafana-mcp`
+  server is now wired as a datasource with a **strict read-only tool allowlist** (44 read tools:
+  Loki logs, Tempo traces, Pyroscope profiles, Prometheus, dashboards, alerts/incidents/OnCall/Sift
+  read). The allowlist is a whitelist and **excludes every mutating tool** (create/update/delete/add/
+  install, `grafana_api_request`, `find_*` Sift-creators, `alerting_manage_rules`, snapshots) — so
+  read-only holds at the config layer even though the backing SA token is currently write-capable.
+  Registry shows "observability (2 datasources)". Unlocks logs/traces/profiles for the squad (was
+  metrics-only via vm-mcp). Hardening follow-up: reprovision the SA token as Viewer (M-1).
+
 ### Added — spec 39 (`observability-rca-uplift`) + accuracy & hardening
 - **WS2 — metric-catalog skills:** migrated ~110 org ops catalogs into the squad skill registry
   (canonical metric names + generated keywords), wired per agent — kills metric-name hallucination.
