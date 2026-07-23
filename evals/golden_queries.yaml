@@ -52,3 +52,39 @@
   expect_status: 200
   must_match:
     - 'confian|confidence'             # B-16 calibration footer
+
+# --- Cross-signal RCA + kubectl-mcp capabilities (grafana-mcp + kubectl-mcp bound, agentic27+) ---
+# Capability-oriented (assert the squad ENGAGES the signal, robust to unknown live data),
+# not brittle prose. Full value after the prompt-reinforcement push; also baselines current.
+
+- name: logs-error-slice
+  model: aigent-squad-observability
+  query: "há erros nos logs de alguma aplicação na última hora? cite o app e um exemplo."
+  expect_status: 200
+  must_match:
+    - 'log|erro|error'                 # engaged the logs signal (grafana-mcp/Loki)
+  must_not_contain:
+    - 'kubectl logs'                   # self-serve: don't hand the user a CLI command
+
+- name: helm-releases-list
+  model: aigent-squad-kubernetes
+  query: "quais helm releases estão instaladas e qual a saúde delas?"
+  expect_status: 200
+  must_match:
+    - 'release|chart|helm'             # engaged helm (kubectl-mcp/kube-mcp), real data
+  must_not_contain:
+    - 'run `helm'                      # self-serve: no CLI handoff
+
+- name: cert-expiry-check
+  model: aigent-squad-kubernetes
+  query: "algum certificado TLS gerenciado pelo cert-manager está perto de expirar?"
+  expect_status: 200
+  must_match:
+    - 'cert|certificad|expir|renov|valid|válid'   # engaged cert-manager read tools
+
+- name: rca-cross-signal-framing
+  model: aigent-squad-observability
+  query: "investigue latência alta em algum serviço: correlacione métrica, trace e log."
+  expect_status: 200
+  must_match:
+    - 'trace|span|log|métrica|metric|latên'       # multi-signal RCA framing (not metric-only)
