@@ -35,6 +35,16 @@ estimated_cost = meter.create_counter(
     unit="USD",
 )
 
+# === Spec 38: model-tier routing (pertinent signal — tier distribution) ===
+# ONE counter, 3 series (fast/standard/deep). Answers "what % of queries route to
+# deep (Opus)?" directly from VictoriaMetrics without a LogQL hack. Effective model
+# invocation is already covered by aigent.tokens.total / aigent.cost.estimated{model}.
+tier_routing_decisions = meter.create_counter(
+    name="aigent.tier.routing_decisions",
+    description="Model-tier routing decisions, labeled by resolved tier (fast/standard/deep)",
+    unit="1",
+)
+
 # === Spec 10: Efficiency (where do time and tokens go?) ===
 collect_duration = meter.create_histogram(
     name="aigent.collect.duration",

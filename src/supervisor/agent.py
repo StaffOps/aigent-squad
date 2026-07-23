@@ -8,6 +8,7 @@ from src.core.config import settings
 from src.core.guardrail import GuardrailBlockedError
 from src.core.input_scanner import InputScanner
 from src.core.model_tier import resolve_model_for_tier, validate_tier_models_at_startup
+from src.core.metrics import tier_routing_decisions
 from src.core.state_store import storage, ConversationMessage
 from src.core.logger import logger, log_request, log_response, log_error
 from src.core.metrics import request_counter, error_counter, request_duration, fanout_calls, fanout_agents_consulted, fanout_agents_failed
@@ -49,6 +50,7 @@ def _resolve_tier_model(classification: ClassifierResult) -> str | None:
     else:
         tier = "standard"
 
+    tier_routing_decisions.add(1, {"tier": tier})
     model_id = resolve_model_for_tier(tier)
 
     logger.info("Tier routing resolved", extra={

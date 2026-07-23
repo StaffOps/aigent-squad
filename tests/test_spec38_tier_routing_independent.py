@@ -442,3 +442,41 @@ class TestModelFamily:
     def test_case_insensitive(self):
         from src.core.model_tier import _model_family
         assert _model_family("US.ANTHROPIC.CLAUDE-HAIKU-V1") == "haiku"
+
+
+class TestTierRoutingObservability:
+    """The pertinent tier-routing counter is emitted with the resolved tier (agentic28)."""
+
+    def test_counter_emitted_with_resolved_tier(self, monkeypatch):
+        import src.supervisor.agent as agent_mod
+        from src.core.config import settings
+        from unittest.mock import MagicMock
+        monkeypatch.setattr(settings, "aigent_tier_routing_enabled", True)
+        counter = MagicMock()
+        monkeypatch.setattr(agent_mod, "tier_routing_decisions", counter)
+        # complex → deep (regardless of deep enabled/disabled: the DECISION is what's counted)
+        agent_mod._resolve_tier_model(_make_classification("complex", 0.95))
+        counter.add.assert_called_once_with(1, {"tier": "deep"})
+
+    def test_counter_labels_fast_and_standard(self, monkeypatch):
+        import src.supervisor.agent as agent_mod
+        from src.core.config import settings
+        from unittest.mock import MagicMock
+        monkeypatch.setattr(settings, "aigent_tier_routing_enabled", True)
+        counter = MagicMock()
+        monkeypatch.setattr(agent_mod, "tier_routing_decisions", counter)
+        agent_mod._resolve_tier_model(_make_classification("simple", 0.95))
+        counter.add.assert_called_once_with(1, {"tier": "fast"})
+        counter.reset_mock()
+        agent_mod._resolve_tier_model(_make_classification("standard", 0.95))
+        counter.add.assert_called_once_with(1, {"tier": "standard"})
+
+    def test_counter_not_emitted_when_routing_disabled(self, monkeypatch):
+        import src.supervisor.agent as agent_mod
+        from src.core.config import settings
+        from unittest.mock import MagicMock
+        monkeypatch.setattr(settings, "aigent_tier_routing_enabled", False)
+        counter = MagicMock()
+        monkeypatch.setattr(agent_mod, "tier_routing_decisions", counter)
+        assert agent_mod._resolve_tier_model(_make_classification("complex", 0.95)) is None
+        counter.add.assert_not_called()
