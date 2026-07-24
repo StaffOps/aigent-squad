@@ -347,7 +347,7 @@ class BedrockClient:
         uses the Bedrock **Converse API** which natively supports tool-use
         (toolConfig / toolUse / toolResult). It is a full engine with its own
         retry loop, response parser, per-call token accounting, guardrail
-        integration, and budget tracking (spec 37, Decisão 6 — round-table B6).
+        integration, and budget tracking (spec 37, Decision 6 — round-table B6).
 
         When ``apply_bedrock_guardrail`` is True (default), the Bedrock
         guardrailConfig is wired so Bedrock evaluates the turn server-side.

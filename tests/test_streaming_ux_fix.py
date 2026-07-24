@@ -98,8 +98,8 @@ async def test_no_counters_leaked():
     from src.supervisor.openai_compat import sse_stream_agentic
 
     graceful_msg = (
-        "⚠️ Não consegui concluir a investigação completa no tempo "
-        "disponível — segue o que consegui coletar:"
+        "⚠️ I could not complete the full investigation within the "
+        "available time — here is what I was able to collect:"
     )
 
     async def fake_budget_events():

@@ -515,8 +515,8 @@ async def run_agentic_loop_streaming(
 
             # Graceful user-facing message (no raw counters)
             degraded_note = (
-                "⚠️ Não consegui concluir a investigação completa no tempo "
-                "disponível — segue o que consegui coletar:"
+                "⚠️ I could not complete the full investigation within the "
+                "available time — here is what I was able to collect:"
             )
 
             if partial_texts:

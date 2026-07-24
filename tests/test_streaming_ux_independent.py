@@ -320,14 +320,14 @@ class TestBudgetExhaustionMessage:
             yield StepToolCall(tool_name="heavy_query", args_display="")
             yield StepToolResult(tool_name="heavy_query", summary="📦 100 items")
             yield StepFinalChunk(
-                text="⚠️ Não consegui concluir a investigação completa no tempo "
-                     "disponível — segue o que consegui coletar:\n\nPartial data."
+                text="⚠️ I could not complete the full investigation within the "
+                     "available time — here is what I was able to collect:\n\nPartial data."
             )
             yield StepDone(finish_reason="length")
 
         full = await self._collect_stream_content(events())
         assert "⚠️" in full
-        assert "disponível" in full or "tempo" in full
+        assert "available time" in full or "investigation" in full
         # No raw counters
         for pattern in self._COUNTER_PATTERNS:
             assert pattern not in full, f"Counter pattern '{pattern}' leaked to user!"
@@ -338,7 +338,7 @@ class TestBudgetExhaustionMessage:
         from src.core.agentic_loop_streaming import StepDone, StepFinalChunk
 
         async def events():
-            yield StepFinalChunk(text="⚠️ Não consegui concluir a investigação completa no tempo disponível — segue o que consegui coletar:")
+            yield StepFinalChunk(text="⚠️ I could not complete the full investigation within the available time — here is what I was able to collect:")
             yield StepDone(finish_reason="length")
 
         full = await self._collect_stream_content(events())
@@ -427,8 +427,8 @@ class TestCountersLogged:
         """The graceful message text itself does NOT contain any counter values."""
         # This is the exact text from the implementation
         graceful = (
-            "⚠️ Não consegui concluir a investigação completa no tempo "
-            "disponível — segue o que consegui coletar:"
+            "⚠️ I could not complete the full investigation within the "
+            "available time — here is what I was able to collect:"
         )
         forbidden = ["steps=", "elapsed=", "tokens=", "ms/", "/5", "/30000"]
         for pat in forbidden:

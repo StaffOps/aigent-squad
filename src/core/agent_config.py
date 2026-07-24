@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 
 
 # ---------------------------------------------------------------------------
-# Agentic loop budget defaults (B4 — spec 37, Decisão 5).
+# Agentic loop budget defaults (B4 — spec 37, Decision 5).
 # Env-overridable; enforcement happens in Phase 3 (agentic loop).
 #
 # SCALE cost/latency tradeoff (spec 37 scale requirement):

@@ -268,7 +268,7 @@ class McpAdapter(DatasourceAdapter):
         return f"mcp:{self.url}:" + ",".join(sorted(self.tools))
 
     # ------------------------------------------------------------------
-    # Agentic tool-spec builder (Phase 2, spec 37 Decisão 2)
+    # Agentic tool-spec builder (Phase 2, spec 37 Decision 2)
     # ------------------------------------------------------------------
 
     async def list_tool_specs(self) -> list[dict]:
@@ -341,7 +341,7 @@ class McpAdapter(DatasourceAdapter):
         return specs
 
     # ------------------------------------------------------------------
-    # Agentic single-tool execution (Phase 2, spec 37 Decisão 2)
+    # Agentic single-tool execution (Phase 2, spec 37 Decision 2)
     # ------------------------------------------------------------------
 
     # OOM safety cap: prevents unbounded memory from a malicious MCP server.
