@@ -17,7 +17,10 @@ from unittest.mock import patch, AsyncMock, MagicMock
 
 from src.core.adapters import DatasourceAdapter, McpAdapter
 from src.core.agent_config import AgentConfig
-from src.core.generic_agent import GenericAgent, CALIBRATED_HONESTY
+from src.core.generic_agent import GenericAgent
+from src.core.config import settings
+
+CALIBRATED_HONESTY = settings.calibrated_honesty_instruction
 from src.core.state_store import ConversationMessage
 
 

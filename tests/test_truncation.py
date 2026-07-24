@@ -109,7 +109,7 @@ def test_truncate_with_marker_text_table():
 
     # Truncate to 2000 chars (much smaller than full text)
     result = _truncate_with_marker(full_text, 2000)
-    assert result.startswith("[truncated: showing first 2000 chars of ~263 items total]")
+    assert result.startswith("[truncated: showing first 2000 chars of 263 items total]")
 
 
 def test_truncate_with_marker_no_truncation_needed():
@@ -127,7 +127,7 @@ def test_truncate_with_marker_json_array():
 
     data = json.dumps([{"id": i} for i in range(100)])
     result = _truncate_with_marker(data, 200)
-    assert "~100 items total" in result
+    assert "100 items total" in result
 
 
 # --- _summarize_tool_result uses same count ---

@@ -1,10 +1,10 @@
 """Integration test: McpAdapter.call_tool -> _truncate_with_marker end-to-end.
 
 Proves that the true-count marker survives the REAL data path:
-  MCP session returns ~20KB text table (263 rows)
+  MCP session returns ~46KB text table (500 rows)
   -> McpAdapter.call_tool() returns FULL text (no pre-slice below safety cap)
-  -> agentic loop applies _truncate_with_marker(text, 8000)
-  -> final text CONTAINS marker with the true row count (~263)
+  -> agentic loop applies _truncate_with_marker(text, 40000)
+  -> final text CONTAINS marker with the true row count (500)
 
 This test would have caught the pre-slice bug (adapter silently truncating
 to 8000 WITHOUT a marker, making the loop's _truncate_with_marker a no-op).
@@ -26,10 +26,10 @@ from src.core.agentic_loop import _truncate_with_marker
 
 
 # ---------------------------------------------------------------------------
-# Fixtures: generate a realistic ~20KB / 263-row text table
+# Fixtures: generate a realistic ~46KB / 500-row text table
 # ---------------------------------------------------------------------------
 
-_NUM_ROWS = 263
+_NUM_ROWS = 500
 _HEADER = "NAMESPACE          NAME                                    READY   STATUS    RESTARTS   AGE"
 
 
@@ -143,7 +143,7 @@ class TestTruncationMarkerSurvivesRealPath:
     """End-to-end: adapter output -> _truncate_with_marker -> marker has true count.
 
     Simulates what the agentic loop does AFTER receiving call_tool's result.
-    The marker must report ~263 items (the real row count minus header).
+    The marker must report 500 items (the real row count minus header).
     """
 
     @pytest.mark.asyncio
@@ -160,8 +160,8 @@ class TestTruncationMarkerSurvivesRealPath:
             "likely the adapter pre-sliced to <= MAX_TOOL_RESULT_CHARS."
         )
 
-        # Marker reports the TRUE item count (263 data rows, header excluded)
-        match = re.search(r"~(\d+) items total", final_text)
+        # Marker reports the TRUE item count (500 data rows, header excluded)
+        match = re.search(r"(\d+) items total", final_text)
         assert match is not None, f"Marker pattern not found in: {final_text[:200]}"
         reported_count = int(match.group(1))
         assert reported_count == _NUM_ROWS, (
