@@ -1,7 +1,7 @@
 # Tasks: Observability & RCA uplift
 
-Legenda: `[ ]` pendente · `[~]` parcial · `[x]` done. Código segue o harness
-(`dev` implementa → `dev` testa independente → `code-review` → gate ≥90%).
+Legend: `[ ]` pending · `[~]` partial · `[x]` done. Code follows the harness
+(`dev` implements → `dev` tests independently → `code-review` → gate ≥90%).
 
 > **Status 2026-07-21 (in-progress):** WS2 (metric-catalog skills) **DONE + live** (110 skills,
 > canonical names, eval-gated). Round-table done. Shipped + validated (6/6 eval on agentic18): FU-1

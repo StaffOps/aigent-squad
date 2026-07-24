@@ -1,12 +1,12 @@
 # Design: Fix Blockers
 
-## Abordagem
+## Approach
 
-Mudanças cirúrgicas, sem refatorar arquitetura (isso é a spec 02). Cada blocker é independente e pode ser feito em paralelo.
+Surgical changes, without refactoring the architecture (that is spec 02). Each blocker is independent and can be done in parallel.
 
-## B1 — Dockerfile raiz
+## B1 — Root Dockerfile
 
-O supervisor precisa de `src/` inteiro (importa `src.supervisor`, `src.core.*`). Reusar o mesmo padrão dos agentes:
+The supervisor needs the entire `src/` (imports `src.supervisor`, `src.core.*`). Reuse the same pattern as the agents:
 
 ```dockerfile
 FROM python:3.12-alpine
@@ -18,46 +18,46 @@ EXPOSE 8000
 CMD ["python", "-m", "src.supervisor.server"]
 ```
 
-> Nota: `USER` não-root entra na spec 04 (segurança), para não misturar escopo. Aqui só destravar o build.
+> Note: Non-root `USER` goes in spec 04 (security), to avoid mixing scope. Here we just unblock the build.
 
 ## B2 — `src/api/server.py`
 
-Decisão: **reescrever mínimo** (manter a feature Slack, que é citada no README). Novo fluxo:
+Decision: **minimal rewrite** (keep the Slack feature, which is cited in the README). New flow:
 
 ```
-Slack event → verifica assinatura → supervisor.process_request(text, user_id, session_id) → chat_postMessage
+Slack event → verify signature → supervisor.process_request(text, user_id, session_id) → chat_postMessage
 ```
 
-- Remove `StateStore`, `HumanMessage`, `supervisor.graph`.
-- `session_id = f"{channel}:{thread_ts}"` (mantém o conceito original).
-- O histórico já é gerido pelo `ChatStorage` dentro do supervisor — o webhook não precisa gerir estado.
-- `process_request` é async → handler async com `await`.
+- Removes `StateStore`, `HumanMessage`, `supervisor.graph`.
+- `session_id = f"{channel}:{thread_ts}"` (keeps the original concept).
+- History is already managed by `ChatStorage` inside the supervisor — the webhook doesn't need to manage state.
+- `process_request` is async → async handler with `await`.
 
-Alternativa considerada: deletar o arquivo. Rejeitada porque a integração Slack é um diferencial citado e o custo de manter é baixo após o fix.
+Alternative considered: delete the file. Rejected because the Slack integration is a cited differentiator and the cost of maintaining it is low after the fix.
 
 ## B3 — `gitlab_client.py`
 
-Truncar o arquivo no final da primeira definição completa da classe (antes do bloco duplicado) e deixar um único singleton. Sem mudança de assinatura.
+Truncate the file at the end of the first complete class definition (before the duplicated block) and leave a single singleton. No signature changes.
 
-Verificar antes que `devops/agent.py` use apenas métodos presentes na primeira definição (ele usa `self.gitlab = gitlab_client`).
+Verify beforehand that `devops/agent.py` uses only methods present in the first definition (it uses `self.gitlab = gitlab_client`).
 
 ## B4 — `mcp-server.py`
 
-Remover o segundo par de linhas `app = FastAPI(...)` / `SUPERVISOR_URL = ...`.
+Remove the second pair of `app = FastAPI(...)` / `SUPERVISOR_URL = ...` lines.
 
-## Invariantes
+## Invariants
 
-- Não alterar contrato HTTP de nenhum serviço.
-- Não alterar `requirements.txt` (exceto se B2 exigir — não exige).
-- Comportamento read-only preservado.
+- Do not alter the HTTP contract of any service.
+- Do not alter `requirements.txt` (unless B2 requires it — it doesn't).
+- Read-only behavior preserved.
 
-## Dependências externas
+## External dependencies
 
-Nenhuma nova. Usa o que já está em `requirements.txt` (`slack-sdk` já presente para B2).
+None new. Uses what's already in `requirements.txt` (`slack-sdk` already present for B2).
 
-## Verificação
+## Verification
 
-Build via Docker (sem SDK local, per `dev-environment.md`):
+Build via Docker (no local SDK, per `dev-environment.md`):
 
 ```bash
 docker compose build supervisor mcp-server

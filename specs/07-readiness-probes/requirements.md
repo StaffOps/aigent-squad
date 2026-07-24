@@ -10,32 +10,32 @@ deferred: []
 # Feature: Health Probes + Graceful Shutdown
 
 **Spec**: `07-readiness-probes`
-**Severidade**: 🔴 High (pré-requisito de código que a `05-helm-chart` já assume)
-**Origem**: `../ANALYSIS.md` CONV-4, sre R5/R6, dev F4
-**Depende de**: `02-unify-agent-architecture` (complementa `06` no graceful shutdown)
+**Severity**: 🔴 High (code prerequisite that `05-helm-chart` already assumes)
+**Origin**: `../ANALYSIS.md` CONV-4, sre R5/R6, dev F4
+**Depends on**: `02-unify-agent-architecture` (complements `06` on graceful shutdown)
 
-Hoje todo serviço tem só `/health` que retorna `{"status":"healthy"}` incondicional — mente. O K8s nunca detecta pod quebrado. Esta spec separa **liveness** (processo vivo) de **readiness** (consegue servir — dependências OK).
+Today every service has only `/health` that returns `{"status":"healthy"}` unconditionally — it lies. K8s never detects a broken pod. This spec separates **liveness** (process alive) from **readiness** (can serve — dependencies OK).
 
 ## User Stories
 
-WHEN o K8s checa liveness (`/healthz`) THEN SHALL retornar 200 se o processo responde (sem checar dependências) — reinício só em deadlock.
+WHEN K8s checks liveness (`/healthz`) THEN SHALL return 200 if the process responds (without checking dependencies) — restart only on deadlock.
 
-WHEN o K8s checa readiness (`/ready`) THEN SHALL checar dependências (Redis ping, Bedrock/credenciais, DynamoDB para o supervisor) e retornar 503 com detalhe se alguma crítica estiver fora.
+WHEN K8s checks readiness (`/ready`) THEN SHALL check dependencies (Redis ping, Bedrock/credentials, DynamoDB for the supervisor) and return 503 with detail if any critical one is down.
 
-WHEN uma checagem de dependência é feita THEN SHALL ter timeout curto (2s) e o resultado SHALL ser cacheado (~5s) para não martelar a dependência a cada probe.
+WHEN a dependency check is performed THEN SHALL have a short timeout (2s) and the result SHALL be cached (~5s) to avoid hammering the dependency at every probe.
 
-WHEN o pod recebe SIGTERM THEN SHALL drenar requests in-flight, flush OTel e fechar conexões (alinha `06`).
+WHEN the pod receives SIGTERM THEN SHALL drain in-flight requests, flush OTel and close connections (aligns with `06`).
 
 ## Acceptance Criteria
 
-- [ ] `/healthz` (liveness): 200 se o processo responde; sem checagem de dependência.
-- [ ] `/ready` (readiness): supervisor checa Redis+DynamoDB(+≥1 agente); agentes checam Redis+credenciais Bedrock; 503+JSON detalhando a dependência fora.
-- [ ] Timeout 2s por checagem; resultado cacheado ~5s.
-- [ ] `/health` legado mantido (ou redirecionado) para compat.
-- [ ] docker-compose healthchecks migram para `/ready`.
-- [ ] Graceful shutdown via `lifespan` (compartilhado com `06`).
-- [ ] Testes (test-author ≠ autor, ≥90%): readiness 503 quando dep fora (mock), liveness 200 sempre, cache da checagem, shutdown drena.
+- [ ] `/healthz` (liveness): 200 if the process responds; no dependency check.
+- [ ] `/ready` (readiness): supervisor checks Redis+DynamoDB(+≥1 agent); agents check Redis+Bedrock credentials; 503+JSON detailing the failing dependency.
+- [ ] 2s timeout per check; result cached ~5s.
+- [ ] `/health` legacy maintained (or redirected) for compat.
+- [ ] docker-compose healthchecks migrated to `/ready`.
+- [ ] Graceful shutdown via `lifespan` (shared with `06`).
+- [ ] Tests (test-author ≠ author, ≥90%): readiness 503 when dep is down (mock), liveness 200 always, check caching, shutdown drains.
 
-## Fora de escopo
-- Lógica de fail-open em si → spec 06.
-- Manifests/probes Helm → spec 05 (esta entrega os endpoints que ela consome).
+## Out of scope
+- Fail-open logic itself → spec 06.
+- Manifests/probes Helm → spec 05 (this delivers the endpoints it consumes).

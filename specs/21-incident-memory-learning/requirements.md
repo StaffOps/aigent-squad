@@ -10,86 +10,86 @@ deferred: ["Opus enricher (Sonnet-only for now)", "Slack approval flow"]
 # Feature: Incident Memory & Learning
 
 **Spec**: `21-incident-memory-learning`
-**Severidade**: 🟢 Feature (qualidade da RCA aumenta com uso)
-**Origem**: ROADMAP — "21 (learning) após 18 — aprendizado (Sonnet extractor → Opus enricher → KB)"
-**Depende de**: `18-rca-investigation-workflow` (gera o material), `22-agent-capability-manifest` (config)
+**Severity**: 🟢 Feature (RCA quality improves with usage)
+**Origin**: ROADMAP — "21 (learning) after 18 — learning (Sonnet extractor → Opus enricher → KB)"
+**Depends on**: `18-rca-investigation-workflow` (generates the material), `22-agent-capability-manifest` (config)
 
-Transforma RCAs efêmeras em **conhecimento persistente** que acelera investigações futuras. Duas camadas:
+Transforms ephemeral RCAs into **persistent knowledge** that accelerates future investigations. Two layers:
 
-1. **Memória longa (KB)** — RCAs destiladas em padrões reutilizáveis
-2. **RAG injection** — busca "já vi isso antes?" antes de cada nova investigação
+1. **Long-term memory (KB)** — RCAs distilled into reusable patterns
+2. **RAG injection** — searches "have I seen this before?" before each new investigation
 
 ---
 
 ## User Stories
 
-WHEN uma investigação RCA é concluída com confiança ≥ alta THEN o sistema SHALL destilar o resultado em padrão estruturado (`KbDelta`) e persistir no KB.
+WHEN an RCA investigation completes with confidence ≥ high THEN the system SHALL distill the result into a structured pattern (`KbDelta`) and persist it in the KB.
 
-WHEN uma nova investigação inicia THEN o sistema SHALL buscar (via embedding similarity) os top-K casos similares no KB e injetar no prompt do RCA synthesizer.
+WHEN a new investigation starts THEN the system SHALL search (via embedding similarity) the top-K similar cases in the KB and inject them into the RCA synthesizer prompt.
 
-WHEN o KB tem >0 casos similares (similarity > threshold) THEN o synthesizer SHALL usar essa informação como **prior** (sem garantir que é a resposta — pode contradizer).
+WHEN the KB has >0 similar cases (similarity > threshold) THEN the synthesizer SHALL use that information as a **prior** (without guaranteeing it is the answer — it may contradict).
 
-WHEN a destilação extrai algo que parece **decisão arquitetural** ou está abaixo do threshold de confiança THEN o item SHALL ser marcado para revisão humana (não auto-aprova).
+WHEN the distillation extracts something that looks like an **architectural decision** or is below the confidence threshold THEN the item SHALL be marked for human review (not auto-approved).
 
-WHEN o sistema persiste KB items THEN ele SHALL **redatar PII e secrets** (emails, tokens, etc) antes de enviar ao LLM e ao banco.
+WHEN the system persists KB items THEN it SHALL **redact PII and secrets** (emails, tokens, etc.) before sending to the LLM and to the store.
 
-WHEN o KB cresce THEN o sistema SHALL detectar duplicatas/supersedes (action: `supersede` em vez de `create` quando padrão similar já existe).
+WHEN the KB grows THEN the system SHALL detect duplicates/supersedes (action: `supersede` instead of `create` when a similar pattern already exists).
 
-WHEN o budget mensal de tokens (extractor+enricher+embedding) ultrapassa o cap THEN novas destilações SHALL ser **postergadas** (não bloqueia investigação, só skip de aprendizado).
+WHEN the monthly token budget (extractor+enricher+embedding) exceeds the cap THEN new distillations SHALL be **postponed** (does not block investigation, only skips learning).
 
 ---
 
 ## Acceptance Criteria
 
 ### Storage & Schema
-- [ ] PostgreSQL + pgvector container no docker-compose (1.5GB image, ~50MB RAM em uso)
-- [ ] Schema `kb_items` com: id, type (troubleshooting/decision/pattern/infrastructure), title, content, tags[], service_name, embedding (vector(1536)), metadata jsonb, created_at, updated_at, status (active/superseded), confidence_score
+- [ ] PostgreSQL + pgvector container in docker-compose (1.5GB image, ~50MB RAM in use)
+- [ ] Schema `kb_items` with: id, type (troubleshooting/decision/pattern/infrastructure), title, content, tags[], service_name, embedding (vector(1536)), metadata jsonb, created_at, updated_at, status (active/superseded), confidence_score
 - [ ] Schema `kb_provenance`: kb_item_id, source_investigation_id, confidence, extracted_at
-- [ ] HNSW index na coluna `embedding` para busca rápida
-- [ ] Full-text index em `title` + `content` (fallback se embedding falhar)
+- [ ] HNSW index on `embedding` column for fast search
+- [ ] Full-text index on `title` + `content` (fallback if embedding fails)
 
 ### Extractor & Enricher Pipeline
-- [ ] `Extractor` (Sonnet) recebe RCAResult → retorna `list[KbDelta]`
-- [ ] `Enricher` (Opus) recebe drafts + RCA original → refina, generaliza, identifica padrões
-- [ ] Cada `KbDelta` tem: action (create/supersede/noop), type, title, content, tags, service_name, confidence
-- [ ] Pipeline executado APÓS investigação concluir (não bloqueia resposta ao usuário)
+- [ ] `Extractor` (Sonnet) receives RCAResult → returns `list[KbDelta]`
+- [ ] `Enricher` (Opus) receives drafts + original RCA → refines, generalizes, identifies patterns
+- [ ] Each `KbDelta` has: action (create/supersede/noop), type, title, content, tags, service_name, confidence
+- [ ] Pipeline executed AFTER investigation completes (does not block response to the user)
 
 ### Validator & Approval
-- [ ] Thresholds por tipo: troubleshooting=0.85, decision=manual_only, pattern=0.90, infrastructure=0.80
-- [ ] auto-approve se confidence ≥ threshold
-- [ ] manual approval para `decision` type sempre + auto-approve falha
-- [ ] Endpoint `POST /kb/{id}/approve` e `POST /kb/{id}/reject`
-- [ ] Pendente vai pra status `pending_review`
+- [ ] Thresholds by type: troubleshooting=0.85, decision=manual_only, pattern=0.90, infrastructure=0.80
+- [ ] auto-approve if confidence ≥ threshold
+- [ ] manual approval for `decision` type always + when auto-approve fails
+- [ ] Endpoint `POST /kb/{id}/approve` and `POST /kb/{id}/reject`
+- [ ] Pending items go to status `pending_review`
 
 ### RAG Injection
-- [ ] Antes do fan-out de evidência, busca top-K (default 3) casos similares
-- [ ] Threshold de similaridade mínima (default 0.75) — abaixo disso, ignora
-- [ ] Resultado injetado como `<similar_cases>` no system prompt do RCA synthesizer
-- [ ] Boost por `service_name` match (sintoma menciona "service-x" → casos do mesmo serviço pesam mais)
+- [ ] Before the evidence fan-out, search top-K (default 3) similar cases
+- [ ] Minimum similarity threshold (default 0.75) — below this, ignore
+- [ ] Result injected as `<similar_cases>` in the RCA synthesizer system prompt
+- [ ] Boost by `service_name` match (symptom mentions "service-x" → cases from the same service weigh more)
 
 ### Cost Control
-- [ ] Budget mensal configurável (default $50/mês para o pipeline de aprendizado)
-- [ ] Métrica `aigent.kb.distillation.cost` (counter, USD)
-- [ ] Skip distillation quando budget exhausted (log warning, não falha)
+- [ ] Configurable monthly budget (default $50/month for the learning pipeline)
+- [ ] Metric `aigent.kb.distillation.cost` (counter, USD)
+- [ ] Skip distillation when budget exhausted (log warning, does not fail)
 
 ### PII Redaction
-- [ ] Patterns simples (regex): emails, AWS access keys, tokens (Bearer/PAT), IPs (opcional)
-- [ ] Aplicado ANTES do LLM (extractor) e ANTES de persistir
-- [ ] Substitui por `<redacted:type>` placeholder
+- [ ] Simple patterns (regex): emails, AWS access keys, tokens (Bearer/PAT), IPs (optional)
+- [ ] Applied BEFORE the LLM (extractor) and BEFORE persisting
+- [ ] Replaces with `<redacted:type>` placeholder
 
 ### Tests
-- [ ] Tests por agent separado, ≥80% coverage
-- [ ] Test cases: extraction de RCA simples, supersede detection, RAG injection com hit/miss, threshold boundaries, PII redaction, budget cap
+- [ ] Tests by separate agent, ≥80% coverage
+- [ ] Test cases: extraction from simple RCA, supersede detection, RAG injection with hit/miss, threshold boundaries, PII redaction, budget cap
 
 ### Documentation
-- [ ] `docs/KNOWLEDGE-BASE.md`: como funciona, como aprovar items, como debugar
-- [ ] Atualizar `docs/METRICS.md` com métricas KB
+- [ ] `docs/KNOWLEDGE-BASE.md`: how it works, how to approve items, how to debug
+- [ ] Update `docs/METRICS.md` with KB metrics
 
 ---
 
-## Fora de escopo
+## Out of scope
 
-- UI/dashboard pro KB (consulta via API por enquanto)
-- Versionamento de KB items (só active/superseded)
+- UI/dashboard for the KB (query via API for now)
+- Versioning of KB items (only active/superseded)
 - Cross-tenant KB sharing
-- Active learning (sistema solicitar feedback do usuário sobre RCA aplicada)
+- Active learning (system soliciting user feedback on applied RCA)

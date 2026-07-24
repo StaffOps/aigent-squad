@@ -90,7 +90,7 @@ guardrail-scanned summary of each result — so the user watches the subagent th
 cluster in real time, instead of a single final block. Streamed results SHALL pass the same
 redaction/guardrail as B3 (never stream raw tool output).
 
-## Fora de escopo
+## Out of scope
 
 - **Enabling execution / mutating tools** — stays read-only (ADR-0003). This spec makes the
   agent *choose read-only tools*, not *act*.

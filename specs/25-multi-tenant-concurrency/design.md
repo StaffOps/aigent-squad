@@ -1,6 +1,6 @@
 # Design: Multi-Tenant Concurrency
 
-## Arquitetura
+## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -25,11 +25,11 @@
                 └────────────────────────┘
 ```
 
-## Componentes
+## Components
 
 ### 1. Distributed Circuit Breaker (`src/core/circuit_breaker.py`)
 
-Move estado pro Redis. Mantém fallback in-memory se Redis cair.
+Moves state to Redis. Maintains in-memory fallback if Redis is down.
 
 ```python
 class CircuitBreaker:
@@ -37,7 +37,7 @@ class CircuitBreaker:
         self.name = name
         self.threshold = failure_threshold
         self.recovery_timeout = recovery_timeout
-        self.redis = redis_client  # opcional; sem ele = in-memory
+        self.redis = redis_client  # optional; without it = in-memory
         self._local_state = CircuitState.CLOSED  # fallback
 
     async def can_execute(self) -> bool:
@@ -50,13 +50,13 @@ class CircuitBreaker:
             return self._local_can_execute()  # fail-open
 ```
 
-**Keys no Redis**:
+**Redis keys**:
 - `cb:bedrock:state` (CLOSED/OPEN/HALF_OPEN)
 - `cb:bedrock:failures` (counter)
 - `cb:bedrock:last_failure_ts` (timestamp)
 - TTL: `recovery_timeout * 2` (auto-cleanup)
 
-**Race condition**: `record_failure` usa `INCR` atomic. Transição pra OPEN usa `SETNX` para evitar duplicação de logs entre replicas.
+**Race condition**: `record_failure` uses atomic `INCR`. Transition to OPEN uses `SETNX` to avoid log duplication across replicas.
 
 ### 2. Session Lock (`src/core/session_lock.py`)
 
@@ -70,7 +70,7 @@ class SessionLock:
     @asynccontextmanager
     async def acquire(self, session_id: str):
         if not self.redis:
-            yield  # no-op se Redis indisponível
+            yield  # no-op if Redis unavailable
             return
 
         key = f"lock:session:{session_id}"
@@ -82,7 +82,7 @@ class SessionLock:
                 if await self.redis.set(key, token, nx=True, ex=self.ttl):
                     break
             except Exception:
-                yield  # Redis caiu → degrada
+                yield  # Redis down → degrade
                 return
             await asyncio.sleep(0.05)
         else:
@@ -91,14 +91,14 @@ class SessionLock:
         try:
             yield
         finally:
-            # Lua script atomico: deleta só se token bate (evita deletar lock de outro)
+            # Atomic Lua script: delete only if token matches (avoids deleting another's lock)
             await self.redis.eval(
                 "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end",
                 1, key, token
             )
 ```
 
-Uso no supervisor:
+Usage in the supervisor:
 ```python
 async with session_lock.acquire(session_id):
     history = await storage.fetch_chat(...)
@@ -141,10 +141,10 @@ class RateLimiter:
         return True, daily_budget - current - estimated_cost_usd
 ```
 
-Cost estimation **antes** da chamada:
+Cost estimation **before** the call:
 ```python
 def estimate_cost(input_tokens: int, max_output_tokens: int, model: str = "sonnet") -> float:
-    # Pessimista: assume max_output_tokens
+    # Pessimistic: assumes max_output_tokens
     pricing = {"sonnet": (3, 15), "haiku": (0.25, 1.25)}  # per 1M tokens
     in_rate, out_rate = pricing.get(model, (3, 15))
     return (input_tokens * in_rate + max_output_tokens * out_rate) / 1_000_000
@@ -223,44 +223,44 @@ export default function () {
 ## Order of integration
 
 1. CircuitBreaker → Redis backend
-2. SessionLock criado e wrapped em `supervisor.process_request`
-3. RateLimiter check antes da classify
-4. BudgetGuard check antes do invoke (cost estimate)
+2. SessionLock created and wrapped in `supervisor.process_request`
+3. RateLimiter check before classify
+4. BudgetGuard check before invoke (cost estimate)
 5. Bedrock semaphore in `BedrockClient.invoke`
 6. k6 scripts + workflow
 
 ## Rationale
 
-### Decisão 1: Redis como source of truth para state distribuído
+### Decision 1: Redis as source of truth for distributed state
 
-**Trade-off aceito**: +5ms de latência por operação. Negligível diante de 5s de Bedrock. Ganho: multi-replica safe sem sticky sessions.
+**Trade-off accepted**: +5ms latency per operation. Negligible compared to 5s from Bedrock. Gain: multi-replica safe without sticky sessions.
 
-### Decisão 2: Fail-open em todas as camadas (Redis indisponível ≠ sistema fora)
+### Decision 2: Fail-open on all layers (Redis unavailable ≠ system down)
 
-CircuitBreaker, SessionLock, RateLimiter — todos degradam pra in-memory ou no-op se Redis cair. **A queda do Redis nunca derruba o supervisor.**
+CircuitBreaker, SessionLock, RateLimiter — all degrade to in-memory or no-op if Redis is down. **A Redis outage never brings down the supervisor.**
 
-### Decisão 3: Cost estimate pessimista (max_tokens) ANTES da chamada
+### Decision 3: Pessimistic cost estimate (max_tokens) BEFORE the call
 
-Bloqueia query antes de queimar tokens, mas pode bloquear queries que custariam menos. Aceitável: false positive em budget é melhor que estouro real.
+Blocks the query before burning tokens, but may block queries that would cost less. Acceptable: a false positive on the budget is better than a real overshoot.
 
-### Decisão 4: Semáforo simples vs token bucket
+### Decision 4: Simple semaphore vs token bucket
 
-Bedrock já tem adaptive retry. Semáforo só evita bursts >> TPS. Token bucket seria over-engineering.
+Bedrock already has adaptive retry. The semaphore only prevents bursts >> TPS. A token bucket would be over-engineering.
 
-## Invariantes
+## Invariants
 
-- Redis down NUNCA derruba o sistema (fail-open everywhere)
-- Mensagens da mesma session NUNCA são processadas concorrentemente (lock)
-- Sem rate limit pra `/health` (probes)
-- `agents_consulted` em fan-out NUNCA tem agents que falharam no rate limit (são pulados, não erros)
+- Redis down NEVER brings down the system (fail-open everywhere)
+- Messages from the same session are NEVER processed concurrently (lock)
+- No rate limit on `/health` (probes)
+- `agents_consulted` in fan-out NEVER includes agents that failed the rate limit (they are skipped, not errors)
 
-## Métricas novas (atualizar `docs/METRICS.md`)
+## New metrics (update `docs/METRICS.md`)
 
-| Métrica | Tipo | Labels | Descrição |
-|---------|------|--------|-----------|
-| `aigent.rate_limit.blocks` | Counter | `reason` (user/global) | Bloqueios por rate limit |
-| `aigent.bedrock.queue_depth` | Gauge | — | Chamadas Bedrock esperando semáforo |
-| `aigent.bedrock.queue_wait` | Histogram | — | Tempo esperando semáforo (ms) |
-| `aigent.session_lock.wait` | Histogram | — | Tempo esperando session lock (ms) |
-| `aigent.session_lock.timeout` | Counter | — | Timeouts ao adquirir lock |
-| `aigent.circuit_breaker.transitions` | Counter | `from`, `to` | Transições de estado |
+| Metric | Type | Labels | Description |
+|--------|------|--------|-------------|
+| `aigent.rate_limit.blocks` | Counter | `reason` (user/global) | Blocks by rate limit |
+| `aigent.bedrock.queue_depth` | Gauge | — | Bedrock calls waiting for semaphore |
+| `aigent.bedrock.queue_wait` | Histogram | — | Time waiting for semaphore (ms) |
+| `aigent.session_lock.wait` | Histogram | — | Time waiting for session lock (ms) |
+| `aigent.session_lock.timeout` | Counter | — | Timeouts acquiring lock |
+| `aigent.circuit_breaker.transitions` | Counter | `from`, `to` | State transitions |

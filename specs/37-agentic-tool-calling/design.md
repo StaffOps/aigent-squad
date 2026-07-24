@@ -37,32 +37,32 @@ process_request(query):
 
 ## Rationale (decisões)
 
-### Decisão 1: Bedrock Converse API native tool-use (not a framework, not invoke_model hand-rolling)
+### Decision 1: Bedrock Converse API native tool-use (not a framework, not invoke_model hand-rolling)
 
-**Escolha**: use the Bedrock **Converse API** `toolConfig`/`toolUse` loop for agentic execution.
+**Choice**: use the Bedrock **Converse API** `toolConfig`/`toolUse` loop for agentic execution.
 
-**Justificativa (ordem de força)**:
+**Rationale (in order of strength)**:
 1. It is the **native, provider-supported** tool-use loop — no LangGraph/Strands (honors ADR-001
    "Bedrock-direct, no framework"; we supersede only the *non-agentic* part, not the framework stance).
 2. `invoke_model` (current) has no tool-use; hand-rolling Anthropic tool-use JSON over `invoke_model`
    would reimplement what Converse gives natively + drift from the API.
 3. Converse is model-agnostic within Bedrock → eases a future spec-28 provider move.
 
-**Trade-offs aceitos**:
-| Custo | Realidade |
+**Accepted trade-offs**:
+| Cost | Reality |
 |-------|-----------|
 | Multiple Bedrock round-trips per query | Bounded by MAX_STEPS; most queries = 1–2 tool calls. Cost/latency budgeted + observed. |
 | New `converse()` path beside `invoke()` | Classifier/synthesis stay on `invoke()`; only agent execution uses `converse()`. |
 
-**Quando estaria errado**: if a query needs >N tool round-trips routinely (latency unacceptable) —
+**When this would be wrong**: if a query needs >N tool round-trips routinely (latency unacceptable) —
 then pre-fetch hints or a hybrid (seed the first tool result) would be reconsidered.
 
-### Decisão 2: Generic, config-driven tool exposure (zero-code onboarding)
+### Decision 2: Generic, config-driven tool exposure (zero-code onboarding)
 
-**Escolha**: one builder maps any datasource's read-only allowlist → Converse `toolSpec[]`;
+**Choice**: one builder maps any datasource's read-only allowlist → Converse `toolSpec[]`;
 MCP tool schemas come from the server's own `list_tools()` filtered by the allowlist.
 
-**Justificativa**:
+**Rationale**:
 1. Hard user requirement: **adding a new MCP = config only, no new code** (extends ADR-0002).
 2. MCP servers self-describe their tools (name + inputSchema) → we forward the allowlisted subset.
 3. Keeps "an agent is configuration, not code" true for the *tool* surface, not just the datasource.
@@ -70,9 +70,9 @@ MCP tool schemas come from the server's own `list_tools()` filtered by the allow
 **Trade-offs**: the LLM sees only what the allowlist permits; a too-narrow allowlist limits the
 agent (config problem, not code). Tool schemas fetched at connect (cached per `cache_ttl`).
 
-### Decisão 3: Read-only stays the LAW — enforced by defense-in-depth (corrected by round-table)
+### Decision 3: Read-only stays the LAW — enforced by defense-in-depth (corrected by round-table)
 
-**Escolha**: the 100% read-only invariant is enforced by independent layers — **but the layers
+**Choice**: the 100% read-only invariant is enforced by independent layers — **but the layers
 differ per datasource type** (round-table B1 correction: the pod's IRSA/IAM-deny does NOT extend
 to an MCP server, which runs under its OWN ServiceAccount):
 
@@ -83,7 +83,7 @@ to an MCP server, which runs under its OWN ServiceAccount):
 | **MCP** (kube-mcp, vm-mcp, future) | app allowlist **+ the MCP server's OWN ServiceAccount RBAC** (must be `get/list/watch`-only) — this is **audited per server at onboarding and enforced in CI**, NOT assumed. IAM/RBAC of the squad pod are irrelevant to what the MCP server can do. |
 | **all** | **positive tool registry** (B2): allowed tools are an explicit, reviewed allowlist (not a mutating-verb blocklist) + **Bedrock Guardrail** on every turn, **including tool arguments (pre-exec) and tool results (pre-context)** (B3). |
 
-**Justificativa**:
+**Rationale**:
 1. Agentic makes the allowlist the *primary* boundary; for MCP the real backstop is the **server's
    SA RBAC**, so onboarding MUST prove the server is read-only (SA audit) — a blocklist of verbs is
    insufficient (a server could name a mutating tool anything).
@@ -91,25 +91,25 @@ to an MCP server, which runs under its OWN ServiceAccount):
    (SSRF/exfil via a URL/path/selector arg) and **results** (secret redaction, injection canary).
 
 **Trade-offs**:
-| Custo | Realidade |
+| Cost | Reality |
 |-------|-----------|
 | MCP onboarding requires an SA RBAC audit + CI gate | It is the actual security boundary for MCP; cheap vs. the risk. |
 | Guardrail on args+results adds latency/cost per turn | Bounded; args are small; results capped at MAX_TOOL_RESULT_CHARS. |
 
-**Quando estaria errado**: a server advertising a read-looking tool that mutates via a backend the
+**When this would be wrong**: a server advertising a read-looking tool that mutates via a backend the
 SA audit missed. Mitigation: positive registry + prefer `--read-only` servers + periodic re-audit.
 
-### Decisão 5: MCP session pooling, circuit breaker, hard budgets (round-table B4/B5)
+### Decision 5: MCP session pooling, circuit breaker, hard budgets (round-table B4/B5)
 
-**Escolha**: per request, **one MCP connect+initialize per server, reused for N `call_tool`**
+**Choice**: per request, **one MCP connect+initialize per server, reused for N `call_tool`**
 (pooling); per-server **circuit breaker** (open after 3 consecutive failures); **5s timeout per
 `call_tool`**. Hard budgets as first-class config, checked **before each `converse()`**:
 `MAX_TOOL_STEPS=5`, `MAX_LOOP_DURATION_MS=15000`, `MAX_LOOP_TOKENS=50000`, `MAX_TOOL_RESULT_CHARS=4000`.
 
-**Justificativa**: MCP is now a hard dependency in the hot path; connect-per-call would multiply
+**Rationale**: MCP is now a hard dependency in the hot path; connect-per-call would multiply
 latency and failure surface. Budgets cap the documented **1.5–3× cost/latency multiplier** of the loop.
 
-### Decisão 6: `converse()` is a NEW Bedrock engine; schema normalizer; sequential multi-toolUse (B6/B7/B8)
+### Decision 6: `converse()` is a NEW Bedrock engine; schema normalizer; sequential multi-toolUse (B6/B7/B8)
 
 - **B6**: `converse()` is not a thin wrapper — it needs its own retry loop, response parser,
   per-iteration token accounting (checked against budget), and guardrail hook. `invoke()` stays for
@@ -120,29 +120,29 @@ latency and failure surface. Budgets cap the documented **1.5–3× cost/latency
 - **B8**: multiple `toolUse` blocks per turn execute **sequentially (v1)** with **partial-failure
   assembly** (one error per failed tool, correct `toolUseId` correlation).
 
-### Decisão 4: Bounded loop (steps + wall-clock) — fail-open on exhaustion
+### Decision 4: Bounded loop (steps + wall-clock) — fail-open on exhaustion
 
-**Escolha**: hard cap `MAX_TOOL_STEPS` (e.g. 5) + total wall-clock budget; on exhaustion, finalize
+**Choice**: hard cap `MAX_TOOL_STEPS` (e.g. 5) + total wall-clock budget; on exhaustion, finalize
 with what's gathered + a visible "hit step limit" note.
 
-**Justificativa**: prevents infinite tool loops and runaway Bedrock cost; aligns with ADR-0004
+**Rationale**: prevents infinite tool loops and runaway Bedrock cost; aligns with ADR-0004
 (fail-open availability).
 
-### Decisão 7: Stream the loop's steps (transparency) — real streaming, not pseudo
+### Decision 7: Stream the loop's steps (transparency) — real streaming, not pseudo
 
-**Escolha**: emit incremental SSE deltas over the OpenAI-compat bridge as the loop runs — model
+**Choice**: emit incremental SSE deltas over the OpenAI-compat bridge as the loop runs — model
 reasoning (optionally Claude extended-thinking), each tool call (name + args), and a
 **guardrail-scanned** summary of each tool result — so LibreChat renders the subagent thinking and
 acting on the cluster **live**. Replaces the current pseudo-streaming (single final delta).
 
-**Justificativa**: the value of "subagents" is visible reasoning + actions; the loop already has
+**Rationale**: the value of "subagents" is visible reasoning + actions; the loop already has
 the steps, so streaming them is publishing events, not new logic.
 
 **Trade-offs**: tool results streamed to the user MUST pass the guardrail (B3 — redact secrets/PII);
 extended-thinking costs extra tokens (flag; budgeted); LibreChat's collapsible-thinking rendering
 depends on format (step text always shows).
 
-**Quando estaria errado**: if step streaming leaks sensitive data despite the guardrail → gate
+**When this would be wrong**: if step streaming leaks sensitive data despite the guardrail → gate
 result-streaming behind B3 redaction, never stream raw tool output.
 
 ## Invariantes

@@ -1,39 +1,39 @@
 # Design: Multi-Agent Collaboration
 
-## Arquitetura
+## Architecture
 
-Mantém hub-and-spoke (supervisor coordena), mas o hub passa a fazer **fan-out/fan-in** quando a query é cross-domain:
+Maintains hub-and-spoke (supervisor coordinates), but the hub now performs **fan-out/fan-in** when the query is cross-domain:
 
 ```
                          ┌─ aws-agent ──────┐
-User → Supervisor → Classifier (1..N) ─┼─ finops-agent ───┤→ Synthesizer → resposta única
+User → Supervisor → Classifier (1..N) ─┼─ finops-agent ───┤→ Synthesizer → single response
                          └─ observability ──┘   (1 Bedrock call)
-                         (asyncio.gather, paralelo)
+                         (asyncio.gather, parallel)
 ```
 
-- **N=1** (caso comum): fast-path — chama 1 agente e devolve direto. **Zero** custo de síntese.
-- **N≥2**: chama os agentes em paralelo, coleta as respostas, sintetiza.
-- **Agent-as-tools**: ortogonal ao fan-out — um agente, ao processar, pode requisitar dado a outro (1 salto), reusando o mesmo endpoint `/process` com um header de profundidade.
+- **N=1** (common case): fast-path — calls 1 agent and returns directly. **Zero** synthesis cost.
+- **N≥2**: calls agents in parallel, collects responses, synthesizes.
+- **Agent-as-tools**: orthogonal to fan-out — an agent, while processing, can request data from another (1 hop), reusing the same `/process` endpoint with a depth header.
 
-## Componentes
+## Components
 
-| Componente | Responsabilidade | Onde |
-|-----------|------------------|------|
-| Classifier (multi) | Retornar lista ordenada de agentes relevantes | `src/core/classifier.py` (estende contrato) |
-| Orchestrator (fan-out) | `asyncio.gather` dos N agentes + tolerância a falha parcial | `src/supervisor/agent.py` |
-| Synthesizer | 1 chamada Bedrock que funde N respostas → 1, com atribuição | `src/supervisor/synthesizer.py` (novo) |
-| Hop guard | Header `X-Agent-Hop` limita agent-as-tools a depth=1 | `src/core/agent_base.py` + servers |
-| Agent tool-call | Cliente fino p/ um agente chamar outro via supervisor | `src/core/agent_tools.py` (novo) |
+| Component | Responsibility | Location |
+|-----------|----------------|----------|
+| Classifier (multi) | Return ordered list of relevant agents | `src/core/classifier.py` (extends contract) |
+| Orchestrator (fan-out) | `asyncio.gather` of N agents + partial failure tolerance | `src/supervisor/agent.py` |
+| Synthesizer | 1 Bedrock call that merges N responses → 1, with attribution | `src/supervisor/synthesizer.py` (new) |
+| Hop guard | Header `X-Agent-Hop` limits agent-as-tools to depth=1 | `src/core/agent_base.py` + servers |
+| Agent tool-call | Thin client for one agent to call another via supervisor | `src/core/agent_tools.py` (new) |
 
-## Contrato do classifier (retrocompatível)
+## Classifier contract (backward-compatible)
 
 ```python
 @dataclass
 class ClassifierResult:
-    agents: list[AgentMatch]        # NOVO — ordenado por relevância
+    agents: list[AgentMatch]        # NEW — ordered by relevance
     reasoning: Optional[str] = None
     @property
-    def selected_agent(self) -> str:  # compat: primeiro da lista ou "unknown"
+    def selected_agent(self) -> str:  # compat: first in the list or "unknown"
         return self.agents[0].agent if self.agents else "unknown"
 
 @dataclass
@@ -42,133 +42,133 @@ class AgentMatch:
     confidence: float
 ```
 
-O system prompt do classifier passa a permitir 1..N agentes e a explicar quando usar mais de um (query multi-faceta) vs um só (follow-up, domínio único). `max_agents` (default 3) trunca a lista.
+The classifier's system prompt now allows 1..N agents and explains when to use more than one (multi-faceted query) vs a single one (follow-up, single domain). `max_agents` (default 3) truncates the list.
 
 ## Fan-out (fan-in)
 
 ```python
-# supervisor, quando len(agents) >= 2
+# supervisor, when len(agents) >= 2
 async def _fan_out(self, agents, payload):
     tasks = [self._call_agent(a.agent, payload) for a in agents]
     results = await asyncio.gather(*tasks, return_exceptions=True)
     ok = [(a.agent, r) for a, r in zip(agents, results) if not isinstance(r, Exception)]
     failed = [a.agent for a, r in zip(agents, results) if isinstance(r, Exception)]
-    return ok, failed   # falha parcial não derruba a query
+    return ok, failed   # partial failure does not bring down the query
 ```
 
-Tempo total ≈ `max()` das latências, não a soma. Reusa o circuit breaker e os timeouts da spec 06.
+Total time ≈ `max()` of latencies, not the sum. Reuses the circuit breaker and timeouts from spec 06.
 
-## Síntese
+## Synthesis
 
-Uma única chamada Bedrock recebe: a query original + as N respostas rotuladas por agente, e produz a resposta final preservando atribuição. Usa modelo **Sonnet** (qualidade da fusão importa), enquanto o classifier usa **Haiku** (spec 11). Se `failed` não-vazio, o prompt instrui a notar a degradação.
+A single Bedrock call receives: the original query + the N responses labeled by agent, and produces the final response preserving attribution. Uses **Sonnet** model (quality of the merge matters), while the classifier uses **Haiku** (spec 11). If `failed` is non-empty, the prompt instructs to note the degradation.
 
 ## Agent-as-tools (depth = 1)
 
 ```
-agent A (processando) ── precisa de dado de B ──▶ POST /process (X-Agent-Hop: 1)
-agent B responde ──▶ A usa no seu contexto ──▶ resposta de A
+agent A (processing) ── needs data from B ──▶ POST /process (X-Agent-Hop: 1)
+agent B responds ──▶ A uses it in its context ──▶ A's response
 ```
 
-- `X-Agent-Hop` ausente/0 = chamada do usuário; `=1` = chamada agente→agente; `≥2` = **rejeitada** (quebra ciclo).
-- Read-only preservado: B é o mesmo agente consultivo de sempre.
-- Exposto como ferramenta opcional; um agente só usa quando o prompt detecta necessidade cross-domain.
+- `X-Agent-Hop` absent/0 = user call; `=1` = agent-to-agent call; `≥2` = **rejected** (breaks cycles).
+- Read-only preserved: B is the same consultative agent as always.
+- Exposed as an optional tool; an agent only uses it when the prompt detects a cross-domain need.
 
-## Rationale (decisões e trade-offs)
+## Rationale (decisions and trade-offs)
 
-### Decisão 1: Fan-out + síntese no supervisor (não malha agente-a-agente)
+### Decision 1: Fan-out + synthesis in the supervisor (not a free agent-to-agent mesh)
 
-**Escolha**: a colaboração multi-domínio é orquestrada pelo supervisor (fan-out/fan-in), não por agentes conversando livremente entre si.
+**Choice**: multi-domain collaboration is orchestrated by the supervisor (fan-out/fan-in), not by agents freely conversing with each other.
 
-**Justificativa, em ordem de força**:
-1. **Controle de custo e terminação**: malha livre agente↔agente não tem limite natural de saltos → explosão de chamadas Bedrock e risco de ciclo. Fan-out no hub tem teto determinístico (`max_agents`, 1 síntese).
-2. **Observabilidade**: 1 trace em árvore (supervisor → N folhas → síntese) é legível; um grafo arbitrário de chamadas é quase impossível de depurar.
-3. **Reuso**: o supervisor já tem cliente HTTP, circuit breaker (spec 06) e histórico — o fan-out reaproveita tudo.
+**Justification, in order of strength**:
+1. **Cost and termination control**: a free agent↔agent mesh has no natural hop limit → explosion of Bedrock calls and cycle risk. Fan-out at the hub has a deterministic ceiling (`max_agents`, 1 synthesis).
+2. **Observability**: 1 tree-shaped trace (supervisor → N leaves → synthesis) is readable; an arbitrary call graph is nearly impossible to debug.
+3. **Reuse**: the supervisor already has an HTTP client, circuit breaker (spec 06), and history — the fan-out reuses all of it.
 
-**Trade-offs aceitos**:
-| Custo | Realidade |
-|-------|-----------|
-| Não há "debate" entre agentes (1 rodada só) | Cobre 90% dos casos cross-domain; debate é over-engineering pra um ChatOps consultivo |
-| Síntese adiciona 1 chamada Bedrock quando N≥2 | Só no caso multi-domínio; N=1 (maioria) não paga isso |
+**Accepted trade-offs**:
+| Cost | Reality |
+|------|---------|
+| No "debate" between agents (1 round only) | Covers 90% of cross-domain cases; debate is over-engineering for a consultative ChatOps |
+| Synthesis adds 1 Bedrock call when N≥2 | Only in the multi-domain case; N=1 (majority) does not pay for it |
 
-**Quando essa decisão estaria errada** (signals pra reabrir):
-- Casos reais exigem múltiplas rodadas (A responde, B refina, A reconsidera) com frequência.
-- O teto de `max_agents=3` se mostra insuficiente para queries reais.
+**When this decision would be wrong** (signals to reopen):
+- Real cases require multiple rounds (A responds, B refines, A reconsiders) frequently.
+- The `max_agents=3` ceiling proves insufficient for real queries.
 
-**Alternativas descartadas**:
-- **Malha P2P agente-a-agente** — descartada por custo/ciclo/observabilidade.
-- **LangGraph/framework de orquestração** — descartado: foi removido do projeto deliberadamente (ver steering `project.md`); reintroduzir contraria decisão vigente.
+**Alternatives discarded**:
+- **P2P agent-to-agent mesh** — discarded due to cost/cycles/observability.
+- **LangGraph/orchestration framework** — discarded: was deliberately removed from the project (see steering `project.md`); reintroducing it contradicts a standing decision.
 
-### Decisão 2: Agent-as-tools limitado a 1 salto
+### Decision 2: Agent-as-tools limited to 1 hop
 
-**Escolha**: um agente pode chamar **no máximo um** outro agente, nunca encadeado.
+**Choice**: an agent can call **at most one** other agent, never chained.
 
-**Justificativa**:
-1. **Anti-ciclo**: depth=1 torna ciclos impossíveis por construção (A→B, B não pode chamar mais ninguém).
-2. **Latência/custo previsíveis**: pior caso = 2 agentes + 1 síntese, não uma cadeia indefinida.
-3. **Simplicidade de teste**: o espaço de estados é pequeno e enumerável.
+**Justification**:
+1. **Anti-cycle**: depth=1 makes cycles impossible by construction (A→B, B cannot call anyone else).
+2. **Predictable latency/cost**: worst case = 2 agents + 1 synthesis, not an indefinite chain.
+3. **Testing simplicity**: the state space is small and enumerable.
 
-**Trade-offs aceitos**:
-| Custo | Realidade |
-|-------|-----------|
-| Cadeias A→B→C impossíveis | Se C é necessário, o fan-out do supervisor (Decisão 1) já o inclui em paralelo |
+**Accepted trade-offs**:
+| Cost | Reality |
+|------|---------|
+| Chains A→B→C are impossible | If C is needed, the supervisor's fan-out (Decision 1) already includes it in parallel |
 
-**Quando estaria errada**: se surgirem dependências legítimas de 2+ saltos que o fan-out não resolve.
+**When it would be wrong**: if legitimate 2+ hop dependencies emerge that the fan-out cannot resolve.
 
-### Decisão 3: Classifier multi-agente retrocompatível (lista, com `selected_agent` derivado)
+### Decision 3: Multi-agent classifier backward-compatible (list, with derived `selected_agent`)
 
-**Escolha**: estender `ClassifierResult` para uma lista e expor `selected_agent` como propriedade (primeiro item).
+**Choice**: extend `ClassifierResult` to a list and expose `selected_agent` as a property (first item).
 
-**Justificativa**: não quebra o supervisor atual nem a spec 02/06 enquanto o fan-out é introduzido; o caminho N=1 continua idêntico. Migração incremental.
+**Justification**: does not break the current supervisor or specs 02/06 while the fan-out is introduced; the N=1 path remains identical. Incremental migration.
 
-**Trade-off aceito**: um campo derivado a manter — custo trivial perto de um breaking change no contrato.
+**Trade-off accepted**: one derived field to maintain — trivial cost compared to a breaking change in the contract.
 
-## Invariantes
+## Invariants
 
-- N=1 **nunca** dispara síntese (fast-path imutável).
-- `X-Agent-Hop ≥ 2` é sempre rejeitado.
-- Falha parcial no fan-out **degrada**, não derruba.
-- Read-only preservado em todos os caminhos (fan-out e agent-as-tools).
-- Teto `max_agents` aplicado **antes** de qualquer chamada (proteção de custo).
+- N=1 **never** triggers synthesis (immutable fast-path).
+- `X-Agent-Hop ≥ 2` is always rejected.
+- Partial failure in the fan-out **degrades**, does not bring down the query.
+- Read-only preserved in all paths (fan-out and agent-as-tools).
+- `max_agents` ceiling applied **before** any call (cost protection).
 
-## Dependências externas
+## External dependencies
 
-| Serviço | Uso |
-|---------|-----|
-| Bedrock | classifier (Haiku) + agentes + síntese (Sonnet) |
-| (herda) | endpoints `/process` dos 5 agentes |
+| Service | Usage |
+|---------|-------|
+| Bedrock | classifier (Haiku) + agents + synthesis (Sonnet) |
+| (inherited) | `/process` endpoints of the 5 agents |
 
-## Verificação
+## Verification
 
 ```bash
 docker run --rm -v $(pwd):/app -w /app python:3.11-slim sh -c \
   "pip install -q -r requirements.txt pytest pytest-asyncio && pytest tests/ -v --cov=src --cov-fail-under=90"
 ```
 
-Testes-chave (test-author ≠ autor do código): classifier devolve N agentes p/ query multi-domínio; `asyncio.gather` roda em paralelo (assert tempo ≈ max, com agentes mockados c/ sleep); síntese funde N→1; falha parcial inclui nota de degradação; `X-Agent-Hop=2` retorna rejeição; N=1 não chama o synthesizer.
+Key tests (test-author ≠ code author): classifier returns N agents for a multi-domain query; `asyncio.gather` runs in parallel (assert time ≈ max, with mocked agents + sleep); synthesis merges N→1; partial failure includes degradation note; `X-Agent-Hop=2` returns rejection; N=1 does not call the synthesizer.
 
-## Riscos
+## Risks
 
-- Custo: fan-out multiplica chamadas Bedrock. Mitigado por `max_agents` + Haiku no classifier + circuit breaker.
-- Qualidade da síntese: prompt mal calibrado funde respostas de forma confusa. Mitigar com exemplos no prompt + atribuição explícita.
-- Pré-requisito async (spec 06): sem ele, `asyncio.gather` não dá paralelismo real (boto3 síncrono bloqueia o loop).
+- Cost: fan-out multiplies Bedrock calls. Mitigated by `max_agents` + Haiku for the classifier + circuit breaker.
+- Synthesis quality: poorly calibrated prompt merges responses confusingly. Mitigate with examples in the prompt + explicit attribution.
+- Async prerequisite (spec 06): without it, `asyncio.gather` does not provide real parallelism (synchronous boto3 blocks the loop).
 
 ---
 
-## Extensibilidade: contexto compartilhado (Nível 3+ do ROADMAP)
+## Extensibility: shared context (Level 3+ of the ROADMAP)
 
-> Esta seção documenta como o fan-out evolui sem reescrita. NÃO implementar no Nível 1–2.
+> This section documents how the fan-out evolves without rewriting. DO NOT implement in Level 1–2.
 
-**Problema do Nível 3**: agentes coletam independentemente; cada um não sabe o que os outros encontraram. Isso limita a qualidade quando a evidência de um agente MUDARIA a query de outro.
+**Level 3 problem**: agents collect independently; each one does not know what the others found. This limits quality when one agent's evidence WOULD CHANGE another's query.
 
-**Solução**: o `asyncio.gather` passa a aceitar um **scratchpad** (spec 18 `InvestigationState`) como contexto injetado no prompt dos agentes em rodadas subsequentes.
+**Solution**: `asyncio.gather` accepts a **scratchpad** (spec 18 `InvestigationState`) as context injected into the agents' prompts in subsequent rounds.
 
 ```python
-# Nível 1-2: fan-out simples
+# Level 1-2: simple fan-out
 results = await asyncio.gather(*[call_agent(a, payload) for a in agents])
 
-# Nível 3+: fan-out COM contexto compartilhado
+# Level 3+: fan-out WITH shared context
 for round in range(max_rounds):
-    context = scratchpad.summary()  # resumo das rodadas anteriores
+    context = scratchpad.summary()  # summary of previous rounds
     enriched_payload = {**payload, "prior_evidence": context}
     results = await asyncio.gather(*[call_agent(a, enriched_payload) for a in agents])
     scratchpad.update(results)
@@ -176,6 +176,6 @@ for round in range(max_rounds):
         break
 ```
 
-**O que muda no contrato dos agentes**: recebem campo opcional `prior_evidence` (string, resumo). Agentes que não suportam (Nível 1) ignoram o campo. Zero breaking change.
+**What changes in the agents' contract**: they receive an optional `prior_evidence` field (string, summary). Agents that do not support it (Level 1) ignore the field. Zero breaking change.
 
-**Promotion trigger**: "contexto de outros agentes melhoraria a coleta em >20% dos casos" (medido pela diff de confiança da RCA com/sem contexto em testes A/B).
+**Promotion trigger**: "context from other agents would improve collection in >20% of cases" (measured by the diff in RCA confidence with/without context in A/B tests).

@@ -10,93 +10,93 @@ deferred: []
 # Feature: Config-Driven Agent Platform
 
 **Spec**: `22-agent-capability-manifest`
-**Severidade**: 🟠 High (redesign arquitetural — habilita produto customizável)
-**Substitui**: spec 19 (`config-driven-platform`)
-**Visão de produto**: 1 imagem genérica + N agentes definidos por diretório (YAML + prompt.md). Quem deploya escolhe quantos e quais agentes quer via Helm values, sem escrever código.
+**Severity**: 🟠 High (architectural redesign — enables customizable product)
+**Supersedes**: spec 19 (`config-driven-platform`)
+**Product vision**: 1 generic image + N agents defined by directory (YAML + prompt.md). The deployer chooses how many and which agents they want via Helm values, without writing code.
 
 ---
 
-## Conceito
+## Concept
 
-Um agente **não é código** — é um **diretório de configuração**:
+An agent **is not code** — it is a **configuration directory**:
 
 ```
 agents/
 ├── aws/
 │   ├── agent.yaml      # datasources, capabilities, cache, model
-│   └── prompt.md       # system prompt (pode ser longo)
+│   └── prompt.md       # system prompt (can be long)
 ├── finops/
 │   ├── agent.yaml
 │   ├── prompt.md
-│   └── examples/       # few-shot, RAG docs, referências
+│   └── examples/       # few-shot, RAG docs, references
 │       └── cost-patterns.md
 └── custom-team-x/
     ├── agent.yaml
     └── prompt.md
 ```
 
-A imagem genérica **auto-descobre** o diretório no startup: cada subdir com `agent.yaml` vira um agente funcional.
+The generic image **auto-discovers** the directory at startup: each subdir with `agent.yaml` becomes a functional agent.
 
 ---
 
 ## User Stories
 
-WHEN o operador aponta `AGENTS_DIR` para um diretório THEN o sistema SHALL descobrir todos os subdirs com `agent.yaml` e registrar um agente por cada.
+WHEN the operator points `AGENTS_DIR` to a directory THEN the system SHALL discover all subdirs with `agent.yaml` and register one agent per each.
 
-WHEN o operador adiciona um novo subdir com `agent.yaml` + `prompt.md` e reinicia THEN o sistema SHALL disponibilizar o novo agente ao classifier **sem mudança de código ou rebuild de imagem**.
+WHEN the operator adds a new subdir with `agent.yaml` + `prompt.md` and restarts THEN the system SHALL make the new agent available to the classifier **with no code change or image rebuild**.
 
-WHEN o Helm chart é deployado com `agents[]` no values.yaml THEN cada entrada SHALL gerar um Deployment + Service + ConfigMap com a config do agente.
+WHEN the Helm chart is deployed with `agents[]` in values.yaml THEN each entry SHALL generate a Deployment + Service + ConfigMap with the agent config.
 
-WHEN o `agent.yaml` declara `datasources` THEN o runtime SHALL instanciar os adapters correspondentes e injetá-los no agente.
+WHEN the `agent.yaml` declares `datasources` THEN the runtime SHALL instantiate the corresponding adapters and inject them into the agent.
 
-WHEN o `prompt.md` ultrapassa 100 linhas THEN ele SHALL estar isolado em arquivo (não inline no YAML), evitando poluição.
+WHEN the `prompt.md` exceeds 100 lines THEN it SHALL be isolated in a file (not inline in the YAML), avoiding pollution.
 
-WHEN o classifier roteia uma query THEN ele SHALL usar `name` + `description` + `capabilities` + `routing_keywords` dos manifestos (não uma lista hardcoded).
+WHEN the classifier routes a query THEN it SHALL use `name` + `description` + `capabilities` + `routing_keywords` from the manifests (not a hardcoded list).
 
-WHEN o `agent.yaml` é inválido (campo obrigatório ausente, datasource type desconhecido) THEN o sistema SHALL falhar no **startup** com erro acionável.
+WHEN the `agent.yaml` is invalid (missing required field, unknown datasource type) THEN the system SHALL fail at **startup** with an actionable error.
 
-WHEN dois agentes declaram a mesma capability THEN o classifier SHALL desempatar por `routing_keywords` e `domain`.
+WHEN two agents declare the same capability THEN the classifier SHALL break the tie by `routing_keywords` and `domain`.
 
-WHEN `read_only: true` THEN o sistema SHALL preservar essa invariante em todos os caminhos.
+WHEN `read_only: true` THEN the system SHALL preserve that invariant in all paths.
 
-WHEN `enabled: false` THEN o agente SHALL ser ignorado no discovery.
+WHEN `enabled: false` THEN the agent SHALL be ignored in discovery.
 
 ---
 
 ## Acceptance Criteria
 
-- [ ] 1 imagem Docker genérica que roda qualquer agente baseado em config.
-- [ ] Auto-descoberta de `AGENTS_DIR/<name>/agent.yaml` no startup.
-- [ ] Schema Pydantic para `agent.yaml` com validação estrita.
-- [ ] Registry de datasource adapters: `boto3`, `kubernetes`, `http`, `prometheus`, `athena`, `gitlab`.
-- [ ] `prompt.md` carregado do mesmo diretório do `agent.yaml`.
-- [ ] Classifier consome o registry (lista de agentes é dinâmica, não hardcoded).
-- [ ] Supervisor/coordinator descobre agentes pelo registry (não por URLs fixas).
-- [ ] Helm chart gera N deployments a partir de `agents[]` no values.
-- [ ] Exemplo funcional: 5 agentes atuais migrados para o formato config + 1 agente novo demonstrando extensibilidade.
-- [ ] Falha de startup com config inválida (schema, datasource desconhecido, env ausente).
-- [ ] `read_only` honrado como invariante de segurança.
-- [ ] Testes ≥90%: discovery, seleção por capability, falha de startup, adapter instantiation.
+- [ ] 1 generic Docker image that runs any agent based on config.
+- [ ] Auto-discovery of `AGENTS_DIR/<name>/agent.yaml` at startup.
+- [ ] Pydantic schema for `agent.yaml` with strict validation.
+- [ ] Registry of datasource adapters: `boto3`, `kubernetes`, `http`, `prometheus`, `athena`, `gitlab`.
+- [ ] `prompt.md` loaded from the same directory as `agent.yaml`.
+- [ ] Classifier consumes the registry (agent list is dynamic, not hardcoded).
+- [ ] Supervisor/coordinator discovers agents from the registry (not by fixed URLs).
+- [ ] Helm chart generates N deployments from `agents[]` in values.
+- [ ] Working example: 5 current agents migrated to config format + 1 new agent demonstrating extensibility.
+- [ ] Startup failure with invalid config (schema, unknown datasource, missing env).
+- [ ] `read_only` honored as a security invariant.
+- [ ] Tests ≥90%: discovery, selection by capability, startup failure, adapter instantiation.
 
 ---
 
-## Fora de escopo
+## Out of scope
 
-- Hot-reload sem restart (futuro — restart é aceitável para MVP).
-- Git-sync automático no cluster (initContainer é suficiente por ora).
-- Marketplace/versionamento de manifestos.
-- Datasource adapters além dos 6 listados (plugáveis via interface, mas não implementados agora).
-- Multi-tenant (cada tenant com agents diferentes) — futuro.
+- Hot-reload without restart (future — restart is acceptable for MVP).
+- Automatic git-sync in the cluster (initContainer is sufficient for now).
+- Marketplace/versioning of manifests.
+- Datasource adapters beyond the 6 listed (pluggable via interface, but not implemented now).
+- Multi-tenant (each tenant with different agents) — future.
 
 ---
 
-## Fonte do diretório (deploy-time, não runtime)
+## Directory source (deploy-time, not runtime)
 
-| Fonte | Como montar | Quando usar |
-|-------|-------------|-------------|
-| Local (dev) | `docker run -v ./agents:/config/agents` | Desenvolvimento local |
-| ConfigMap | Helm gera ConfigMap por agent, monta em volume | Deploy simples, tudo no Helm |
-| Git repo | initContainer + git clone + shared volume | Produção, GitOps-native |
-| S3/bucket | initContainer baixa .tar.gz | Agents atualizáveis sem redeploy |
+| Source | How to mount | When to use |
+|--------|-------------|-------------|
+| Local (dev) | `docker run -v ./agents:/config/agents` | Local development |
+| ConfigMap | Helm generates ConfigMap per agent, mounts as volume | Simple deploy, everything in Helm |
+| Git repo | initContainer + git clone + shared volume | Production, GitOps-native |
+| S3/bucket | initContainer downloads .tar.gz | Agents updatable without redeploy |
 
-A plataforma só sabe ler de um diretório. A **fonte** é configuração de deploy (Helm values), não de código.
+The platform only knows how to read from a directory. The **source** is deploy configuration (Helm values), not code.

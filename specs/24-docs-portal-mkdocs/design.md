@@ -1,12 +1,12 @@
 # Design: Documentation Portal (MkDocs)
 
-## Arquitetura
+## Architecture
 
-Portal MkDocs Material, idêntico em convenção aos portais `staffops-chaitops` e `staffops-anomaly-detection` (consistência no ecossistema). README vira índice; conteúdo vive em `docs/src/`; specs continuam em `specs/` (SSOT) e são **linkadas**, não duplicadas.
+MkDocs Material portal, identical in convention to the `staffops-chaitops` and `staffops-anomaly-detection` portals (ecosystem consistency). README becomes an index; content lives in `docs/src/`; specs remain in `specs/` (SSOT) and are **linked**, not duplicated.
 
 ```
-README.md            ← índice curto (overview + diagrama + tabela de links)
-CHANGELOG.md         ← Keep a Changelog (substitui CHANGES/VERSIONS)
+README.md            ← short index (overview + diagram + link table)
+CHANGELOG.md         ← Keep a Changelog (replaces CHANGES/VERSIONS)
 docs/
 ├── mkdocs.yml       ← Material, docs_dir: src, site_dir: public, Mermaid, git-revision-date
 ├── scripts/
@@ -20,96 +20,96 @@ docs/
     ├── api/               (index, supervisor, mcp, auth)
     ├── operations/        (index, deployment, observability, troubleshooting)
     └── development/       (index, building, testing, contributing, specs)
-specs/          ← SSOT das specs (linkado de development/specs.md)
+specs/          ← SSOT for specs (linked from development/specs.md)
 ```
 
-## Mapa de migração (consolidação)
+## Migration map (consolidation)
 
-| Origem (hoje) | Destino | Ação |
-|---------------|---------|------|
-| `README.md` (32KB) | `README.md` (índice) + `src/index.md` | reduzir a índice; mover conteúdo |
-| `QUICKSTART.md`, `docs/LOCAL_DEVELOPMENT.md`, `docs/SETUP.md`, `docs/PREREQUISITES.md` | `getting-started/` | mesclar (remove sobreposição + colisão de porta D9) |
-| `docs/ARCHITECTURE.md` | `architecture/` | **reescrever** (remove LangGraph/HPA, encoding) |
-| `docs/READ_ONLY_POLICY.md` | `architecture/read-only.md` | migrar + corrigir encoding |
-| `docs/OBSERVABILITY.md` | `operations/observability.md` | migrar |
-| `docs/RAG_IMPLEMENTATION.md` | `architecture/` ou `agents/` | migrar + marcar status real |
-| `docs/MCP_INTEGRATION.md` | `api/mcp.md` | migrar + corrigir encoding |
-| `docs/GITLAB_CI_SETUP.md` | `development/` ou remover | corrigir (repo é GitHub) ou absorver na spec 08 |
-| `CHANGES.md`, `VERSIONS.md`, `GENERIC_VERSION.md` | `CHANGELOG.md` | absorver o útil, **deletar** |
-| `docs/MIGRATION.md` | — | **deletar** (fantasma: server_new.py) |
-| `IMPLEMENTATION_HISTORY.md` | `archive/` (fora do portal) | arquivar (histórico) |
+| Source (today) | Destination | Action |
+|----------------|-------------|--------|
+| `README.md` (32KB) | `README.md` (index) + `src/index.md` | reduce to index; move content |
+| `QUICKSTART.md`, `docs/LOCAL_DEVELOPMENT.md`, `docs/SETUP.md`, `docs/PREREQUISITES.md` | `getting-started/` | merge (remove overlap + port collision D9) |
+| `docs/ARCHITECTURE.md` | `architecture/` | **rewrite** (remove LangGraph/HPA, fix encoding) |
+| `docs/READ_ONLY_POLICY.md` | `architecture/read-only.md` | migrate + fix encoding |
+| `docs/OBSERVABILITY.md` | `operations/observability.md` | migrate |
+| `docs/RAG_IMPLEMENTATION.md` | `architecture/` or `agents/` | migrate + mark real status |
+| `docs/MCP_INTEGRATION.md` | `api/mcp.md` | migrate + fix encoding |
+| `docs/GITLAB_CI_SETUP.md` | `development/` or remove | fix (repo is GitHub) or absorb into spec 08 |
+| `CHANGES.md`, `VERSIONS.md`, `GENERIC_VERSION.md` | `CHANGELOG.md` | absorb useful content, **delete** |
+| `docs/MIGRATION.md` | — | **delete** (ghost: references server_new.py) |
+| `IMPLEMENTATION_HISTORY.md` | `archive/` (outside the portal) | archive (history) |
 
-## ADRs (`architecture/decisions.md` ou `architecture/adr/`)
+## ADRs (`architecture/decisions.md` or `architecture/adr/`)
 
-Seguir formato do specialist de docs (`ANALYSIS.md` Proposta 2): Status · Context · Decision · Consequences · Alternatives.
+Follow the format from the docs specialist (`ANALYSIS.md` Proposal 2): Status · Context · Decision · Consequences · Alternatives.
 
-1. Remoção do LangGraph (Bedrock direto)
-2. Bedrock-direct classifier (não tool-use routing)
-3. Read-only 4-camadas (consultivo)
-4. Classifier sobre routing manual
-5. Reposicionamento no ecossistema StaffOps (resumo do `ECOSYSTEM.md`)
+1. Removal of LangGraph (Bedrock direct)
+2. Bedrock-direct classifier (not tool-use routing)
+3. Read-only 4-layers (consultative)
+4. Classifier over manual routing
+5. Repositioning in the StaffOps ecosystem (summary of `ECOSYSTEM.md`)
 
-## Rationale (decisões e trade-offs)
+## Rationale (decisions and trade-offs)
 
-### Decisão 1: MkDocs Material idêntico aos outros portais StaffOps
+### Decision 1: MkDocs Material identical to the other StaffOps portals
 
-**Escolha**: reusar a convenção exata (`docs_dir: src`→`site_dir: public`, Material, Mermaid, git-revision-date, nav por seções) de chaitops/anomaly-detection.
+**Choice**: reuse the exact convention (`docs_dir: src`→`site_dir: public`, Material, Mermaid, git-revision-date, section-based nav) from chaitops/anomaly-detection.
 
-**Justificativa, em ordem de força**:
-1. **Consistência de ecossistema**: quem navega um portal StaffOps navega todos igual — reduz fricção pra comunidade e pra você.
-2. **Provado**: os dois repos já rodam isso; zero risco de tooling.
-3. **Diátaxis embutido**: a nav por seções (getting-started/architecture/operations/development) já separa tutorial/how-to/referência/explicação.
+**Justification, in order of strength**:
+1. **Ecosystem consistency**: anyone navigating one StaffOps portal navigates all the same way — reduces friction for the community and for yourself.
+2. **Proven**: both repos already run this; zero tooling risk.
+3. **Built-in Diátaxis**: the section-based nav (getting-started/architecture/operations/development) already separates tutorial/how-to/reference/explanation.
 
-**Trade-offs aceitos**:
-| Custo | Realidade |
-|-------|-----------|
-| Mais um build step (mkdocs) | Roda via Docker (sem install local); opcional pra quem só lê o markdown |
-| Manter nav em `mkdocs.yml` | Trivial; o ganho de navegabilidade compensa |
+**Accepted trade-offs**:
+| Cost | Reality |
+|------|---------|
+| One more build step (mkdocs) | Runs via Docker (no local install); optional for those who only read the markdown |
+| Maintaining nav in `mkdocs.yml` | Trivial; the navigability gain compensates |
 
-**Quando estaria errada**: se o projeto adotar outra stack de docs no ecossistema (improvável — já há 2 portais Material).
+**When it would be wrong**: if the project adopts another docs stack in the ecosystem (unlikely — there are already 2 Material portals).
 
-### Decisão 2: README = índice; `specs/` = SSOT (portal linka, não duplica)
+### Decision 2: README = index; `specs/` = SSOT (portal links, does not duplicate)
 
-**Escolha**: README curto apontando pro portal; specs permanecem em `specs/` e são referenciadas, não copiadas.
+**Choice**: short README pointing to the portal; specs remain in `specs/` and are referenced, not copied.
 
-**Justificativa**: o anti-pattern atual é duplicação (README gigante + docs sobrepostos). Uma fonte por tipo de conteúdo elimina drift (steering `documentation-sync`). Specs têm ciclo próprio (spec-driven-workflow) — copiá-las pro portal criaria duas verdades.
+**Justification**: the current anti-pattern is duplication (giant README + overlapping docs). One source per content type eliminates drift (steering `documentation-sync`). Specs have their own lifecycle (spec-driven-workflow) — copying them to the portal would create two truths.
 
-**Trade-off aceito**: o leitor do portal dá 1 clique pra chegar nas specs — aceitável; specs são material de contribuidor, não de usuário final.
+**Trade-off accepted**: the portal reader needs 1 click to reach the specs — acceptable; specs are contributor material, not end-user material.
 
-### Decisão 3: Deletar docs fantasma/redundantes, não só "deixar de lado"
+### Decision 3: Actively delete ghost/redundant docs, not just "set aside"
 
-**Escolha**: remover ativamente `CHANGES.md`, `VERSIONS.md`, `GENERIC_VERSION.md`, `docs/MIGRATION.md`.
+**Choice**: actively remove `CHANGES.md`, `VERSIONS.md`, `GENERIC_VERSION.md`, `docs/MIGRATION.md`.
 
-**Justificativa**: doc desatualizada é **pior** que ausência — engana (steering `documentation-sync`, anti-pattern). `MIGRATION.md` manda rodar `server_new.py` inexistente. Git preserva o histórico; não há perda.
+**Justification**: outdated documentation is **worse** than no documentation — it deceives (steering `documentation-sync`, anti-pattern). `MIGRATION.md` tells you to run a non-existent `server_new.py`. Git preserves history; there is no loss.
 
-**Trade-off aceito**: perda de "registro histórico" no working tree → `IMPLEMENTATION_HISTORY.md` arquivado cobre isso.
+**Trade-off accepted**: loss of "historical record" in the working tree → `IMPLEMENTATION_HISTORY.md` archived covers this.
 
-## Invariantes
+## Invariants
 
-- README **não** duplica conteúdo do portal (é índice).
-- `specs/` é a **única** fonte das specs; portal linka.
-- Nenhum doc no portal referencia arquivo/feature inexistente.
-- Build/serve do portal roda **via Docker** (sem install local — `dev-environment`).
-- Idioma do portal consistente (inglês para open-source; specs em PT permanecem).
+- README does **NOT** duplicate portal content (it is an index).
+- `specs/` is the **only** source for specs; portal links.
+- No portal doc references a non-existent file/feature.
+- Portal build/serve runs **via Docker** (no local install — `dev-environment`).
+- Portal language consistent (English for open-source; specs in PT remain).
 
-## Dependências externas
+## External dependencies
 
-| Lib | Uso |
-|-----|-----|
-| mkdocs-material | tema/portal |
+| Lib | Usage |
+|-----|-------|
+| mkdocs-material | theme/portal |
 | mkdocs-git-revision-date-localized-plugin | timestamps |
-| (Docker) `squidfunk/mkdocs-material` image | serve/build sem install local |
+| (Docker) `squidfunk/mkdocs-material` image | serve/build without local install |
 
-## Verificação
+## Verification
 
 ```bash
-# build sem warnings de link quebrado (via Docker)
+# build without broken-link warnings (via Docker)
 docker run --rm -v "$PWD/docs:/docs" squidfunk/mkdocs-material build --strict
 ```
-`--strict` falha em link quebrado/nav órfã. Validar: README só índice; nenhum arquivo migrado referencia `server_new.py`/`terraform/`; encoding corrigido; `mkdocs build --strict` verde.
+`--strict` fails on broken links/orphan nav. Validate: README is index only; no migrated file references `server_new.py`/`terraform/`; encoding fixed; `mkdocs build --strict` green.
 
-## Riscos
+## Risks
 
-- Migração perde conteúdo → fazer por etapas, conferindo cada origem antes de deletar.
-- Link quebrado pós-migração → `mkdocs build --strict` no CI (spec 08) pega.
-- Idioma misto (specs PT, portal EN) → documentar a convenção explicitamente; aceitável (specs são internas).
+- Migration loses content → do it in stages, checking each source before deleting.
+- Broken links after migration → `mkdocs build --strict` in CI (spec 08) catches them.
+- Mixed language (specs PT, portal EN) → document the convention explicitly; acceptable (specs are internal).
