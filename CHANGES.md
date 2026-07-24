@@ -21,7 +21,18 @@
 - **`<self_service>` tone softened** — kept the self-serve/read-only intent, dropped the harsh imperative.
 - **Eval expansion** — 4 capability-oriented golden queries (logs / helm / cert / cross-signal RCA).
 - **spec 38 follow-ups documented** — Phase-2 dispatch condition; move startup-validation out of import.
-- _Committed locally, NOT pushed (user decides push). Live homologation of git-synced prompts pending push._
+- **🔴 CRITICAL FIX — tier routing was INERT in prod, now wired into ALL paths.** Homologation of the
+  agentic28 deploy revealed `_resolve_tier_model` was only threaded in auto-route+fan-out; the
+  **force_agent streaming** path (LibreChat per-agent models) and the **investigation orchestration**
+  (RCA/why/investigate) + **alertmanager webhook** bypassed it → 17/17 live invocations were Sonnet,
+  Opus/Haiku NEVER activated. Fixed (harness pipeline dev→dev-test→code-review, 103 tests): force_agent
+  uses a heuristic complexity (no extra classify), investigation/alertmanager route as `complex`.
+  **Live-validated on devops-core (agentic28): simple→Haiku (2.4s), complex RCA→Opus 4.5 (15 Opus
+  invocations, `tier=deep` logged).** Also raised `GATEWAY_FIRST_BYTE_TIMEOUT` 90→140s — Opus + the
+  non-streaming multi-agent/investigation path make first-byte = loop completion (~100s), which 90s cut → 500.
+- _P1 DEPLOYED to devops-core (test=prod): GitLab prompts pushed (git-synced), image `agentic28` built
+  + deployed (rev 61), Opus 4.5 deep tier LIVE + validated. App code committed on branch
+  `fix/openai-compat-drop-system-messages` (not yet merged to dev — pending PR)._
 
 ### Added — grafana-mcp + kubectl-mcp read-only bindings
 - **grafana-mcp bound to the observability agent** (2026-07-22) — the deployed `mcp-servers/grafana-mcp`

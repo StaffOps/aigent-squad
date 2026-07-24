@@ -43,3 +43,12 @@ Phase 1 **DELIVERED** (agentic24, pre-routing; escalation dropped by harness). C
   testing + import ordering). Move it into the app startup hook (FastAPI lifespan / explicit init) so
   validation runs once at boot, not on every import. Medium-risk (must keep fail-loud on misconfig) →
   do with a test that asserts boot fails on an invalid tier id. Deferred (not rushed at session tail).
+
+### FU-C — tier routing was INERT in prod (CRITICAL, FIXED + homologated 2026-07-23)
+Homologation revealed `_resolve_tier_model` was only threaded in auto-route + fan-out; **force_agent
+streaming** (LibreChat per-agent models), the **investigation orchestration**, and the **alertmanager
+webhook** all bypassed it → 17/17 live invocations were Sonnet; Opus/Haiku never activated. Fixed via
+the harness pipeline (103 tests): force_agent uses a heuristic complexity (no extra classify call),
+investigation/alertmanager route as `complex`. **T10 homologated live (agentic28): simple→Haiku (2.4s),
+complex RCA→Opus 4.5 (`tier=deep`, 15 Opus invocations).** Raised `GATEWAY_FIRST_BYTE_TIMEOUT` 90→140s
+(Opus + non-streaming first-byte ≈ loop completion ~100s). T9 + T10 now DONE.
