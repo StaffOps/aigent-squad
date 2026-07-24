@@ -14,6 +14,10 @@
   attack-test input; BACKLOG/archive historical runtime quotes.
 - **Audit findings** tracked in `specs/BACKLOG.md`: delete/merge candidates (await user approval) +
   pre-existing test drift (fix-needed) + minor doc inconsistencies. Repo verdict: healthy, 0 dead/orphan files.
+- **Docs synced:** spec 39 marked `done-with-deferrals` (WS1/WS2/WS3 done + homologated; T3.4 Phase-2);
+  spec 21 design embedding dims corrected (Bedrock Titan v2/1024, matching impl); `HANDOFF.md` overwritten
+  to the agentic28 session (prior → `archive/handoffs/2026-07-17.md`); `archive/IMPLEMENTATION_HISTORY.md`
+  given a HISTORICAL banner; AGENTS/README/METRICS updated (tier routing live, Opus 4.5, `aigent.tier.routing_decisions`); ROADMAP regen; gate rc=0.
 
 ### Added — MCP-usage reinforcement, RCA fold, Opus 4.5 deep tier (2026-07-23)
 - **Prompt reinforcement to leverage the bound MCPs** (harness-validated — code-review + observability
