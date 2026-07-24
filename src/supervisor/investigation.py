@@ -61,6 +61,7 @@ async def run_investigation(
     user_id: str = "investigator",
     session_id: str = "",
     relevant_agent_names: list[str] | None = None,
+    model_id_override: str | None = None,
 ) -> RCAResult:
     """Run a single-round RCA investigation.
 
@@ -111,6 +112,7 @@ async def run_investigation(
                 session_id=f"{session_id}-inv-{state.id[:8]}",
                 chat_history=[],
                 budget_session_id=session_id,
+                model_id_override=model_id_override,
             )
             for name in chosen
         ]
