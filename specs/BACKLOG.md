@@ -166,7 +166,7 @@ Note: if the Grafana LLM app COULD send `model=aigent-squad-observability`, that
 - `skills/oomkill-investigation/` — subset of `root-cause-analysis`; merge candidate.
 - `src/agents/{aws,devops,finops,kubernetes,observability}/__init__.py` — empty packages, 0 imports; delete.
 - `otel_helper/` (repo root) — duplicate of the generated `.local-stubs/otel_helper/` stub; delete.
-- `infra/terraform/guardrail/terraform.tfstate` + `.tfstate.backup` — tracked state files (should be gitignored + `git rm --cached`; potential info exposure).
+- ~~`infra/terraform/guardrail/terraform.tfstate` + `.tfstate.backup`~~ — ✅ **VERIFIED FALSE POSITIVE (2026-07-24, P0 check):** already gitignored (`.gitignore` L49 `*.tfstate` + L50 `*.tfstate.*`), **never committed** (`git log --all` empty), **not tracked** (`git ls-files` empty), and no secrets in content (only `aws_bedrock_guardrail` config + IDs). NO exposure, no action needed. (The Wave-4 audit subagent mis-flagged it as "tracked".)
 - `evals/results/*-superseded.json` (2) — explicitly superseded; archive/delete after next release.
 
 ### Fix-needed — pre-existing test drift (breaks CI; NOT translation-caused)
