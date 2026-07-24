@@ -24,7 +24,7 @@ runtime `main` `4a1b66e`. **No uncommitted work.** Eval **6/6**.
 - **P0 observability accuracy** — RESOLVED (was crash-pod artifact, not vm-mcp; + Rule 5).
 
 ### 🚧 In-flight / started-not-completed
-- **Spec 38 — model-tier PRE-ROUTING.** ✅ **Phase 1 DELIVERED + homologated (agentic24, option A):**
+- **Spec 38 — model-tier PRE-ROUTING.** ✅ **Phase 1 DELIVERED + homologated (agentic24, option A); wiring FIXED + Opus 4.5 LIVE (agentic28):**
   fast(Haiku)+standard(Sonnet) live; classifier emits complexity; dispatch one-shot (no escalation).
   Live-confirmed: simple query → fast/Haiku (conf 0.95). deep(Opus) behind `AIGENT_TIER_DEEP_ENABLED`
   (default off → standard fallback) pending Opus inference-profile access. 56 tests, 100% cov.
@@ -33,7 +33,7 @@ runtime `main` `4a1b66e`. **No uncommitted work.** Eval **6/6**.
 ### 🔴 Blocked (need ops / user input)
 - **WS1 grafana-mcp** — ✅ **BOUND to observability (read-only allowlist), 2026-07-22.** The server was already deployed (`mcp-servers/grafana-mcp:8000`); wired the datasource into the observability agent with a strict read-only tool allowlist (44 read tools; WRITE tools = [] — no create/update/delete/add/install, no `grafana_api_request`, no `find_*`, no `alerting_manage_rules`). Registry confirms "observability (2 datasources)"; a Loki query drove 8+ tool calls with guardrail-redacted results. Squad now has logs/traces/profiles, not just metrics. **Viewer-token hardening: DECLINED by user (2026-07-23)** — read-only via the allowlist is accepted; the Grafana SA remains write-capable but no mutating tool is exposed (allowlist is the boundary).
 - **kubectl-mcp bound to kubernetes (read-only allowlist), 2026-07-22.** 157 read tools (helm/rollouts/cert/istio/cilium/gitops/keda/velero/capi/kubevirt/crd/cost + diagnostics); validated 0 write, 0 cross-datasource dups (dropped `helm_list` — overlapped k8s-mcp; Bedrock Converse rejects dup tool names). Homologated: helm-releases query answered with real data. **RBAC-audited read-only: the kubectl-mcp SA has 0 write perms (35 resources × 5 verbs), no exec/portforward/impersonate/escalate — dual-layer read-only (allowlist + RBAC), NO hardening follow-up needed** (unlike grafana-mcp, whose Grafana token is still write-capable). Gotcha captured in CHANGES: dedupe allowlist vs existing datasource when binding a 2nd MCP.
-- **Opus inference-profile access** (Bedrock) — blocks the spec 38 `deep` tier (T9).
+- **Opus inference-profile access** (Bedrock) — ✅ **RESOLVED 2026-07-23:** Opus 4.0 profile gone in-account; **Opus 4.5** (`us.anthropic.claude-opus-4-5-20251101-v1:0`) ACTIVE + enabled + live-validated (agentic28). spec 38 `deep` tier now works end-to-end (was inert — wiring fixed).
 - **`${GRAFANA_BASE}`** — ✅ **WIRED (agentic27, config-driven):** `grafana_base_url` setting in the repo (empty default, scrub-clean) + real value `https://grafana.<org>.app.br` injected via `GRAFANA_BASE_URL` env in the k8s-setup overlay → appended to agent context as `<grafana_base>`. Live on both supervisor pods. (Link emission is model-dependent; strengthen the skill/self_service if links need to appear more consistently.)
 - **vmselect / Pyroscope OOMKilled** on devops-core — ⏸️ **DEPRIORITIZED (user 2026-07-22: not impacting the environment).** Left as an observation; no action unless it starts affecting query latency/availability.
 
@@ -46,8 +46,7 @@ runtime `main` `4a1b66e`. **No uncommitted work.** Eval **6/6**.
 ### 🔵 Deferred (roadmap)
 ✅ WS3 cross-signal RCA Phase-1 (spec 39) — **DONE 2026-07-23** (folded into observability) ·
 B-16 Phase-2 (structured confidence) ·
-B-03 feedback→KbDelta · spec 28 provider abstraction · spec 38 FU-A/FU-B (Phase-2 dispatch condition;
-startup-validation → lifespan) · MCP roadmap (GitLab / Kubecost /
+B-03 feedback→KbDelta · spec 28 provider abstraction · spec 38 FU-A (Phase-2 dispatch condition; FU-B startup-validation→lifespan ✅ DONE agentic28) · MCP roadmap (GitLab / Kubecost /
 AWS read-only / tempo / kiali) · future agents (gitops / mesh / supply-chain / db /
 backup-DR) · **version bump 0.4.x → 0.5.0** — milestone candidate; **NOT now** (version-management:
 bump only after prod-validation with measurable value; this session's work is committed locally, not
@@ -238,4 +237,4 @@ on its ServiceAccount + **per-consumer scope (G-5)** for sensitive agents + **NO
 - ✅ **P0 observability accuracy — RESOLVED (evidence-corrected).** The earlier "`tool_steps=0` + saúde EXCELENTE" was an **artifact of the crashing supervisor pod** (`2e+06` window), NOT a vm-mcp bug — vm-mcp is UP and the agent DOES query (verified 12-14 tool steps live). Residual verdict-framing fixed with observability **Rule 5** — verified "operacional com pontos de atenção", not "EXCELENTE".
 - ⏳ **P1 classifier→planner (B-14)** — NEXT.
 - ⏳ **P1 cross-signal RCA (WS3)** · **P2 model-tier (spec 38)** · **P2 feedback (B-03)** · **B-16 Phase-2** (structured field).
-- 🔴 **WS1 grafana-mcp** blocked on **M-1** (Grafana token must become Viewer — ops/terraform).
+- ✅ **WS1 grafana-mcp** BOUND read-only (allowlist); Viewer-token hardening (M-1) DECLINED by user 2026-07-23.

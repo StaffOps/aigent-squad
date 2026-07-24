@@ -68,6 +68,7 @@ and by model.
 |--------|------|--------|-------------|
 | `aigent.tokens.total` | Counter | `agent_id`, `model`, `direction` | Tokens consumed (input and output tracked separately) |
 | `aigent.cost.estimated` | Counter | `agent_id`, `model` | Estimated USD cost from Bedrock pricing |
+| `aigent.tier.routing_decisions` | Counter | `tier` | Spec 38 tier-routing decisions (fast/standard/deep) — tier distribution / Opus invocation ratio (3 series) |
 
 The `direction` label (`input` / `output`) is important: output tokens are
 approximately 5x more expensive than input tokens on Claude models.

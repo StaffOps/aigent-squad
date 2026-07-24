@@ -27,6 +27,7 @@ All metrics emitted by AIgent-squad, collected via OTel Collector → Prometheus
 |--------|------|--------|-------------|
 | `aigent.tokens.total` | Counter | `agent_id`, `model`, `direction` | Tokens consumed (running total) |
 | `aigent.cost.estimated` | Counter | `agent_id`, `model` | Estimated USD cost |
+| `aigent.tier.routing_decisions` | Counter | `tier` | Spec 38 tier-routing decisions (fast/standard/deep) — % of queries routed to Opus, from VictoriaMetrics without a LogQL hack (3 series) |
 | `aigent.collect.duration` | Histogram | `agent_id` | Datasource collection latency (adapter fan-out, ms) |
 | `aigent.llm.duration` | Histogram | `agent_id` | Bedrock round-trip latency (ms, excludes retry backoff) |
 | `aigent.prompt.size_tokens` | Histogram | `agent_id` | Input-token distribution per call (detect prompt bloat; p50/p95) |

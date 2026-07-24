@@ -38,7 +38,7 @@ Phase 1 **DELIVERED** (agentic24, pre-routing; escalation dropped by harness). C
   escalation). Phase 2 (if ever) would add a *dispatch condition* to bump tier mid-loop ONLY on a
   measured signal (e.g. repeated low-confidence tool results), NOT on quality guesswork. Documented
   here as the trigger; no code in Phase 1.
-- [ ] **FU-B — move startup validation out of import side-effect.** `validate_tier_models_at_startup()`
+- [x] **FU-B — DONE (agentic28): startup validation moved to the FastAPI lifespan** (was an import side-effect). `validate_tier_models_at_startup()`
   is currently a **module-level call at `src/supervisor/agent.py:602`** (runs on import → complicates
   testing + import ordering). Move it into the app startup hook (FastAPI lifespan / explicit init) so
   validation runs once at boot, not on every import. Medium-risk (must keep fail-loud on misconfig) →
