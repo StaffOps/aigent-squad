@@ -1,10 +1,10 @@
 ---
 spec: 39-observability-rca-uplift
-status: in-progress
-completed: null
+status: done
+completed: "2026-07-23"
 superseded_by: null
 depends_on: ["37-agentic-tool-calling"]
-deferred: []
+deferred: ["T3.4 deterministic investigation.py path (Phase 2 — prompt-RCA validated live, trigger not met)"]
 ---
 
 # Feature: Observability & RCA uplift

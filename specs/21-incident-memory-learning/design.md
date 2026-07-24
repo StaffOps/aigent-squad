@@ -69,7 +69,7 @@ Sonnet does the heavy lifting (structuring), Opus does the intelligent work (enr
 |----------------------|------------------|
 | `KbDelta` model (action: create/supersede/noop) | Same schema |
 | Confidence thresholds by type | Same logic (troubleshooting=0.85, decision=always human, pattern=0.90, infrastructure=0.80) |
-| pgvector embedding + HNSW index | Same approach (text-embedding-3-small, 1536 dims) |
+| pgvector embedding + HNSW index | Same approach (Bedrock Titan Embed v2, 1024 dims — impl chose Titan over text-embedding-3-small/1536 for Bedrock-native, no extra provider) |
 | CostGuard (budget cap + rate limit) | Same pattern |
 | Slack approval flow | Same UX |
 | Alert-as-conversation | Webhook from spec 18 → investigation → distillation |
@@ -105,7 +105,7 @@ Short-term memory is consumed during the investigation (Levels 2–4). Long-term
 |-----------|-----------------|------------------------|
 | Extractor (Sonnet) | ~$0.03 | ~$1.50 |
 | Enricher (Opus) | ~$0.24 | ~$12.00 |
-| Embedding (text-embedding-3-small) | ~$0.001 | ~$0.05 |
+| Embedding (Bedrock Titan Embed v2, 1024 dims) | ~$0.001 | ~$0.05 |
 | Postgres (container Phase 1) | $0 | $0 |
 | **Total** | **~$0.27** | **~$13.55** |
 

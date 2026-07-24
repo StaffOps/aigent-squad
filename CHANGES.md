@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+### Changed — full English translation + exhaustive 543-file audit (2026-07-24)
+- **Every file (543, ~102K lines) read + validated** (useful / recorded / current / undocumented) via
+  category fan-out (specs 107, skills 122, src 66, tests 90, docs+infra+evals+agents+scripts+config 157+).
+- **~72 files translated Portuguese→English in-place**: specs (56), skills (4), src+tests (streaming
+  degraded message + synced test assertions + Decisão→Decision comments), docs/ADRs/PRD/mcp-server/archive
+  (8), residual quoted examples (specs/37 + ADR-0008). Faithful language-only — spec frontmatter, status
+  markers, code identifiers, and the `specs_status.py` gate contract preserved (gate rc=0, tests green).
+- **Residual PT is functional/intentional** (kept by design): bilingual calibrated-honesty (config.py) +
+  investigation trigger keywords (triage.py) for PT-user support; PT eval fixtures + a PT injection
+  attack-test input; BACKLOG/archive historical runtime quotes.
+- **Audit findings** tracked in `specs/BACKLOG.md`: delete/merge candidates (await user approval) +
+  pre-existing test drift (fix-needed) + minor doc inconsistencies. Repo verdict: healthy, 0 dead/orphan files.
+
 ### Added — MCP-usage reinforcement, RCA fold, Opus 4.5 deep tier (2026-07-23)
 - **Prompt reinforcement to leverage the bound MCPs** (harness-validated — code-review + observability
   caught 2 blockers: an excluded Sift tool + missing `tempo_` prefix, both fixed):

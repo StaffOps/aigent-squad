@@ -1,5 +1,10 @@
 # Agent Squad - Implementation History and Next Steps
 
+> ⚠️ **HISTORICAL (frozen 2026-02-14).** Describes an early architecture (5 agents, supervisor-only,
+> pre-gateway). The current system is gateway + supervisor, 6 agents, agentic tool-calling (spec 37+),
+> tier routing (spec 38), MCP-bound observability/kubernetes. For current state see `CHANGES.md`,
+> `specs/ROADMAP.md`, and `HANDOFF.md`. Kept for historical context only.
+
 **Date**: February 14, 2026  
 **Version**: 2.0  
 **Status**: ✅ 100% Operational Locally
