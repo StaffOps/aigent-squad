@@ -2,6 +2,21 @@
 
 ## [Unreleased]
 
+### Added/Fixed — observability metrics review (2026-07-24)
+Dedicated observability + code-review audit of the ~43 emitted `aigent.*` metrics (verdict: healthy,
+zero vanity, full RED+USE+cost+quality). Acted on the findings:
+- **Fixed:** streaming requests were undercounted (`request_counter`/`request.duration` now emit in a
+  `try/finally` on both streaming wrappers → counted once, incl. early client-close); guardrail blocks
+  were **double-counted** on tool paths (removed the duplicate caller-side emission; `guardrail.py` is
+  the single source); investigation fan-out failures now increment an error counter.
+- **Added 5 pertinent metrics (bounded cardinality, no vanity):** `aigent.tool.call_duration{tool_name,status}`
+  (which MCP tool is slow/broken — was trace-only), `aigent.guardrail.blocks{source,agent_id}`,
+  `aigent.bedrock.throttles{model}`, `aigent.context.trimmed_messages{agent_id}` (spec 40 pressure),
+  `aigent.tier.classifier_confidence{tier}`.
+- **Reverted a wrong "fix":** the review assumed the investigation `confidence` label was a raw float
+  (cardinality risk) — it is already a bounded string (`alta|media|baixa`); bucketizing it broke
+  `run_investigation` (caught by regression test). Kept the label as-is. 135 tier+metric tests pass.
+
 ### Changed — full English translation + exhaustive 543-file audit (2026-07-24)
 - **Every file (543, ~102K lines) read + validated** (useful / recorded / current / undocumented) via
   category fan-out (specs 107, skills 122, src 66, tests 90, docs+infra+evals+agents+scripts+config 157+).

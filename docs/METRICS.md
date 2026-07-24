@@ -28,6 +28,11 @@ All metrics emitted by AIgent-squad, collected via OTel Collector → Prometheus
 | `aigent.tokens.total` | Counter | `agent_id`, `model`, `direction` | Tokens consumed (running total) |
 | `aigent.cost.estimated` | Counter | `agent_id`, `model` | Estimated USD cost |
 | `aigent.tier.routing_decisions` | Counter | `tier` | Spec 38 tier-routing decisions (fast/standard/deep) — % of queries routed to Opus, from VictoriaMetrics without a LogQL hack (3 series) |
+| `aigent.tool.call_duration` | Histogram | `tool_name`, `status` | Per-MCP-tool latency + success/error/timeout (which tool is slow/broken; tool_name bounded by the read-only allowlist) |
+| `aigent.guardrail.blocks` | Counter | `source`, `agent_id` | Guardrail blocks/redactions by source (INPUT/OUTPUT) — safety signal without LogQL |
+| `aigent.bedrock.throttles` | Counter | `model` | Bedrock ThrottlingException/429 — LLM provider saturation |
+| `aigent.context.trimmed_messages` | Counter | `agent_id` | Spec 40 context-trim events (how often trimming fires = context pressure) |
+| `aigent.tier.classifier_confidence` | Histogram | `tier` | Classifier confidence at the tier-routing decision (low = misroute risk) |
 | `aigent.collect.duration` | Histogram | `agent_id` | Datasource collection latency (adapter fan-out, ms) |
 | `aigent.llm.duration` | Histogram | `agent_id` | Bedrock round-trip latency (ms, excludes retry backoff) |
 | `aigent.prompt.size_tokens` | Histogram | `agent_id` | Input-token distribution per call (detect prompt bloat; p50/p95) |

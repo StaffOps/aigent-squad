@@ -69,6 +69,11 @@ and by model.
 | `aigent.tokens.total` | Counter | `agent_id`, `model`, `direction` | Tokens consumed (input and output tracked separately) |
 | `aigent.cost.estimated` | Counter | `agent_id`, `model` | Estimated USD cost from Bedrock pricing |
 | `aigent.tier.routing_decisions` | Counter | `tier` | Spec 38 tier-routing decisions (fast/standard/deep) — tier distribution / Opus invocation ratio (3 series) |
+| `aigent.tool.call_duration` | Histogram | `tool_name`, `status` | Per-MCP-tool latency + success/error/timeout (tool_name bounded by read-only allowlist) |
+| `aigent.guardrail.blocks` | Counter | `source`, `agent_id` | Guardrail blocks/redactions by source — safety signal |
+| `aigent.bedrock.throttles` | Counter | `model` | Bedrock throttling (429) — provider saturation |
+| `aigent.context.trimmed_messages` | Counter | `agent_id` | Spec 40 context-trim events (context pressure) |
+| `aigent.tier.classifier_confidence` | Histogram | `tier` | Classifier confidence at tier routing (low = misroute risk) |
 
 The `direction` label (`input` / `output`) is important: output tokens are
 approximately 5x more expensive than input tokens on Claude models.
