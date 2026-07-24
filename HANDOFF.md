@@ -41,8 +41,7 @@ is the user's own openai-compat fix)
 ## PENDING — full inventory (to zero the session)
 
 ### 🟢 Ready, needs go (deploy/push)
-1. **Deploy agentic29** — rebuild image with the metric changes + `helm upgrade` + homologate the 5 new
-   metrics in VictoriaMetrics. Full-harness-approved.
+1. ~~**Deploy agentic29**~~ — ✅ DONE 2026-07-24. Built multi-arch, helm rev 63 on devops-core, healthy+functional. Metrics→VM gap FIXED: enabled `serviceMonitor.enabled=true` (k8s-setup overlay, commit a197015) — the app already exposes /metrics (otel-helper metrics_app) + chart had the ServiceMonitor template; vmagent (selectAllByDefault) now scrapes all 5 new + fixed aigent_* metrics into VM (homologated live).
 2. **Branch reconcile + push** — all local work (i18n, metrics, docs, tier-fix code) is on
    `fix/openai-compat-drop-system-messages`, not merged to `dev`. Needs PR/cherry-pick.
 

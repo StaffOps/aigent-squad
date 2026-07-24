@@ -181,7 +181,7 @@ Note: if the Grafana LLM app COULD send `model=aigent-squad-observability`, that
 - ~~spec 25 in-progress but 0 tasks~~ (INACCURATE — spec 25 has 19 tasks; in-progress is valid). ~~spec 21 design text-embedding-3/1536~~ (FIXED — now Titan/1024). `docs/COMPETITIVE-ANALYSIS.md` still ~5 weeks old (content not re-reviewed — left as-is). ~~`Dockerfile.test` vestigial `github_token`~~ (REMOVED 2026-07-24) + ~~3 stray `[Unreleased]` headers~~ (consolidated into `[0.1.0]` 2026-07-24).
 
 ### Session status — ready but not deployed/pushed (2026-07-24)
-- **Observability metrics (5 new + 3 fixes)** — committed LOCAL (ebc7252/9796d3b/75fdc3c/6dbd93a), **full harness GO** (code-review + double-count + observability + sre + security CLEAN GO). **Needs rebuild+deploy (agentic29)** to reach VictoriaMetrics + homologation.
+- **Observability metrics (5 new + 3 fixes)** — ✅ DEPLOYED live (agentic29, helm rev 63) + **homologated in VictoriaMetrics** 2026-07-24. Metrics→VM gap RESOLVED: `serviceMonitor.enabled=true` in the overlay (k8s-setup a197015) — vmagent now scrapes the app's /metrics; all 5 new + fixed aigent_* confirmed queryable in VM. Full harness GO earlier.
 - **Branch reconcile + push** — all local work (i18n 72 files, metrics, docs, tier-fix code) is on `fix/openai-compat-drop-system-messages`, NOT merged to `dev` (needs PR). GitLab prompts + k8s-setup overlay from agentic28 ARE pushed/live.
 - **0.5.0 cut** — milestone candidate (agentic28 live-validated); release action pending user go.
 > **Full pending inventory: see `HANDOFF.md`.**
