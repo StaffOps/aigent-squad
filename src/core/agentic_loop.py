@@ -40,6 +40,7 @@ from src.core.circuit_breaker import CircuitBreaker
 from src.core.guardrail import guardrail, GuardrailBlockedError
 from src.core.logger import logger
 from src.core.metrics import meter
+from src.core.metrics import tool_call_duration
 from src.core.truncation import trim_message_history
 
 tracer = get_tracer(__name__)
@@ -346,7 +347,7 @@ async def run_agentic_loop(
                 # --- Call Converse ---
                 # Context-trimming (spec 40): replace older toolResult content
                 # with enriched summaries to bound context size.
-                trim_message_history(messages, CONTEXT_KEEP_LAST_N)
+                trim_message_history(messages, CONTEXT_KEEP_LAST_N, agent_id=agent_id)
 
                 # Guardrail strategy (spec 37, B3 + Decisão 3):
                 # - FIRST call (step==0): user input → Bedrock guardrail ON
@@ -455,8 +456,24 @@ async def run_agentic_loop(
                             tool_span.set_attribute("tool.status", "not_found")
                             continue
 
+                        # ADD (a): time the tool call for per-tool latency histogram
+                        _tool_t0 = time.time()
                         result_text = await session_pool.call_tool(
                             adapter_name, tool_name, tool_args
+                        )
+                        _tool_elapsed_ms = (time.time() - _tool_t0) * 1000
+
+                        # Determine status from result text (error/timeout/success)
+                        if "] error: timeout" in result_text:
+                            _tool_status = "timeout"
+                        elif "] error:" in result_text:
+                            _tool_status = "error"
+                        else:
+                            _tool_status = "success"
+
+                        tool_call_duration.record(
+                            _tool_elapsed_ms,
+                            {"tool_name": tool_name, "status": _tool_status},
                         )
                         tool_span.set_attribute("tool.status", "ok")
 

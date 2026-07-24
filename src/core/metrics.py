@@ -3,6 +3,30 @@ from otel_helper import get_meter
 
 meter = get_meter("aigent-squad")
 
+
+# ---------------------------------------------------------------------------
+# Helpers: cardinality-safe label bucketing
+# ---------------------------------------------------------------------------
+
+
+def bucketize_confidence(value: float) -> str:
+    """Bucketize a float confidence score into a bounded label set.
+
+    Returns one of {"high", "medium", "low"} — 3 series max per parent metric.
+    Prevents unbounded cardinality from raw float labels (e.g. 0.8723, 0.9001).
+
+    Thresholds:
+      - high   : >= 0.85  (strong signal, few contradictions)
+      - medium : >= 0.50  (some evidence, ambiguous)
+      - low    : <  0.50  (insufficient evidence)
+    """
+    if value >= 0.85:
+        return "high"
+    elif value >= 0.50:
+        return "medium"
+    else:
+        return "low"
+
 # RED metrics (Request, Error, Duration) per agent
 request_counter = meter.create_counter(
     name="aigent.requests.total",
@@ -252,5 +276,89 @@ eval_score = meter.create_histogram(
 ungrounded_numeric_claims = meter.create_counter(
     name="aigent.quality.ungrounded_numeric_claims",
     description="Numeric claims in a response with no matching source in collected infra_data — signal only, NOT blocking (see response_quality.py) — labels: agent_id",
+    unit="1",
+)
+
+# ===========================================================================
+# NEW METRICS (observability review — bounded cardinality, zero vanity)
+# ===========================================================================
+
+# --- (a) Tool call latency + status ---
+# Labels: tool_name (bounded by read-only MCP allowlist — max ~20-30 tools),
+#         status ∈ {success, error, timeout} (3 values)
+# Cardinality: ~90 series worst case (30 tools × 3 statuses)
+tool_call_duration = meter.create_histogram(
+    name="aigent.tool.call_duration",
+    description=(
+        "Per-tool call latency. Labels: tool_name (bounded by MCP allowlist), "
+        "status (success|error|timeout). Enables P99 per tool and identification "
+        "of slow/unreliable MCP servers."
+    ),
+    unit="ms",
+)
+
+# --- (b) Guardrail blocks ---
+# Labels: source ∈ {INPUT, OUTPUT, TOOL_ARGS, TOOL_RESULT} (4 values),
+#         agent_id (bounded by registered agents — max ~10)
+# Cardinality: ~40 series worst case
+guardrail_blocks = meter.create_counter(
+    name="aigent.guardrail.blocks",
+    description=(
+        "Counter of guardrail block/redaction events. Labels: "
+        "source (INPUT|OUTPUT|TOOL_ARGS|TOOL_RESULT), agent_id. "
+        "Tracks security interventions without leaking payload details."
+    ),
+    unit="1",
+)
+
+# --- (c) Bedrock throttles ---
+# Labels: model (bounded by MODEL_PRICING table — max 3 families)
+# Cardinality: 3 series
+bedrock_throttles = meter.create_counter(
+    name="aigent.bedrock.throttles",
+    description=(
+        "Bedrock ThrottlingException/429 retries. Label: model (bounded by "
+        "tier model table — haiku/sonnet/opus). Signals capacity pressure "
+        "before it becomes user-visible latency."
+    ),
+    unit="1",
+)
+
+# --- (d) Context trimmed messages ---
+# Labels: agent_id (bounded by registered agents — max ~10)
+# Cardinality: ~10 series
+context_trimmed_messages = meter.create_counter(
+    name="aigent.context.trimmed_messages",
+    description=(
+        "toolResult turns replaced with deterministic summaries by "
+        "trim_message_history (spec 40). Label: agent_id. Indicates context "
+        "pressure — rising counts correlate with longer conversations."
+    ),
+    unit="1",
+)
+
+# --- (e) Classifier confidence distribution ---
+# Labels: tier ∈ {fast, standard, deep} (3 values)
+# Cardinality: 3 series
+tier_classifier_confidence = meter.create_histogram(
+    name="aigent.tier.classifier_confidence",
+    description=(
+        "Classifier confidence score distribution per resolved tier. "
+        "Label: tier (fast|standard|deep). Enables drift detection — if "
+        "deep-tier confidence drops, the classifier may be degrading."
+    ),
+    unit="1",
+)
+
+# --- (FIX 3) Investigation fan-out error counter ---
+# Labels: agent_id (bounded by registered agents)
+# Cardinality: ~10 series
+investigation_fanout_errors = meter.create_counter(
+    name="aigent.investigation.fanout_errors",
+    description=(
+        "Agents that raised exceptions during RCA evidence fan-out. "
+        "Label: agent_id. Distinct from fanout_agents_failed (which counts "
+        "the supervisor fan-out path) — this is investigation-specific."
+    ),
     unit="1",
 )

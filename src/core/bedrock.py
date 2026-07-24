@@ -10,6 +10,7 @@ from src.core.config import settings
 from src.core.logger import logger
 from src.core.metrics import (
     token_counter, estimated_cost, llm_duration, prompt_size_tokens,
+    bedrock_throttles,
 )
 from src.core.model_tier import resolve_model, compute_cost
 from src.core.token_budget import budget_tracker
@@ -245,6 +246,9 @@ class BedrockClient:
 
                 if error_code in ['ThrottlingException', 'ServiceUnavailableException', 'InternalServerException']:
                     if attempt < self.max_retries - 1:
+                        # ADD (c): count throttle events per model for capacity monitoring
+                        if error_code == 'ThrottlingException':
+                            bedrock_throttles.add(1, {"model": model_id})
                         delay = self.base_delay * (2 ** attempt) + random.uniform(0, 1)
                         logger.info(f"Retrying in {delay:.2f}s", extra={"delay": delay})
                         time.sleep(delay)
@@ -554,6 +558,9 @@ class BedrockClient:
 
                 if error_code in ['ThrottlingException', 'ServiceUnavailableException', 'InternalServerException']:
                     if attempt < self.max_retries - 1:
+                        # ADD (c): count throttle events per model for capacity monitoring
+                        if error_code == 'ThrottlingException':
+                            bedrock_throttles.add(1, {"model": model_id})
                         delay = self.base_delay * (2 ** attempt) + random.uniform(0, 1)
                         logger.info(f"Converse retrying in {delay:.2f}s", extra={"delay": delay})
                         time.sleep(delay)

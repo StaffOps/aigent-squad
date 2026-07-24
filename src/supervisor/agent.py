@@ -8,7 +8,7 @@ from src.core.config import settings
 from src.core.guardrail import GuardrailBlockedError
 from src.core.input_scanner import InputScanner
 from src.core.model_tier import resolve_model_for_tier
-from src.core.metrics import tier_routing_decisions
+from src.core.metrics import tier_routing_decisions, tier_classifier_confidence
 from src.core.state_store import storage, ConversationMessage
 from src.core.logger import logger, log_request, log_response, log_error
 from src.core.metrics import request_counter, error_counter, request_duration, fanout_calls, fanout_agents_consulted, fanout_agents_failed
@@ -51,6 +51,8 @@ def _resolve_tier_model(classification: ClassifierResult) -> str | None:
         tier = "standard"
 
     tier_routing_decisions.add(1, {"tier": tier})
+    # ADD (e): record classifier confidence distribution per tier for drift detection
+    tier_classifier_confidence.record(confidence, {"tier": tier})
     model_id = resolve_model_for_tier(tier)
 
     logger.info("Tier routing resolved", extra={
@@ -407,7 +409,18 @@ class SupervisorAgent:
                     chat_history=await storage.fetch_chat(user_id, session_id, force_agent),
                     model_id_override=tier_model_id,
                 )
-                return step_gen
+
+                # FIX 1 (streaming undercount): wrap generator to emit RED
+                # metrics after the stream is fully consumed.
+                async def _forced_stream():
+                    try:
+                        async for event in step_gen:
+                            yield event
+                    finally:
+                        # Emit RED metrics on completion OR early close (disconnect/timeout)
+                        self._record_metrics(force_agent, "", user_id, session_id, start_time)
+
+                return _forced_stream()
 
             # ------------------------------------------------------------------
             # Path B: Auto-route (G-4) — classify and stream if single agentic
@@ -479,15 +492,24 @@ class SupervisorAgent:
             )
 
             async def _routed_stream():
-                """Yield a routing step, then proxy all agent loop steps."""
-                yield StepRouting(
-                    agent=resolved_name,
-                    confidence=agents[0].confidence,
-                    reasoning=classification.reasoning or "",
-                    sub_query=agents[0].sub_query or "",
-                )
-                async for event in agent_step_gen:
-                    yield event
+                """Yield a routing step, then proxy all agent loop steps.
+
+                FIX 1 (streaming undercount): emit request_counter +
+                request_duration once the stream completes, so streaming
+                requests are counted identically to non-streaming ones.
+                """
+                try:
+                    yield StepRouting(
+                        agent=resolved_name,
+                        confidence=agents[0].confidence,
+                        reasoning=classification.reasoning or "",
+                        sub_query=agents[0].sub_query or "",
+                    )
+                    async for event in agent_step_gen:
+                        yield event
+                finally:
+                    # Emit RED metrics on completion OR early close (client disconnect / timeout)
+                    self._record_metrics(resolved_name, "", user_id, session_id, start_time)
 
             return _routed_stream()
 
