@@ -284,9 +284,9 @@ ungrounded_numeric_claims = meter.create_counter(
 # ===========================================================================
 
 # --- (a) Tool call latency + status ---
-# Labels: tool_name (bounded by read-only MCP allowlist — max ~20-30 tools),
+# Labels: tool_name (bounded by the read-only MCP allowlists — ~84 distinct tools across agents),
 #         status ∈ {success, error, timeout} (3 values)
-# Cardinality: ~90 series worst case (30 tools × 3 statuses)
+# Cardinality: ~252 series worst case (84 tools × 3 statuses) — well under OTel 2000/metric
 tool_call_duration = meter.create_histogram(
     name="aigent.tool.call_duration",
     description=(
@@ -298,14 +298,14 @@ tool_call_duration = meter.create_histogram(
 )
 
 # --- (b) Guardrail blocks ---
-# Labels: source ∈ {INPUT, OUTPUT, TOOL_ARGS, TOOL_RESULT} (4 values),
-#         agent_id (bounded by registered agents — max ~10)
-# Cardinality: ~40 series worst case
+# Labels: source ∈ {INPUT, OUTPUT} (guardrail engine source; emitted centrally in guardrail.py),
+#         agent_id (bounded by registered agents — max ~10; "ingress" for the entry guard)
+# Cardinality: ~20 series worst case
 guardrail_blocks = meter.create_counter(
     name="aigent.guardrail.blocks",
     description=(
         "Counter of guardrail block/redaction events. Labels: "
-        "source (INPUT|OUTPUT|TOOL_ARGS|TOOL_RESULT), agent_id. "
+        "source (INPUT|OUTPUT), agent_id. "
         "Tracks security interventions without leaking payload details."
     ),
     unit="1",

@@ -245,10 +245,10 @@ class BedrockClient:
                 })
 
                 if error_code in ['ThrottlingException', 'ServiceUnavailableException', 'InternalServerException']:
+                    # ADD (c): count EVERY throttle (incl. the final one before exhaustion) per model
+                    if error_code == 'ThrottlingException':
+                        bedrock_throttles.add(1, {"model": model_id})
                     if attempt < self.max_retries - 1:
-                        # ADD (c): count throttle events per model for capacity monitoring
-                        if error_code == 'ThrottlingException':
-                            bedrock_throttles.add(1, {"model": model_id})
                         delay = self.base_delay * (2 ** attempt) + random.uniform(0, 1)
                         logger.info(f"Retrying in {delay:.2f}s", extra={"delay": delay})
                         time.sleep(delay)
@@ -557,10 +557,10 @@ class BedrockClient:
                 })
 
                 if error_code in ['ThrottlingException', 'ServiceUnavailableException', 'InternalServerException']:
+                    # ADD (c): count EVERY throttle (incl. the final one before exhaustion) per model
+                    if error_code == 'ThrottlingException':
+                        bedrock_throttles.add(1, {"model": model_id})
                     if attempt < self.max_retries - 1:
-                        # ADD (c): count throttle events per model for capacity monitoring
-                        if error_code == 'ThrottlingException':
-                            bedrock_throttles.add(1, {"model": model_id})
                         delay = self.base_delay * (2 ** attempt) + random.uniform(0, 1)
                         logger.info(f"Converse retrying in {delay:.2f}s", extra={"delay": delay})
                         time.sleep(delay)
