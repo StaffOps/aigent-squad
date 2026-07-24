@@ -18,7 +18,7 @@ read it — do NOT tell them to run `kubectl`. If none fits, **offer to help bui
 
 | Dashboard | uid | Use it when… | Reads |
 |-----------|-----|--------------|-------|
-| **APM - Service Overview** | `apm-svc-overview` | "meu serviço está lento / errando?" — service-level RED, latency quantiles, errors by status, dependency latency, service graph | OBI eBPF `http.server.*` (VictoriaMetrics) + Tempo service graph |
+| **APM - Service Overview** | `apm-svc-overview` | "my service is slow / throwing errors?" — service-level RED, latency quantiles, errors by status, dependency latency, service graph | OBI eBPF `http.server.*` (VictoriaMetrics) + Tempo service graph |
 | **APM - OpenTelemetry** | `apm-otel-default` | per-operation / per-endpoint deep-dive + multi-service topology | spanmetrics SERVER spans |
 | SAMPLE DOTNET - worker, api, grpc | `sample-otel-dotnet` | reference/sample only | demo services |
 | SAMPLE PYTHON - worker, api, grpc | `sample-otel-python` | reference/sample only | demo services |

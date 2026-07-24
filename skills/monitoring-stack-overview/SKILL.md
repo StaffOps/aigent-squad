@@ -5,8 +5,8 @@ keywords: [monitoring-stack, monitoring, stack, "monitoring stack", grafana, pip
 ---
 # <ORG> Monitoring Stack Overview
 
-> ⚠️ **Pipeline atual usa Kafka como buffer** (agent→gateway→Kafka→process). O fluxo
-> descrito abaixo é o **pré-Kafka**. Estado atual (SSOT):
+> ⚠️ **Current pipeline uses Kafka as buffer** (agent→gateway→Kafka→process). The flow
+> described below is the **pre-Kafka** version. Current state (SSOT):
 > `devops-platform-knowledge/architecture/observability-stack.md`.
 
 ## Signal flow
