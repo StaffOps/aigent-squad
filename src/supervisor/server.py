@@ -45,6 +45,10 @@ _health_dynamodb_table = boto3.resource(
 
 @asynccontextmanager
 async def lifespan(app):
+    # HC5 (spec 38 FU-B): fail loud at BOOT if tier model IDs are misconfigured —
+    # here in the lifespan, not as an agent.py import side-effect (cleaner testing + import order).
+    from src.core.model_tier import validate_tier_models_at_startup
+    validate_tier_models_at_startup()
     await kb_store.connect()
     yield
     await kb_store.close()

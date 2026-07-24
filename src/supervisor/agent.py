@@ -7,7 +7,7 @@ from src.core.classifier import Classifier, ClassifierResult, AgentMatch
 from src.core.config import settings
 from src.core.guardrail import GuardrailBlockedError
 from src.core.input_scanner import InputScanner
-from src.core.model_tier import resolve_model_for_tier, validate_tier_models_at_startup
+from src.core.model_tier import resolve_model_for_tier
 from src.core.metrics import tier_routing_decisions
 from src.core.state_store import storage, ConversationMessage
 from src.core.logger import logger, log_request, log_response, log_error
@@ -635,7 +635,7 @@ class SupervisorAgent:
 registry = AgentRegistry()
 registry.discover()
 
-# HC5: Fail loud at startup if tier model IDs are misconfigured.
-validate_tier_models_at_startup()
+# HC5 tier-model validation moved to the FastAPI lifespan (server.py) so it runs
+# once at app boot, not as an import side-effect (spec 38 FU-B).
 
 supervisor = SupervisorAgent(registry)
