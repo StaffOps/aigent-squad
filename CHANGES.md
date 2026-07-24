@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Deployed / cleanup / CI (2026-07-24)
+- Deployed **agentic29** to devops-core (helm rev 62, multi-arch) — the observability metric improvements are live in-process; VM visibility pending a scrape-path fix (app custom metrics have no VMServiceScrape — pre-existing gap, affects all `aigent.*` incl. the agentic28 tier counter).
+- Cleanup (audit #3): removed dead `src/agents/` package tree + accidentally-committed root `otel_helper/` stub (now gitignored); archived 2 superseded eval baselines.
+- CI drift repaired (audit #6-9): re-pointed the `CALIBRATED_HONESTY` import (moved to `settings`), scaled the truncation test fixture past the raised 40k cap, aligned ~38 marker assertions to the current strings, added `fakeredis[lua]` test dep.
+- Changelog hygiene: consolidated 3 stray dated `[Unreleased]` sections into `[0.1.0]`; `Dockerfile.test` dropped the vestigial `github_token` secret (otel-helper public since B-28).
+
 ### Added/Fixed — observability metrics review (2026-07-24)
 Dedicated observability + code-review audit of the ~43 emitted `aigent.*` metrics (verdict: healthy,
 zero vanity, full RED+USE+cost+quality). Acted on the findings:
@@ -478,7 +484,9 @@ version linkage (`appVersion` 0.2.0, scan-gated `release.yml`).
 - Tests: `test_bedrock` (llm.duration + prompt.size, snake_case key, usage-absent, backoff-excluded, not-on-failure), `test_generic_agent` (collect.duration with/without adapters), `test_run_investigation` (rounds value + no-label cardinality). Verification independence: tests reviewed/strengthened by a separate agent. 246 passed, 92.46% coverage
 - `Dockerfile.test`: switched from `--mount=type=ssh` to `--mount=type=secret,id=github_token` (matches main Dockerfile; HTTPS private dep)
 
-## [Unreleased] - 2026-06-17
+## [0.1.0] - 2026-06-17
+
+> Consolidated initial development (2026-06-14 → 06-17), pre-0.2.0. Dates below mark the original entries.
 
 ### Added (Spec 29: OpenAI-compatible bridge — LibreChat)
 - `src/supervisor/openai_compat.py`: OpenAI Chat Completions surface on the supervisor — `GET /v1/models` + `POST /v1/chat/completions` (behind `require_token`)
@@ -515,7 +523,7 @@ version linkage (`appVersion` 0.2.0, scan-gated `release.yml`).
 ### Fixed (README accuracy)
 - Residual Portuguese, stale `Claude 3.5` → `Claude Sonnet 4.5`, KB clarified as PostgreSQL+pgvector, `Last Updated` date, roadmap pointer; added LibreChat + Claude Code references
 
-## [Unreleased] - 2026-06-16
+**2026-06-16**
 
 ### Added (Terraform infrastructure — `terraform/`)
 - `iam/`: single IRSA role + scoped policies (Bedrock invoke, DynamoDB sessions = only write, read-only inventory ec2/rds/s3/ce/iam, optional Athena/CUR FinOps)
@@ -549,7 +557,7 @@ version linkage (`appVersion` 0.2.0, scan-gated `release.yml`).
 ### Added (ADR)
 - `specs/ADR-001-bedrock-direct-vs-strands.md`: decision to keep Bedrock-direct over the Strands SDK (with reopen signals)
 
-## [Unreleased] - 2026-06-14
+**2026-06-14**
 
 ### Changed (Coverage gate raised: 80% → 90%)
 - Test suite expanded from 124 to 166 tests (+42 targeted tests)

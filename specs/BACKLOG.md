@@ -178,7 +178,7 @@ Note: if the Grafana LLM app COULD send `model=aigent-squad-observability`, that
 - `config.py` bilingual calibrated-honesty + `triage.py` bilingual investigation keywords (PT-user support); `evals/golden_queries.yaml` PT fixtures + `tests/test_attack_suite.py` PT injection input; `BACKLOG.md`/`archive/` historical runtime quotes.
 
 ### Minor doc inconsistencies
-- spec 25 `in-progress` but 0 tasks (closer to `planned`); spec 21 design.md says text-embedding-3-small/1536 but impl uses Bedrock Titan/1024 (tasks.md correct); `docs/COMPETITIVE-ANALYSIS.md` ~5 weeks old; `Dockerfile.test` vestigial `github_token` secret mount.
+- ~~spec 25 in-progress but 0 tasks~~ (INACCURATE — spec 25 has 19 tasks; in-progress is valid). ~~spec 21 design text-embedding-3/1536~~ (FIXED — now Titan/1024). `docs/COMPETITIVE-ANALYSIS.md` still ~5 weeks old (content not re-reviewed — left as-is). ~~`Dockerfile.test` vestigial `github_token`~~ (REMOVED 2026-07-24) + ~~3 stray `[Unreleased]` headers~~ (consolidated into `[0.1.0]` 2026-07-24).
 
 ### Session status — ready but not deployed/pushed (2026-07-24)
 - **Observability metrics (5 new + 3 fixes)** — committed LOCAL (ebc7252/9796d3b/75fdc3c/6dbd93a), **full harness GO** (code-review + double-count + observability + sre + security CLEAN GO). **Needs rebuild+deploy (agentic29)** to reach VictoriaMetrics + homologation.
