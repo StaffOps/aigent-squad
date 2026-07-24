@@ -1,6 +1,6 @@
 ---
 spec: 39-observability-rca-uplift
-status: done
+status: done-with-deferrals
 completed: "2026-07-23"
 superseded_by: null
 depends_on: ["37-agentic-tool-calling"]
