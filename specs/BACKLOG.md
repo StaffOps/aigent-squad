@@ -180,6 +180,12 @@ Note: if the Grafana LLM app COULD send `model=aigent-squad-observability`, that
 ### Minor doc inconsistencies
 - spec 25 `in-progress` but 0 tasks (closer to `planned`); spec 21 design.md says text-embedding-3-small/1536 but impl uses Bedrock Titan/1024 (tasks.md correct); `docs/COMPETITIVE-ANALYSIS.md` ~5 weeks old; `Dockerfile.test` vestigial `github_token` secret mount.
 
+### Session status — ready but not deployed/pushed (2026-07-24)
+- **Observability metrics (5 new + 3 fixes)** — committed LOCAL (ebc7252/9796d3b/75fdc3c/6dbd93a), **full harness GO** (code-review + double-count + observability + sre + security CLEAN GO). **Needs rebuild+deploy (agentic29)** to reach VictoriaMetrics + homologation.
+- **Branch reconcile + push** — all local work (i18n 72 files, metrics, docs, tier-fix code) is on `fix/openai-compat-drop-system-messages`, NOT merged to `dev` (needs PR). GitLab prompts + k8s-setup overlay from agentic28 ARE pushed/live.
+- **0.5.0 cut** — milestone candidate (agentic28 live-validated); release action pending user go.
+> **Full pending inventory: see `HANDOFF.md`.**
+
 ---
 
 ## Future agents (candidates — 2026-07-21, annotated for later)
