@@ -12,7 +12,7 @@
 ADR-001 chose "Bedrock-direct, no framework" and, for tools, **Caminho A**: MCP/datasources are
 *adapters* that the runtime pre-calls with fixed arguments, injecting the result into `<infra_data>`
 for a single model call — the model never selects tools. Homologation (2026-07-19) exposed the
-cost of this: "quais pods no ns monitoring?" answered "monitoring não existe" while the namespace
+cost of this: "which pods in the monitoring ns?" answered "monitoring does not exist" while the namespace
 is Active with 263 pods. The adapter could not target `pods_list_in_namespace(namespace="monitoring")`,
 and the generic `namespaces_list` output was truncated (4000 chars) before the 57th of 72 namespaces.
 The specialists are branded *subagents* yet cannot reason about which tool to call — a contradiction.
