@@ -163,7 +163,7 @@ Note: if the Grafana LLM app COULD send `model=aigent-squad-observability`, that
 
 ### Delete/merge candidates (await user approval — NOT acted on)
 - `specs/05-helm-chart/` + `specs/19-config-driven-platform/` — `superseded_by: 22` (frontmatter correct); delete or archive.
-- `skills/oomkill-investigation/` — subset of `root-cause-analysis`; merge candidate.
+- ~~`skills/oomkill-investigation/`~~ — KEEP (user decision 2026-07-24): it's the canonical example skill in `docs/HOW-TO-NEW-AGENT.md`; the RCA overlap is acceptable for a focused how-to that doubles as the tutorial example. Merging would require rewriting the tutorial. Not a merge candidate.
 - `src/agents/{aws,devops,finops,kubernetes,observability}/__init__.py` — empty packages, 0 imports; delete.
 - `otel_helper/` (repo root) — duplicate of the generated `.local-stubs/otel_helper/` stub; delete.
 - ~~`infra/terraform/guardrail/terraform.tfstate` + `.tfstate.backup`~~ — ✅ **VERIFIED FALSE POSITIVE (2026-07-24, P0 check):** already gitignored (`.gitignore` L49 `*.tfstate` + L50 `*.tfstate.*`), **never committed** (`git log --all` empty), **not tracked** (`git ls-files` empty), and no secrets in content (only `aws_bedrock_guardrail` config + IDs). NO exposure, no action needed. (The Wave-4 audit subagent mis-flagged it as "tracked".)

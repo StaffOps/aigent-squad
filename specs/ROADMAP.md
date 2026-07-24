@@ -285,4 +285,5 @@ ROADMAP is plan-only from here.
 | 38-model-tier-escalation | done | 2026-07-22 | depends_on: 37-agentic-tool-calling |
 | 39-observability-rca-uplift | done-with-deferrals | 2026-07-23 | deferred: T3.4 deterministic investigation.py path (Phase 2 — prompt-RCA validated live, trigger not met) |
 | 40-agentic-context-management | done | 2026-07-22 | depends_on: 37-agentic-tool-calling |
+| 41-calibrated-honesty-structured | design-only | — | depends_on: 35-quality-eval-harness |
 <!-- specs-status:end -->
