@@ -48,10 +48,12 @@ differentiation** (investigation.py wiring is Phase-2). Verdict: **fold RCA into
   kubernetes/devops/**aws**. (Live after push; homologate a seeded symptom → ≥3-signal RCA.)
 - [ ] T3.4 (**Phase 2**) deterministic multi-query investigation path wiring `investigation.py`
   (Evidence/RCAResult/InvestigationState/build_timeline/correlate) into the agentic loop.
-  **Extraction trigger** — split a dedicated `agents/rca/` ONLY when ALL hold: (a) investigation.py
-  is wired (unique runtime behavior), (b) rca needs tools observability lacks, (c) the observability
-  prompt bloats past ~3-4k tokens or routing accuracy drops. Until then, one agent = one toolConfig
-  = no divergence.
+  **Re-evaluated 2026-07-23 (post-homologation): STAYS DEFERRED.** The prompt-based Investigation Mode
+  is validated LIVE (complex RCA → Opus 4.5, multi-agent cross-signal, ≥3-signal gate in the prompt);
+  the extraction trigger (prompt insufficient / needs code-level state machine) is **NOT met**. Building
+  the deterministic path now would be premature and risk the agentic flexibility that works. The
+  `investigation.py` primitives remain available for Phase 2 if a HARD ≥3-signal gate or structured
+  RCAResult output becomes a requirement.
 
 ## Docs & gate
 - [ ] T4.1 Update BACKLOG/CHANGES/AGENTS/READ_ONLY/SECURITY + regen ROADMAP + `specs_status.py` green.
