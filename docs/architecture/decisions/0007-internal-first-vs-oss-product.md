@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | **aceito** (2026-07-15) — **Option B: OSS product** |
+| **Status** | **accepted** (2026-07-15) — **Option B: OSS product** |
 | **Date** | 2026-07-04 |
 | **Deciders** | Carlos Felipe Gomes |
 | **Related to** | `docs/prd/aigent-squad.md` (open questions), `docs/COMPETITIVE-ANALYSIS.md`, spec 36 (dev loop), ADR-0006 (standalone product) |

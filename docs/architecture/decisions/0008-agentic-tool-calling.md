@@ -1,4 +1,4 @@
-# ADR-0008: Agentic tool-calling (LLM-driven) — supersedes ADR-001 "Caminho A"
+# ADR-0008: Agentic tool-calling (LLM-driven) — supersedes ADR-001 "Caminho A" (Path A, the non-agentic adapter approach)
 
 | Field | Value |
 |---|---|
