@@ -13,6 +13,7 @@ AGENTS.md and the skill links to it. Drift here is a review-blocker.
 | `skills/verify/` | Bring the stack up + smoke + where to look when it fails |
 | `skills/run-tests/` | Local test harness incl. the private-dep stub caveat |
 | `skills/new-agent/` | Scaffold a new agent (config-only) |
+| `skills/harness-score/` | Measure/raise AI-agent harness maturity (`make harness-score`); floor + anti-gaming rule lives in AGENTS.md |
 | `skills/release/` | Pointer to RELEASE.md (lands with spec 34) |
 
 Other AI-tool dirs (`.cursor/`, `.kiro/`, …) remain git-ignored — they get the

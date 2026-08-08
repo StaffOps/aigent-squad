@@ -44,6 +44,19 @@ jobs:
       # Same target devs/agents run locally (make specs-status) — spec 36 same-harness
       - run: make specs-status
 
+  # AI-agent harness maturity gate. Prevents silent regression of the harness
+  # itself (AGENTS.md, rules, commands, sensors) — deleting them now fails CI
+  # instead of quietly dropping the score. Deterministic: no LLM/network calls.
+  harness_score:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      # Same target devs/agents run locally (make harness-score) — spec 36 same-harness
+      - run: make harness-score
+
   # SCA — vulnerable dependencies in requirements.txt (no image build; fast PR feedback).
   dep_scan:
     runs-on: ubuntu-latest

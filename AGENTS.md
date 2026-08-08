@@ -106,6 +106,7 @@ make smoke       # health + 1 real query + /v1/models
 make test        # full suite + 90% gate via Docker (auto-stubs the private otel dep)
 make test-one FILE=tests/test_x.py
 make lint        # ruff, CI-verbatim scope
+make harness-score  # AI-agent harness maturity gate (L0-L4); floor = MIN_LEVEL (default 1)
 make down        # stop (V=1 drops volumes)
 
 # Build image
@@ -370,6 +371,13 @@ Live session state + next steps: `HANDOFF.md`. Live items (findings/backlog/defe
   agent's `agent.yaml`/`prompt.md` without a docs/spec file in the same
   commit (bypass per-commit: `git commit --no-verify`)
 - **Mark tasks**: update `tasks.md` with completion dates; explicitly defer unfinished items
+- **Harness gate**: `make harness-score` must pass at the `MIN_LEVEL` floor set in the
+  Makefile (currently **L1**); CI enforces it (`harness_score` job). Raise the floor
+  ONLY after the score genuinely clears the next level — never to turn a red CI green.
+  **Never satisfy a check with a file no tool actually reads** (nested `CLAUDE.md`,
+  an unused `.mcp.json`, a `[tool.ruff]` block shadowed by `ruff.toml`, a
+  `.pre-commit-config.yaml` that conflicts with `.githooks/`): a scanner point bought
+  that way is a lie about the harness. Recipe: `.claude/skills/harness-score/`.
 - **Conventional commits**: `feat/fix/docs/test/refactor/chore(scope): description`
 - **Stage explicitly**: `git add <specific files>` — never `git add .`
 - **Cost discipline**: truncate adapter output before prompt, lazy-inject skills, cap history to N messages
