@@ -1,10 +1,10 @@
 ---
 spec: 41-calibrated-honesty-structured
-status: design-only
-completed: null
+status: done-with-deferrals
+completed: "2026-08-08"
 superseded_by: null
 depends_on: ["35-quality-eval-harness"]
-deferred: []
+deferred: ["T3 histogram bucket boundaries (default SDK buckets — explicit boundaries need a View in the otel_helper MeterProvider; not settable via opentelemetry-api 1.29.0 create_histogram)"]
 ---
 
 # Design: Structured calibrated honesty (B-16 Phase-2)
@@ -18,9 +18,10 @@ generic_agent.answer()
         array (the agentic path has infra_data="" — the evidence lives in the
         loop's tool results, so without this the scan finds nothing → no-op).
   └─ (existing) ResponseQualityGuard().scan(response, effective_infra_data, agent_id)
-        ├─ _find_ungrounded_resource_ids(response, infra_data)   → [ids]   (exists)
-        ├─ _check_numeric_groundedness(response, infra_data)     → [nums]  (exists, metric-only today)
-        └─ NEW: assemble QualityAssessment(confidence, unverified_claims)  ← return it
+        ├─ _find_defects(response)                → structural defects → BLOCK (raise)
+        ├─ _find_ungrounded_resource_ids(...)      → [ids] → BLOCK (raise, existing guardrail)
+        ├─ (non-blocking) _check_numeric_groundedness(...) → [nums]  (metric-only today)
+        └─ NEW: assemble QualityAssessment(confidence, unverified_claims) from [nums] ← return it
   └─ NEW: emit aigent.quality.confidence{level} + aigent.quality.unverified_claims_per_response
   └─ NEW: attach assessment to the supervisor result → openai_compat renders x_aigent.quality
         (NON-STREAMING responses only — the streaming SSE format has no slot for it; Phase-3 trigger below)
@@ -56,11 +57,13 @@ ungrounded signals; Phase-2 only **returns + shapes + surfaces** them.
 
 **Quando estaria errado**: if consumers explicitly need the model's *stated* confidence (not the evidence-based one) — then add a second field rather than replacing this one.
 
-**Weighting refinement (harness M-open-1, adopted)**: a flat count treats a
-hallucinated resource ID (`i-0abc…`) the same as an ungrounded `$12.34`. Since acting
-on a non-existent resource is the most dangerous false-positive, **any ungrounded
-resource ID forces `confidence: low` immediately**; ungrounded *numeric* claims use the
-count heuristic (0→high, 1–2→medium, ≥3→low). Documented + tested.
+**Weighting refinement (user decision 2026-07-24 — option A, safety-first)**: ungrounded
+**resource IDs continue to BLOCK** (existing guardrail — a fabricated `i-…`/ARN the user
+might act on is never surfaced, even tagged low-confidence). They are NOT downgraded to a
+low-confidence assessment. The assessment therefore runs only on responses that pass the
+block, and `confidence` derives purely from the ungrounded **numeric-claim** count
+(0→high, 1–2→medium, ≥3→low). Numeric ungroundedness was already non-blocking (metric-only);
+Phase-2 turns it into a structured signal. Documented + tested.
 
 ### Decision 2: structured fields live in a NAMESPACED `x_aigent.quality` extension, non-streaming only
 **Choice**: add `x_aigent: {quality: {confidence, unverified_claims}}` at the top level of `ChatCompletionResponse` (nested `quality` key so future extensions don't proliferate top-level fields); leave `choices[].message.content` byte-identical (keeps the Phase-1 human line). **Scope: non-streaming (`stream: false`) only** — the streaming SSE chunk format has no slot for a trailing structured object. **Phase-3 trigger**: when a consumer needs it on the streaming path, evaluate a final SSE event or a `/v1/assessments/{id}` side channel rather than forcing it into delta chunks.
@@ -76,6 +79,14 @@ count heuristic (0→high, 1–2→medium, ≥3→low). Documented + tested.
 | `x_aigent` is non-standard | Namespaced + optional; documented in `docs/LIBRECHAT.md` |
 
 **Alternativas descartadas**: (a) append a JSON block to `content` — pollutes the human answer + double source of truth; (b) metrics-only — loses per-answer detail for consumers; (c) mutate `message` schema — breaks strict OpenAI clients.
+
+### Decision 3: `run_agentic_loop` returns `(text, messages)` (M1 side-effect)
+**Choice**: change the internal `run_agentic_loop` signature from `-> str` to
+`-> tuple[str, list[dict]]` so `generic_agent` can build `effective_infra_data` from the
+loop's `toolResult` blocks (M1). Only prod caller (`generic_agent`) is updated to unpack;
+the streaming variant (`run_agentic_loop_streaming`) is unchanged (its groundedness is a
+separate follow-up). Internal function (not a public API); test call sites updated to the
+tuple. Reasonable evolution — explicit return beats a hidden out-param or callback.
 
 ## Invariants
 - 100% read-only; no new external calls; no extra LLM invocation.

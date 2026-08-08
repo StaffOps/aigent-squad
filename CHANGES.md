@@ -2,6 +2,35 @@
 
 ## [Unreleased]
 
+### Added — structured calibrated honesty, B-16 Phase-2 (spec 41) (2026-08-08)
+Phase-1 shipped the `<calibrated_honesty>` prompt instruction; the model was *asked* to
+qualify uncertainty but nothing measured whether it did. Phase-2 makes the assessment
+structural and observable.
+- **`ResponseQualityGuard.scan()` now returns `Optional[QualityAssessment]`** (`confidence`,
+  `unverified_claims[]`) instead of `None`. Ordering is unchanged and deliberate: structural
+  defects block first, ungrounded **resource IDs** block second (pre-existing guardrail), and
+  only an answer that clears both gets assessed on ungrounded **numeric** claims —
+  0→`high`, 1–2→`medium`, ≥3→`low`, claims deduped and capped at 20. The count is over
+  **distinct** claims, not regex matches — counting raw matches let the same `$999.99`
+  repeated three times report `low` next to a one-item `unverified_claims` list, which a
+  client could not reconcile.
+- **M1 prerequisite — `effective_infra_data` (the part that makes it not a lie):** the agentic
+  path passes `infra_data=""`, so a naive scan finds nothing ungrounded and returns `high`
+  for *every* agentic answer — a no-op that would have actively blessed hallucinations. The
+  tool results are now extracted from the loop's `toolResult` content blocks and fed to the
+  scan. This required changing `run_agentic_loop` to return `tuple[str, list[dict]]`
+  (`(final_text, messages)`); all call sites updated.
+- **Surfaced to clients** as an optional top-level `x_aigent.quality` on **non-streaming**
+  `/v1/chat/completions` responses, omitted entirely when absent. `message.content` is
+  byte-identical — verified by a regression test. Documented in `docs/LIBRECHAT.md`.
+- **2 new metrics:** `aigent.quality.confidence{level}` (3 series) and
+  `aigent.quality.unverified_claims_per_response{agent_id}` (default SDK buckets — explicit
+  boundaries are not settable from this repo: the API's `create_histogram` takes only
+  name/unit/description and the MeterProvider lives in `otel_helper`).
+- **Feature-flagged** on `response_quality_enabled`; assessment `None` + no metrics when off.
+  Assessment failures are swallowed — the answer always returns.
+- 30 independent-author tests (verification-independence); suite 1811 passed, coverage 93.36%.
+
 ### Deployed / cleanup / CI (2026-07-24)
 - Deployed **agentic29** to devops-core (helm rev 62, multi-arch) — the observability metric improvements are live in-process; VM visibility pending a scrape-path fix (app custom metrics have no VMServiceScrape — pre-existing gap, affects all `aigent.*` incl. the agentic28 tier counter).
 - Cleanup (audit #3): removed dead `src/agents/` package tree + accidentally-committed root `otel_helper/` stub (now gitignored); archived 2 superseded eval baselines.

@@ -279,6 +279,36 @@ ungrounded_numeric_claims = meter.create_counter(
     unit="1",
 )
 
+# === Spec 41: Structured calibrated honesty (B-16 Phase-2) ===
+
+# Counter: one increment per response, labeled by the derived confidence level.
+# Cardinality: 3 series (high | medium | low).
+quality_confidence = meter.create_counter(
+    name="aigent.quality.confidence",
+    description=(
+        "Structured confidence level derived from groundedness scan "
+        "(spec 41). Labels: level ∈ {high, medium, low}."
+    ),
+    unit="1",
+)
+
+# Histogram: distribution of unverified_claims count per response.
+# NOTE on buckets: default SDK boundaries apply. Explicit boundaries are NOT
+# settable here — opentelemetry-api 1.29.0's create_histogram() takes only
+# (name, unit, description), and the MeterProvider (where a View would go) is
+# owned by the otel_helper lib, not this repo. Values are 0..20 (capped), so
+# the default boundaries are coarse at the low end; tightening them requires
+# a View in otel_helper. Do not document buckets this code cannot produce.
+quality_unverified_claims = meter.create_histogram(
+    name="aigent.quality.unverified_claims_per_response",
+    description=(
+        "Count of DISTINCT ungrounded numeric claims per response (deduped, "
+        "capped at 20). Spec 41. Resource IDs never reach here — they block "
+        "in the earlier guardrail phase. Labels: agent_id."
+    ),
+    unit="{claims}",
+)
+
 # ===========================================================================
 # NEW METRICS (observability review — bounded cardinality, zero vanity)
 # ===========================================================================

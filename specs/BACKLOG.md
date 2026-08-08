@@ -154,6 +154,7 @@ Note: if the Grafana LLM app COULD send `model=aigent-squad-observability`, that
 - spec 36: T11 independent review (fresh-clone dry run + .claude contract)
 - spec 37: all deferrals CLOSED 2026-07-21 — Auto-route streaming (G-4), MCP SA-RBAC audit gate, Grafana plugin integration (G-1..G-6), and the Guardrail ingress input-guard fix (G-6) are all DONE + homologated live. Non-blocking follow-ups: recommended R1-R7; vm-mcp/observability Prometheus connectivity; provisioning the plugin's real per-consumer key (ExternalSecret). Earlier: count-framing + 40K scale budgets shipped 2026-07-20 (model reports the marker total, 267 not 38).
 - spec 39: T3.4 deterministic investigation.py path (Phase 2 — prompt-RCA validated live agentic28, extraction trigger not met). spec 38 FU-A dispatch-condition doc (Phase 2).
+- spec 41: T3 histogram bucket boundaries — `aigent.quality.unverified_claims_per_response` runs on default SDK buckets, which are coarse for its 0–20 range. The spec asked for `[0,1,2,3,5,10,20]`, but they are not settable from this repo: `opentelemetry-api` 1.29.0's `create_histogram()` accepts only (name, unit, description), and the `MeterProvider` — where a View would live — is owned by the private `otel_helper` lib. Closing this needs an `otel_helper` change (add a View) or an API upgrade that exposes `explicit_bucket_boundaries_advice`. Metric is usable meanwhile; only low-end granularity is lost. Docs corrected to stop claiming the buckets (T8 harness finding B3).
 
 ---
 

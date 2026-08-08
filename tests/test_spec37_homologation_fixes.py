@@ -421,7 +421,7 @@ class TestContract2_StreamingNonStreamingParity:
         ])
         adapter = _make_adapter()
 
-        result = await run_agentic_loop(mcp_adapters=[adapter], **LOOP_KWARGS)
+        result, _messages = await run_agentic_loop(mcp_adapters=[adapter], **LOOP_KWARGS)
 
         adapter.call_tool.assert_awaited_once_with(
             "pods_list_in_namespace", {"ns": "monitoring"}
@@ -648,7 +648,7 @@ class TestContract6_UnchangedBehavior:
         adapter = _make_adapter()
 
         with patch("src.core.agentic_loop.MAX_TOOL_STEPS", 2):
-            result = await run_agentic_loop(mcp_adapters=[adapter], **LOOP_KWARGS)
+            result, _messages = await run_agentic_loop(mcp_adapters=[adapter], **LOOP_KWARGS)
 
         assert "budget was exhausted" in result
         assert adapter.call_tool.await_count <= 2

@@ -193,7 +193,7 @@ class TestAgenticPathContainsCalibratedHonesty:
 
     @patch("src.core.generic_agent.run_agentic_loop")
     async def test_agentic_path_system_prompt_has_calibrated_honesty(self, mock_loop):
-        mock_loop.return_value = "agentic response"
+        mock_loop.return_value = ("agentic response", [])
 
         agent = GenericAgent(
             config=_make_config(),
@@ -214,7 +214,7 @@ class TestAgenticPathContainsCalibratedHonesty:
     @patch("src.core.generic_agent.run_agentic_loop")
     async def test_agentic_path_honesty_after_language_directive(self, mock_loop):
         """Calibrated honesty is appended AFTER the language directive."""
-        mock_loop.return_value = "ok"
+        mock_loop.return_value = ("ok", [])
 
         agent = GenericAgent(
             config=_make_config(),
@@ -308,7 +308,7 @@ class TestCalibratedHonestyCoexistsWithSkills:
 
     @patch("src.core.generic_agent.run_agentic_loop")
     async def test_agentic_path_skills_and_honesty_coexist(self, mock_loop):
-        mock_loop.return_value = "ok"
+        mock_loop.return_value = ("ok", [])
 
         cfg = _make_config(skills=["oomkill"])
         agent = GenericAgent(
@@ -413,7 +413,7 @@ class TestNoRegressionAgentsWithoutSkills:
 
     @patch("src.core.generic_agent.run_agentic_loop")
     async def test_agentic_no_skills_still_has_honesty(self, mock_loop):
-        mock_loop.return_value = "ok"
+        mock_loop.return_value = ("ok", [])
 
         agent = GenericAgent(
             config=_make_config(skills=[]),
@@ -483,7 +483,7 @@ class TestCalibratedHonestyAppearsExactlyOnce:
 
     @patch("src.core.generic_agent.run_agentic_loop")
     async def test_agentic_path_honesty_not_duplicated(self, mock_loop):
-        mock_loop.return_value = "ok"
+        mock_loop.return_value = ("ok", [])
 
         agent = GenericAgent(
             config=_make_config(skills=["oomkill"]),

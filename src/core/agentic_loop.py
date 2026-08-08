@@ -257,7 +257,7 @@ async def run_agentic_loop(
     temperature: float = 0.1,
     budget_session_id: str | None = None,
     model_id_override: str | None = None,
-) -> str:
+) -> tuple[str, list[dict]]:
     """Execute the bounded agentic loop (non-streaming).
 
     Builds tool_config from the adapters' allowlisted tools, then iterates
@@ -277,7 +277,11 @@ async def run_agentic_loop(
             instead of resolving from the "agent" role.
 
     Returns:
-        The model's final text answer (possibly degraded if budgets exhausted).
+        A tuple of (final_text, messages) where:
+        - final_text: the model's final text answer (possibly degraded if
+          budgets exhausted).
+        - messages: the full Converse messages array (for spec 41
+          effective_infra_data extraction from toolResult content blocks).
     """
     loop_start = time.time()
     total_tool_calls = 0
@@ -397,7 +401,7 @@ async def run_agentic_loop(
                         if block.get("type") == "text" and block.get("text")
                     )
                     _emit_metrics(agent_id, total_tool_calls, loop_start)
-                    return final_text
+                    return final_text, messages
 
                 # --- Tool-use turn: execute tools sequentially (B8) ---
                 tool_use_blocks = [
@@ -411,7 +415,7 @@ async def run_agentic_loop(
                         if block.get("type") == "text" and block.get("text")
                     )
                     _emit_metrics(agent_id, total_tool_calls, loop_start)
-                    return final_text or "(no response)"
+                    return (final_text or "(no response)"), messages
 
                 # Append the assistant's tool_use turn to messages
                 messages.append({
@@ -531,9 +535,9 @@ async def run_agentic_loop(
             degraded_note += "]"
 
             if partial_texts:
-                return "\n".join(partial_texts) + "\n\n" + degraded_note
+                return "\n".join(partial_texts) + "\n\n" + degraded_note, messages
             else:
-                return degraded_note
+                return degraded_note, messages
 
         finally:
             await session_pool.close()

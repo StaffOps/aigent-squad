@@ -147,6 +147,49 @@ curl -N http://localhost:8000/v1/chat/completions \
   -d '{"model":"aigent-squad-aws","messages":[{"role":"user","content":"list S3 buckets"}],"stream":true}'
 ```
 
+## `x_aigent` — structured quality assessment (spec 41)
+
+Non-streaming responses may carry an extra top-level field, `x_aigent`, holding a
+structured self-assessment of the answer's groundedness. It is **namespaced and
+additive**: `choices[].message.content` is byte-identical to what it would be
+without the field, and standard OpenAI clients ignore unknown top-level keys — so
+LibreChat and the OpenAI SDKs are unaffected.
+
+```json
+{
+  "id": "chatcmpl-...",
+  "object": "chat.completion",
+  "choices": [{ "message": { "role": "assistant", "content": "…" } }],
+  "x_aigent": {
+    "quality": {
+      "confidence": "medium",
+      "unverified_claims": ["263", "1.4TB"]
+    }
+  }
+}
+```
+
+| Field | Meaning |
+|-------|---------|
+| `quality.confidence` | `high` (0 ungrounded numeric claims), `medium` (1–2), `low` (≥3) |
+| `quality.unverified_claims` | The ungrounded numeric claims themselves, deduped, capped at 20 |
+
+Behaviour worth knowing before you build on it:
+
+- **Omitted, not null.** When there is no assessment the key is absent from the
+  JSON entirely — check for presence, don't assume `null`.
+- **Non-streaming only.** With `stream: true` there is no `x_aigent`; the SSE
+  frame format stays strictly OpenAI-shaped.
+- **Off when the guard is off.** Gated on `response_quality_enabled`; the whole
+  path (field + metrics) is a no-op when disabled.
+- **Advisory, not a verdict.** "Unverified" means *not found in the collected
+  infra data* — a legitimate derived sum (an average, a total) counts as
+  unverified. This never blocks an answer; ungrounded *resource IDs* are what
+  gets blocked, and that is a separate, pre-existing guardrail.
+
+Observability counterpart: `aigent.quality.confidence` and
+`aigent.quality.unverified_claims_per_response` (see `docs/METRICS.md`).
+
 ## Known limitations (current)
 
 - **Pseudo-streaming**: with `stream: true` the squad runs to completion, then

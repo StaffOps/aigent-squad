@@ -559,12 +559,16 @@ class SupervisorAgent:
         self._record_metrics(agent_name, response_text, user_id, session_id, start_time)
         await self._save_assistant_message(user_id, session_id, agent_name, response_text)
 
-        return {
+        result_dict = {
             "agent": agent_name,
             "response": response_text,
             "confidence": classification.confidence,
             "reasoning": classification.reasoning
         }
+        # Spec 41: thread quality assessment through to openai_compat
+        if result.quality_assessment is not None:
+            result_dict["quality_assessment"] = result.quality_assessment
+        return result_dict
 
     async def _fan_out(
         self, agents, classification: ClassifierResult,

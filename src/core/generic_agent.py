@@ -25,7 +25,7 @@ from src.core.input_scanner import InputScanner
 from src.core.logger import log_request, log_response, log_error
 from src.core.metrics import collect_duration
 from src.core.output_filter import OutputFilter
-from src.core.response_quality import ResponseQualityGuard
+from src.core.response_quality import ResponseQualityGuard, QualityAssessment
 from src.core.state_store import ConversationMessage
 from src.core.token_budget import truncate_history_by_tokens
 
@@ -50,6 +50,50 @@ SHARED_INSTRUCTIONS = (
 )
 
 tracer = get_tracer(__name__)
+
+
+def _extract_tool_result_text(messages: list[dict]) -> str:
+    """Extract all toolResult text content from agentic loop messages (spec 41 M1).
+
+    The agentic loop stores tool results as user-role messages containing
+    toolResult blocks. Each block has: {"toolResult": {"content": [{"text": ...}]}}.
+    We concatenate all text blocks to form effective_infra_data — the evidence
+    the model actually saw from tools — enabling the groundedness scan to verify
+    whether numeric/resource-ID claims in the answer are backed by real data.
+
+    Returns empty string if no tool results found (non-agentic path or no tools
+    were called), which disables groundedness checking (safe default — no
+    false-positive flood).
+
+    Interaction with context trimming (spec 40): `trim_message_history` rewrites
+    early toolResult text into summaries in place, and this function reads the
+    same message objects. So on long conversations the evidence is the summary,
+    not the original tool output. A figure that appeared only in trimmed-away
+    detail will read as ungrounded and pull confidence DOWN. That direction is
+    deliberate — over-flagging is safe, under-flagging would bless a
+    hallucination — but it means confidence is pessimistic, not wrong, late in
+    a long session.
+    """
+    parts: list[str] = []
+    for msg in messages:
+        if msg.get("role") != "user":
+            continue
+        content = msg.get("content")
+        if not isinstance(content, list):
+            continue
+        for block in content:
+            if not isinstance(block, dict):
+                continue
+            tool_result = block.get("toolResult")
+            if not tool_result:
+                continue
+            result_content = tool_result.get("content")
+            if not isinstance(result_content, list):
+                continue
+            for item in result_content:
+                if isinstance(item, dict) and item.get("text"):
+                    parts.append(item["text"])
+    return "\n".join(parts)
 
 
 class GenericAgent:
@@ -110,8 +154,9 @@ class GenericAgent:
                     if isinstance(a, McpAdapter) and a.tools
                 ]
 
+                agentic_messages: list[dict] = []
                 if mcp_adapters:
-                    response = await self._agentic_path(
+                    response, agentic_messages = await self._agentic_path(
                         input_text, system_prompt, chat_history, mcp_adapters,
                         user_id, session_id, budget_session_id, model_id_override,
                     )
@@ -131,17 +176,33 @@ class GenericAgent:
                     session_id=session_id,
                 )
 
+                # --- Spec 41 (M1): build effective_infra_data ---
+                # The agentic path passes infra_data="" today because tool
+                # evidence lives in the loop's messages array as toolResult
+                # content blocks. Extract and concatenate them so the
+                # groundedness scan has real evidence to check against.
+                effective_infra_data = _extract_tool_result_text(agentic_messages)
+
                 # Response quality guard: scan for tool-scaffolding leaks and
                 # raw adapter/infra error text reaching the user verbatim
                 # (spec 35 T1 — F-001/F-002/F-003 defect classes).
+                # Spec 41: now returns a QualityAssessment (or None).
                 quality_guard = ResponseQualityGuard()
-                quality_guard.scan(
-                    response,
-                    agent_id=self.config.name,
-                    user_id=user_id,
-                    session_id=session_id,
-                    infra_data="",  # agentic path has no single infra_data blob
-                )
+                assessment: Optional[QualityAssessment] = None
+                try:
+                    assessment = quality_guard.scan(
+                        response,
+                        agent_id=self.config.name,
+                        user_id=user_id,
+                        session_id=session_id,
+                        infra_data=effective_infra_data,
+                    )
+                except GuardrailBlockedError:
+                    raise
+                except Exception:
+                    # Non-blocking: any exception in the assessment path is
+                    # swallowed (answer still returns) — spec 41 invariant.
+                    pass
 
                 duration_ms = (time.time() - start_time) * 1000
                 log_response(self.config.name, user_id, session_id, len(response), duration_ms)
@@ -151,6 +212,7 @@ class GenericAgent:
                     content=response,
                     timestamp=datetime.now(timezone.utc).isoformat(),
                     agent_id=self.config.name,
+                    quality_assessment=assessment,
                 )
 
             except GuardrailBlockedError:
@@ -273,11 +335,14 @@ class GenericAgent:
         session_id: str,
         budget_session_id: Optional[str],
         model_id_override: Optional[str] = None,
-    ) -> str:
+    ) -> tuple[str, list[dict]]:
         """Agentic execution: LLM-driven tool selection via Converse loop.
 
         Non-MCP adapters still collect context upfront (injected into system
         prompt). MCP adapters contribute tools — the model decides which to call.
+
+        Returns (response_text, agentic_messages) — messages used by spec 41
+        to extract effective_infra_data from toolResult content blocks.
         """
         non_mcp_adapters = [
             a for a in self.adapters if not isinstance(a, McpAdapter)
@@ -333,7 +398,7 @@ class GenericAgent:
 
         # Run the bounded agentic loop
         with tracer.start_as_current_span(f"{self.config.name}_agent.agentic"):
-            response = await run_agentic_loop(
+            response, agentic_messages = await run_agentic_loop(
                 query=input_text,
                 system_prompt=agentic_system,
                 history_text=history_text,
@@ -355,7 +420,7 @@ class GenericAgent:
                 session_id=session_id,
             )
 
-        return response
+        return response, agentic_messages
 
     # ------------------------------------------------------------------
     # Legacy path (non-agentic)

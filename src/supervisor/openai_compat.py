@@ -110,6 +110,17 @@ class ChatCompletionResponse(BaseModel):
     model: str
     choices: list[CompletionChoice]
     usage: UsageInfo = Field(default_factory=UsageInfo)
+    # Spec 41 (B-16 Phase-2): structured quality assessment — namespaced
+    # extension, non-streaming only. Standard OpenAI clients ignore unknown
+    # top-level fields. message.content is byte-identical to today.
+    x_aigent: Optional[dict] = Field(default=None, json_schema_extra={"description": "Structured quality assessment (spec 41)"})
+
+    def model_dump(self, **kwargs) -> dict:
+        """Override to omit x_aigent when None (clean contract for clients)."""
+        data = super().model_dump(**kwargs)
+        if data.get("x_aigent") is None:
+            data.pop("x_aigent", None)
+        return data
 
 
 class ModelObject(BaseModel):
@@ -208,11 +219,26 @@ def _extract_text(result: dict) -> str:
 
 def build_completion(result: dict, model: str) -> ChatCompletionResponse:
     """Non-streaming: supervisor result dict → OpenAI chat.completion."""
+    # Spec 41: surface structured quality assessment under namespaced extension
+    x_aigent: Optional[dict] = None
+    assessment = result.get("quality_assessment")
+    if assessment is not None:
+        try:
+            x_aigent = {
+                "quality": {
+                    "confidence": assessment.confidence,
+                    "unverified_claims": assessment.unverified_claims,
+                }
+            }
+        except Exception:
+            pass  # Non-blocking: assessment formatting failure never fails the response
+
     return ChatCompletionResponse(
         id=_completion_id(),
         created=_now(),
         model=model,
         choices=[CompletionChoice(message=MessageContent(content=_extract_text(result)))],
+        x_aigent=x_aigent,
     )
 
 

@@ -205,7 +205,7 @@ class TestAgenticLoop:
                 return_value=_final_answer_response("There are 5 pods running.")
             )
 
-            result = await run_agentic_loop(
+            result, _messages = await run_agentic_loop(
                 query="how many pods?",
                 system_prompt="You are a K8s assistant.",
                 history_text="No previous conversation",
@@ -235,7 +235,7 @@ class TestAgenticLoop:
                 _final_answer_response("Found 2 pods: pod-1 and pod-2, both Running."),
             ])
 
-            result = await run_agentic_loop(
+            result, _messages = await run_agentic_loop(
                 query="list pods",
                 system_prompt="You are a K8s assistant.",
                 history_text="No previous conversation",
@@ -266,7 +266,7 @@ class TestAgenticLoop:
                 return_value=_tool_use_response([{"id": "tu-001", "name": "get_pods", "input": {}}])
             )
 
-            result = await run_agentic_loop(
+            result, _messages = await run_agentic_loop(
                 query="infinite loop query",
                 system_prompt="You are a test.",
                 history_text="",
@@ -298,7 +298,7 @@ class TestAgenticLoop:
                                    input_tokens=80, output_tokens=30),
             ])
 
-            result = await run_agentic_loop(
+            result, _messages = await run_agentic_loop(
                 query="test",
                 system_prompt="test",
                 history_text="",
@@ -335,7 +335,7 @@ class TestAgenticLoop:
                 _final_answer_response("Pod p1 is running. Logs look normal."),
             ])
 
-            result = await run_agentic_loop(
+            result, _messages = await run_agentic_loop(
                 query="check pod p1",
                 system_prompt="test",
                 history_text="",
@@ -374,7 +374,7 @@ class TestAgenticLoop:
                 _final_answer_response("Pod is running but logs unavailable."),
             ])
 
-            result = await run_agentic_loop(
+            result, _messages = await run_agentic_loop(
                 query="check",
                 system_prompt="test",
                 history_text="",
@@ -409,7 +409,7 @@ class TestAgenticLoop:
                 _final_answer_response("I couldn't delete pods."),
             ])
 
-            result = await run_agentic_loop(
+            result, _messages = await run_agentic_loop(
                 query="delete stuff",
                 system_prompt="test",
                 history_text="",
@@ -433,7 +433,7 @@ class TestAgenticLoop:
                 return_value=_final_answer_response("No tools available.")
             )
 
-            result = await run_agentic_loop(
+            result, _messages = await run_agentic_loop(
                 query="test",
                 system_prompt="test",
                 history_text="",
@@ -464,7 +464,7 @@ class TestAgenticLoop:
                 _final_answer_response("done"),
             ])
 
-            await run_agentic_loop(
+            _result, _messages = await run_agentic_loop(
                 query="test",
                 system_prompt="test",
                 history_text="",
@@ -509,7 +509,7 @@ class TestGenericAgentRouting:
         with patch("src.core.generic_agent.run_agentic_loop", new_callable=AsyncMock) as mock_loop, \
              patch("src.core.generic_agent.InputScanner") as mock_scanner:
             mock_scanner.return_value.scan.return_value = "test query"
-            mock_loop.return_value = "agentic response"
+            mock_loop.return_value = ("agentic response", [])
 
             from src.core.state_store import ConversationMessage
             result = await agent.process_request(

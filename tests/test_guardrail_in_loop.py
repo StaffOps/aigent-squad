@@ -95,7 +95,7 @@ class TestBenignToolResultNotBlocked:
                 _final_answer_response("There are 2 pods running."),
             ])
 
-            result = await run_agentic_loop(
+            result, _messages = await run_agentic_loop(
                 query="List pods in default namespace",
                 system_prompt="You are a K8s assistant.",
                 history_text="",
@@ -127,7 +127,7 @@ class TestBenignToolResultNotBlocked:
                 _final_answer_response("Final after 3 tools."),
             ])
 
-            result = await run_agentic_loop(
+            result, _messages = await run_agentic_loop(
                 query="List all pods",
                 system_prompt="K8s assistant.",
                 history_text="",
@@ -282,7 +282,7 @@ class TestB3GuardrailsStillRun:
             mock_args_gr.return_value = True
             mock_result_gr.return_value = "pod-data"
 
-            result = await run_agentic_loop(
+            result, _messages = await run_agentic_loop(
                 query="List pods", system_prompt="K8s assistant.",
                 history_text="", mcp_adapters=[adapter],
                 agent_id="k8s", user_id="u1", session_id="s1",
@@ -416,7 +416,7 @@ class TestBudgetsAndFailOpenUnchanged:
                 return_value=_tool_use_response([{"id": "tu-x", "name": "get_pods", "input": {}}])
             )
 
-            result = await run_agentic_loop(
+            result, _messages = await run_agentic_loop(
                 query="infinite loop", system_prompt="test.",
                 history_text="", mcp_adapters=[adapter],
                 agent_id="k8s", user_id="u1", session_id="s1",
@@ -439,7 +439,7 @@ class TestBudgetsAndFailOpenUnchanged:
                 _final_answer_response("I couldn't fetch pods due to an error."),
             ])
 
-            result = await run_agentic_loop(
+            result, _messages = await run_agentic_loop(
                 query="List pods", system_prompt="K8s assistant.",
                 history_text="", mcp_adapters=[adapter],
                 agent_id="k8s", user_id="u1", session_id="s1",
