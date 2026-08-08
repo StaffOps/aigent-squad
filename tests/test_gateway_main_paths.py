@@ -48,8 +48,19 @@ def _fake_submit_factory():
 
 class TestLifespan:
     def test_lifespan_aclose(self):
-        with patch.object(gw, "supervisor_client") as mock_sc:
-            mock_sc.aclose = AsyncMock()
+        """Lifespan shutdown awaits supervisor_client.aclose().
+
+        The whole client is an AsyncMock, not a MagicMock with one async
+        attribute: startup ALSO awaits `list_agents()` whenever
+        GATEWAY_KEY_AGENT_MAP is non-empty, and that map is a module-level
+        global in gateway/auth.py populated at import time. The G-5 tests
+        reload that module under monkeypatch.setenv — monkeypatch restores the
+        env var but cannot undo a reload, so the global stays populated and
+        leaks into whatever runs next. With a bare MagicMock this test then
+        died on `await list_agents()` in the full suite while passing alone.
+        AsyncMock makes it order-independent. (Leak tracked as F-012.)
+        """
+        with patch.object(gw, "supervisor_client", new_callable=AsyncMock) as mock_sc:
             with TestClient(gw.app) as c:
                 resp = c.get("/healthz")
                 assert resp.status_code == 200

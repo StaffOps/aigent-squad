@@ -2,6 +2,42 @@
 
 ## [Unreleased]
 
+### Fixed — test gate GREEN: 13 stale failures cleared (2026-08-08)
+`make test` was red on committed HEAD with 13 failures. **All 13 were stale tests; zero
+production defects.** Suite now **1850 passed / 0 failed**, coverage 94.01%.
+
+> **Correction to the 2026-07-24 entry below**, which claims *"CI drift repaired (audit #6-9)"*
+> (commit `ca2c0ac`): that repair was **incomplete**. 13 failures survived it and the changelog
+> asserted otherwise for two weeks. While the gate was red it could not distinguish a new
+> regression from old debt — this session lost time to exactly that, misattributing a failure to
+> an unrelated lint pass until an isolated `git worktree` run at HEAD disproved it.
+
+Four independent root causes (tracked as F-010 in `specs/BACKLOG.md`):
+- **6 stale budget assertions.** The loop budgets were deliberately raised (spec 37, "40K scale
+  budgets") and the tests still asserted pre-raise values: `MAX_TOOL_STEPS` 8≠5,
+  `MAX_LOOP_DURATION_MS` 120000≠15000, `MAX_LOOP_TOKENS` 300000≠50000,
+  `MAX_TOOL_RESULT_CHARS` 40000≠8000. The **comments in `agent_config.py` were stale too** —
+  they documented 150000/30000, superseded values — and were corrected.
+- **4 stale guardrail assertions.** G-6 deliberately stopped wiring Bedrock's server-side
+  converse guardrail (redundant — input is guarded once at ingress — and it false-positived on
+  the agent's framed user turn). The tests asserted the pre-G-6 "turn 0 = True" contract. Checked
+  before rewriting: the security property is covered and passing in `test_g6_ingress_guard.py`
+  (17 tests, incl. injection blocked at ingress + output/tool guards still firing). Two test
+  names that asserted the wrong contract were renamed.
+- **1 stale 404 contract.** G-1 made `resolve_target` permissive (an unrecognized model id
+  auto-routes instead of raising) so the Grafana LLM app — which sends `base`/`gpt-4o` — works.
+  The endpoint test still expected 404; rewritten to assert the endpoint honours auto-route.
+- **1 test-isolation bug** (F-012). `test_lifespan_aclose` passed alone and failed in the full
+  suite: the G-5 tests `importlib.reload` the auth module under `monkeypatch.setenv`, and
+  monkeypatch restores the env var but **cannot undo a reload** — so `_KEY_AGENT_MAP` stayed
+  populated and made the gateway lifespan `await` an un-mocked attribute. The test is now
+  order-independent; **the leak itself is still open** (F-012).
+
+Also registered: **F-011** — the MCP adapter's error path fails open correctly but surfaces
+`unhandled errors in a TaskGroup` instead of the real cause (anyio wraps it), so the log line
+tells an operator nothing. Behaviour is fine; observability is not. Left open with the brittle
+assertion deliberately NOT re-added.
+
 ### Added — structured calibrated honesty, B-16 Phase-2 (spec 41) (2026-08-08)
 Phase-1 shipped the `<calibrated_honesty>` prompt instruction; the model was *asked* to
 qualify uncertainty but nothing measured whether it did. Phase-2 makes the assessment

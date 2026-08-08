@@ -386,10 +386,10 @@ class TestAgentConfigLoopBudget:
             MAX_TOOL_RESULT_CHARS,
             MAX_TOOL_STEPS,
         )
-        assert MAX_TOOL_STEPS == 5
-        assert MAX_LOOP_DURATION_MS == 15000
-        assert MAX_LOOP_TOKENS == 50000
-        assert MAX_TOOL_RESULT_CHARS == 8000
+        assert MAX_TOOL_STEPS == 8
+        assert MAX_LOOP_DURATION_MS == 120000
+        assert MAX_LOOP_TOKENS == 300000
+        assert MAX_TOOL_RESULT_CHARS == 40000
 
     def test_env_override(self, monkeypatch):
         monkeypatch.setenv("AIGENT_MAX_TOOL_STEPS", "10")

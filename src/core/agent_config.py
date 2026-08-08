@@ -18,12 +18,12 @@ from pydantic import BaseModel, Field
 #   total"); specifics come from follow-up filtered queries. This gives a rich
 #   sample for pattern recognition while keeping per-call cost bounded.
 #
-#   MAX_LOOP_TOKENS (150000) provides headroom for a few large-sample results
+#   MAX_LOOP_TOKENS (300000) provides headroom for a few large-sample results
 #   + reasoning within the ~200K context window.  Still cost-conscious: a
 #   typical 3-tool loop uses ~30K tokens; the 150K ceiling is for complex
 #   multi-step investigations, not routine queries.
 #
-#   MAX_LOOP_DURATION_MS (30000) accommodates the slower Converse turns that
+#   MAX_LOOP_DURATION_MS (120000) accommodates the slower Converse turns that
 #   naturally result from larger context windows.
 # ---------------------------------------------------------------------------
 

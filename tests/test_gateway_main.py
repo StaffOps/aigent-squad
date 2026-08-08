@@ -192,14 +192,28 @@ class TestQuery:
 
 
 class TestChatCompletions:
-    def test_404_unknown_model(self, client):
+    def test_unknown_model_is_auto_routed_not_rejected(self, client):
+        """G-1: an unrecognized model id must NOT be rejected at the gateway.
+
+        resolve_target() was deliberately made permissive (unknown id ->
+        auto-route, never raises) so external clients that cannot set an
+        arbitrary model id — the Grafana LLM app sends "base"/"gpt-4o" — work
+        without an HTTP error. This asserts the ENDPOINT honors that; the
+        resolve_target contract itself is covered by
+        tests/test_grafana_plugin_g1_g2.py and tests/test_openai_compat.py.
+
+        The pre-G-1 contract (404 + invalid_request_error) is gone; asserting it
+        here is what made this test stale.
+        """
         with patch("src.gateway.main._agent_names", ["aws", "k8s"]):
             resp = client.post("/v1/chat/completions", json={
                 "model": "gpt-4o",
                 "messages": [{"role": "user", "content": "hi"}],
             })
-            assert resp.status_code == 404
-            assert "invalid_request_error" in resp.json()["error"]["type"]
+            # Must not be rejected as an unknown model. (Downstream is not
+            # mocked here, so the forwarded call surfaces as 503 — the point is
+            # that it got PAST model resolution.)
+            assert resp.status_code != 404
 
     def test_403_guardrail_blocked(self, client):
         """Supervisor 403 (guardrail) propagates as 403 guardrail_blocked."""
