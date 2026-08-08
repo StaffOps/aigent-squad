@@ -337,7 +337,7 @@ class SupervisorAgent:
           - Token budget exceeded
           - Unknown/unclassifiable input
         """
-        from src.core.agentic_loop_streaming import StepRouting, run_agentic_loop_streaming
+        from src.core.agentic_loop_streaming import StepRouting
 
         start_time = time.time()
 

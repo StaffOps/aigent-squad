@@ -1,5 +1,5 @@
 import boto3
-from typing import Any, List, Optional, TYPE_CHECKING
+from typing import List, Optional, TYPE_CHECKING
 from datetime import datetime, timedelta, timezone
 from dataclasses import dataclass, field
 from src.core.config import settings

@@ -17,20 +17,16 @@ Coverage targets:
 """
 import asyncio
 import time
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from src.core.agentic_loop import (
     _McpSessionPool,
-    _ToolRouter,
-    _error_tool_result,
-    _guardrail_tool_args,
-    _guardrail_tool_result,
     run_agentic_loop,
 )
 from src.core.adapters import McpAdapter
-from src.core.circuit_breaker import CircuitBreaker, CircuitState
+from src.core.circuit_breaker import CircuitState
 
 
 # ---------------------------------------------------------------------------

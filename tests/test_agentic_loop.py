@@ -1,7 +1,6 @@
 """Tests for src/core/agentic_loop.py — Phase 3 bounded agentic loop."""
 import asyncio
-import time
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -511,7 +510,6 @@ class TestGenericAgentRouting:
             mock_scanner.return_value.scan.return_value = "test query"
             mock_loop.return_value = ("agentic response", [])
 
-            from src.core.state_store import ConversationMessage
             result = await agent.process_request(
                 input_text="test query",
                 user_id="u",
@@ -543,7 +541,6 @@ class TestGenericAgentRouting:
             mock_scanner.return_value.scan.return_value = "test query"
             mock_bedrock.invoke = AsyncMock(return_value="legacy response")
 
-            from src.core.state_store import ConversationMessage
             result = await agent.process_request(
                 input_text="test query",
                 user_id="u",
