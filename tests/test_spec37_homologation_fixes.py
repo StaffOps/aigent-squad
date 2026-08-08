@@ -22,7 +22,6 @@ Docker: python:3.11-slim (stub deps + env). Does NOT modify implementation.
 from __future__ import annotations
 
 import json
-import os
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -286,7 +285,7 @@ class TestContract1_StreamingToolCalling:
         ])
         adapter = _make_adapter()
 
-        events = await _collect(run_agentic_loop_streaming(
+        await _collect(run_agentic_loop_streaming(
             mcp_adapters=[adapter], **LOOP_KWARGS
         ))
 
@@ -549,7 +548,7 @@ class TestContract4_MarkerAfterRedaction:
             ])
             adapter = _make_adapter(call_result=_make_263_pod_json())
 
-            result = await run_agentic_loop(mcp_adapters=[adapter], **LOOP_KWARGS)
+            await run_agentic_loop(mcp_adapters=[adapter], **LOOP_KWARGS)
 
         # The second converse call should have redacted message, not truncated JSON
         second_call = mock_bedrock.converse.call_args_list[1]
@@ -768,7 +767,7 @@ class TestTruncationInLoopIntegration:
         ])
         adapter = _make_adapter(call_result=big_json)
 
-        result = await run_agentic_loop(mcp_adapters=[adapter], **LOOP_KWARGS)
+        await run_agentic_loop(mcp_adapters=[adapter], **LOOP_KWARGS)
 
         # The second converse call should have truncated content
         second_call = mock_bedrock.converse.call_args_list[1]
@@ -794,7 +793,7 @@ class TestTruncationInLoopIntegration:
         ])
         adapter = _make_adapter(call_result=big_json)
 
-        events = await _collect(run_agentic_loop_streaming(
+        await _collect(run_agentic_loop_streaming(
             mcp_adapters=[adapter], **LOOP_KWARGS
         ))
 
@@ -822,7 +821,7 @@ class TestTruncationInLoopIntegration:
         ])
         adapter = _make_adapter(call_result=small_result)
 
-        events = await _collect(run_agentic_loop_streaming(
+        await _collect(run_agentic_loop_streaming(
             mcp_adapters=[adapter], **LOOP_KWARGS
         ))
 

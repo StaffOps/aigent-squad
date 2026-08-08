@@ -13,7 +13,7 @@ agentic_loop, agentic_loop_streaming) — verifying the system_prompt strings th
 GenericAgent passes downstream.
 """
 import pytest
-from unittest.mock import patch, AsyncMock, MagicMock
+from unittest.mock import patch, AsyncMock
 
 from src.core.adapters import DatasourceAdapter, McpAdapter
 from src.core.agent_config import AgentConfig
@@ -21,7 +21,6 @@ from src.core.generic_agent import GenericAgent
 from src.core.config import settings
 
 CALIBRATED_HONESTY = settings.calibrated_honesty_instruction
-from src.core.state_store import ConversationMessage
 
 
 # ---------------------------------------------------------------------------
@@ -257,7 +256,7 @@ class TestStreamingPathContainsCalibratedHonesty:
         )
 
         # process_request_streaming returns the generator
-        gen = await agent.process_request_streaming(
+        await agent.process_request_streaming(
             input_text="list ec2 instances", user_id="u", session_id="s", chat_history=[]
         )
 

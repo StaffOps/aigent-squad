@@ -20,9 +20,7 @@ These tests stub private deps (otel_helper) and run via:
 from __future__ import annotations
 
 import pytest
-from unittest.mock import patch, MagicMock
-from dataclasses import dataclass, field
-from typing import Optional
+from unittest.mock import MagicMock
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -450,7 +448,6 @@ class TestTierRoutingObservability:
     def test_counter_emitted_with_resolved_tier(self, monkeypatch):
         import src.supervisor.agent as agent_mod
         from src.core.config import settings
-        from unittest.mock import MagicMock
         monkeypatch.setattr(settings, "aigent_tier_routing_enabled", True)
         counter = MagicMock()
         monkeypatch.setattr(agent_mod, "tier_routing_decisions", counter)
@@ -461,7 +458,6 @@ class TestTierRoutingObservability:
     def test_counter_labels_fast_and_standard(self, monkeypatch):
         import src.supervisor.agent as agent_mod
         from src.core.config import settings
-        from unittest.mock import MagicMock
         monkeypatch.setattr(settings, "aigent_tier_routing_enabled", True)
         counter = MagicMock()
         monkeypatch.setattr(agent_mod, "tier_routing_decisions", counter)
@@ -474,7 +470,6 @@ class TestTierRoutingObservability:
     def test_counter_not_emitted_when_routing_disabled(self, monkeypatch):
         import src.supervisor.agent as agent_mod
         from src.core.config import settings
-        from unittest.mock import MagicMock
         monkeypatch.setattr(settings, "aigent_tier_routing_enabled", False)
         counter = MagicMock()
         monkeypatch.setattr(agent_mod, "tier_routing_decisions", counter)

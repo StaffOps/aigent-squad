@@ -1,7 +1,6 @@
 """Verify the streaming UX fix: terse results, details wrapping, no counter leaks."""
 import asyncio
 import json
-import sys
 
 import pytest
 
@@ -77,9 +76,9 @@ async def test_details_wrapping():
                 full_content += c
 
     # Structure assertions
-    assert "<think>" in full_content, f"Missing <think>"
+    assert "<think>" in full_content, "Missing <think>"
     assert "🔧 Tool trace" in full_content
-    assert "</think>" in full_content, f"Missing </think>"
+    assert "</think>" in full_content, "Missing </think>"
     assert full_content.index("<think>") < full_content.index("🔧 query_metrics")
     assert full_content.index("</think>") < full_content.index("Here is the answer")
     # No raw JSON / chars leaked

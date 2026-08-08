@@ -21,7 +21,6 @@ from src.core.agent_config import MAX_TOOL_RESULT_CHARS
 from src.core.agentic_loop import _truncate_with_marker
 from src.core.agentic_loop_streaming import (
     StepDone,
-    StepFinalChunk,
     StepToolCall,
     StepToolResult,
     run_agentic_loop_streaming,

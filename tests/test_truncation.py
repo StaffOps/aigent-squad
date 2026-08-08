@@ -11,7 +11,6 @@ Also verifies _truncate_with_marker uses count_items consistently.
 """
 import json
 
-import pytest
 
 from src.core.truncation import count_items, _is_table_header
 

@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import json
 
-import pytest
 
 
 # ---------------------------------------------------------------------------
@@ -314,7 +313,6 @@ class TestCase5SharedCountHelper:
     def test_shared_helper_is_same_function(self):
         """Both modules import count_items from the same source."""
         # This is a structural test — confirms no copy-paste divergence
-        from src.core.truncation import count_items as canonical
 
         # Verify _truncate_with_marker uses it (import inside function)
         import src.core.agentic_loop as al_mod

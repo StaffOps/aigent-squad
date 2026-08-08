@@ -18,11 +18,10 @@ replaced with ***).
 """
 from __future__ import annotations
 
-import asyncio
 import json
 import re
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, AsyncGenerator
 
 from otel_helper import get_tracer
@@ -40,7 +39,6 @@ from src.core.agentic_loop import (
     _ToolRouter,
     _emit_metrics,
     _error_tool_result,
-    _get_server_breaker,
     _guardrail_tool_args,
     _guardrail_tool_result,
     _to_converse_assistant_blocks,
@@ -51,7 +49,6 @@ from src.core.agentic_loop import (
 from src.core.bedrock import bedrock
 from src.core.config import settings
 from src.core.logger import logger
-from src.core.metrics import meter
 from src.core.metrics import tool_call_duration
 from src.core.truncation import trim_message_history
 

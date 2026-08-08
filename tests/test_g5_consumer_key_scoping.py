@@ -9,7 +9,6 @@ Verifies:
   - Auto-route model + consumer default → applies consumer default.
   - Startup validation warns on unknown agent names.
 """
-import os
 from unittest.mock import AsyncMock, patch
 
 import pytest

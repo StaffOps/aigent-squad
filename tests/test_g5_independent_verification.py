@@ -13,8 +13,6 @@ Does NOT modify implementation. Reports bugs via assertion messages.
 import hmac
 import importlib
 import logging
-import os
-import time
 from unittest.mock import AsyncMock, patch
 
 import pytest

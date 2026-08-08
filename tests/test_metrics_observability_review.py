@@ -13,8 +13,6 @@ Contract tested:
 All tests mock the metric objects (patch .add/.record) and assert correct labels.
 Runs via Docker with otel_helper stub (no real OTel SDK needed for contract tests).
 """
-import asyncio
-import time
 from unittest.mock import MagicMock, patch
 import pytest
 

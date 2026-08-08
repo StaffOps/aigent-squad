@@ -4,7 +4,7 @@ Tests the CONTRACT via mocked boto3 bedrock-runtime converse client (no network)
 Does NOT modify the implementation; invoke() tests remain in test_bedrock.py.
 """
 import pytest
-from unittest.mock import patch, MagicMock, call
+from unittest.mock import patch, MagicMock
 from botocore.exceptions import ClientError
 
 

@@ -14,8 +14,7 @@ from __future__ import annotations
 
 import json
 import pytest
-import pytest_asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 from src.core.agentic_loop_streaming import (
     AgenticStepEvent,

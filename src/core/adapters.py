@@ -284,7 +284,7 @@ class McpAdapter(DatasourceAdapter):
             if elapsed < self.cache_ttl:
                 return self._cached_tool_specs
 
-        from src.core.tool_schema import ToolNameMap, build_tool_spec
+        from src.core.tool_schema import ToolNameMap
 
         name_map = ToolNameMap()
         specs: list[dict] = []

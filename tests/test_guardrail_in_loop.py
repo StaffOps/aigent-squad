@@ -491,7 +491,7 @@ class TestStreamingLoopSameBehavior:
     @pytest.mark.asyncio
     async def test_streaming_multi_step_all_intermediate_off(self):
         """With 3 tool turns in streaming, only step 0 has guardrail=True."""
-        from src.core.agentic_loop_streaming import run_agentic_loop_streaming, StepDone
+        from src.core.agentic_loop_streaming import run_agentic_loop_streaming
 
         adapter = _make_adapter()
         adapter.call_tool = AsyncMock(return_value="data")
