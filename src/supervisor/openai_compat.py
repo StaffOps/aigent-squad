@@ -14,6 +14,7 @@ Models exposed:
 
 from __future__ import annotations
 
+import logging
 import os
 
 # Tool-trace presentation (streaming). Chat UIs (LibreChat, Open WebUI) render
@@ -219,19 +220,45 @@ def _extract_text(result: dict) -> str:
 
 def build_completion(result: dict, model: str) -> ChatCompletionResponse:
     """Non-streaming: supervisor result dict → OpenAI chat.completion."""
-    # Spec 41: surface structured quality assessment under namespaced extension
+    # Spec 41: surface structured quality assessment under namespaced extension.
+    #
+    # The assessment arrives in TWO shapes depending on the caller:
+    #   - dataclass  — when build_completion runs in the same process that
+    #     produced it (supervisor-internal callers, unit tests);
+    #   - plain dict — on the DEPLOYED path, because the gateway owns
+    #     /v1/chat/completions and gets the supervisor result via
+    #     `resp.json()` (supervisor_client.process), which turns the dataclass
+    #     into a JSON object.
+    # Handling only the dataclass made this field inert in production: the
+    # attribute access raised AttributeError, the bare `except` swallowed it,
+    # and x_aigent was silently omitted from every response while the metrics
+    # kept showing the assessment was produced. Homologated 2026-08-08.
     x_aigent: Optional[dict] = None
     assessment = result.get("quality_assessment")
     if assessment is not None:
         try:
+            if isinstance(assessment, dict):
+                confidence = assessment["confidence"]
+                unverified_claims = assessment.get("unverified_claims") or []
+            else:
+                confidence = assessment.confidence
+                unverified_claims = assessment.unverified_claims
             x_aigent = {
                 "quality": {
-                    "confidence": assessment.confidence,
-                    "unverified_claims": assessment.unverified_claims,
+                    "confidence": confidence,
+                    "unverified_claims": list(unverified_claims),
                 }
             }
-        except Exception:
-            pass  # Non-blocking: assessment formatting failure never fails the response
+        except Exception as exc:
+            # Non-blocking by design (spec 41 invariant): a malformed assessment
+            # must never fail the answer. But it MUST NOT be silent either —
+            # silence is what hid this bug through 56 passing tests.
+            logging.getLogger(__name__).warning(
+                "spec41: could not surface x_aigent from assessment "
+                "(type=%s): %s",
+                type(assessment).__name__,
+                exc,
+            )
 
     return ChatCompletionResponse(
         id=_completion_id(),

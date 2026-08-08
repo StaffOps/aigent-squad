@@ -21,6 +21,8 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
+import dataclasses
+
 import pytest
 
 
@@ -263,6 +265,87 @@ class TestXAigentQualityPresence:
         assert "quality" in payload["x_aigent"]
         assert payload["x_aigent"]["quality"]["confidence"] == "high"
         assert payload["x_aigent"]["quality"]["unverified_claims"] == []
+
+    def test_x_aigent_survives_the_gateway_http_hop(self):
+        """The DEPLOYED path hands build_completion a dict, not a dataclass.
+
+        Regression (homologated 2026-08-08): the public /v1/chat/completions is
+        served by the GATEWAY, which obtains the supervisor result through
+        `supervisor_client.process()` -> `resp.json()`. That JSON round-trip
+        turns the QualityAssessment dataclass into a plain dict, so the original
+        attribute access (`assessment.confidence`) raised AttributeError, the
+        bare `except` swallowed it, and x_aigent was omitted from EVERY
+        production response — while the metrics kept proving the assessment had
+        been produced. 56 tests passed because they all injected the object.
+
+        This test injects the wire shape, produced by a real json round-trip.
+        """
+        import json
+
+        from src.core.response_quality import QualityAssessment
+        from src.supervisor.openai_compat import build_completion
+
+        assessment = QualityAssessment(confidence="medium", unverified_claims=["$1,234.56"])
+        # Exactly what crosses the gateway<->supervisor boundary.
+        on_the_wire = json.loads(json.dumps(dataclasses.asdict(assessment)))
+        assert isinstance(on_the_wire, dict), "sanity: the wire shape is a dict"
+
+        result = {"response": "Cost is $1,234.56.", "quality_assessment": on_the_wire}
+        payload = build_completion(result, "aigent-squad").model_dump()
+
+        assert "x_aigent" in payload, (
+            "x_aigent must survive the JSON hop — this is the production path"
+        )
+        assert payload["x_aigent"]["quality"]["confidence"] == "medium"
+        assert payload["x_aigent"]["quality"]["unverified_claims"] == ["$1,234.56"]
+
+    def test_malformed_assessment_is_non_blocking_and_logged(self):
+        """A malformed assessment must not fail the answer, but must be logged.
+
+        The spec-41 invariant is "never fail the response". The original code
+        honoured it with `except: pass`, which also made the failure invisible.
+        Non-blocking must not mean silent.
+        """
+        from src.supervisor.openai_compat import build_completion
+
+        result = {"response": "ok", "quality_assessment": {"wrong_key": 1}}
+
+        with self._capture_warnings() as captured:
+            payload = build_completion(result, "aigent-squad").model_dump()
+
+        # Answer still returns, field omitted (not null).
+        assert payload["choices"][0]["message"]["content"] == "ok"
+        assert "x_aigent" not in payload
+        assert any("x_aigent" in m for m in captured), (
+            f"the failure must be logged, got: {captured}"
+        )
+
+    @staticmethod
+    def _capture_warnings():
+        """Context manager collecting WARNING+ records from openai_compat."""
+        import contextlib
+        import logging as _logging
+
+        @contextlib.contextmanager
+        def _cm():
+            records: list[str] = []
+
+            class _H(_logging.Handler):
+                def emit(self, record):
+                    records.append(record.getMessage())
+
+            logger = _logging.getLogger("src.supervisor.openai_compat")
+            h = _H(level=_logging.WARNING)
+            logger.addHandler(h)
+            prev = logger.level
+            logger.setLevel(_logging.WARNING)
+            try:
+                yield records
+            finally:
+                logger.removeHandler(h)
+                logger.setLevel(prev)
+
+        return _cm()
 
     def test_non_streaming_response_x_aigent_quality_with_claims(self):
         """x_aigent.quality includes unverified_claims when present."""

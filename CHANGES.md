@@ -2,6 +2,33 @@
 
 ## [Unreleased]
 
+### Fixed — spec 41 `x_aigent` was inert in production (found in homologation, 2026-08-08)
+Spec 41 shipped with 56 passing tests and the field **never appeared in a single
+production response**. Homologating the real deployment is what caught it.
+
+`build_completion` read the assessment by attribute (`assessment.confidence`). That holds
+in-process, but the public `/v1/chat/completions` is served by the **gateway**, which obtains
+the supervisor result through `supervisor_client.process()` → `resp.json()` — and that JSON
+round-trip turns the `QualityAssessment` dataclass into a plain **dict**. So every production
+call raised `AttributeError`, a bare `except Exception: pass` swallowed it, and `x_aigent` was
+omitted silently. Every test injected the dataclass, so every test passed.
+
+- `build_completion` now accepts the assessment as **dict or dataclass**.
+- The swallow became a `logging.warning`. The spec-41 invariant ("never fail the answer") is
+  preserved without the blindness — silence is what hid this through 56 tests.
+- Two regression tests, both **verified to fail without the fix**: one injects the wire shape
+  via a real `json.dumps`/`json.loads` round-trip; the other asserts a malformed assessment
+  neither breaks the response nor passes unlogged.
+
+Homologated live on devops-core (helm rev 65): `x_aigent.quality` = `{confidence: "high",
+unverified_claims: []}` on a real agentic query. The rest of the chain was already confirmed
+working in production before this fix — `aigent.quality.confidence{level="high"}` and
+`aigent.quality.unverified_claims_per_response` were both being emitted and scraped, which is
+what proved the M1 `toolResult` extraction (T2b) works: without it `scan()` returns `None` and
+no metric would exist at all.
+
+Suite: 1852 passed, coverage 94.07% (`openai_compat.py` 99%).
+
 ### Fixed — test gate GREEN: 13 stale failures cleared (2026-08-08)
 `make test` was red on committed HEAD with 13 failures. **All 13 were stale tests; zero
 production defects.** Suite now **1850 passed / 0 failed**, coverage 94.01%.
