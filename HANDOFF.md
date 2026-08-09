@@ -10,115 +10,105 @@
 
 ---
 
-## Current session — 2026-08-08 (spec 41 closed + harness gate + lint green)
+## Current session — 2026-08-08/09
 
-Nothing pushed. Branch `fix/openai-compat-drop-system-messages`, **29 commits ahead** of
-origin. Working tree clean.
+Branch `fix/openai-compat-drop-system-messages`, **10 commits, none pushed**. Working tree
+clean. All four gates green: **suite 1857 passed / 0 failed**, coverage 93.17%,
+`make lint` PASS, `make specs-status` PASS, `make harness-score` PASS (L1 floor).
 
-### Gate status at end of session
+Sibling repo `k8s-setup` has **1 commit, not pushed** (`1fcb41d`, agentic30 values).
+`helm-charts` is clean and in sync (verified with an explicit fetch) — chart 0.9.5 /
+appVersion 0.4.0 is already published on `gh-pages`; nothing pending there.
 
-| Gate | State |
-|------|-------|
-| `make lint` | ✅ **PASS** — `All checks passed!` (first time; was 95 errors on HEAD this morning) |
-| `make specs-status` | ✅ PASS (incl. `deferred[]` ↔ BACKLOG cross-check) |
-| `make harness-score` | ✅ PASS at the `MIN_LEVEL=1` floor (L1, 78/108) |
-| `make test` | ❌ **13 failed** / 1837 passed, coverage 93.86% — all 13 pre-date this session |
+### Shipped
 
-### Shipped this session (5 commits, local only)
-
-- `2ca3a22` **spec 41 (B-16 Phase-2) — CLOSED as `done-with-deferrals`.** Structured
-  calibrated honesty: `scan()` returns `QualityAssessment` (confidence + unverified_claims),
-  M1 `effective_infra_data` from the loop's `toolResult` blocks, `x_aigent.quality` on
-  non-streaming responses, 2 new metrics, feature-flagged. **Internal breaking change:**
-  `run_agentic_loop` now returns `tuple[str, list[dict]]`; all call sites updated.
-  56 tests (32 spec-41 + 24 extraction); `generic_agent.py` coverage 80% → 91%.
-- `e308f60` **harness-score CI gate** — `make harness-score`, `MIN_LEVEL` floor, pinned
-  scanner version, `harness_score` CI job. Rule + anti-gaming clause in `AGENTS.md`;
-  recipe in `.claude/skills/harness-score/`.
-- `fdb2003` + `8c05602` **lint pass** — 97 findings cleared in two passes; ruff now green.
-- `33e89be` `pyproject.toml` — pytest testpaths + mypy baseline (NOT a CI gate).
-
-### T8 harness caught 3 blockers on spec 41 (all fixed before commit)
-
-1. `_extract_tool_result_text` — the M1 function the spec calls *"fatal without it"* — had
-   **zero tests**; the existing test hand-rolled `effective_infra_data` and only exercised
-   `scan()`. Now 24 tests.
-2. Confidence was derived from **raw regex matches**, not distinct claims: the same
-   `$999.99` repeated 3× reported `low` beside a one-item list. Fixed; regression test
-   proven to fail without the fix.
-3. Documented histogram buckets `[0,1,2,3,5,10,20]` **did not exist in code** and are not
-   settable here. Docs corrected; deferral registered (see TODO 10).
+- **Test gate went from red to green.** 13 failures on committed HEAD, all stale tests, four
+  independent causes (`a434884`). See F-010.
+- **spec 41 (B-16 Phase-2) closed** as `done-with-deferrals` and **homologated live**
+  (`2ca3a22`). Homologation found a production bug 56 tests had missed: `x_aigent` never
+  reached a single client because `build_completion` read the assessment by attribute while
+  the gateway receives it as a dict over `resp.json()`, and a bare `except: pass` hid it
+  (`ff6ad19`).
+- **Coverage blind spot closed** (`3dee3cd`): `src/supervisor/server.py` was omitted from
+  coverage as a "thin wrapper" while carrying the alertmanager webhook's tier-resolution
+  closure — 62%, closure entirely uncovered. Now measured (70%) and tested.
+- **F-012 closed at the cause** — the `reload`+`monkeypatch` module-state leak.
+- **harness-score CI gate** (`e308f60`), **ruff green** (`fdb2003`, `8c05602`),
+  `pyproject.toml` baseline (`33e89be`).
+- **Independent review run retroactively** (`7570541`) — it caught a real must-fix: a test
+  that could silently assert nothing. See the process debt below.
+- **A2A protocol evaluated** → no spec; recorded under the existing dormant backlog entry
+  (`47f6657`), with the reopen trigger and an ~11-step path.
+- **agentic30 built + deployed** to `devops-core/staffops` (helm rev 66) and the
+  declared/live drift closed in `k8s-setup` (`1fcb41d`). **But see F-013.**
 
 ---
 
 ## TODOs — next session
 
-### 🔴 P0 — Reignite the sensor (CI is the gate for everything else)
+### 🔴 P0 — Regularise how production got its artifact (F-013)
 
-1. **Update the 6 stale budget-default assertions — ONE root cause, confirmed.** The loop
-   budgets were deliberately raised (spec 37, "40K scale budgets", 2026-07-20); the tests
-   still assert pre-raise values. Not a code bug.
-   `test_phase2_tool_surface.py` (`TestLoopBudgetDefaults` ×4, `TestLoopBudgetEnvOverride` ×1)
-   and `test_tool_schema.py` (`TestAgentConfigLoopBudget::test_defaults_present`).
+1. **Production is running a manually-built image.** `0.4.0-homolog-agentic30` was built and
+   pushed to Harbor **by hand** from commit `47f6657`, which lives on a feature branch — it
+   did not pass CI, was not produced by a pipeline, and its code is in neither `main` nor
+   `dev`. `ci-cd-conventions` names this exactly: *"Manual `docker push` to registry (must go
+   through pipeline)"*. Legitimate as homologation (it found the `x_aigent` bug), unacceptable
+   as a resting state. Fix = items 2 and 3 below; the pipeline then produces the official
+   image. Tracked as **F-013**.
 
-   | Config | Code | Test expects |
-   |--------|------|--------------|
-   | `max_tool_steps` | 8 | 5 |
-   | `max_loop_duration_ms` | 120000 | 15000 |
-   | `max_loop_tokens` | 300000 | 50000 |
-   | `max_tool_result_chars` | 40000 | 8000 |
+### 🟠 P1 — Push and reconcile (this is what closes P0)
 
-2. **Investigate the 4 `test_guardrail_in_loop.py` failures** — `TestBenignToolResultNotBlocked`
-   ×2, `TestStreamingLoopSameBehavior` ×2. Cause unknown. NOT the tuple contract (those call
-   sites were fixed this session and these still fail).
-3. **Three isolated failures**, likely unrelated to each other:
-   `test_adapters.py::test_mcp_adapter_connection_failure_is_fail_open`,
-   `test_gateway_main.py::TestChatCompletions::test_404_unknown_model`,
-   `test_gateway_main_paths.py::TestLifespan::test_lifespan_aclose`.
-4. **Correct `CHANGES.md`** — the 2026-07-24 entry claims *"CI drift repaired (audit #6-9)"*
-   (commit `ca2c0ac`) but the failures are still present on a clean HEAD. A doc that lies is
-   worse than no doc.
+2. **Push both repos.** `aigent-squad` is `[ahead 34]`; `k8s-setup` has 1 commit. Everything
+   verified today ran against the `otel_helper` **stub**, so CI has never validated any of
+   these 10 commits. A disk failure loses the day. (The deployed image *was* built with real
+   deps, so runtime wiring is exercised in-cluster — but that is not the same as CI.)
+3. **Slice the branch.** ~40 commits under a name describing one openai-compat fix, spanning
+   four unrelated subjects (that fix, harness/lint, spec 41, test cleanup). Merge to `dev` is
+   a **pure fast-forward** (verified: `dev` has not moved, zero divergence), so slicing is
+   cheap now and gets costlier per commit. Note `build.yml` only fires on `main` and
+   `helm-charts/release.yaml` only on `main` + `charts/**`, so nothing publishes from `dev`
+   or a feature branch.
 
-### 🟠 P1 — Branch reconcile
+### 🟡 P2 — Operational hygiene
 
-5. **Split the 3 harness/lint commits into their own PR** — `e308f60`, `33e89be`, `fdb2003`
-   are independent of spec 41 and adjacent in history (easy cherry-pick). Today they pollute
-   a PR named for an openai-compat fix.
-6. **Merge the branch into `dev`** — 29 commits ahead; carried over from the previous handoff.
+4. **Swap the helmfile's local chart path for the published chart** (F-014). It still points
+   at `../../../helm-charts/charts/aigent-squad` with a comment saying the chart is *"NOT yet
+   published … revert once published"* — that condition was met (0.9.5 is on `gh-pages`) and
+   the comment is stale. While it stays relative, deploys only work on a machine with that
+   repo cloned at an exact path — zero reproducibility for CI or another person. Validate the
+   swap with `helmfile diff` first.
+5. **LibreChat chart secret rotation** (F-015) — `JWT_SECRET`, `JWT_REFRESH_SECRET`,
+   `CREDS_KEY`, `CREDS_IV` use `randAlphaNum` with no `lookup`, so **every** `helmfile apply`
+   rotates them: everyone logged out, and previously-encrypted user credentials become
+   undecryptable. Rotated three times during this session's applies (accepted at the time —
+   single user). Fix in the chart: `lookup` to preserve, or point the values at an
+   ExternalSecret.
+6. **Decide on the `release.yml` tag path.** It fires on `push` of tag `v*` (and
+   `workflow_dispatch`), so a release can be cut from any tagged commit without passing
+   through `main`. If the intent is "only `main` releases", this is a gap in the process.
 
-### 🟡 P2 — Spec 41 follow-ups
+### 🔵 P3 — Test-quality debt created this session
 
-7. **Independent review of the B2 fix** — the distinct-count fix and its regression test share
-   an author (violates `verification-independence`). Mitigated (test written against the spec
-   contract, proven to fail without the fix) and disclosed in the commit message.
-8. **Confirm the 2 new metrics in a real environment** — every run this session used the
-   `otel_helper` **stub**, so telemetry wiring is unvalidated. Check that `serviceMonitor`
-   scrapes `aigent.quality.confidence` and `aigent.quality.unverified_claims_per_response`
-   into VM (the agentic29 deploy needed `serviceMonitor.enabled=true` for exactly this).
-9. **Histogram bucket boundaries (deferral, already in BACKLOG)** — needs a View in the
-   `otel_helper` MeterProvider, or an API upgrade exposing
-   `explicit_bucket_boundaries_advice`. Verified impossible from this repo:
-   `opentelemetry-api` 1.29.0's `create_histogram()` takes only (name, unit, description).
+7. **Verification-independence was violated** on `ff6ad19` and `3dee3cd` — the same author
+   wrote the production fix and its tests. Disclosed in the commit messages and reviewed
+   *retroactively* (which worked only because nothing was pushed). Independent test review
+   should still happen.
+8. **Suite order-independence is unproven.** `pytest-randomly` is not installed, so
+   "order-independent" is an assertion, not a measurement. F-012 showed this bug class costs
+   a full isolated-worktree investigation to diagnose.
+9. **F-011 still open** — the MCP adapter fails open correctly but surfaces `unhandled errors
+   in a TaskGroup` instead of the real cause (anyio wraps it). Behaviour fine, observability
+   not. The brittle substring assert was deliberately NOT re-added; fix the unwrapping in
+   `adapters.py`.
 
-### 🔵 P3 — Harness maturity (optional; know the trade-off)
+### ⚪ P4 — Carried over, untouched
 
-10. **Contribute `.claude/rules/` recognition upstream to harness-score** — this is what pins
-    Context at 45% and blocks L2. The project explicitly invites it (`check_change.yml`).
-    The illegitimate path (nested `CLAUDE.md` files no tool reads) was tried and reverted
-    this session — see the anti-gaming rule in `AGENTS.md`.
-11. **Real hooks (29%)** — if pursued: stdin-JSON hook with an **allowlist**, not a denylist.
-    Note the marginal value: `settings.json`'s `permissions.allow` is already the effective
-    gate, so weigh the effort.
-12. **Raise `MIN_LEVEL`** — only after the score genuinely clears the next level. Never to
-    turn a red CI green (rule recorded in `AGENTS.md` → Workflow rules → Harness gate).
-
-### ⚪ P4 — Carried over, untouched this session
-
-13. **Decisions pending (owner: user)** — delete/merge candidates: specs 05/19 (superseded),
+10. **Decisions pending (owner: user)** — delete/merge candidates: specs 05/19 (superseded),
     `skills/oomkill-investigation` → merge into `root-cause-analysis`.
-14. **Functional Portuguese — keep or strip?** `config.py` bilingual + triage keywords +
-    PT eval/attack fixtures (removing degrades bilingual UX and weakens PT-attack tests).
-15. **Cut `0.5.0`?** Milestone candidate — but per `version-management`, only bump with a
-    measurable result in prod, not because a lot was implemented.
-16. **B-03** (feedback/thumbs → KbDelta) and **spec 28** (provider abstraction beyond
-    Bedrock) — roadmap P3, not started.
+11. **Functional Portuguese — keep or strip?** `config.py` bilingual + triage keywords + PT
+    eval/attack fixtures (removing degrades bilingual UX and weakens PT-attack tests).
+12. **Cut `0.5.0`?** Per `version-management`, only bump with a measurable result in prod. The
+    spec-41 homologation is arguably that evidence — worth a deliberate decision now.
+13. **B-03** (feedback → KbDelta) and **spec 28** (provider abstraction) — roadmap P3, not
+    started.
+14. **A2A** — dormant, do not reopen until the 3-part trigger in `specs/BACKLOG.md` fires.
