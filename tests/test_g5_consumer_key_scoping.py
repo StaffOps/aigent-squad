@@ -16,6 +16,35 @@ import pytest
 
 # ─── Unit tests: auth module parsing ────────────────────────────────
 
+@pytest.fixture(autouse=True)
+def _restore_auth_module_state():
+    """Undo the module-state leak that monkeypatch cannot (BACKLOG F-012).
+
+    These tests set GATEWAY_KEY_AGENT_MAP via monkeypatch and then
+    ``importlib.reload(src.gateway.auth)``, because the map is parsed into a
+    module-level ``_KEY_AGENT_MAP`` at import time. At teardown monkeypatch
+    restores the ENV VAR but cannot undo a RELOAD — so the populated map leaked
+    into every later test in the session.
+
+    That leak already cost a real debugging session: test_lifespan_aclose passed
+    alone and failed in the full suite with
+    ``TypeError: object MagicMock can't be used in 'await' expression``, because
+    the leaked map made the gateway lifespan take its ``if key_agent_map:``
+    branch and await an un-mocked attribute.
+
+    This pops the env var explicitly (rather than relying on monkeypatch
+    teardown ordering) and reloads the module back to a clean state.
+    """
+    yield
+    import importlib
+    import os
+
+    import src.gateway.auth as _auth_mod
+
+    os.environ.pop("GATEWAY_KEY_AGENT_MAP", None)
+    importlib.reload(_auth_mod)
+
+
 class TestKeyAgentMapParsing:
     """Test GATEWAY_KEY_AGENT_MAP parsing at module level."""
 

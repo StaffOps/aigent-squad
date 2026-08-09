@@ -2,6 +2,36 @@
 
 ## [Unreleased]
 
+### Fixed — coverage blind spot on the alertmanager RCA path + the test-isolation leak (2026-08-08)
+Two test-quality gaps, both found by asking "is this actually tested?" instead of trusting a
+commit message.
+
+**1. `src/supervisor/server.py` was excluded from coverage as a "thin wrapper".** That stopped
+being true: it carries the alertmanager webhook's `_run_inv` closure, which builds a synthetic
+`ClassifierResult` and resolves the tier model for alert-triggered RCA. Measured once
+un-excluded: **62%, with the whole closure uncovered**. And `test_alert_handler.py` injects
+`run_investigation_fn`, mocking away the exact code under test — so spec 38 had named tests for
+every path that bypassed tier routing EXCEPT this one. It is the only RCA path with **no human
+in the loop**: an alert fires and the investigation spends Bedrock tokens on its own, so a
+silent regression to the wrong tier (the agentic28 failure mode was 17/17 invocations on the
+default model) would go unnoticed.
+- Removed from `.coveragerc` omit — the file is measured now; the ~0.9pp of global coverage it
+  costs buys a real gate. Comment records that logic-free entrypoints should exclude
+  lines/functions, not whole files that grow logic.
+- New `tests/test_alertmanager_webhook_tier.py` drives the real HTTP route so the real closure
+  runs: tier override threaded into `run_investigation`, alert RCA not downgraded to the fast
+  tier, budget bucket scoped per fingerprint (guarding the E2 finding where an empty
+  `session_id` disabled the budget cap), resolved alerts spend nothing.
+- `server.py` coverage 62% → **70%**, with lines 220-252 no longer in the missing list.
+
+**2. F-012 — the `reload` + `monkeypatch` leak is now closed at the cause.** An autouse teardown
+in both G-5 files pops `GATEWAY_KEY_AGENT_MAP` explicitly and reloads `src.gateway.auth` clean.
+Verified by *reverting* the symptom fix: with the original `MagicMock` pattern restored — the one
+that failed in the full suite — the suite passes 1856/1856, proving the leak is gone rather than
+masked.
+
+Suite: 1856 passed, coverage 93.36%.
+
 ### Fixed — spec 41 `x_aigent` was inert in production (found in homologation, 2026-08-08)
 Spec 41 shipped with 56 passing tests and the field **never appeared in a single
 production response**. Homologating the real deployment is what caught it.
