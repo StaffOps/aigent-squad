@@ -33,6 +33,28 @@ import pytest
 from fastapi.testclient import TestClient
 
 
+@pytest.fixture(autouse=True)
+def _clear_supervisor_dependency_overrides():
+    """Undo the auth bypass so it cannot leak into other tests.
+
+    `app.dependency_overrides` is a plain dict on the FastAPI app object. These
+    tests bypass the token dependency to reach the handler, and the reloaded
+    module keeps living in sys.modules afterwards — so without this teardown the
+    bypass stays active for every later test that touches the same app.
+
+    Found by running the suite under pytest-randomly (seed 1337), which made
+    tests/test_internal_auth.py fail: it asserts 401 and was getting a bypassed
+    200. The four gateway test files already do this; the two supervisor ones did
+    not. The fixed collection order simply hid it.
+    """
+    yield
+    try:
+        import src.supervisor.server as _srv
+
+        _srv.app.dependency_overrides.clear()
+    except Exception:  # module may not be importable in some contexts
+        pass
+
 def _firing_payload(fingerprint: str = "fp-abc123") -> dict:
     """Minimal Alertmanager webhook v2 body with one firing alert."""
     return {
