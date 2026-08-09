@@ -146,6 +146,100 @@ Note: if the Grafana LLM app COULD send `model=aigent-squad-observability`, that
 - **Distributed topology (RemoteAgent client)** — trigger: real need for independent
   per-agent scaling/isolation. ADR-001/0002 favor in-process.
 
+  <details>
+  <summary><b>A2A (Agent2Agent) protocol — evaluated 2026-08-09, verdict: stays dormant</b></summary>
+
+  A2A is the most likely *implementation* of this dormant item, not a separate concern —
+  which is why it gets no spec of its own. Evaluated by round-table (gitops + security +
+  sre) after an external briefing recommended adopting it. **Verdict: no spec, no
+  amendment, no schema change.** Recorded here so the next person does not redo the
+  analysis.
+
+  **What A2A is** (verified against github.com/a2aproject/A2A, 2026-08-09): an open
+  protocol for *opaque* agents — built on different frameworks, run by different orgs —
+  to discover each other and collaborate without sharing memory or tools. JSON-RPC 2.0
+  over HTTP(S), SSE streaming, async push notifications, discovery via "Agent Cards".
+  Complementary to MCP, not competing: MCP is agent↔tool, A2A is agent↔agent.
+
+  **Corrections to the briefing that prompted this** (it was largely right conceptually
+  and wrong on the details that matter):
+
+  | Claim | Reality |
+  |-------|---------|
+  | "protocolo aberto do Google" | Open source **under the Linux Foundation**, contributed by Google. Governance is vendor-neutral — changes the lock-in calculus. |
+  | "adoption concentrated in Google's ecosystem, few frameworks" | 6 official SDKs (Python, Go, JS, Java, .NET, Rust), 25.3k stars, 2.6k forks; DeepLearning.AI course built with Google Cloud **and IBM Research**, covering ADK/LangGraph/BeeAI. |
+  | "spec 22 is basically the Agent Card concept" | No. Spec 22 is a **local routing hint** read into a classifier prompt. An Agent Card is an **HTTP service contract** for cross-network capability negotiation. Same word ("capabilities"), different problem. Spec 22 is also `status: done` — not a draft to enrich. |
+  | "enriching agent.yaml with A2A-ish fields is backward-compatible" | **FALSE, and this one would have broken routing.** The real schema has `capabilities` as a **list[str]** and `routing_keywords` **flat**. The proposal nests `capabilities.streaming` and renames to `routingHints.keywords`. `src/core/classifier.py:222` reads `config.routing_keywords` directly, so applying it verbatim breaks keyword routing for all agents. |
+
+  **Unverified — do not repeat as fact**: the current A2A spec version number, and the
+  exact well-known discovery path (the briefing said `/.well-known/agent.json`; nobody
+  read the spec document to confirm, and that path has changed across A2A versions).
+  Check the primary source before relying on either.
+
+  **Why it stays dormant.** Two structural reasons, both independent of A2A's quality:
+
+  1. *Security.* This platform's differentiator is a **closed perimeter** — edge auth,
+     fail-closed guardrails, `InputScanner` on input, `OutputFilter` on output,
+     read-only MCP surface, documented read-only invariant. A2A's premise is accepting
+     Tasks from agents we do not control and trusting the Artifacts they return. That
+     crosses the perimeter in *both* directions, and none of the existing controls sit
+     on an inbound-agent path, because no such path exists. Also unsolved: the
+     confused-deputy problem (a remote agent borrowing our IRSA / cluster read access).
+  2. *Operational readiness.* Fan-out today is a function call: one failure domain,
+     local latency, one cost guardrail. Distributing it means N services, N SLOs, N
+     deploys, partial-fan-out failure handling, and cross-agent tracing — for a platform
+     whose test gate sat red for two weeks while `CHANGES.md` claimed it was fixed
+     (F-010). Readiness, not enthusiasm, is the gate.
+
+  **Trigger — all three must hold simultaneously.** Any one false ⇒ do not reopen:
+  1. A real user asks for cross-org or cross-framework agent collaboration, naming the
+     external system that must interoperate. "It would be cool" does not count.
+  2. Wrapping that external agent as an **MCP tool** (`datasources.type: mcp`, which
+     already exists and already works) is proven insufficient, with the specific
+     technical reason written down.
+  3. Operational maturity: per-agent SLOs defined, CI green 30 consecutive days,
+     rollback tested, partial-fan-out failure exercised.
+
+  **If the trigger ever fires — the path, ~11 steps in 4 phases.** Listed so the size of
+  the commitment is visible up front; roughly two thirds of it is prerequisite work that
+  has nothing to do with A2A itself:
+
+  *Phase A — earn the right (5 steps, none A2A-specific):*
+  1. Per-agent SLOs + error budgets (extends spec 33 review loop).
+  2. Cross-agent distributed tracing (trace context propagated across the hop; today
+     the loop is in-process so this has never been exercised).
+  3. Cost guardrail that survives a network hop — a remote agent re-invoking an LLM
+     multiplies spend, and the current budget bucket is per-session in-process.
+  4. Partial-failure semantics for fan-out: timeout, retry, degraded synthesis when
+     one specialist is unreachable.
+  5. Rollback + chaos drill for one specialist as an independent deployable.
+
+  *Phase B — the security surface (3 steps, the hard part):*
+  6. Inbound path controls: `InputScanner` + guardrail on Task Messages/Parts arriving
+     from a remote agent, fail-closed, with the same tagging discipline as `<infra_data>`.
+  7. Outbound path controls: `OutputFilter` over Artifacts we emit, plus an explicit
+     decision on what the read-only invariant means when a remote agent asks us to act
+     (almost certainly: refuse, never proxy a write).
+  8. Per-remote-agent authn/authz + rate limiting, and confused-deputy prevention so a
+     remote agent cannot borrow our cluster/AWS read access.
+
+  *Phase C — the protocol itself (2 steps, the cheap part):*
+  9. Agent Card generation from `agent.yaml` (additive fields only — never rename or
+     re-shape `capabilities`/`routing_keywords`; see the correction table above).
+  10. A2A server + client: Task lifecycle, SSE bridge onto the existing streaming path,
+      push notifications mapped to the existing Slack notifier.
+
+  *Phase D — prove it:*
+  11. One real cross-framework interop, homologated end-to-end in a live environment —
+      not a unit test. Today's lesson stands: spec 41 passed 56 tests and was inert in
+      production until someone ran a real query.
+
+  Note the shape: steps 1-8 are worth doing **whether or not A2A is ever adopted**, and
+  A2A itself is steps 9-10. If the trigger fires, start at Phase A — and if Phase A is
+  unaffordable, that is the answer about A2A too.
+  </details>
+
+
 ## Deferred register (tails of "done" specs — completed by spec 32 T7)
 
 - specs 06/17/18: T11 formal smoke (superseded in practice by B-09 + spec 36 smoke)
