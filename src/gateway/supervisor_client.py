@@ -12,7 +12,7 @@ that proxies the SSE body line by line.
 """
 from __future__ import annotations
 
-from typing import Optional
+from typing import Any, Optional
 
 import httpx
 
@@ -50,7 +50,7 @@ class SupervisorClient:
         """Preflight: is the supervisor up and ready to serve?"""
         try:
             resp = await self._client.get("/ready", timeout=2.0)
-            return resp.status_code == 200
+            return bool(resp.status_code == 200)
         except httpx.HTTPError:
             return False
 
@@ -59,7 +59,8 @@ class SupervisorClient:
         try:
             resp = await self._client.get("/internal/agents", timeout=2.0)
             resp.raise_for_status()
-            return resp.json().get("agents", [])
+            data: list[str] = resp.json().get("agents", [])
+            return data
         except httpx.HTTPError:
             return []
 
@@ -91,7 +92,8 @@ class SupervisorClient:
             logger.warning("supervisor transport error", extra={"error": str(exc)})
             raise SupervisorUnavailableError(str(exc)) from exc
         resp.raise_for_status()
-        return resp.json()
+        result: dict[str, Any] = resp.json()
+        return result
 
     async def process_stream(
         self,

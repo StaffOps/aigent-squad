@@ -102,7 +102,7 @@ def _resolve_refs(schema: dict[str, Any], defs: dict[str, Any], _ref_depth: int 
         return {"type": "object"}
 
     # Recurse into properties, items, etc. (does NOT increment ref depth)
-    result = {}
+    result: dict[str, Any] = {}
     for key, value in schema.items():
         if key in ("$defs", "definitions"):
             continue  # Strip $defs from output (already inlined)

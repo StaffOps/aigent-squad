@@ -27,7 +27,7 @@ from typing import Any
 
 from otel_helper import get_tracer
 
-from src.core.adapters import McpAdapter
+from src.core.adapters import McpAdapter, mcp_error_detail
 from src.core.agent_config import (
     MAX_LOOP_DURATION_MS,
     MAX_LOOP_TOKENS,
@@ -142,7 +142,7 @@ class _McpSessionPool:
             return str(e)
         except Exception as e:
             breaker.record_failure()
-            return f"[mcp:{adapter_name}:{tool_name}] error: {e}"
+            return f"[mcp:{adapter_name}:{tool_name}] error: {mcp_error_detail(e)}"
 
     async def close(self):
         """Cleanup: no-op for now since McpAdapter manages sessions per call.

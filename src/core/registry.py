@@ -13,7 +13,7 @@ class AgentRegistry:
     """Discovers agent configs from filesystem. Each subdir with agent.yaml = 1 agent."""
 
     def __init__(self, agents_dir: Optional[str] = None):
-        self.agents_dir = Path(agents_dir or os.getenv("AGENTS_DIR", "agents"))
+        self.agents_dir = Path(agents_dir or os.getenv("AGENTS_DIR") or "agents")
         self.agents: dict[str, AgentConfig] = {}
         self.prompts: dict[str, str] = {}
 

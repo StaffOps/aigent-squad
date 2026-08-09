@@ -97,7 +97,7 @@ class DatasourceAdapter(ABC):
             hit = None
         if hit is not None:
             cache_hits.add(1, {"namespace": ns})
-            return hit
+            return str(hit)
         cache_misses.add(1, {"namespace": ns})
         result = await self._collect(query)
         try:

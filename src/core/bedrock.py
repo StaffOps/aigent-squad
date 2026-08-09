@@ -208,7 +208,7 @@ class BedrockClient:
                 llm_duration.record(llm_elapsed_ms, {"agent_id": agent_id})
                 prompt_size_tokens.record(input_tokens, {"agent_id": agent_id})
 
-                response_text = result['content'][0]['text']
+                response_text: str = result['content'][0]['text']
 
                 # Layer 1 (OUTPUT) — evaluate the model response before it
                 # reaches the user (grounding / PII / denied content). Fail-closed.

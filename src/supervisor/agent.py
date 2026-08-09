@@ -611,7 +611,7 @@ class SupervisorAgent:
                     })
                     error_counter.add(1, {"agent_id": a.agent, "error_type": "fan_out"})
                 else:
-                    ok.append((a.agent, r.content))
+                    ok.append((a.agent, r.content))  # type: ignore[union-attr]  # narrowed by isinstance+continue above
 
             final_response = await synthesizer.synthesize(
                 user_input, ok, failed, user_id=user_id, session_id=session_id,

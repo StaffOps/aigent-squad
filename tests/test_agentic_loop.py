@@ -181,6 +181,30 @@ class TestMcpSessionPool:
         result = await pool.call_tool("test-mcp", "get_pods", {})
         assert "not in allowlist" in result
 
+    @pytest.mark.asyncio
+    async def test_call_tool_exception_group_unwrapped_f011(self):
+        """F-011 parity: _McpSessionPool.call_tool unwraps ExceptionGroup via mcp_error_detail.
+
+        Before commit 35f6196, this path used plain str(e) which surfaced the
+        useless anyio TaskGroup wrapper message. After the leftover fix applies
+        mcp_error_detail at agentic_loop.py:145, the root cause is exposed.
+        """
+        adapter = _make_mcp_adapter()
+        inner = ConnectionRefusedError("connection refused")
+        group = ExceptionGroup("unhandled errors in a TaskGroup", [inner])
+        adapter.call_tool = AsyncMock(side_effect=group)
+        pool = _McpSessionPool([adapter])
+        result = await pool.call_tool("test-mcp", "get_pods", {})
+
+        # Must name the root cause (unwrapped by mcp_error_detail)
+        assert "connection refused" in result
+        assert "ConnectionRefusedError" in result
+        # Must NOT expose the useless TaskGroup wrapper
+        assert "TaskGroup" not in result, (
+            f"mcp_error_detail not active at this call site — got wrapper: {result!r}"
+        )
+
+
 
 # ---------------------------------------------------------------------------
 # run_agentic_loop — integration tests

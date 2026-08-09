@@ -1,7 +1,7 @@
 # Canonical command surface (spec 36). Every golden path is a target here;
 # AGENTS.md/QUICKSTART reference these instead of raw commands. CI calls the
 # same targets (same-harness principle — spec 23 extended to the entrypoint).
-.PHONY: up down smoke test test-one test-ci lint eval specs-status mcp-rbac-audit harness-score install-hooks help
+.PHONY: up down smoke test test-one test-ci lint typecheck eval specs-status mcp-rbac-audit harness-score install-hooks help
 
 # AI-agent harness maturity floor (harness-score L0-L4). Raise this ONLY after
 # the score genuinely clears the next level — never to make a red CI go green.
@@ -40,6 +40,11 @@ lint: ## Ruff, CI-verbatim scope (run via Docker if no local ruff)
 	@command -v ruff >/dev/null 2>&1 && ruff check src/ tests/ || \
 	docker run --rm -v "$$(pwd):/app" -w /app python:3.11-slim \
 	  sh -c "pip install -q ruff && ruff check src/ tests/"
+
+typecheck: ## Mypy strict-ish gate (run via Docker if no local mypy)
+	@command -v mypy >/dev/null 2>&1 && mypy src/ || \
+	docker run --rm -v "$$(pwd):/app" -w /app python:3.11-slim \
+	  sh -c "pip install -q mypy && mypy src/"
 
 eval: ## Quality eval T2 (spec 35) — golden sets + LLM judge, real Bedrock cost (~$1-3)
 	./scripts/eval-local.sh

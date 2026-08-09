@@ -135,7 +135,10 @@ async def run_investigation(
                 # FIX 3: emit per-agent error counter for investigation fan-out failures
                 investigation_fanout_errors.add(1, {"agent_id": name})
                 continue
-            evidence_items = _parse_evidence(result.content, source_agent=name)
+            evidence_items = _parse_evidence(
+                result.content,  # type: ignore[union-attr]  # narrowed by isinstance+continue above
+                source_agent=name,
+            )
             state.evidence.extend(evidence_items)
 
         state.rounds_completed = 1

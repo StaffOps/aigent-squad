@@ -16,8 +16,7 @@
 testpaths = ["tests"]
 
 [tool.mypy]
-# Baseline only — NOT a CI gate yet (currently ~14 pre-existing errors).
-# Tighten incrementally; do not add to the pipeline until it runs clean.
+# CI gate (make typecheck) — zero errors required on src/.
 python_version = "3.11"
 ignore_missing_imports = true
 strict = false

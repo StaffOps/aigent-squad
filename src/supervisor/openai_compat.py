@@ -38,7 +38,7 @@ _TRACE_CLOSE = {
 
 import time
 import uuid
-from typing import AsyncGenerator, Optional
+from typing import Any, AsyncGenerator, Optional
 
 from pydantic import BaseModel, Field
 
@@ -118,7 +118,7 @@ class ChatCompletionResponse(BaseModel):
 
     def model_dump(self, **kwargs) -> dict:
         """Override to omit x_aigent when None (clean contract for clients)."""
-        data = super().model_dump(**kwargs)
+        data: dict[str, Any] = super().model_dump(**kwargs)
         if data.get("x_aigent") is None:
             data.pop("x_aigent", None)
         return data

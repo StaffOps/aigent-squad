@@ -328,7 +328,7 @@ async def openai_chat_completions(
     except Exception as exc:
         return _forward_error(exc)
 
-    return build_completion(result, request.model).model_dump()
+    return build_completion(result if isinstance(result, dict) else {}, request.model).model_dump()
 
 
 @app.post("/jobs/{job_id}/cancel", status_code=202, dependencies=[Depends(require_edge_auth)])

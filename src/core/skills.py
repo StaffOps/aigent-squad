@@ -83,7 +83,7 @@ class SkillRegistry:
     """Discovers and parses skills from a global skills directory (once)."""
 
     def __init__(self, skills_dir: str | None = None):
-        self.skills_dir = Path(skills_dir or os.getenv("SKILLS_DIR", "skills"))
+        self.skills_dir = Path(skills_dir or os.getenv("SKILLS_DIR") or "skills")
         self.skills: dict[str, Skill] = {}
 
     def discover(self) -> None:
