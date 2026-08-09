@@ -320,6 +320,27 @@ class TestXAigentQualityPresence:
             f"the failure must be logged, got: {captured}"
         )
 
+    def test_non_list_unverified_claims_is_rejected_not_coerced(self):
+        """A string must not be coerced into a char array on the wire.
+
+        `list("a claim")` yields ['a',' ','c',...] — that would trade the old
+        silent omission for silently WRONG data reaching the client. Flagged by
+        independent review of ff6ad19: reject and log instead of coercing.
+        """
+        from src.supervisor.openai_compat import build_completion
+
+        result = {
+            "response": "ok",
+            "quality_assessment": {"confidence": "low", "unverified_claims": "a claim"},
+        }
+
+        with self._capture_warnings() as captured:
+            payload = build_completion(result, "aigent-squad").model_dump()
+
+        assert payload["choices"][0]["message"]["content"] == "ok"
+        assert "x_aigent" not in payload, "must omit, never emit a char-array"
+        assert any("x_aigent" in m for m in captured)
+
     @staticmethod
     def _capture_warnings():
         """Context manager collecting WARNING+ records from openai_compat."""

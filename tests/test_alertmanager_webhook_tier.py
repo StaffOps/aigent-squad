@@ -29,6 +29,7 @@ import importlib
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 from fastapi.testclient import TestClient
 
 
@@ -158,12 +159,23 @@ def test_webhook_uses_complex_complexity_so_rca_is_not_downgraded():
     )
     alert_tier = _expected_tier_model()
 
-    # Only meaningful when tiering actually differentiates in this environment.
-    if fast is not None or alert_tier is not None:
-        assert alert_tier != fast, (
-            "alert-triggered RCA resolved to the same tier as a trivial query — "
-            f"alert={alert_tier!r} simple={fast!r}"
+    # A test that can silently assert nothing is worse than no test — and this
+    # guards the only RCA path with no human in the loop. So when the invariant
+    # cannot be evaluated (tier routing switched off in this environment), SKIP
+    # loudly instead of passing quietly. Flagged by independent review of
+    # 3dee3cd: the previous `if ... is not None` guard made this vacuous whenever
+    # AIGENT_TIER_ROUTING_ENABLED=false leaked in from a shell or CI override.
+    if fast is None and alert_tier is None:
+        pytest.skip(
+            "tier routing disabled in this environment (_resolve_tier_model "
+            "returns None for every classification) — the downgrade invariant "
+            "cannot be evaluated here"
         )
+
+    assert alert_tier != fast, (
+        "alert-triggered RCA resolved to the same tier as a trivial query — "
+        f"alert={alert_tier!r} simple={fast!r}"
+    )
 
 
 def test_webhook_scopes_budget_per_alert_fingerprint():

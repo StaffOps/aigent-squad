@@ -238,11 +238,25 @@ def build_completion(result: dict, model: str) -> ChatCompletionResponse:
     if assessment is not None:
         try:
             if isinstance(assessment, dict):
+                # Asymmetric on purpose: `confidence` has no default on the
+                # dataclass, so its absence is a genuine anomaly worth raising
+                # (the except below logs + omits the field). `unverified_claims`
+                # defaults to [], so an absent/None value is normal.
                 confidence = assessment["confidence"]
                 unverified_claims = assessment.get("unverified_claims") or []
             else:
                 confidence = assessment.confidence
                 unverified_claims = assessment.unverified_claims
+            # Reject a non-sequence rather than coerce it: `list("a claim")`
+            # would silently yield ['a',' ','c',...] — trading the old silent
+            # omission for silently WRONG data on the wire. Flagged by
+            # independent review of ff6ad19.
+            if isinstance(unverified_claims, (str, bytes)) or not isinstance(
+                unverified_claims, (list, tuple)
+            ):
+                raise TypeError(
+                    f"unverified_claims must be a list, got {type(unverified_claims).__name__}"
+                )
             x_aigent = {
                 "quality": {
                     "confidence": confidence,
