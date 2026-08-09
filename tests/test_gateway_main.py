@@ -414,46 +414,51 @@ class TestRetryAfter:
 
 
 class TestEdgeAuth:
-    """Test require_edge_auth directly by patching module-level globals."""
+    """Test require_edge_auth directly via env vars (auth reads fresh each call)."""
 
-    def test_accepts_valid_internal_token(self):
+    def test_accepts_valid_internal_token(self, monkeypatch):
+        monkeypatch.setenv("INTERNAL_API_TOKEN", "valid-token")
+        monkeypatch.setenv("GATEWAY_API_KEYS", "")
+        monkeypatch.setenv("GATEWAY_KEY_AGENT_MAP", "")
         import src.gateway.auth as auth_mod
-        with patch.object(auth_mod, "_EXPECTED_TOKEN", "valid-token"), \
-             patch.object(auth_mod, "_API_KEYS", set()):
-            # Should not raise
-            auth_mod.require_edge_auth(x_internal_token="valid-token", x_api_key=None)
+        # Should not raise
+        auth_mod.require_edge_auth(x_internal_token="valid-token", x_api_key=None)
 
-    def test_accepts_allowlisted_api_key(self):
+    def test_accepts_allowlisted_api_key(self, monkeypatch):
+        monkeypatch.setenv("INTERNAL_API_TOKEN", "")
+        monkeypatch.setenv("GATEWAY_API_KEYS", "key-abc")
+        monkeypatch.setenv("GATEWAY_KEY_AGENT_MAP", "")
         import src.gateway.auth as auth_mod
-        with patch.object(auth_mod, "_EXPECTED_TOKEN", ""), \
-             patch.object(auth_mod, "_API_KEYS", {"key-abc"}):
-            auth_mod.require_edge_auth(x_internal_token="", x_api_key="key-abc")
+        auth_mod.require_edge_auth(x_internal_token="", x_api_key="key-abc")
 
-    def test_rejects_when_neither_matches(self):
-        import src.gateway.auth as auth_mod
-        from fastapi import HTTPException
-        with patch.object(auth_mod, "_EXPECTED_TOKEN", "tok"), \
-             patch.object(auth_mod, "_API_KEYS", {"k1"}):
-            with pytest.raises(HTTPException) as exc_info:
-                auth_mod.require_edge_auth(x_internal_token="wrong", x_api_key="wrong")
-            assert exc_info.value.status_code == 401
-
-    def test_fail_closed_when_no_secret_configured(self):
-        """Both _EXPECTED_TOKEN and _API_KEYS empty → deny (fail-closed)."""
+    def test_rejects_when_neither_matches(self, monkeypatch):
+        monkeypatch.setenv("INTERNAL_API_TOKEN", "tok")
+        monkeypatch.setenv("GATEWAY_API_KEYS", "k1")
+        monkeypatch.setenv("GATEWAY_KEY_AGENT_MAP", "")
         import src.gateway.auth as auth_mod
         from fastapi import HTTPException
-        with patch.object(auth_mod, "_EXPECTED_TOKEN", ""), \
-             patch.object(auth_mod, "_API_KEYS", set()):
-            with pytest.raises(HTTPException) as exc_info:
-                auth_mod.require_edge_auth(x_internal_token="", x_api_key=None)
-            assert exc_info.value.status_code == 401
+        with pytest.raises(HTTPException) as exc_info:
+            auth_mod.require_edge_auth(x_internal_token="wrong", x_api_key="wrong")
+        assert exc_info.value.status_code == 401
 
-    def test_rejects_empty_token_even_if_configured(self):
+    def test_fail_closed_when_no_secret_configured(self, monkeypatch):
+        """Both INTERNAL_API_TOKEN and GATEWAY_API_KEYS empty → deny (fail-closed)."""
+        monkeypatch.setenv("INTERNAL_API_TOKEN", "")
+        monkeypatch.setenv("GATEWAY_API_KEYS", "")
+        monkeypatch.setenv("GATEWAY_KEY_AGENT_MAP", "")
+        import src.gateway.auth as auth_mod
+        from fastapi import HTTPException
+        with pytest.raises(HTTPException) as exc_info:
+            auth_mod.require_edge_auth(x_internal_token="", x_api_key=None)
+        assert exc_info.value.status_code == 401
+
+    def test_rejects_empty_token_even_if_configured(self, monkeypatch):
         """Even with a configured token, empty header is rejected."""
+        monkeypatch.setenv("INTERNAL_API_TOKEN", "secret")
+        monkeypatch.setenv("GATEWAY_API_KEYS", "")
+        monkeypatch.setenv("GATEWAY_KEY_AGENT_MAP", "")
         import src.gateway.auth as auth_mod
         from fastapi import HTTPException
-        with patch.object(auth_mod, "_EXPECTED_TOKEN", "secret"), \
-             patch.object(auth_mod, "_API_KEYS", set()):
-            with pytest.raises(HTTPException) as exc_info:
-                auth_mod.require_edge_auth(x_internal_token="", x_api_key=None)
-            assert exc_info.value.status_code == 401
+        with pytest.raises(HTTPException) as exc_info:
+            auth_mod.require_edge_auth(x_internal_token="", x_api_key=None)
+        assert exc_info.value.status_code == 401
