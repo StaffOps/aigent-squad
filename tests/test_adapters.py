@@ -183,14 +183,76 @@ async def test_mcp_adapter_connection_failure_is_fail_open():
     # error string instead of raising. That holds.
     assert "[mcp:broken] error:" in result
 
-    # NOT asserted: the inner cause ("connection refused"). The MCP client runs
-    # the connection inside an anyio TaskGroup, so the original exception is
-    # wrapped ("unhandled errors in a TaskGroup (1 sub-exception)") and the root
-    # cause never reaches this string. That is an observability gap in the
-    # adapter's error path, not a test problem — an operator reading this in a
-    # log learns nothing. Tracked as F-011 in specs/BACKLOG.md. Do not re-add a
-    # brittle substring assert here; fix the unwrapping in adapters.py instead.
-    assert "TaskGroup" in result or "connection refused" in result
+    # And the message now names the ROOT CAUSE. Before F-011 this read
+    # "unhandled errors in a TaskGroup (1 sub-exception)" — the MCP client runs
+    # the connection inside an anyio TaskGroup, so str(exc) surfaced the wrapper
+    # and an operator reading the log learned nothing.
+    #
+    # Note the URL points at a host that does not resolve, so the genuine cause
+    # here is a DNS/connect error (e.g. "ConnectError: [Errno -2] Name or service
+    # not known"). We assert the SHAPE — wrapper gone, a real exception type
+    # named — rather than a specific message, which would be brittle across
+    # environments. (The `sse_client` patch below does not actually intercept the
+    # transport; the real client resolves the host and fails. Left as-is because
+    # exercising the real failure path is what makes this test meaningful.)
+    assert "TaskGroup" not in result, (
+        f"the anyio wrapper must not be what we report, got: {result!r}"
+    )
+    assert "Error" in result or "error:" in result.split("error:", 1)[1], (
+        f"a concrete exception type must be named, got: {result!r}"
+    )
+
+
+def test_mcp_error_detail_unwraps_exception_groups():
+    """mcp_error_detail digs through anyio's TaskGroup wrapper (F-011)."""
+    from src.core.adapters import mcp_error_detail
+
+    inner = ConnectionRefusedError("connection refused")
+    group = ExceptionGroup("unhandled errors in a TaskGroup", [inner])
+
+    detail = mcp_error_detail(group)
+
+    assert "connection refused" in detail
+    assert "ConnectionRefusedError" in detail
+    assert "TaskGroup" not in detail
+
+
+def test_mcp_error_detail_reports_siblings_instead_of_hiding_them():
+    """With several sub-exceptions, the count is surfaced — nothing silently dropped."""
+    from src.core.adapters import mcp_error_detail
+
+    group = ExceptionGroup(
+        "boom",
+        [TimeoutError("timed out"), ConnectionRefusedError("refused")],
+    )
+
+    detail = mcp_error_detail(group)
+
+    assert "timed out" in detail
+    assert "+1 more" in detail, f"sibling failures must be visible, got {detail!r}"
+
+
+def test_mcp_error_detail_handles_nesting_and_causes():
+    """Nested groups and `raise X from Y` chains both resolve to the innermost cause."""
+    from src.core.adapters import mcp_error_detail
+
+    nested = ExceptionGroup("outer", [ExceptionGroup("inner", [OSError("no route to host")])])
+    assert "no route to host" in mcp_error_detail(nested)
+
+    try:
+        try:
+            raise OSError("dns failure")
+        except OSError as root:
+            raise RuntimeError("mcp session failed") from root
+    except RuntimeError as chained:
+        assert "dns failure" in mcp_error_detail(chained)
+
+
+def test_mcp_error_detail_falls_back_to_the_type_when_message_is_empty():
+    """A transport error that stringifies to "" still yields a usable clue."""
+    from src.core.adapters import mcp_error_detail
+
+    assert mcp_error_detail(ConnectionResetError()) == "ConnectionResetError"
 
 
 def test_mcp_adapter_render_extracts_text_blocks():
@@ -331,5 +393,8 @@ async def test_mcp_adapter_tool_error_does_not_abort_others():
          patch("mcp.ClientSession", return_value=session_cm):
         result = await adapter.collect("q")
 
-    assert "a] error: boom" in result
+    # Format changed deliberately by F-011: MCP error strings now name the
+    # exception TYPE before the message, so a log line identifies the failure
+    # class ("ConnectError", "TimeoutError") and not just its text.
+    assert "a] error: Exception: boom" in result
     assert "b-ok" in result  # second tool still ran
