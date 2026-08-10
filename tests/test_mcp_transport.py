@@ -482,7 +482,9 @@ class TestFailOpenToolError:
              patch("mcp.ClientSession", return_value=session_cm):
             result = await adapter.collect("q")
 
-        assert "a] error: a-fail" in result
+        # F-011: MCP error strings now name the exception TYPE before the
+        # message, so a log line identifies the failure class, not just its text.
+        assert "a] error: RuntimeError: a-fail" in result
         assert "b-ok" in result
 
 

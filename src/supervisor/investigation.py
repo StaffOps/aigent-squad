@@ -18,7 +18,7 @@ from src.core.logger import logger, log_request, log_response
 from src.core.metrics import (
     investigation_started, investigation_completed,
     investigation_duration, investigation_evidence_count,
-    investigation_rounds,
+    investigation_rounds, investigation_fanout_errors,
 )
 
 tracer = get_tracer(__name__)
@@ -61,6 +61,7 @@ async def run_investigation(
     user_id: str = "investigator",
     session_id: str = "",
     relevant_agent_names: list[str] | None = None,
+    model_id_override: str | None = None,
 ) -> RCAResult:
     """Run a single-round RCA investigation.
 
@@ -111,6 +112,7 @@ async def run_investigation(
                 session_id=f"{session_id}-inv-{state.id[:8]}",
                 chat_history=[],
                 budget_session_id=session_id,
+                model_id_override=model_id_override,
             )
             for name in chosen
         ]
@@ -130,8 +132,13 @@ async def run_investigation(
                 logger.warning("Evidence collection failed", extra={
                     "agent": name, "error": str(result)
                 })
+                # FIX 3: emit per-agent error counter for investigation fan-out failures
+                investigation_fanout_errors.add(1, {"agent_id": name})
                 continue
-            evidence_items = _parse_evidence(result.content, source_agent=name)
+            evidence_items = _parse_evidence(
+                result.content,  # type: ignore[union-attr]  # narrowed by isinstance+continue above
+                source_agent=name,
+            )
             state.evidence.extend(evidence_items)
 
         state.rounds_completed = 1
@@ -148,6 +155,9 @@ async def run_investigation(
 
         # Investigation completion metrics
         duration_ms = (time_mod.time() - t0) * 1000
+        # rca.confidence is ALREADY a bounded string (alta|media|baixa) — safe, low-cardinality
+        # label as-is. (The earlier "bucketize float" fix was based on a wrong assumption:
+        # confidence is not a float here. English-normalization is a tracked backlog item.)
         investigation_duration.record(duration_ms, {"confidence": rca.confidence})
         investigation_completed.add(1, {"confidence": rca.confidence})
         investigation_evidence_count.record(len(rca.evidence))

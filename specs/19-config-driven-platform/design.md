@@ -1,28 +1,28 @@
 # Design: Config-Driven Platform
 
-## Arquitetura
+## Architecture
 
-Um único ponto de carga de config no startup, com precedência **env > file > default**, validado por Pydantic. Substitui as constantes hardcoded espalhadas.
+A single config loading point at startup, with precedence **env > file > default**, validated by Pydantic. Replaces the scattered hardcoded constants.
 
 ```
 config/aigent.yaml  ──┐
-env vars            ──┼─▶  load_config()  ─▶  AppConfig (validado)  ─▶  injetado nos componentes
-defaults (no schema)──┘        (startup; falha cedo se inválido)
-secrets (env / *_FILE) ─────────────────────────────────────────────▶  resolvidos fora do YAML
+env vars            ──┼─▶  load_config()  ─▶  AppConfig (validated)  ─▶  injected into components
+defaults (in schema)──┘        (startup; fails early if invalid)
+secrets (env / *_FILE) ─────────────────────────────────────────────▶  resolved outside of YAML
 ```
 
-## Estrutura do config file (YAML)
+## Config file structure (YAML)
 
 ```yaml
-# config/aigent.yaml  (sem secrets — só estrutura/endpoints)
+# config/aigent.yaml  (no secrets — only structure/endpoints)
 bedrock:
   region: us-east-1
   models:
-    classifier: anthropic.claude-3-5-haiku-20241022-v1:0   # barato (spec 11)
+    classifier: anthropic.claude-3-5-haiku-20241022-v1:0   # cheap (spec 11)
     agent:      anthropic.claude-sonnet-4-5-20250929-v1:0
     synthesis:  anthropic.claude-sonnet-4-5-20250929-v1:0
 
-agents:                       # registry — substitui AGENT_URLS hardcoded
+agents:                       # registry — replaces hardcoded AGENT_URLS
   - name: aws
     url: http://aws-agent:8001/process
     enabled: true
@@ -31,15 +31,15 @@ agents:                       # registry — substitui AGENT_URLS hardcoded
     enabled: true
   # finops / devops / observability ...
 
-datasources:                  # substitui PROMETHEUS_URL etc. hardcoded
+datasources:                  # replaces hardcoded PROMETHEUS_URL etc.
   prometheus: http://prometheus.monitoring.svc.cluster.local:9090
   loki:       http://loki-gateway.monitoring:80
   tempo:      http://tempo-gateway.monitoring:80
 
 limits:
-  max_agents: 3               # teto do fan-out (spec 17)
+  max_agents: 3               # fan-out ceiling (spec 17)
   agent_timeout_s: 25
-  investigation_evidence_cap: 8   # teto de queries de evidência (spec 18)
+  investigation_evidence_cap: 8   # evidence query ceiling (spec 18)
 
 storage:
   dynamodb_table: aigent-sessions
@@ -50,98 +50,98 @@ cache:
   redis_ssl: true
 ```
 
-Secrets **não** aparecem aqui — `redis_password`, `gitlab_token`, etc. vêm de env (`REDIS_PASSWORD`) ou arquivo (`GITLAB_TOKEN_FILE=/etc/secrets/gitlab`).
+Secrets **do not** appear here — `redis_password`, `gitlab_token`, etc. come from env (`REDIS_PASSWORD`) or file (`GITLAB_TOKEN_FILE=/etc/secrets/gitlab`).
 
-## Componentes
+## Components
 
-| Componente | Responsabilidade | Onde |
-|-----------|------------------|------|
-| `AppConfig` (Pydantic) | Schema + validação + defaults | `src/core/config.py` (refatorado) |
-| `load_config()` | Lê YAML, aplica overrides de env, valida, resolve secrets | `src/core/config.py` |
-| `AgentRegistry` | Lista de agentes habilitados + lookup por nome | derivado de `AppConfig.agents` |
+| Component | Responsibility | Location |
+|-----------|----------------|----------|
+| `AppConfig` (Pydantic) | Schema + validation + defaults | `src/core/config.py` (refactored) |
+| `load_config()` | Reads YAML, applies env overrides, validates, resolves secrets | `src/core/config.py` |
+| `AgentRegistry` | List of enabled agents + lookup by name | derived from `AppConfig.agents` |
 
-## Precedência (env > file > default)
+## Precedence (env > file > default)
 
 ```python
-# Pydantic Settings com source customizada:
-# 1. defaults no modelo
-# 2. YAML file (config_path env ou ./config/aigent.yaml)
-# 3. env vars (AIGENT__BEDROCK__MODELS__CLASSIFIER=... usando delimiter __)
-# Ordem de prioridade: env  >  yaml  >  default
+# Pydantic Settings with custom source:
+# 1. defaults in the model
+# 2. YAML file (config_path env or ./config/aigent.yaml)
+# 3. env vars (AIGENT__BEDROCK__MODELS__CLASSIFIER=... using delimiter __)
+# Priority order: env  >  yaml  >  default
 ```
 
-`pydantic-settings` v2 suporta `settings_customise_sources` + `YamlConfigSettingsSource` + nested delimiter — cobre os três níveis sem código manual de merge.
+`pydantic-settings` v2 supports `settings_customise_sources` + `YamlConfigSettingsSource` + nested delimiter — covers all three levels without manual merge code.
 
-## Secrets (contrato)
+## Secrets (contract)
 
-- No YAML: **proibido** valor de secret (validador rejeita chaves conhecidas de secret com valor inline).
-- Permitido: `redis_password` via env `REDIS_PASSWORD`, ou `*_FILE` apontando pra arquivo montado (lê no startup).
-- Alinha com 12-factor / `cloud-security` (file-mounted preferível); a migração pra ExternalSecrets é nas specs 12–14.
+- In the YAML: **forbidden** for secret values (validator rejects known secret keys with inline values).
+- Allowed: `redis_password` via env `REDIS_PASSWORD`, or `*_FILE` pointing to a mounted file (read at startup).
+- Aligns with 12-factor / `cloud-security` (file-mounted preferred); migration to ExternalSecrets is in specs 12–14.
 
-## Rationale (decisões e trade-offs)
+## Rationale (decisions and trade-offs)
 
-### Decisão 1: YAML file + env override (não env-only, não config remoto)
+### Decision 1: YAML file + env override (not env-only, not remote config)
 
-**Escolha**: config declarativo em arquivo YAML, com env vars sobrescrevendo, validado no startup.
+**Choice**: declarative config in a YAML file, with env vars overriding, validated at startup.
 
-**Justificativa, em ordem de força**:
-1. **Produto precisa de config legível e versionável** — um registry de agentes/datasources em YAML é inspecionável e diffável; env-only (o estado atual com `AGENT_URLS` no código + flags soltas) não escala pra dezenas de chaves.
-2. **Env override é table-stakes em K8s** — values por ambiente (DEV/HML/PRD) sobrescrevem o file base sem reconstruir imagem (12-factor III).
-3. **Falhar no startup** com config inválido é muito melhor que descobrir no 1º request em produção.
+**Justification, in order of strength**:
+1. **The product needs readable, versionable config** — an agent/datasource registry in YAML is inspectable and diffable; env-only (the current state with `AGENT_URLS` in code + scattered flags) does not scale to dozens of keys.
+2. **Env override is table-stakes in K8s** — per-environment values (DEV/HML/PRD) override the base file without rebuilding the image (12-factor III).
+3. **Failing at startup** with invalid config is much better than discovering it at the 1st request in production.
 
-**Trade-offs aceitos**:
-| Custo | Realidade |
-|-------|-----------|
-| Mais um arquivo pra manter | É a fonte única — elimina hardcode espalhado em 4+ lugares |
-| `pydantic-settings` nested sources tem curva | Resolve merge/precedência sem código manual; bem documentado |
+**Accepted trade-offs**:
+| Cost | Reality |
+|------|---------|
+| One more file to maintain | It is the single source — eliminates hardcoding scattered in 4+ places |
+| `pydantic-settings` nested sources has a learning curve | Solves merge/precedence without manual code; well documented |
 
-**Quando estaria errada** (signals): se o nº de instâncias/ambientes crescer a ponto de exigir config centralizado dinâmico → migrar pra AWS AppConfig/Consul (fora de escopo agora).
+**When it would be wrong** (signals): if the number of instances/environments grows to the point of requiring dynamic centralized config → migrate to AWS AppConfig/Consul (out of scope now).
 
-**Alternativas descartadas**:
-- **Env-only** — não escala pra registry de agentes/datasources; ilegível.
-- **Config remoto (AppConfig/Consul) já** — complexidade prematura; o usuário pediu "não complexo demais".
+**Alternatives discarded**:
+- **Env-only** — does not scale for an agent/datasource registry; unreadable.
+- **Remote config (AppConfig/Consul) right now** — premature complexity; the user asked for "not overly complex."
 
-### Decisão 2: Registry de agentes no config (mata `AGENT_URLS` hardcoded)
+### Decision 2: Agent registry in config (kills hardcoded `AGENT_URLS`)
 
-**Escolha**: o supervisor lê a lista de agentes (url, enabled) do config, não de uma constante.
+**Choice**: the supervisor reads the list of agents (url, enabled) from config, not from a constant.
 
-**Justificativa**:
-1. **Produtização**: adicionar/remover/desligar um agente vira mudança de config, não de código + rebuild.
-2. **Habilita 17/18**: fan-out e investigação iteram sobre "agentes habilitados" — precisa ser dado, não constante.
+**Justification**:
+1. **Productization**: adding/removing/disabling an agent becomes a config change, not a code change + rebuild.
+2. **Enables 17/18**: fan-out and investigation iterate over "enabled agents" — needs to be data, not a constant.
 
-**Trade-off aceito**: um lookup a mais no startup — irrelevante perto da flexibilidade.
+**Trade-off accepted**: one extra lookup at startup — irrelevant compared to the flexibility gained.
 
-### Decisão 3: Secrets fora do YAML, sempre
+### Decision 3: Secrets outside the YAML, always
 
-**Escolha**: o YAML versionado nunca contém secret; validador rejeita.
+**Choice**: the versioned YAML never contains secrets; the validator rejects them.
 
-**Justificativa**: segurança (`cloud-security`, 12-factor) — secret em arquivo versionado é o anti-pattern clássico. Fail-closed: se alguém puser inline, o startup recusa.
+**Justification**: security (`cloud-security`, 12-factor) — a secret in a versioned file is the classic anti-pattern. Fail-closed: if someone puts one inline, startup refuses.
 
-## Invariantes
+## Invariants
 
-- Precedência **env > file > default** — sempre.
-- Nenhum secret no YAML versionado (validado).
-- Config inválido = **falha no startup** (nunca no request).
-- Agente `enabled: false` não entra em classifier/fan-out/investigação.
-- Zero endpoint/credencial hardcoded no código após esta spec.
+- Precedence **env > file > default** — always.
+- No secret in versioned YAML (validated).
+- Invalid config = **startup failure** (never at request time).
+- Agent `enabled: false` does not enter classifier/fan-out/investigation.
+- Zero hardcoded endpoint/credential in the code after this spec.
 
-## Dependências externas
+## External dependencies
 
-| Lib | Uso |
-|-----|-----|
-| `pydantic-settings` v2 | schema + sources (env/yaml) + validação |
-| `PyYAML` | parse do config file |
+| Lib | Usage |
+|-----|-------|
+| `pydantic-settings` v2 | schema + sources (env/yaml) + validation |
+| `PyYAML` | config file parsing |
 
-## Verificação
+## Verification
 
 ```bash
 docker run --rm -v $(pwd):/app -w /app python:3.11-slim sh -c \
   "pip install -q -r requirements.txt pytest && pytest tests/ -v --cov=src --cov-fail-under=90"
 ```
 
-Testes-chave (test-author ≠ autor): env sobrescreve yaml sobrescreve default; secret inline no yaml → erro de validação; yaml ausente/ inválido → falha no startup com chave indicada; registry retorna só agentes `enabled`; `*_FILE` lê secret de arquivo.
+Key tests (test-author ≠ author): env overrides yaml overrides default; inline secret in yaml → validation error; absent/invalid yaml → startup failure with indicated key; registry returns only `enabled` agents; `*_FILE` reads secret from file.
 
-## Riscos
+## Risks
 
-- Migração quebra algo que dependia de hardcode — mitigar fazendo a refatoração com os testes da spec 02 verdes.
-- Drift entre `config.example.yaml` e `.env.example` — manter consistência (documentation-sync) e cobrir no `--check` se houver.
+- Migration breaks something that depended on hardcoding — mitigate by doing the refactor with spec 02 tests green.
+- Drift between `config.example.yaml` and `.env.example` — maintain consistency (documentation-sync) and cover in `--check` if available.

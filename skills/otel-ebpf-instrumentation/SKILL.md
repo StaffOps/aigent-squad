@@ -5,23 +5,23 @@ keywords: [otel-ebpf-instrumentation, otel, ebpf, instrumentation, "otel ebpf", 
 ---
 # OTel eBPF Instrumentation (OBI)
 
-Auto-instrumentação via eBPF para apps sem SDK OTel. Gera traces e métricas HTTP/gRPC/SQL/Redis sem alteração de código.
+Auto-instrumentation via eBPF for apps without OTel SDK. Generates HTTP/gRPC/SQL/Redis traces and metrics without code changes.
 
 ## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│ App (sem SDK OTel)                                          │
+│ App (no OTel SDK)                                           │
 └────────────────────────┬────────────────────────────────────┘
-                         │ (eBPF hooks no kernel)
+                         │ (eBPF hooks in the kernel)
                          ↓
 ┌─────────────────────────────────────────────────────────────┐
 │ otel-ebpf-instrumentation (DaemonSet, privileged)           │
 │ Image: ghcr.io/open-telemetry/opentelemetry-ebpf-           │
 │        instrumentation/ebpf-instrument:v0.9.0               │
-│ ├── Gera traces HTTP/gRPC/SQL/Redis                         │
-│ ├── Gera métricas de aplicação + rede                       │
-│ └── Exporta OTLP → otel-agent-collector.monitoring:4317     │
+│ ├── Generates HTTP/gRPC/SQL/Redis traces                    │
+│ ├── Generates application + network metrics                 │
+│ └── Exports OTLP → otel-agent-collector.monitoring:4317     │
 └────────────────────────┬────────────────────────────────────┘
                          ↓
 ┌─────────────────────────────────────────────────────────────┐
@@ -31,21 +31,21 @@ Auto-instrumentação via eBPF para apps sem SDK OTel. Gera traces e métricas H
 
 ## Key behavior
 
-- **Ignora apps com SDK OTel** por default (`exclude_otel_instrumented_services: true`)
-- Traces do obi passam pelo tail sampling do agent — mesmas regras (10% PRD, 100% errors/high-latency)
-- Traces alimentam o span_metrics connector no otel-process (service graph)
-- Config via YAML file montado como ConfigMap (não env vars)
-- Não é um OTel Collector — binário standalone com config proprietária
+- **Ignores apps with OTel SDK** by default (`exclude_otel_instrumented_services: true`)
+- OBI traces pass through the agent's tail sampling — same rules (10% PRD, 100% errors/high-latency)
+- Traces feed the span_metrics connector in otel-process (service graph)
+- Config via YAML file mounted as ConfigMap (not env vars)
+- Not an OTel Collector — standalone binary with proprietary config
 
 ## Deployment (<org> pattern)
 
-Manifesto raw em `monitoring/opentelemetry-collector/obi/`:
+Raw manifest in `monitoring/opentelemetry-collector/obi/`:
 - `collector.yaml` — DaemonSet + ServiceAccount + ClusterRole + ClusterRoleBinding + ConfigMap
-- `config.yaml` — Config do obi (injetada via `tpl(readFile(...))`)
+- `config.yaml` — OBI config (injected via `tpl(readFile(...))`)
 
-Segue mesmo padrão organizacional do `profile/`, `agent/`, `gateway/`, `process/`.
+Follows the same organizational pattern as `profile/`, `agent/`, `gateway/`, `process/`.
 
-## Discovery — Allow-list por namespace de time
+## Discovery — Allow-list by team namespace
 
 ```yaml
 discovery:
@@ -66,11 +66,11 @@ discovery:
     - k8s_namespace: 'qua*'
 ```
 
-Novo time → adicionar aqui. Glob aceita `*` como wildcard (ex: `dpm*` pega `dpm`, `dpm-people`, `dpm-benefits`).
+New team → add here. Glob accepts `*` as wildcard (e.g., `dpm*` matches `dpm`, `dpm-people`, `dpm-benefits`).
 
-### Filtros adicionais disponíveis (não usados por default)
+### Additional available filters (not used by default)
 
-| Filtro | Exemplo |
+| Filter | Example |
 |--------|---------|
 | `k8s_deployment_name` | `'my-deploy*'` |
 | `k8s_pod_labels` | `{instrument: obi}` |
@@ -86,11 +86,11 @@ ebpf:
   context_propagation: headers
 ```
 
-Injeta `traceparent` em HTTP/1.1 requests saindo de apps sem SDK. Cria traces distribuídos E2E entre apps legacy e apps com SDK.
+Injects `traceparent` into HTTP/1.1 requests leaving apps without SDK. Creates distributed E2E traces between legacy apps and SDK-instrumented apps.
 
-- Modo `headers`: só HTTP headers, não precisa de `hostNetwork` nem `CAP_NET_ADMIN`
-- Modo `tcp`: também funciona com HTTPS (injecta no nível TCP), requer `hostNetwork` + `CAP_NET_ADMIN`
-- gRPC e HTTP/2: **não suportados** no modo `tcp`
+- `headers` mode: HTTP headers only, no `hostNetwork` or `CAP_NET_ADMIN` required
+- `tcp` mode: also works with HTTPS (injects at TCP level), requires `hostNetwork` + `CAP_NET_ADMIN`
+- gRPC and HTTP/2: **not supported** in `tcp` mode
 
 ## Network metrics
 
@@ -121,19 +121,19 @@ network:
       name: 'external'
 ```
 
-### Métricas geradas
+### Generated metrics
 
-| Métrica | O que mede |
-|---------|-----------|
-| `obi_network_flow_bytes_total` | Bytes entre endpoints com src/dst owner e namespace |
-| `obi_network_inter_zone_bytes_total` | Bytes cross-AZ (custo AWS ~$0.01-0.02/GB) |
+| Metric | What it measures |
+|--------|-----------------|
+| `obi_network_flow_bytes_total` | Bytes between endpoints with src/dst owner and namespace |
+| `obi_network_inter_zone_bytes_total` | Cross-AZ bytes (AWS cost ~$0.01-0.02/GB) |
 
-### Controle de cardinalidade
+### Cardinality control
 
-- `allowed_attributes`: agregar por **owner** (Deployment), não por pod individual
-- `cidrs`: classificar tráfego em categorias conhecidas (vpc, services, aws, external)
+- `allowed_attributes`: aggregate by **owner** (Deployment), not by individual pod
+- `cidrs`: classify traffic into known categories (vpc, services, aws, external)
 
-### Filtro de rede — Allow-list por namespace
+### Network filter — Allow-list by namespace
 
 ```yaml
 filter:
@@ -144,9 +144,9 @@ filter:
       match: '{ai*,acum*,apps*,bm*,ctp*,dcp*,deng*,devops*,dpm*,mdt*,plg*,qua*}'
 ```
 
-Usa `match` (allow-list) em vez de `not_match` (deny-list) — infra é ignorada automaticamente sem manutenção.
+Uses `match` (allow-list) instead of `not_match` (deny-list) — infra is automatically ignored without maintenance.
 
-## Routes — Controle de cardinalidade de URL
+## Routes — URL cardinality control
 
 ```yaml
 routes:
@@ -160,41 +160,41 @@ routes:
   unmatched: heuristic
 ```
 
-- `ignored_patterns`: dropa traces/métricas de healthchecks (reduz volume 30-50%)
-- `patterns`: define templates pra agrupar URLs (ex: `/api/v1/users/{id}`)
-- `unmatched: heuristic`: tenta agrupar automaticamente URLs não mapeadas
+- `ignored_patterns`: drops traces/metrics from healthchecks (reduces volume 30-50%)
+- `patterns`: defines templates to group URLs (e.g., `/api/v1/users/{id}`)
+- `unmatched: heuristic`: tries to automatically group unmapped URLs
 
 ## Performance tuning
 
 ```yaml
 ebpf:
-  http_request_timeout: 30s   # requests sem resposta → status 408
-  high_request_volume: true   # evita drop de eventos em alta carga
-  # wakeup_len: 1000          # reduz CPU em alta carga (default: 500)
+  http_request_timeout: 30s   # requests without response → status 408
+  high_request_volume: true   # prevents event drops under high load
+  # wakeup_len: 1000          # reduces CPU under high load (default: 500)
 ```
 
-### Quando tunar mais
+### When to tune further
 
-| Sintoma | Ação |
-|---------|------|
-| CPU do obi alta | `wakeup_len: 1000-2000` |
-| Drops de eventos | `high_request_volume: true` (já ativo) |
-| Muitas séries | `attributes.select` para excluir labels |
-| Volume de traces alto | `otel_traces_export.sampler` com ratio |
-| Protocolos irrelevantes gerando overhead | `instrumentations: ['http', 'grpc']` |
+| Symptom | Action |
+|---------|--------|
+| High OBI CPU | `wakeup_len: 1000-2000` |
+| Event drops | `high_request_volume: true` (already active) |
+| Too many series | `attributes.select` to exclude labels |
+| High trace volume | `otel_traces_export.sampler` with ratio |
+| Irrelevant protocols causing overhead | `instrumentations: ['http', 'grpc']` |
 
-## Metrics features disponíveis
+## Available metrics features
 
-| Feature | Descrição | <org> usa? |
-|---------|-----------|----------|
-| `application` | http/grpc/sql/redis duration | ✅ Sim |
-| `network_inter_zone` | Bytes cross-AZ | ✅ Sim |
+| Feature | Description | <org> uses? |
+|---------|-------------|-------------|
+| `application` | http/grpc/sql/redis duration | ✅ Yes |
+| `network_inter_zone` | Cross-AZ bytes | ✅ Yes |
 | `network` | Flow bytes (L4) | Via `network.enable` |
-| `application_service_graph` | Quem chama quem | ❌ Redundante (já existe via spanmetrics connector) |
-| `application_span` | Spanmetrics legado | ❌ Redundante |
-| `application_span_otel` | Spanmetrics formato OTel | ❌ Redundante |
-| `application_host` | Métricas por host | ❌ Irrelevante em K8s |
-| `application_span_sizes` | Request/response body sizes | Opcional (futuro) |
+| `application_service_graph` | Who calls whom | ❌ Redundant (already exists via spanmetrics connector) |
+| `application_span` | Legacy spanmetrics | ❌ Redundant |
+| `application_span_otel` | Spanmetrics OTel format | ❌ Redundant |
+| `application_host` | Per-host metrics | ❌ Irrelevant in K8s |
+| `application_span_sizes` | Request/response body sizes | Optional (future) |
 
 ## Kubernetes metadata
 
@@ -202,16 +202,16 @@ ebpf:
 attributes:
   kubernetes:
     enable: true
-    meta_restrict_local_node: true  # cada pod obi só guarda metadata do próprio node
+    meta_restrict_local_node: true  # each obi pod only stores metadata from its own node
 ```
 
-Labels decorados automaticamente: `k8s.namespace.name`, `k8s.deployment.name`, `k8s.pod.name`, `k8s.node.name`, `k8s.container.name`, etc.
+Automatically decorated labels: `k8s.namespace.name`, `k8s.deployment.name`, `k8s.pod.name`, `k8s.node.name`, `k8s.container.name`, etc.
 
-## Instrumentação suportada
+## Supported instrumentation
 
-| Protocolo | Versões |
-|-----------|---------|
-| HTTP | 1.0/1.1 (context propagation), 2.0 (sem propagação TCP) |
+| Protocol | Versions |
+|----------|----------|
+| HTTP | 1.0/1.1 (context propagation), 2.0 (no TCP propagation) |
 | gRPC | 1.0+ |
 | PostgreSQL | All |
 | MySQL | All |
@@ -220,31 +220,31 @@ Labels decorados automaticamente: `k8s.namespace.name`, `k8s.deployment.name`, `
 | Kafka | All |
 | AWS S3/SQS | All |
 
-## Relação com <org> Telemetry Helper (lib corporativa)
+## Relationship with <org> Telemetry Helper (corporate lib)
 
-- Apps **com SDK** (via helper): obi **ignora** automaticamente (não gera traces duplicados)
-- Apps **sem SDK**: obi gera traces + métricas via eBPF
-- Intervalo de export de métricas: lib usa 60s (default OTel), obi usa 30s (configurável)
-- Ambos exportam para o mesmo endpoint: `otel-agent-collector.monitoring:4317`
+- Apps **with SDK** (via helper): OBI **ignores** automatically (no duplicate traces)
+- Apps **without SDK**: OBI generates traces + metrics via eBPF
+- Metrics export interval: lib uses 60s (OTel default), OBI uses 30s (configurable)
+- Both export to the same endpoint: `otel-agent-collector.monitoring:4317`
 
 ## Anti-patterns
 
-- ❌ Usar `k8s_namespace: '*'` — instrumenta infra desnecessariamente
-- ❌ Deny-list no network filter — difícil manter, preferir allow-list por namespace
-- ❌ `application_service_graph` quando já tem spanmetrics connector — duplica métricas
-- ❌ Sampling no obi quando tail sampling no agent já cobre — duplo corte
-- ❌ Não usar `meta_restrict_local_node` em clusters grandes — desperdício de memória
-- ❌ Network sem `allowed_attributes` — cardinalidade explode (agrega por pod)
-- ❌ Não filtrar healthchecks em `routes.ignored_patterns` — volume inútil
+- ❌ Using `k8s_namespace: '*'` — instruments infra unnecessarily
+- ❌ Deny-list in network filter — hard to maintain, prefer allow-list by namespace
+- ❌ `application_service_graph` when spanmetrics connector already exists — duplicates metrics
+- ❌ Sampling in OBI when tail sampling in agent already covers — double cut
+- ❌ Not using `meta_restrict_local_node` in large clusters — memory waste
+- ❌ Network without `allowed_attributes` — cardinality explodes (aggregates by pod)
+- ❌ Not filtering healthchecks in `routes.ignored_patterns` — useless volume
 
 ## Local docs
 
-Documentação completa em:
+Full documentation at:
 ```
 01-DEVOPS/EXTERNAL-DOCS/opentelemetry.io/content/en/docs/zero-code/obi/
-├── configure/    # Todas as opções de config
+├── configure/    # All config options
 ├── setup/        # Kubernetes, Docker, standalone
-├── metrics.md    # Métricas emitidas
+├── metrics.md    # Emitted metrics
 ├── network/      # Network observability
 └── distributed-traces.md
 ```

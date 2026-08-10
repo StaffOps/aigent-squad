@@ -7,10 +7,8 @@ from __future__ import annotations
 
 import importlib.util
 import pathlib
-import textwrap
 from typing import Any
 
-import pytest
 import yaml
 
 # ---------------------------------------------------------------------------

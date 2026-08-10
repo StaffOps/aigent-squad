@@ -1,7 +1,6 @@
 """Tests for src/core/agentic_loop.py — Phase 3 bounded agentic loop."""
 import asyncio
-import time
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -182,6 +181,30 @@ class TestMcpSessionPool:
         result = await pool.call_tool("test-mcp", "get_pods", {})
         assert "not in allowlist" in result
 
+    @pytest.mark.asyncio
+    async def test_call_tool_exception_group_unwrapped_f011(self):
+        """F-011 parity: _McpSessionPool.call_tool unwraps ExceptionGroup via mcp_error_detail.
+
+        Before commit 35f6196, this path used plain str(e) which surfaced the
+        useless anyio TaskGroup wrapper message. After the leftover fix applies
+        mcp_error_detail at agentic_loop.py:145, the root cause is exposed.
+        """
+        adapter = _make_mcp_adapter()
+        inner = ConnectionRefusedError("connection refused")
+        group = ExceptionGroup("unhandled errors in a TaskGroup", [inner])
+        adapter.call_tool = AsyncMock(side_effect=group)
+        pool = _McpSessionPool([adapter])
+        result = await pool.call_tool("test-mcp", "get_pods", {})
+
+        # Must name the root cause (unwrapped by mcp_error_detail)
+        assert "connection refused" in result
+        assert "ConnectionRefusedError" in result
+        # Must NOT expose the useless TaskGroup wrapper
+        assert "TaskGroup" not in result, (
+            f"mcp_error_detail not active at this call site — got wrapper: {result!r}"
+        )
+
+
 
 # ---------------------------------------------------------------------------
 # run_agentic_loop — integration tests
@@ -205,7 +228,7 @@ class TestAgenticLoop:
                 return_value=_final_answer_response("There are 5 pods running.")
             )
 
-            result = await run_agentic_loop(
+            result, _messages = await run_agentic_loop(
                 query="how many pods?",
                 system_prompt="You are a K8s assistant.",
                 history_text="No previous conversation",
@@ -235,7 +258,7 @@ class TestAgenticLoop:
                 _final_answer_response("Found 2 pods: pod-1 and pod-2, both Running."),
             ])
 
-            result = await run_agentic_loop(
+            result, _messages = await run_agentic_loop(
                 query="list pods",
                 system_prompt="You are a K8s assistant.",
                 history_text="No previous conversation",
@@ -266,7 +289,7 @@ class TestAgenticLoop:
                 return_value=_tool_use_response([{"id": "tu-001", "name": "get_pods", "input": {}}])
             )
 
-            result = await run_agentic_loop(
+            result, _messages = await run_agentic_loop(
                 query="infinite loop query",
                 system_prompt="You are a test.",
                 history_text="",
@@ -298,7 +321,7 @@ class TestAgenticLoop:
                                    input_tokens=80, output_tokens=30),
             ])
 
-            result = await run_agentic_loop(
+            result, _messages = await run_agentic_loop(
                 query="test",
                 system_prompt="test",
                 history_text="",
@@ -335,7 +358,7 @@ class TestAgenticLoop:
                 _final_answer_response("Pod p1 is running. Logs look normal."),
             ])
 
-            result = await run_agentic_loop(
+            result, _messages = await run_agentic_loop(
                 query="check pod p1",
                 system_prompt="test",
                 history_text="",
@@ -374,7 +397,7 @@ class TestAgenticLoop:
                 _final_answer_response("Pod is running but logs unavailable."),
             ])
 
-            result = await run_agentic_loop(
+            result, _messages = await run_agentic_loop(
                 query="check",
                 system_prompt="test",
                 history_text="",
@@ -409,7 +432,7 @@ class TestAgenticLoop:
                 _final_answer_response("I couldn't delete pods."),
             ])
 
-            result = await run_agentic_loop(
+            result, _messages = await run_agentic_loop(
                 query="delete stuff",
                 system_prompt="test",
                 history_text="",
@@ -433,7 +456,7 @@ class TestAgenticLoop:
                 return_value=_final_answer_response("No tools available.")
             )
 
-            result = await run_agentic_loop(
+            result, _messages = await run_agentic_loop(
                 query="test",
                 system_prompt="test",
                 history_text="",
@@ -464,7 +487,7 @@ class TestAgenticLoop:
                 _final_answer_response("done"),
             ])
 
-            await run_agentic_loop(
+            _result, _messages = await run_agentic_loop(
                 query="test",
                 system_prompt="test",
                 history_text="",
@@ -509,9 +532,8 @@ class TestGenericAgentRouting:
         with patch("src.core.generic_agent.run_agentic_loop", new_callable=AsyncMock) as mock_loop, \
              patch("src.core.generic_agent.InputScanner") as mock_scanner:
             mock_scanner.return_value.scan.return_value = "test query"
-            mock_loop.return_value = "agentic response"
+            mock_loop.return_value = ("agentic response", [])
 
-            from src.core.state_store import ConversationMessage
             result = await agent.process_request(
                 input_text="test query",
                 user_id="u",
@@ -543,7 +565,6 @@ class TestGenericAgentRouting:
             mock_scanner.return_value.scan.return_value = "test query"
             mock_bedrock.invoke = AsyncMock(return_value="legacy response")
 
-            from src.core.state_store import ConversationMessage
             result = await agent.process_request(
                 input_text="test query",
                 user_id="u",

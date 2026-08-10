@@ -1,7 +1,7 @@
 # Tasks: Agentic tool-calling
 
-Legenda: `[ ]` pendente · `[~]` parcial · `[x]` done. Cada task de código segue o pipeline
-`dev` (implementa) → `dev` (testa, independente) → `code-review` → gate cobertura ≥90%.
+Legend: `[ ]` pending · `[~]` partial · `[x]` done. Each code task follows the pipeline
+`dev` (implements) → `dev` (tests, independent) → `code-review` → coverage gate ≥90%.
 
 > **Status 2026-07-20 (done-with-deferrals):** Phases 1–4 implemented, each via an
 > independent `dev`→`dev`(tests)→`code-review` pipeline, + **homologated LIVE** on

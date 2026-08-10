@@ -29,6 +29,7 @@ class AgentTools:
             result = await target.process_request(
                 input_text=query, user_id=user_id, session_id=session_id, chat_history=[]
             )
-            return result.content
+            content: str = result.content
+            return content
         finally:
             _call_depth.reset(token)

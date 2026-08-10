@@ -22,6 +22,23 @@ MCP Server ──[X-Internal-Token]──▶ Supervisor ──[X-Internal-Token]
 
 **Fail-closed**: if `INTERNAL_API_TOKEN` env is empty, ALL requests are denied (401).
 
+### Per-consumer agent scoping (`GATEWAY_KEY_AGENT_MAP`) — scoping, not a boundary
+
+`GATEWAY_KEY_AGENT_MAP` (csv, `key:agent`) maps an edge credential to a **default agent**,
+applied only on auto-route models (`base`/`large`). It exists so a narrow consumer — e.g. a
+Grafana plugin that should only ever get observability answers — lands on the right agent
+without having to name it.
+
+**This is not an authorization boundary, and must not be used as one.** An explicit
+`aigent-squad-<agent>` model in the request still wins over the mapping. A holder of a mapped
+key can therefore reach any agent by naming it. If you need a credential that genuinely cannot
+reach a given capability, that has to be enforced at the agent/tool layer (see
+`READ_ONLY_POLICY.md`), not here.
+
+Reading is per-call rather than parsed once at import (F-016), which makes the behaviour
+testable — but note the value still comes from the **process environment**, so in Kubernetes a
+change to the Secret requires a pod restart to take effect like any other env var.
+
 ## Non-root containers (S2)
 
 All images run as `appuser` (uid 65534). No image runs as root.

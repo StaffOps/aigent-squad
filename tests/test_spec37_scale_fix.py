@@ -18,8 +18,6 @@ import importlib
 import json
 import os
 import sys
-import types
-from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -52,14 +50,14 @@ class TestConfigDefaults:
         assert MAX_TOOL_RESULT_CHARS == 40000
 
     def test_max_loop_tokens_default(self):
-        """Budget constant MAX_LOOP_TOKENS == 150000 (spec 37 scale)."""
+        """Budget constant MAX_LOOP_TOKENS == 300000 (spec 37 scale)."""
         from src.core.agent_config import MAX_LOOP_TOKENS
-        assert MAX_LOOP_TOKENS == 150000
+        assert MAX_LOOP_TOKENS == 300000
 
     def test_max_loop_duration_ms_default(self):
-        """Budget constant MAX_LOOP_DURATION_MS == 30000 (spec 37 scale)."""
+        """Budget constant MAX_LOOP_DURATION_MS == 120000 (spec 37 scale)."""
         from src.core.agent_config import MAX_LOOP_DURATION_MS
-        assert MAX_LOOP_DURATION_MS == 30000
+        assert MAX_LOOP_DURATION_MS == 120000
 
     def test_env_override_max_tool_result_chars(self, monkeypatch):
         """AIGENT_MAX_TOOL_RESULT_CHARS env var overrides the default."""
@@ -264,8 +262,8 @@ class TestBudgetEnforcement:
         """Loop terminates after MAX_TOOL_STEPS converse() calls with tool_use."""
         from src.core.agent_config import MAX_TOOL_STEPS
 
-        # MAX_TOOL_STEPS is 5 by default — the loop should stop after 5 tool-use turns
-        assert MAX_TOOL_STEPS == 5
+        # MAX_TOOL_STEPS is 8 by default — the loop should stop after 8 tool-use turns
+        assert MAX_TOOL_STEPS == 8
 
         # The actual enforcement is tested in test_agentic_loop_independent.py
         # Here we verify the constant feeds into the loop's break condition.
@@ -275,15 +273,15 @@ class TestBudgetEnforcement:
 
     @pytest.mark.asyncio
     async def test_max_loop_tokens_is_imported_by_loop(self):
-        """The loop uses MAX_LOOP_TOKENS from agent_config (150000)."""
+        """The loop uses MAX_LOOP_TOKENS from agent_config (300000)."""
         from src.core.agentic_loop import MAX_LOOP_TOKENS as loop_budget
-        assert loop_budget == 150000
+        assert loop_budget == 300000
 
     @pytest.mark.asyncio
     async def test_max_loop_duration_is_imported_by_loop(self):
-        """The loop uses MAX_LOOP_DURATION_MS from agent_config (30000)."""
+        """The loop uses MAX_LOOP_DURATION_MS from agent_config (120000)."""
         from src.core.agentic_loop import MAX_LOOP_DURATION_MS as loop_duration
-        assert loop_duration == 30000
+        assert loop_duration == 120000
 
 
 # ===========================================================================

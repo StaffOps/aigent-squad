@@ -16,14 +16,12 @@ Target: ≥90% coverage on agentic_loop_streaming.py + sse_stream_agentic.
 from __future__ import annotations
 
 import json
-import re
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from src.core.agentic_loop_streaming import (
     ENABLE_EXTENDED_THINKING,
-    AgenticStepEvent,
     StepDone,
     StepFinalChunk,
     StepThinking,

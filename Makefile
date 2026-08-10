@@ -1,7 +1,14 @@
 # Canonical command surface (spec 36). Every golden path is a target here;
 # AGENTS.md/QUICKSTART reference these instead of raw commands. CI calls the
 # same targets (same-harness principle — spec 23 extended to the entrypoint).
-.PHONY: up down smoke test test-one test-ci lint eval specs-status mcp-rbac-audit install-hooks help
+.PHONY: up down smoke test test-one test-ci lint typecheck eval specs-status mcp-rbac-audit harness-score install-hooks help
+
+# AI-agent harness maturity floor (harness-score L0-L4). Raise this ONLY after
+# the score genuinely clears the next level — never to make a red CI go green.
+MIN_LEVEL ?= 1
+# Pinned for determinism: an unpinned scanner can change what the repo scores
+# between runs, which defeats the point of gating on it.
+HARNESS_SCORE_VERSION ?= 1.5.2
 
 help: ## List targets
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-14s %s\n", $$1, $$2}'
@@ -27,12 +34,17 @@ test-one: ## Single file/pattern: make test-one FILE=tests/test_gateway_main.py
 	./scripts/test-local.sh $(FILE)
 
 test-ci: ## CI-identical pytest gate (assumes deps installed — used by CI)
-	pytest tests/ --cov --cov-fail-under=90 --tb=short -q
+	pytest tests/ --cov --cov-fail-under=90 --tb=short -q $(PYTEST_FLAGS)
 
 lint: ## Ruff, CI-verbatim scope (run via Docker if no local ruff)
 	@command -v ruff >/dev/null 2>&1 && ruff check src/ tests/ || \
 	docker run --rm -v "$$(pwd):/app" -w /app python:3.11-slim \
 	  sh -c "pip install -q ruff && ruff check src/ tests/"
+
+typecheck: ## Mypy strict-ish gate (run via Docker if no local mypy)
+	@command -v mypy >/dev/null 2>&1 && mypy src/ || \
+	docker run --rm -v "$$(pwd):/app" -w /app python:3.11-slim \
+	  sh -c "pip install -q mypy && mypy src/"
 
 eval: ## Quality eval T2 (spec 35) — golden sets + LLM judge, real Bedrock cost (~$1-3)
 	./scripts/eval-local.sh
@@ -50,6 +62,11 @@ mcp-rbac-audit: ## Prove MCP ServiceAccount is read-only (spec 37 gate). SA=<nam
 	@test -n "$(NS)" || { echo "ERROR: NS env var required (namespace)"; exit 1; }
 	@python3 scripts/mcp_rbac_audit.py --serviceaccount "$(SA)" --namespace "$(NS)" \
 	  $(if $(CTX),--context "$(CTX)",)
+
+harness-score: ## AI-agent harness maturity gate (L0-L4); floor set by MIN_LEVEL, report-only with MIN_LEVEL=0
+	@command -v npx >/dev/null 2>&1 && npx --yes harness-score@$(HARNESS_SCORE_VERSION) --min-level $(MIN_LEVEL) || \
+	docker run --rm -v "$$(pwd):/app" -w /app node:20-slim \
+	  npx --yes harness-score@$(HARNESS_SCORE_VERSION) --min-level $(MIN_LEVEL)
 
 install-hooks: ## One-time opt-in: enforce "docs ship with code" via a pre-commit hook (.githooks/)
 	git config core.hooksPath .githooks

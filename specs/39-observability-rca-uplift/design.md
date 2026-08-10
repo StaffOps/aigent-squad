@@ -24,30 +24,30 @@ rca agent (GenericAgent, config-only) → agentic loop pulls the signals it need
 
 ## Rationale (decisões)
 
-### Decisão 1: Reuse the already-deployed grafana-mcp (no new infra)
-**Escolha**: wire the existing `grafana-mcp` (svc :8000, SA read-only) instead of
-adding per-backend MCPs. **Justificativa**: one server already exposes Loki/Tempo/
+### Decision 1: Reuse the already-deployed grafana-mcp (no new infra)
+**Choice**: wire the existing `grafana-mcp` (svc :8000, SA read-only) instead of
+adding per-backend MCPs. **Rationale**: one server already exposes Loki/Tempo/
 Pyroscope/alerts/Incidents/OnCall/Sift read-only; zero infra, one SA to audit.
 **Trade-off**: grafana-mcp's read-only-ness for *Grafana operations* depends on the
 **Grafana service-account token role** — it MUST be `Viewer` (read-only). The K8s
 SA-RBAC gate covers K8s; the Grafana token scope is a separate, mandatory check.
-**Quando estaria errado**: if the Grafana token were Editor/Admin → it could mutate
+**When this would be wrong**: if the Grafana token were Editor/Admin → it could mutate
 Grafana. Mitigation: verify + pin the token to Viewer; document as an invariant.
 
-### Decisão 2: Metric catalogs as `skills` (reference), not prompt instructions
-**Escolha**: load per-component metric-name catalogs via `skill_registry`, rendered
+### Decision 2: Metric catalogs as `skills` (reference), not prompt instructions
+**Choice**: load per-component metric-name catalogs via `skill_registry`, rendered
 inside `<skills>` and explicitly framed as *reference knowledge, not instructions*.
-**Justificativa**: kills metric-name hallucination (the model uses canonical names),
+**Rationale**: kills metric-name hallucination (the model uses canonical names),
 lazy-loaded by keyword so it doesn't bloat every prompt. **Trade-off**: catalogs
 drift as the stack changes → tag with a source/date and re-audit periodically.
-**Alternativa descartada**: indexing into the pgvector KB — heavier, and the skill
+**Alternative considered and discarded**: indexing into the pgvector KB — heavier, and the skill
 mechanism already fits (markdown + keyword select).
 
-### Decisão 3: RCA agent is config-only (GenericAgent), not new orchestration
-**Escolha**: `agents/rca/agent.yaml` reuses the GenericAgent agentic loop; the RCA
+### Decision 3: RCA agent is config-only (GenericAgent), not new orchestration
+**Choice**: `agents/rca/agent.yaml` reuses the GenericAgent agentic loop; the RCA
 behavior comes from its datasource set + prompt (≥3-signal corroboration) +
-`delegates_to`. **Justificativa**: spec 37 already gives the loop; `investigation.py`
-already exists for synthesis. Zero/low new code. **Quando estaria errado**: if
+`delegates_to`. **Rationale**: spec 37 already gives the loop; `investigation.py`
+already exists for synthesis. Zero/low new code. **When this would be wrong**: if
 cross-signal correlation needs deterministic multi-query orchestration the loop
 can't express → then promote to a dedicated investigation path (Phase 2).
 
@@ -69,10 +69,10 @@ can't express → then promote to a dedicated investigation path (Phase 2).
 The observability/security/sre/code-review round-table refuted the initial draft.
 Blocking fixes folded in:
 
-### Decisão 4: RCA routing — additional specialist, NOT a replacement (config vs code)
+### Decision 4: RCA routing — additional specialist, NOT a replacement (config vs code)
 `triage.py::should_investigate()` intercepts RCA-like queries **before** the classifier
 and calls the dedicated `run_investigation()` path. So a plain `agents/rca/agent.yaml`
-GenericAgent would be **dead code** for those queries. **Escolha**: WS3 wires grafana-mcp
+GenericAgent would be **dead code** for those queries. **Choice**: WS3 wires grafana-mcp
 + skills into the EXISTING investigation path (`investigation.py`) and adds `rca` as a
 routable specialist for observability-flavored "why" questions that fall through triage —
 this **requires code** in `triage.py`/`investigation.py`, so WS3 is **NOT config-only**

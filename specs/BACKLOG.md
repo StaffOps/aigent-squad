@@ -24,7 +24,7 @@ runtime `main` `4a1b66e`. **No uncommitted work.** Eval **6/6**.
 - **P0 observability accuracy** — RESOLVED (was crash-pod artifact, not vm-mcp; + Rule 5).
 
 ### 🚧 In-flight / started-not-completed
-- **Spec 38 — model-tier PRE-ROUTING.** ✅ **Phase 1 DELIVERED + homologated (agentic24, option A):**
+- **Spec 38 — model-tier PRE-ROUTING.** ✅ **Phase 1 DELIVERED + homologated (agentic24, option A); wiring FIXED + Opus 4.5 LIVE (agentic28):**
   fast(Haiku)+standard(Sonnet) live; classifier emits complexity; dispatch one-shot (no escalation).
   Live-confirmed: simple query → fast/Haiku (conf 0.95). deep(Opus) behind `AIGENT_TIER_DEEP_ENABLED`
   (default off → standard fallback) pending Opus inference-profile access. 56 tests, 100% cov.
@@ -33,7 +33,7 @@ runtime `main` `4a1b66e`. **No uncommitted work.** Eval **6/6**.
 ### 🔴 Blocked (need ops / user input)
 - **WS1 grafana-mcp** — ✅ **BOUND to observability (read-only allowlist), 2026-07-22.** The server was already deployed (`mcp-servers/grafana-mcp:8000`); wired the datasource into the observability agent with a strict read-only tool allowlist (44 read tools; WRITE tools = [] — no create/update/delete/add/install, no `grafana_api_request`, no `find_*`, no `alerting_manage_rules`). Registry confirms "observability (2 datasources)"; a Loki query drove 8+ tool calls with guardrail-redacted results. Squad now has logs/traces/profiles, not just metrics. **Viewer-token hardening: DECLINED by user (2026-07-23)** — read-only via the allowlist is accepted; the Grafana SA remains write-capable but no mutating tool is exposed (allowlist is the boundary).
 - **kubectl-mcp bound to kubernetes (read-only allowlist), 2026-07-22.** 157 read tools (helm/rollouts/cert/istio/cilium/gitops/keda/velero/capi/kubevirt/crd/cost + diagnostics); validated 0 write, 0 cross-datasource dups (dropped `helm_list` — overlapped k8s-mcp; Bedrock Converse rejects dup tool names). Homologated: helm-releases query answered with real data. **RBAC-audited read-only: the kubectl-mcp SA has 0 write perms (35 resources × 5 verbs), no exec/portforward/impersonate/escalate — dual-layer read-only (allowlist + RBAC), NO hardening follow-up needed** (unlike grafana-mcp, whose Grafana token is still write-capable). Gotcha captured in CHANGES: dedupe allowlist vs existing datasource when binding a 2nd MCP.
-- **Opus inference-profile access** (Bedrock) — blocks the spec 38 `deep` tier (T9).
+- **Opus inference-profile access** (Bedrock) — ✅ **RESOLVED 2026-07-23:** Opus 4.0 profile gone in-account; **Opus 4.5** (`us.anthropic.claude-opus-4-5-20251101-v1:0`) ACTIVE + enabled + live-validated (agentic28). spec 38 `deep` tier now works end-to-end (was inert — wiring fixed).
 - **`${GRAFANA_BASE}`** — ✅ **WIRED (agentic27, config-driven):** `grafana_base_url` setting in the repo (empty default, scrub-clean) + real value `https://grafana.<org>.app.br` injected via `GRAFANA_BASE_URL` env in the k8s-setup overlay → appended to agent context as `<grafana_base>`. Live on both supervisor pods. (Link emission is model-dependent; strengthen the skill/self_service if links need to appear more consistently.)
 - **vmselect / Pyroscope OOMKilled** on devops-core — ⏸️ **DEPRIORITIZED (user 2026-07-22: not impacting the environment).** Left as an observation; no action unless it starts affecting query latency/availability.
 
@@ -41,13 +41,16 @@ runtime `main` `4a1b66e`. **No uncommitted work.** Eval **6/6**.
 - ✅ **Thinking enrichment (DELIVERED agentic25):** model narration text on tool_use turns now surfaces as 💭 (was discarded) + `sub_query` shown in the routing line (`🧭 … — foco: "…"`). Feature B (foco) live-confirmed; A unit-tested (11 tests, code-review APPROVE).
 - ✅ **Decisiveness (DELIVERED agentic26)** — `<decisiveness>` shared instruction (one discovery pass → targeted queries, stop when enough); env-overridable; eval 6/6, no regression. Completes the latency/accuracy triad with context-trimming + tiering.
 - **`<self_service>` tone** — soften (env-overridable, no rebuild).
-- **Kubernetes dashboard** — the DevOps-GenericMonitoring/Kubernetes folder is empty → offer to build (workload health).
+- **Kubernetes dashboards** — ✅ **RESOLVED (recheck 2026-07-23):** the DevOps-GenericMonitoring/Kubernetes folder is **NOT empty** — 3 subfolders: **Argo** (Rollouts Overview, ArgoCD App Overview), **EKS** (Cluster Global/Namespaces Overview, Compute Resources per Namespace/Node/Pod/Workload, App Issue View, App Workload, Persistent Volumes), **Istio** (RED, Traffic per Pod). Plus a full kubernetes-mixin in DevOps-Default/Kubernetes-Default. **No new dashboard needed;** the `devops-grafana-dashboards` skill was corrected to catalog them (was mis-labelled empty).
 
 ### 🔵 Deferred (roadmap)
-WS3 cross-signal RCA Phase-1 (spec 39) · B-16 Phase-2 (structured confidence) ·
-B-03 feedback→KbDelta · spec 28 provider abstraction · MCP roadmap (GitLab / Kubecost /
+✅ WS3 cross-signal RCA Phase-1 (spec 39) — **DONE 2026-07-23** (folded into observability) ·
+B-16 Phase-2 (structured confidence) ·
+B-03 feedback→KbDelta · spec 28 provider abstraction · spec 38 FU-A (Phase-2 dispatch condition; FU-B startup-validation→lifespan ✅ DONE agentic28) · MCP roadmap (GitLab / Kubecost /
 AWS read-only / tempo / kiali) · future agents (gitops / mesh / supply-chain / db /
-backup-DR) · **version bump 0.4.x → 0.5.0** (milestone candidate once agentic hardening stabilizes).
+backup-DR) · **version bump 0.4.x → 0.5.0** — milestone candidate; **NOT now** (version-management:
+bump only after prod-validation with measurable value; this session's work is committed locally, not
+pushed/validated live).
 
 ---
 
@@ -55,6 +58,14 @@ backup-DR) · **version bump 0.4.x → 0.5.0** (milestone candidate once agentic
 
 | ID | Finding | Severity | Action | Status |
 |----|---------|----------|--------|--------|
+| F-016 | **The suite was NOT order-independent — found by measuring, fixed structurally.** Running under `pytest-randomly` exposed two distinct order dependencies. **(a) seed 1337**: `app.dependency_overrides` is a plain dict on the FastAPI app, and two supervisor test files installed an auth bypass without clearing it (`test_supervisor_server_errors.py`, pre-existing; `test_alertmanager_webhook_tier.py`, introduced in 3dee3cd) — `test_internal_auth.py` asserted 401 and got a bypassed 200. **(b) seed 4242**: 10 failures in the G-5 integration classes. Root cause confirmed: `src/gateway/auth.py` parsed `GATEWAY_KEY_AGENT_MAP` into a module-level `_KEY_AGENT_MAP` at import time, so those tests had to `importlib.reload()` it — and `src/gateway/main.py` binds symbols from `auth` at import, so after a reload `main` held the OLD function objects and `dependency_overrides` keyed on them stopped matching. The F-012 teardown had traded one order dependency for another. | 🟡 | **CLOSED 2026-08-09 — fixed at the source, not the symptom.** `get_key_agent_map()` now reads the env FRESH on every call; the module global is gone, so the G-5 tests no longer need to reload anything and the teardown was dropped. That removes the whole bug class rather than the observed seeds. `pytest-randomly` is now a permanent **unpinned** gate in `scripts/test-local.sh` and `.github/workflows/test.yml`, so every run re-proves order-independence. Verified: 1882 passed / 0 failed at seeds 4242, 1337, 9999, 12345, fixed order, and unpinned random; coverage 93.20%. Independent-author tests (11 cases) also paid down the verification-independence debt on ff6ad19 and 3dee3cd. **Scope note:** `importlib.reload` still appears ~32x elsewhere in tests (test_health, test_supervisor_server_errors, the webhook test) — the pattern was NOT eradicated repo-wide, only removed where it was load-bearing for this bug. A review claim that 'no reload remains anywhere' was an overclaim. | ✅ CLOSED 2026-08-09 |
+| F-017 | **The mkdocs site page for MCP asserted two facts that were false.** `docs/site/integrations/mcp.md` claimed `McpAdapter` uses **SSE** transport and pinned `mcp==1.0.0`. Verified against the code: `src/core/adapters.py:290` defaults to `transport="streamable-http"` and `requirements.txt:38` pins `mcp>=1.2.0,<2.0.0`. The repo-level `docs/MCP_INTEGRATION.md` was already correct, so the two docs had silently diverged and the *published site* — the one a reader trusts — carried the wrong one. Found incidentally while syncing the F-011 error-format change, not by any check. | 🟡 | **FIXED 2026-08-09** — site page corrected against the code. Root problem is unaddressed: the site under `docs/site/` duplicates repo docs by hand with no test that they agree, so this class of drift is invisible. Consider either generating the site from the repo docs or adding a check that flags divergence in the pairs that mirror each other (mcp, metrics, quickstart, installation, agents). | 🟡 PARTIALLY FIXED — instance fixed, drift class open |
+| F-013 | **Production is running a manually-built image.** `0.4.0-homolog-agentic30` (running on devops-core/staffops, helm rev 66) was built and pushed to Harbor **by hand** from commit `47f6657`, which sits on a feature branch: it passed no CI, was produced by no pipeline, and its code is in neither `main` nor `dev`. `ci-cd-conventions` names this anti-pattern explicitly — *"Manual `docker push` to registry (must go through pipeline)"*. It was legitimate as a homologation step (and earned its keep: it exposed the spec-41 `x_aigent` bug that 56 passing tests had missed) but it is not an acceptable resting state. Note the release paths: `build.yml` fires only on `push` to `main`, and `helm-charts/release.yaml` only on `main` + `charts/**` — so nothing publishes from `dev` or a feature branch, and this artifact bypassed both. | 🔴 | Push + slice the branch + merge to `dev` then `main`, letting the pipeline produce the official image; then redeploy from that. Until then, treat agentic30 as a homologation artifact that happens to be serving traffic. | 🔴 OPEN |
+| F-014 | **The helmfile still resolves the chart from a relative filesystem path.** `k8s-setup/staffops/helmfile.yaml.gotmpl` uses `chart: ../../../helm-charts/charts/aigent-squad` with a comment stating the chart is *"NOT yet published to staffops.github.io/helm-charts … Revert to `chart: staffops/aigent-squad` + a version pin once published."* **That condition has been met** — chart 0.9.5 / appVersion 0.4.0 is published on `origin/gh-pages` (verified) — and the comment is stale (it still says "now at 0.9.2"). Consequence: deploys only work on a machine with the `helm-charts` repo cloned at that exact relative path, which is zero reproducibility for CI or a second person. The comment itself records that this path was already wrong once before. | 🟡 | Swap to `chart: staffops/aigent-squad` + `version: 0.9.5`, validate with `helmfile diff` first (an empty diff proves the published chart matches the local one), and delete the stale comment. | **ACCEPTED AS-IS 2026-08-09 (user decision).** This deployment is a single-user internal product where dev/test/homologation/production are the same environment, so the blast radius of the relative path is the one machine that already has the repo cloned. Left registered, not scheduled. Revisit if CI ever needs to deploy, or if a second operator appears. 🟡 OPEN |
+| F-015 | **The aigent-squad chart rotates LibreChat's crypto secrets on every apply.** `charts/aigent-squad/templates/librechat.yaml:133-136` renders `JWT_SECRET`, `JWT_REFRESH_SECRET`, `CREDS_KEY` and `CREDS_IV` as `{{ .Values.librechat.<x> | default (randAlphaNum N) }}` with **no `lookup`** to preserve an existing Secret, and the values do not set them. So every `helmfile apply` generates new values: all LibreChat sessions are invalidated (everyone logged out) and any user credentials LibreChat had encrypted with the old `CREDS_KEY` become undecryptable. Observed three times during the 2026-08-08 applies; accepted at the time because a single user was affected. This is not specific to any one deploy — it fires on **every** apply, and a multi-user LibreChat would lose stored credentials. | 🟡 | Either add a `lookup` guard in the template so an existing Secret's values are reused, or set `librechat.{jwtSecret,jwtRefreshSecret,credsKey,credsIv}` from an ExternalSecret (never literals in values — it is a git repo). Lives in the `helm-charts` repo, not this one. | **ACCEPTED AS-IS 2026-08-09 (user decision).** Same rationale: single user, single environment, so rotating the LibreChat keys logs out only the person who triggered the apply. Left registered, not scheduled. **Revisit before a second user or any real environment split** — at that point the rotation orphans encrypted user credentials, which is not recoverable. 🟡 OPEN |
+| F-011 | **MCP adapter error path swallows the root cause.** A failing MCP server correctly fails open (`"[mcp:<name>] error: …"`), but the message reads `unhandled errors in a TaskGroup (1 sub-exception)` instead of the actual cause (e.g. `connection refused`): the MCP client runs the connection inside an anyio TaskGroup and the adapter surfaces the wrapper, not the sub-exception. Fail-open behaviour is intact — this is an **observability** defect: an operator reading that line in a log learns nothing about why the server is unreachable. | 🟡 | **CLOSED 2026-08-09.** Added `mcp_error_detail()` in `src/core/adapters.py`: it walks `ExceptionGroup`/`BaseExceptionGroup` sub-exceptions and `__cause__` chains (bounded at depth 5) to the innermost exception, reports it as `<Type>: <message>`, and appends `(+N more)` when a group carried siblings so nothing is silently dropped. Applied to the 3 MCP error sites only — the k8s/http/athena adapters do not run inside a TaskGroup, so their `{e}` was already accurate. Fail-open behaviour unchanged: still returns a string, never raises. Observed effect: `[mcp:broken] error: unhandled errors in a TaskGroup (1 sub-exception)` became `[mcp:broken] error: ConnectError: [Errno -2] Name or service not known`. **Deliberate format change** — MCP error strings now name the exception type before the message; three existing assertions were updated and annotated. Two of them were only caught by the FULL suite, not by the per-file run. | ✅ CLOSED 2026-08-09 |
+| F-012 | **`monkeypatch.setenv` + `importlib.reload` leaks module state across tests.** `src/gateway/auth.py` parses `GATEWAY_KEY_AGENT_MAP` into a module-level `_KEY_AGENT_MAP` at **import time**. The G-5 tests (`test_g5_consumer_key_scoping.py`, `test_g5_independent_verification.py`) set the env var via monkeypatch and then `importlib.reload(auth_mod)`. At teardown monkeypatch restores the env var but **cannot undo the reload**, so `_KEY_AGENT_MAP` stays populated for every later test in the session. Symptom found: `test_gateway_main_paths.py::TestLifespan::test_lifespan_aclose` passed alone but failed in the full suite (`TypeError: object MagicMock can't be used in 'await' expression`) because the leaked map made the gateway lifespan take its `if key_agent_map:` branch and `await supervisor_client.list_agents()`. | 🟡 | **CLOSED 2026-08-08 — cause fixed, not just the symptom.** Two layers: (1) the failing test was made order-independent (whole client is an `AsyncMock`); (2) an autouse teardown fixture in both G-5 files now pops `GATEWAY_KEY_AGENT_MAP` explicitly (not relying on monkeypatch teardown ordering) and reloads `src.gateway.auth` back to a clean state. **Verified by reverting layer 1**: with the original `MagicMock` pattern restored — the one that failed in the full suite — the suite passes 1856/1856, proving the leak itself is gone. Remaining smell (not a defect): `get_key_agent_map()` still returns a module global parsed at import time, so any future `reload`-under-`monkeypatch` test must carry the same teardown. Reading the env fresh would remove the footgun entirely. | ✅ CLOSED 2026-08-08 |
+| F-010 | **`make test` was red on committed HEAD (13 failures) while `CHANGES.md` claimed they were fixed.** The 2026-07-24 entry says *"CI drift repaired (audit #6-9)"* (commit `ca2c0ac`) but a clean-HEAD worktree run on 2026-08-08 still showed 13. Consequence while it lasted: the gate could not distinguish a new regression from old debt — verified the hard way (a failure was misattributed to a lint pass until an isolated `git worktree` run at HEAD proved otherwise; swapping only the *test* files to HEAD while `src/` stayed modified produced a FALSE conclusion). | 🔴 | **CLOSED 2026-08-08 — all 13 were stale tests, zero production defects.** Four independent causes: (1) **6 stale budget assertions** — budgets were deliberately raised (spec 37 "40K scale budgets") and tests still asserted pre-raise values (`max_tool_steps` 8≠5, `max_loop_duration_ms` 120000≠15000, `max_loop_tokens` 300000≠50000, `max_tool_result_chars` 40000≠8000); the `agent_config.py` *comments* were stale too (said 150000/30000) and were corrected. (2) **4 stale guardrail assertions** — G-6 deliberately stopped wiring Bedrock's server-side converse guardrail (redundant: input guarded at ingress; false-positived on the framed user turn); tests asserted the pre-G-6 "turn 0 = True" contract. Security property covered by `test_g6_ingress_guard.py` (17 passing). (3) **1 stale 404 contract** — G-1 made `resolve_target` permissive (unknown model auto-routes, never raises) for the Grafana LLM app; the endpoint test still expected 404. (4) **1 test-isolation bug** — see F-012. Suite now **1850 passed / 0 failed**, coverage 94.01%. | ✅ CLOSED 2026-08-08 |
 | F-001 | aws agent echoes raw `<use_mcp_tool>…` XML in responses instead of executing the tool (homologation 2026-07-03) | 🔴 | Root cause (2026-07-13): `agents/aws/agent.yaml` declares no `type: mcp` datasource — no `aws-mcp-server`/`cost-mcp-server` is actually deployed (unlike kubernetes' real `k8s-mcp`) — yet `prompt.md` told the model to "use MCP servers directly", so it hallucinated Cline/Roo-style `<use_mcp_tool>` XML (Bedrock tool-use API is never invoked, `bedrock.py` sets no `tools`). Fix shipped: removed the "Available MCPs" section + "query via MCP" line from `agents/aws/prompt.md`. **T1 regression fixture shipped 2026-07-14**: `tests/test_response_quality_regression.py::TestF001ToolScaffoldingRegression` (spec 35 Phase 1). **Ported to the live git-sync repo 2026-07-14** (local commit `4968870` in `<ORG>/aigent-squad` — not pushed yet, pending user go-ahead) | ✅ CLOSED (app repo); port committed locally, push pending |
 | F-002 | finops surfaces `AccessDeniedException` + ~15s latency in EVERY answer (athena datasource vs `enable_athena_finops=false` IRSA) | 🔴 | Fixed (2026-07-13): dropped the `athena` datasource from `agents/finops/agent.yaml` (kept `boto3 ce` — Cost Explorer already returns real spend). Re-enable path: set `enable_athena_finops=true` + Athena/CUR vars in `infra/terraform/iam` once a real target exists. **T1 regression fixture shipped 2026-07-14**: `tests/test_response_quality_regression.py::TestF002RawAdapterErrorRegression` (spec 35 Phase 1). **Ported to the live git-sync repo 2026-07-14** (same local commit as F-001 — not pushed yet) | ✅ CLOSED (app repo); port committed locally, push pending |
 | F-003 | kubernetes agent's `k8s-mcp` datasource pointed at a dead external hostname (`devops-mcp-kube-core.<org>.app.br` → 404, Traefik default cert, no matching IngressRoute) — every kubernetes-agent query failed data collection | 🔴 | Fixed (2026-07-13): repointed `agents/kubernetes/agent.yaml` at the in-cluster Service DNS (`http://kube-mcp.mcp-servers.svc.cluster.local:8080/sse`) — avoids the external ingress hop entirely (same cluster). Also widened the tool allowlist to kube-mcp's full catalog (confirmed live via `session.list_tools()`: no mutating tools exist on this server at all — RBAC is enforced at the MCP server's own ServiceAccount, so the app-level allowlist was redundant curation, not the security boundary). **Ported to the live git-sync repo 2026-07-14**: found the repo locally at `<ORG>/aigent-squad` (remote confirmed: `gitlab.com/<ORG>/.../devops/aigent-squad.git`, matches `agentsSource.repo`), also discovered F-001/F-002's fixes and the F-006 prompt cleanup were equally stale there — synced all three plus F-006 together (commit `4968870`, aws/finops/kubernetes agent.yaml+prompt.md). **Committed locally only — not pushed** (explicit user confirmation obtained before touching the repo; push still needs a separate go-ahead since it feeds the live cluster) | port committed locally, push pending |
@@ -140,6 +151,100 @@ Note: if the Grafana LLM app COULD send `model=aigent-squad-observability`, that
 - **Distributed topology (RemoteAgent client)** — trigger: real need for independent
   per-agent scaling/isolation. ADR-001/0002 favor in-process.
 
+  <details>
+  <summary><b>A2A (Agent2Agent) protocol — evaluated 2026-08-09, verdict: stays dormant</b></summary>
+
+  A2A is the most likely *implementation* of this dormant item, not a separate concern —
+  which is why it gets no spec of its own. Evaluated by round-table (gitops + security +
+  sre) after an external briefing recommended adopting it. **Verdict: no spec, no
+  amendment, no schema change.** Recorded here so the next person does not redo the
+  analysis.
+
+  **What A2A is** (verified against github.com/a2aproject/A2A, 2026-08-09): an open
+  protocol for *opaque* agents — built on different frameworks, run by different orgs —
+  to discover each other and collaborate without sharing memory or tools. JSON-RPC 2.0
+  over HTTP(S), SSE streaming, async push notifications, discovery via "Agent Cards".
+  Complementary to MCP, not competing: MCP is agent↔tool, A2A is agent↔agent.
+
+  **Corrections to the briefing that prompted this** (it was largely right conceptually
+  and wrong on the details that matter):
+
+  | Claim | Reality |
+  |-------|---------|
+  | "protocolo aberto do Google" | Open source **under the Linux Foundation**, contributed by Google. Governance is vendor-neutral — changes the lock-in calculus. |
+  | "adoption concentrated in Google's ecosystem, few frameworks" | 6 official SDKs (Python, Go, JS, Java, .NET, Rust), 25.3k stars, 2.6k forks; DeepLearning.AI course built with Google Cloud **and IBM Research**, covering ADK/LangGraph/BeeAI. |
+  | "spec 22 is basically the Agent Card concept" | No. Spec 22 is a **local routing hint** read into a classifier prompt. An Agent Card is an **HTTP service contract** for cross-network capability negotiation. Same word ("capabilities"), different problem. Spec 22 is also `status: done` — not a draft to enrich. |
+  | "enriching agent.yaml with A2A-ish fields is backward-compatible" | **FALSE, and this one would have broken routing.** The real schema has `capabilities` as a **list[str]** and `routing_keywords` **flat**. The proposal nests `capabilities.streaming` and renames to `routingHints.keywords`. `src/core/classifier.py:222` reads `config.routing_keywords` directly, so applying it verbatim breaks keyword routing for all agents. |
+
+  **Unverified — do not repeat as fact**: the current A2A spec version number, and the
+  exact well-known discovery path (the briefing said `/.well-known/agent.json`; nobody
+  read the spec document to confirm, and that path has changed across A2A versions).
+  Check the primary source before relying on either.
+
+  **Why it stays dormant.** Two structural reasons, both independent of A2A's quality:
+
+  1. *Security.* This platform's differentiator is a **closed perimeter** — edge auth,
+     fail-closed guardrails, `InputScanner` on input, `OutputFilter` on output,
+     read-only MCP surface, documented read-only invariant. A2A's premise is accepting
+     Tasks from agents we do not control and trusting the Artifacts they return. That
+     crosses the perimeter in *both* directions, and none of the existing controls sit
+     on an inbound-agent path, because no such path exists. Also unsolved: the
+     confused-deputy problem (a remote agent borrowing our IRSA / cluster read access).
+  2. *Operational readiness.* Fan-out today is a function call: one failure domain,
+     local latency, one cost guardrail. Distributing it means N services, N SLOs, N
+     deploys, partial-fan-out failure handling, and cross-agent tracing — for a platform
+     whose test gate sat red for two weeks while `CHANGES.md` claimed it was fixed
+     (F-010). Readiness, not enthusiasm, is the gate.
+
+  **Trigger — all three must hold simultaneously.** Any one false ⇒ do not reopen:
+  1. A real user asks for cross-org or cross-framework agent collaboration, naming the
+     external system that must interoperate. "It would be cool" does not count.
+  2. Wrapping that external agent as an **MCP tool** (`datasources.type: mcp`, which
+     already exists and already works) is proven insufficient, with the specific
+     technical reason written down.
+  3. Operational maturity: per-agent SLOs defined, CI green 30 consecutive days,
+     rollback tested, partial-fan-out failure exercised.
+
+  **If the trigger ever fires — the path, ~11 steps in 4 phases.** Listed so the size of
+  the commitment is visible up front; roughly two thirds of it is prerequisite work that
+  has nothing to do with A2A itself:
+
+  *Phase A — earn the right (5 steps, none A2A-specific):*
+  1. Per-agent SLOs + error budgets (extends spec 33 review loop).
+  2. Cross-agent distributed tracing (trace context propagated across the hop; today
+     the loop is in-process so this has never been exercised).
+  3. Cost guardrail that survives a network hop — a remote agent re-invoking an LLM
+     multiplies spend, and the current budget bucket is per-session in-process.
+  4. Partial-failure semantics for fan-out: timeout, retry, degraded synthesis when
+     one specialist is unreachable.
+  5. Rollback + chaos drill for one specialist as an independent deployable.
+
+  *Phase B — the security surface (3 steps, the hard part):*
+  6. Inbound path controls: `InputScanner` + guardrail on Task Messages/Parts arriving
+     from a remote agent, fail-closed, with the same tagging discipline as `<infra_data>`.
+  7. Outbound path controls: `OutputFilter` over Artifacts we emit, plus an explicit
+     decision on what the read-only invariant means when a remote agent asks us to act
+     (almost certainly: refuse, never proxy a write).
+  8. Per-remote-agent authn/authz + rate limiting, and confused-deputy prevention so a
+     remote agent cannot borrow our cluster/AWS read access.
+
+  *Phase C — the protocol itself (2 steps, the cheap part):*
+  9. Agent Card generation from `agent.yaml` (additive fields only — never rename or
+     re-shape `capabilities`/`routing_keywords`; see the correction table above).
+  10. A2A server + client: Task lifecycle, SSE bridge onto the existing streaming path,
+      push notifications mapped to the existing Slack notifier.
+
+  *Phase D — prove it:*
+  11. One real cross-framework interop, homologated end-to-end in a live environment —
+      not a unit test. Today's lesson stands: spec 41 passed 56 tests and was inert in
+      production until someone ran a real query.
+
+  Note the shape: steps 1-8 are worth doing **whether or not A2A is ever adopted**, and
+  A2A itself is steps 9-10. If the trigger fires, start at Phase A — and if Phase A is
+  unaffordable, that is the answer about A2A too.
+  </details>
+
+
 ## Deferred register (tails of "done" specs — completed by spec 32 T7)
 
 - specs 06/17/18: T11 formal smoke (superseded in practice by B-09 + spec 36 smoke)
@@ -150,6 +255,39 @@ Note: if the Grafana LLM app COULD send `model=aigent-squad-observability`, that
 - spec 34: RELEASE.md Phases 3-5 (chart bump / overlay / rollout) — gated on B-25
 - spec 36: T11 independent review (fresh-clone dry run + .claude contract)
 - spec 37: all deferrals CLOSED 2026-07-21 — Auto-route streaming (G-4), MCP SA-RBAC audit gate, Grafana plugin integration (G-1..G-6), and the Guardrail ingress input-guard fix (G-6) are all DONE + homologated live. Non-blocking follow-ups: recommended R1-R7; vm-mcp/observability Prometheus connectivity; provisioning the plugin's real per-consumer key (ExternalSecret). Earlier: count-framing + 40K scale budgets shipped 2026-07-20 (model reports the marker total, 267 not 38).
+- spec 39: T3.4 deterministic investigation.py path (Phase 2 — prompt-RCA validated live agentic28, extraction trigger not met). spec 38 FU-A dispatch-condition doc (Phase 2).
+- spec 41: T3 histogram bucket boundaries — `aigent.quality.unverified_claims_per_response` runs on default SDK buckets, which are coarse for its 0–20 range. The spec asked for `[0,1,2,3,5,10,20]`, but they are not settable from this repo: `opentelemetry-api` 1.29.0's `create_histogram()` accepts only (name, unit, description), and the `MeterProvider` — where a View would live — is owned by the private `otel_helper` lib. Closing this needs an `otel_helper` change (add a View) or an API upgrade that exposes `explicit_bucket_boundaries_advice`. Metric is usable meanwhile; only low-end granularity is lost. Docs corrected to stop claiming the buckets (T8 harness finding B3).
+
+---
+
+## Audit findings — exhaustive 543-file review + full i18n translation (2026-07-24)
+
+**Every file read + validated; ~72 translated PT→EN (gate rc=0, tests green). Repo healthy, 0 dead/orphan.**
+
+### Delete/merge candidates (await user approval — NOT acted on)
+- `specs/05-helm-chart/` + `specs/19-config-driven-platform/` — `superseded_by: 22` (frontmatter correct); delete or archive.
+- ~~`skills/oomkill-investigation/`~~ — KEEP (user decision 2026-07-24): it's the canonical example skill in `docs/HOW-TO-NEW-AGENT.md`; the RCA overlap is acceptable for a focused how-to that doubles as the tutorial example. Merging would require rewriting the tutorial. Not a merge candidate.
+- `src/agents/{aws,devops,finops,kubernetes,observability}/__init__.py` — empty packages, 0 imports; delete.
+- `otel_helper/` (repo root) — duplicate of the generated `.local-stubs/otel_helper/` stub; delete.
+- ~~`infra/terraform/guardrail/terraform.tfstate` + `.tfstate.backup`~~ — ✅ **VERIFIED FALSE POSITIVE (2026-07-24, P0 check):** already gitignored (`.gitignore` L49 `*.tfstate` + L50 `*.tfstate.*`), **never committed** (`git log --all` empty), **not tracked** (`git ls-files` empty), and no secrets in content (only `aws_bedrock_guardrail` config + IDs). NO exposure, no action needed. (The Wave-4 audit subagent mis-flagged it as "tracked".)
+- `evals/results/*-superseded.json` (2) — explicitly superseded; archive/delete after next release.
+
+### Fix-needed — pre-existing test drift (breaks CI; NOT translation-caused)
+- `tests/test_b16_calibrated_honesty.py` — `ImportError`: imports `CALIBRATED_HONESTY` from `generic_agent`, but it moved to `config.py`.
+- `tests/test_spec37_adapter_truncation_integration.py` — fixture 24k chars vs `MAX_TOOL_RESULT_CHARS` now 40k → assertion fails.
+- ~38 tests across 11 files — assert the removed `~` tilde ("~N items" → impl now "N items").
+
+### Functional PT kept (translating would break features/tests/history — confirm to strip)
+- `config.py` bilingual calibrated-honesty + `triage.py` bilingual investigation keywords (PT-user support); `evals/golden_queries.yaml` PT fixtures + `tests/test_attack_suite.py` PT injection input; `BACKLOG.md`/`archive/` historical runtime quotes.
+
+### Minor doc inconsistencies
+- ~~spec 25 in-progress but 0 tasks~~ (INACCURATE — spec 25 has 19 tasks; in-progress is valid). ~~spec 21 design text-embedding-3/1536~~ (FIXED — now Titan/1024). `docs/COMPETITIVE-ANALYSIS.md` still ~5 weeks old (content not re-reviewed — left as-is). ~~`Dockerfile.test` vestigial `github_token`~~ (REMOVED 2026-07-24) + ~~3 stray `[Unreleased]` headers~~ (consolidated into `[0.1.0]` 2026-07-24).
+
+### Session status — ready but not deployed/pushed (2026-07-24)
+- **Observability metrics (5 new + 3 fixes)** — ✅ DEPLOYED live (agentic29, helm rev 63) + **homologated in VictoriaMetrics** 2026-07-24. Metrics→VM gap RESOLVED: `serviceMonitor.enabled=true` in the overlay (k8s-setup a197015) — vmagent now scrapes the app's /metrics; all 5 new + fixed aigent_* confirmed queryable in VM. Full harness GO earlier.
+- **Branch reconcile + push** — all local work (i18n 72 files, metrics, docs, tier-fix code) is on `fix/openai-compat-drop-system-messages`, NOT merged to `dev` (needs PR). GitLab prompts + k8s-setup overlay from agentic28 ARE pushed/live.
+- **0.5.0 cut** — milestone candidate (agentic28 live-validated); release action pending user go.
+> **Full pending inventory: see `HANDOFF.md`.**
 
 ---
 
@@ -234,4 +372,4 @@ on its ServiceAccount + **per-consumer scope (G-5)** for sensitive agents + **NO
 - ✅ **P0 observability accuracy — RESOLVED (evidence-corrected).** The earlier "`tool_steps=0` + saúde EXCELENTE" was an **artifact of the crashing supervisor pod** (`2e+06` window), NOT a vm-mcp bug — vm-mcp is UP and the agent DOES query (verified 12-14 tool steps live). Residual verdict-framing fixed with observability **Rule 5** — verified "operacional com pontos de atenção", not "EXCELENTE".
 - ⏳ **P1 classifier→planner (B-14)** — NEXT.
 - ⏳ **P1 cross-signal RCA (WS3)** · **P2 model-tier (spec 38)** · **P2 feedback (B-03)** · **B-16 Phase-2** (structured field).
-- 🔴 **WS1 grafana-mcp** blocked on **M-1** (Grafana token must become Viewer — ops/terraform).
+- ✅ **WS1 grafana-mcp** BOUND read-only (allowlist); Viewer-token hardening (M-1) DECLINED by user 2026-07-23.

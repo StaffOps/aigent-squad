@@ -23,6 +23,45 @@ if TYPE_CHECKING:
     from src.core.tool_schema import ToolNameMap
 
 
+# Maximum nesting we will unwrap. Groups nest at most a couple of levels in
+# practice; the bound exists so a pathological chain cannot spin.
+_MAX_UNWRAP_DEPTH = 5
+
+
+def mcp_error_detail(exc: BaseException, _depth: int = 0) -> str:
+    """Describe an MCP failure by its ROOT CAUSE, not by its wrapper.
+
+    The MCP client runs its connection inside an anyio TaskGroup, so a plain
+    `str(exc)` yields ``unhandled errors in a TaskGroup (1 sub-exception)`` —
+    which tells an operator reading the log absolutely nothing about why the
+    server is unreachable. The real cause (``connection refused``, a DNS
+    failure, a TLS error, a timeout) is one or two levels down.
+
+    Fail-open behaviour is unchanged: callers still return an error STRING and
+    never raise. This only makes that string useful. (BACKLOG F-011.)
+
+    Returns ``"<ExceptionType>: <message>"`` for the innermost exception, and
+    appends ``(+N more)`` when a group carried several so nothing is hidden.
+    """
+    if _depth < _MAX_UNWRAP_DEPTH:
+        # ExceptionGroup / BaseExceptionGroup (Python 3.11+) — anyio's wrapper.
+        subs = getattr(exc, "exceptions", None)
+        if subs:
+            detail = mcp_error_detail(subs[0], _depth + 1)
+            extra = len(subs) - 1
+            return f"{detail} (+{extra} more)" if extra > 0 else detail
+        # Plain chained exception (`raise X from Y`).
+        cause = getattr(exc, "__cause__", None)
+        if cause is not None and cause is not exc:
+            return mcp_error_detail(cause, _depth + 1)
+
+    msg = str(exc).strip()
+    name = type(exc).__name__
+    # Some transport errors stringify to "" — the type alone is still a clue.
+    return f"{name}: {msg}" if msg else name
+
+
+
 class DatasourceAdapter(ABC):
     """Base class for all datasource adapters.
 
@@ -58,7 +97,7 @@ class DatasourceAdapter(ABC):
             hit = None
         if hit is not None:
             cache_hits.add(1, {"namespace": ns})
-            return hit
+            return str(hit)
         cache_misses.add(1, {"namespace": ns})
         result = await self._collect(query)
         try:
@@ -268,7 +307,7 @@ class McpAdapter(DatasourceAdapter):
         return f"mcp:{self.url}:" + ",".join(sorted(self.tools))
 
     # ------------------------------------------------------------------
-    # Agentic tool-spec builder (Phase 2, spec 37 Decisão 2)
+    # Agentic tool-spec builder (Phase 2, spec 37 Decision 2)
     # ------------------------------------------------------------------
 
     async def list_tool_specs(self) -> list[dict]:
@@ -284,7 +323,7 @@ class McpAdapter(DatasourceAdapter):
             if elapsed < self.cache_ttl:
                 return self._cached_tool_specs
 
-        from src.core.tool_schema import ToolNameMap, build_tool_spec
+        from src.core.tool_schema import ToolNameMap
 
         name_map = ToolNameMap()
         specs: list[dict] = []
@@ -341,7 +380,7 @@ class McpAdapter(DatasourceAdapter):
         return specs
 
     # ------------------------------------------------------------------
-    # Agentic single-tool execution (Phase 2, spec 37 Decisão 2)
+    # Agentic single-tool execution (Phase 2, spec 37 Decision 2)
     # ------------------------------------------------------------------
 
     # OOM safety cap: prevents unbounded memory from a malicious MCP server.
@@ -398,7 +437,7 @@ class McpAdapter(DatasourceAdapter):
         except PermissionError:
             raise  # Re-raise allowlist violations
         except Exception as e:
-            return f"[mcp:{self.name}:{server_name}] error: {e}"
+            return f"[mcp:{self.name}:{server_name}] error: {mcp_error_detail(e)}"
 
     def _resolve_server_name(self, converse_name: str) -> str:
         """Resolve a Converse tool name back to the MCP server's real name.
@@ -448,7 +487,7 @@ class McpAdapter(DatasourceAdapter):
             # already collected — only surface the error when nothing was
             # gathered (fail-open for partial results).
             if not results:
-                return f"[mcp:{self.name}] error: {e}"
+                return f"[mcp:{self.name}] error: {mcp_error_detail(e)}"
         return "\n".join(results)
 
     async def _invoke_tools(self, session, query: str) -> list[str]:
@@ -469,7 +508,7 @@ class McpAdapter(DatasourceAdapter):
                 res = await session.call_tool(tool_name, args)
                 results.append(f"[mcp:{self.name}:{tool_name}] {self._render(res)}")
             except Exception as e:  # one tool failing must not kill the rest
-                results.append(f"[mcp:{self.name}:{tool_name}] error: {e}")
+                results.append(f"[mcp:{self.name}:{tool_name}] error: {mcp_error_detail(e)}")
         return results
 
     @staticmethod

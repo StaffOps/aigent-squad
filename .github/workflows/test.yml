@@ -32,6 +32,17 @@ jobs:
       # Same target devs/agents run locally (make lint) — spec 36 same-harness
       - run: make lint
 
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install mypy
+      # Same target devs/agents run locally (make typecheck) — spec 36 same-harness
+      - run: make typecheck
+
   # Spec-status SSOT gate (spec 32) — frontmatter consistency; fast, no image build.
   specs_status:
     runs-on: ubuntu-latest
@@ -43,6 +54,19 @@ jobs:
       - run: pip install "pyyaml==6.0.2"
       # Same target devs/agents run locally (make specs-status) — spec 36 same-harness
       - run: make specs-status
+
+  # AI-agent harness maturity gate. Prevents silent regression of the harness
+  # itself (AGENTS.md, rules, commands, sensors) — deleting them now fails CI
+  # instead of quietly dropping the score. Deterministic: no LLM/network calls.
+  harness_score:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      # Same target devs/agents run locally (make harness-score) — spec 36 same-harness
+      - run: make harness-score
 
   # SCA — vulnerable dependencies in requirements.txt (no image build; fast PR feedback).
   dep_scan:
@@ -61,7 +85,7 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
-    needs: lint
+    needs: [lint, typecheck]
     steps:
       - uses: actions/checkout@v4
 
@@ -79,11 +103,21 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --quiet -r requirements.txt
-          pip install pytest pytest-asyncio pytest-cov ruff "fakeredis[lua]>=2.36,<3" "respx>=0.22,<0.23"
+          pip install pytest pytest-asyncio pytest-cov pytest-randomly ruff "fakeredis[lua]>=2.36,<3" "respx>=0.22,<0.23"
 
       - name: Run tests with coverage gate
         # Same command as the local harness (scripts/test-local.sh) — spec 36
-        run: make test-ci
+        #
+        # The seed is generated and ECHOED here on purpose. pytest-randomly prints
+        # it in the pytest header, but `-q` suppresses the header, so a failing CI
+        # run used to be unreproducible: you could see the failure and never learn
+        # which order caused it. Pinning it explicitly means any red run can be
+        # replayed locally with
+        #   make test-one FILE=tests/ PYTEST_FLAGS="--randomly-seed=<seed>"
+        run: |
+          SEED=${RANDOM}${RANDOM}
+          echo "::notice title=Test order seed::--randomly-seed=$SEED (replay a failure with this)"
+          make test-ci PYTEST_FLAGS="--randomly-seed=$SEED"
         env:
           REDIS_HOST: localhost
           SERVICE_NAME: test

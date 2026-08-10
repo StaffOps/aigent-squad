@@ -6,7 +6,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | `aprovado` (2026-07-03) |
+| **Status** | `approved` (2026-07-03) |
 | **Author(s)** | Carlos Felipe Gomes |
 | **Stakeholders** | StaffOps / <ORG> platform team (devops-core operators) |
 | **Date** | 2026-07-03 |

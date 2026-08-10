@@ -1,6 +1,6 @@
 # MCP Server for Agent Squad
 
-Expoe Agent Squad como HTTP API for integracao com Kiro CLI.
+Exposes Agent Squad as an HTTP API for integration with Kiro CLI.
 
 ## Endpoints
 
@@ -22,7 +22,7 @@ curl -X POST http://localhost:8006/query \
 
 ## Configuration Kiro CLI
 
-Adicione em `~/.kiro/mcp.json`:
+Add to `~/.kiro/mcp.json`:
 
 ```json
 {

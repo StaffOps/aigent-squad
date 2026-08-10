@@ -26,6 +26,7 @@ from botocore.exceptions import BotoCoreError, ClientError
 
 from src.core.config import settings
 from src.core.logger import logger
+from src.core.metrics import guardrail_blocks
 
 # apply_guardrail response actions
 _ACTION_INTERVENED = "GUARDRAIL_INTERVENED"
@@ -171,6 +172,8 @@ class GuardrailClient:
                 text_digest=_digest(text),
                 categories=categories,
             )
+            # ADD (b): emit guardrail block metric (bounded: source ∈ 4 values, agent_id ∈ ~10)
+            guardrail_blocks.add(1, {"source": source, "agent_id": agent_id})
             raise GuardrailBlockedError(reason="blocked", source=source, categories=categories)
 
     @staticmethod

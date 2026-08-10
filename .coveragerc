@@ -3,7 +3,16 @@ source = src
 omit =
     # Entry-point thin wrappers (no logic to test — just FastAPI app instantiation)
     src/api/server.py
-    src/supervisor/server.py
+    # NOT omitted: src/supervisor/server.py. It used to be listed here as a
+    # "thin wrapper", and that stopped being true — it now carries the
+    # alertmanager webhook's `_run_inv` closure, which builds a synthetic
+    # ClassifierResult and resolves the tier model for alert-triggered RCA.
+    # Measured at 62% while excluded, with that closure entirely uncovered: the
+    # only RCA path with no human in the loop had its tier routing unmeasured
+    # AND untested (test_alert_handler.py injects run_investigation_fn, mocking
+    # away the exact code). Keeping it measured costs ~0.9pp of global coverage
+    # and buys a real gate. If a genuinely logic-free entrypoint needs
+    # excluding, exclude the lines/functions — not a whole file that grows logic.
     # Empty __init__.py files
     */__init__.py
 

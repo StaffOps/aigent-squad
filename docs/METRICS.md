@@ -27,6 +27,12 @@ All metrics emitted by AIgent-squad, collected via OTel Collector → Prometheus
 |--------|------|--------|-------------|
 | `aigent.tokens.total` | Counter | `agent_id`, `model`, `direction` | Tokens consumed (running total) |
 | `aigent.cost.estimated` | Counter | `agent_id`, `model` | Estimated USD cost |
+| `aigent.tier.routing_decisions` | Counter | `tier` | Spec 38 tier-routing decisions (fast/standard/deep) — % of queries routed to Opus, from VictoriaMetrics without a LogQL hack (3 series) |
+| `aigent.tool.call_duration` | Histogram | `tool_name`, `status` | Per-MCP-tool latency + success/error/timeout (which tool is slow/broken; tool_name bounded by the read-only allowlist) |
+| `aigent.guardrail.blocks` | Counter | `source`, `agent_id` | Guardrail blocks/redactions by source (INPUT/OUTPUT) — safety signal without LogQL |
+| `aigent.bedrock.throttles` | Counter | `model` | Bedrock ThrottlingException/429 — LLM provider saturation |
+| `aigent.context.trimmed_messages` | Counter | `agent_id` | Spec 40 context-trim events (how often trimming fires = context pressure) |
+| `aigent.tier.classifier_confidence` | Histogram | `tier` | Classifier confidence at the tier-routing decision (low = misroute risk) |
 | `aigent.collect.duration` | Histogram | `agent_id` | Datasource collection latency (adapter fan-out, ms) |
 | `aigent.llm.duration` | Histogram | `agent_id` | Bedrock round-trip latency (ms, excludes retry backoff) |
 | `aigent.prompt.size_tokens` | Histogram | `agent_id` | Input-token distribution per call (detect prompt bloat; p50/p95) |
@@ -80,6 +86,8 @@ will read as sparse/absent unless someone has run an eval recently.
 |--------|------|--------|-------------|
 | `aigent.quality.violations` | Counter | `agent_id`, `category` | Structural quality defects blocked (`ResponseQualityGuard`) — tool-scaffolding leaks (`tool_scaffolding`), raw adapter/infra error text (`raw_adapter_error`, `raw_traceback`, `raw_botocore_exception`, `raw_boto3_error_string`, `raw_taskgroup_exception`), and ungrounded resource IDs (`ungrounded_resource_id` — an instance/volume/SG/ARN stated in the response that isn't anywhere in the collected `infra_data`, added 2026-07-15 for the groundedness dimension, PR-05). The F-001/F-002/F-003 defect classes, now a metric instead of a manual discovery. |
 | `aigent.quality.ungrounded_numeric_claims` | Counter | `agent_id` | A dollar-amount claim in the response with no match in `infra_data` — signal only, NEVER blocking (unlike resource IDs, a claim can be a legitimate derived sum/average; hard-blocking risked denying correct arithmetic). Groundedness dimension, PR-05, 2026-07-15. |
+| `aigent.quality.confidence` | Counter | `level` | Structured confidence derived from the groundedness scan (spec 41, B-16 Phase-2): `high` (0 ungrounded numeric claims), `medium` (1–2), `low` (≥3) — counted on **distinct** claims, not regex matches. One increment per assessed response. Bounded at 3 series. Emitted only when `response_quality_enabled` is on; the whole path is a no-op when off. |
+| `aigent.quality.unverified_claims_per_response` | Histogram | `agent_id` | Distribution of **distinct** ungrounded numeric claims per response (deduped, capped at 20). Spec 41. Pairs with `aigent.quality.confidence`: the counter says *how bad*, this says *how many*. Resource IDs never reach this metric — they block in the earlier guardrail phase. Uses **default SDK bucket boundaries** (coarse for a 0–20 range): explicit boundaries would need a View in the `otel_helper` MeterProvider, which this repo does not own. |
 | `aigent.eval.score` | Histogram | `suite`, `agent_id` | Per-question/scenario score (0-1). `suite="golden"` from `make eval`'s golden-set + LLM-judge run (mechanical checks are the floor — a failure zeroes the score regardless of judge opinion). `suite="rca"` from `make eval-rca`'s fixture-fed scenarios (spec 35 Phase 3, mechanical-only: root-cause keyword match + confidence floor, no judge); `agent_id` holds the scenario id (e.g. `deploy-regression`) for this suite, not an agent name. |
 
 ## Knowledge Base (spec 21)

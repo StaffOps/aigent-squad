@@ -73,9 +73,10 @@ class TestGetPricing:
 
     def test_opus_pricing(self):
         from src.core.model_tier import get_pricing
-        p = get_pricing("us.anthropic.claude-opus-4-20250514-v1:0")
-        assert p.input_per_1m == 15.00
-        assert p.output_per_1m == 75.00
+        p = get_pricing("us.anthropic.claude-opus-4-5-20251101-v1:0")
+        assert p.input_per_1m == 5.00
+        assert p.output_per_1m == 25.00
+        assert p.cache_read_per_1m == 0.50
 
     def test_unknown_family_defaults_to_sonnet(self):
         from src.core.model_tier import get_pricing

@@ -75,12 +75,21 @@ def _make_adapter(name="test-mcp", tools=None):
 
 class TestBenignToolResultNotBlocked:
     """A benign query whose TOOL RESULT contains K8s data that would trip
-    Bedrock's PII/attack guardrail — but the loop completes because
-    intermediate turns skip Bedrock guardrailConfig."""
+    Bedrock's PII/attack guardrail — but the loop completes because the loop
+    never wires Bedrock's server-side converse guardrail.
+
+    Post-G-6 contract: `apply_bedrock_guardrail=False` on EVERY turn, not just
+    intermediate ones. The server-side guardrail was dropped because it is
+    redundant (input is guarded once at ingress) and it false-positived on the
+    agent's framed user turn. The security property those assertions used to
+    protect now lives in tests/test_g6_ingress_guard.py
+    (TestIngressGuardFailClosed blocks injection at ingress;
+    TestDownstreamGuardrailsUnchanged proves OUTPUT + tool-args/result guards
+    still fire)."""
 
     @pytest.mark.asyncio
     async def test_intermediate_turn_skips_bedrock_guardrail(self):
-        """Step > 0 passes apply_bedrock_guardrail=False to converse()."""
+        """Every turn passes apply_bedrock_guardrail=False to converse() (G-6)."""
         adapter = _make_adapter()
         # Tool returns K8s data with IPs that Bedrock guardrail would flag
         adapter.call_tool = AsyncMock(return_value=(
@@ -95,7 +104,7 @@ class TestBenignToolResultNotBlocked:
                 _final_answer_response("There are 2 pods running."),
             ])
 
-            result = await run_agentic_loop(
+            result, _messages = await run_agentic_loop(
                 query="List pods in default namespace",
                 system_prompt="You are a K8s assistant.",
                 history_text="",
@@ -108,14 +117,15 @@ class TestBenignToolResultNotBlocked:
         assert result == "There are 2 pods running."
         assert mock_bedrock.converse.call_count == 2
 
-        # CRITICAL: verify apply_bedrock_guardrail flag per call
+        # CRITICAL: the loop must never wire Bedrock's server-side guardrail —
+        # not even on turn 0 (G-6: redundant + false-positived on the framed turn).
         calls = mock_bedrock.converse.call_args_list
-        assert calls[0].kwargs.get("apply_bedrock_guardrail") is True
+        assert calls[0].kwargs.get("apply_bedrock_guardrail") is False
         assert calls[1].kwargs.get("apply_bedrock_guardrail") is False
 
     @pytest.mark.asyncio
     async def test_multi_step_all_intermediate_turns_guardrail_off(self):
-        """With 3 tool turns, only step 0 has apply_bedrock_guardrail=True."""
+        """With 3 tool turns, NO turn has apply_bedrock_guardrail=True (G-6)."""
         adapter = _make_adapter()
         adapter.call_tool = AsyncMock(return_value="data with 10.0.0.1 IPs")
 
@@ -127,7 +137,7 @@ class TestBenignToolResultNotBlocked:
                 _final_answer_response("Final after 3 tools."),
             ])
 
-            result = await run_agentic_loop(
+            result, _messages = await run_agentic_loop(
                 query="List all pods",
                 system_prompt="K8s assistant.",
                 history_text="",
@@ -140,8 +150,7 @@ class TestBenignToolResultNotBlocked:
         assert result == "Final after 3 tools."
         calls = mock_bedrock.converse.call_args_list
         assert len(calls) == 4
-        assert calls[0].kwargs.get("apply_bedrock_guardrail") is True
-        for c in calls[1:]:
+        for c in calls:
             assert c.kwargs.get("apply_bedrock_guardrail") is False
 
 
@@ -282,7 +291,7 @@ class TestB3GuardrailsStillRun:
             mock_args_gr.return_value = True
             mock_result_gr.return_value = "pod-data"
 
-            result = await run_agentic_loop(
+            result, _messages = await run_agentic_loop(
                 query="List pods", system_prompt="K8s assistant.",
                 history_text="", mcp_adapters=[adapter],
                 agent_id="k8s", user_id="u1", session_id="s1",
@@ -416,7 +425,7 @@ class TestBudgetsAndFailOpenUnchanged:
                 return_value=_tool_use_response([{"id": "tu-x", "name": "get_pods", "input": {}}])
             )
 
-            result = await run_agentic_loop(
+            result, _messages = await run_agentic_loop(
                 query="infinite loop", system_prompt="test.",
                 history_text="", mcp_adapters=[adapter],
                 agent_id="k8s", user_id="u1", session_id="s1",
@@ -439,7 +448,7 @@ class TestBudgetsAndFailOpenUnchanged:
                 _final_answer_response("I couldn't fetch pods due to an error."),
             ])
 
-            result = await run_agentic_loop(
+            result, _messages = await run_agentic_loop(
                 query="List pods", system_prompt="K8s assistant.",
                 history_text="", mcp_adapters=[adapter],
                 agent_id="k8s", user_id="u1", session_id="s1",
@@ -456,11 +465,12 @@ class TestBudgetsAndFailOpenUnchanged:
 
 
 class TestStreamingLoopSameBehavior:
-    """Streaming variant applies the same is_first_turn logic."""
+    """Streaming variant matches the non-streaming contract: never wires the
+    Bedrock server-side guardrail (G-6)."""
 
     @pytest.mark.asyncio
-    async def test_streaming_first_turn_on_subsequent_off(self):
-        """Streaming loop: step 0 → True, step 1+ → False."""
+    async def test_streaming_bedrock_guardrail_off_on_every_turn(self):
+        """Streaming loop: apply_bedrock_guardrail=False on all turns (G-6)."""
         from src.core.agentic_loop_streaming import run_agentic_loop_streaming, StepDone
 
         adapter = _make_adapter()
@@ -485,13 +495,13 @@ class TestStreamingLoopSameBehavior:
         assert any(isinstance(e, StepDone) for e in events)
         calls = mock_bedrock.converse.call_args_list
         assert len(calls) == 2
-        assert calls[0].kwargs.get("apply_bedrock_guardrail") is True
+        assert calls[0].kwargs.get("apply_bedrock_guardrail") is False
         assert calls[1].kwargs.get("apply_bedrock_guardrail") is False
 
     @pytest.mark.asyncio
-    async def test_streaming_multi_step_all_intermediate_off(self):
+    async def test_streaming_multi_step_all_turns_off(self):
         """With 3 tool turns in streaming, only step 0 has guardrail=True."""
-        from src.core.agentic_loop_streaming import run_agentic_loop_streaming, StepDone
+        from src.core.agentic_loop_streaming import run_agentic_loop_streaming
 
         adapter = _make_adapter()
         adapter.call_tool = AsyncMock(return_value="data")
@@ -516,6 +526,5 @@ class TestStreamingLoopSameBehavior:
 
         calls = mock_bedrock.converse.call_args_list
         assert len(calls) == 4
-        assert calls[0].kwargs.get("apply_bedrock_guardrail") is True
-        for c in calls[1:]:
+        for c in calls:
             assert c.kwargs.get("apply_bedrock_guardrail") is False

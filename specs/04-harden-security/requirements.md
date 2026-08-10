@@ -10,32 +10,32 @@ deferred: []
 # Feature: Harden Security
 
 **Spec**: `04-harden-security`
-**Severidade**: 🟠 High
-**Achados**: S1, S2, S3, S4, S5 (ver `../AUDIT.md`)
+**Severity**: 🟠 High
+**Findings**: S1, S2, S3, S4, S5 (see `../AUDIT.md`)
 
-Aplicar segurança por padrão aos serviços, alinhado a `cloud-security.md`, `k8s-best-practices.md` e `12-factor-app.md`. Hoje os endpoints são abertos, containers rodam como root e o Redis não tem auth.
+Apply security by default to the services, aligned with `cloud-security.md`, `k8s-best-practices.md` and `12-factor-app.md`. Today the endpoints are open, containers run as root, and Redis has no auth.
 
 ## User Stories
 
-WHEN um cliente chama qualquer endpoint `/process` ou `/query` THEN o serviço SHALL exigir autenticação (token compartilhado em dev; mTLS/NetworkPolicy em prod).
+WHEN a client calls any `/process` or `/query` endpoint THEN the service SHALL require authentication (shared token in dev; mTLS/NetworkPolicy in prod).
 
-WHEN um container do squad sobe THEN ele SHALL rodar como usuário não-root com filesystem read-only e capabilities dropadas.
+WHEN a squad container starts THEN it SHALL run as a non-root user with read-only filesystem and dropped capabilities.
 
-WHEN o sistema roda em produção THEN o acesso à AWS SHALL usar IRSA (não credenciais montadas), e o Redis SHALL ter auth + TLS.
+WHEN the system runs in production THEN AWS access SHALL use IRSA (not mounted credentials), and Redis SHALL have auth + TLS.
 
-WHEN dados não-confiáveis (input do usuário, saídas de GitLab/docs/inventory) entram no prompt THEN eles SHALL ser delimitados para reduzir prompt injection.
+WHEN untrusted data (user input, GitLab/docs/inventory outputs) enters the prompt THEN they SHALL be delimited to reduce prompt injection.
 
 ## Acceptance Criteria
 
-- [ ] Endpoints internos exigem header de auth (`X-Internal-Token`) validado por env compartilhada; ausência → 401.
-- [ ] MCP server e supervisor validam o token antes de rotear.
-- [ ] Dockerfiles definem `USER` não-root; manifests/compose definem `securityContext` (runAsNonRoot, readOnlyRootFilesystem, drop ALL) onde aplicável.
-- [ ] `docker-compose` documenta/define Redis com password; `REDIS_SSL` configurável.
-- [ ] Documentado em `docs/` que prod usa IRSA + External Secrets (sem `~/.aws` montado).
-- [ ] Prompts montam dados não-confiáveis dentro de delimitadores claros (ex.: blocos `<untrusted_data>`).
-- [ ] NetworkPolicy de exemplo (ou nota no design) restringindo quem chama os agentes.
+- [ ] Internal endpoints require an auth header (`X-Internal-Token`) validated by shared env; absence → 401.
+- [ ] MCP server and supervisor validate the token before routing.
+- [ ] Dockerfiles define a non-root `USER`; manifests/compose define `securityContext` (runAsNonRoot, readOnlyRootFilesystem, drop ALL) where applicable.
+- [ ] `docker-compose` documents/defines Redis with password; `REDIS_SSL` configurable.
+- [ ] Documented in `docs/` that prod uses IRSA + External Secrets (without `~/.aws` mounted).
+- [ ] Prompts place untrusted data inside clear delimiters (e.g.: `<untrusted_data>` blocks).
+- [ ] Example NetworkPolicy (or note in design) restricting who calls the agents.
 
-## Fora de escopo
+## Out of scope
 
-- Implementar Istio Ambient/mTLS no cluster (depende de infra externa) — documentar como alvo de prod, entregar token compartilhado para dev/local.
-- Kyverno policies (referência ao steering; não implementar aqui).
+- Implement Istio Ambient/mTLS in the cluster (depends on external infra) — document as prod target, deliver shared token for dev/local.
+- Kyverno policies (reference to steering; not implemented here).

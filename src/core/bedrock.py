@@ -10,6 +10,7 @@ from src.core.config import settings
 from src.core.logger import logger
 from src.core.metrics import (
     token_counter, estimated_cost, llm_duration, prompt_size_tokens,
+    bedrock_throttles,
 )
 from src.core.model_tier import resolve_model, compute_cost
 from src.core.token_budget import budget_tracker
@@ -207,7 +208,7 @@ class BedrockClient:
                 llm_duration.record(llm_elapsed_ms, {"agent_id": agent_id})
                 prompt_size_tokens.record(input_tokens, {"agent_id": agent_id})
 
-                response_text = result['content'][0]['text']
+                response_text: str = result['content'][0]['text']
 
                 # Layer 1 (OUTPUT) — evaluate the model response before it
                 # reaches the user (grounding / PII / denied content). Fail-closed.
@@ -244,6 +245,9 @@ class BedrockClient:
                 })
 
                 if error_code in ['ThrottlingException', 'ServiceUnavailableException', 'InternalServerException']:
+                    # ADD (c): count EVERY throttle (incl. the final one before exhaustion) per model
+                    if error_code == 'ThrottlingException':
+                        bedrock_throttles.add(1, {"model": model_id})
                     if attempt < self.max_retries - 1:
                         delay = self.base_delay * (2 ** attempt) + random.uniform(0, 1)
                         logger.info(f"Retrying in {delay:.2f}s", extra={"delay": delay})
@@ -347,7 +351,7 @@ class BedrockClient:
         uses the Bedrock **Converse API** which natively supports tool-use
         (toolConfig / toolUse / toolResult). It is a full engine with its own
         retry loop, response parser, per-call token accounting, guardrail
-        integration, and budget tracking (spec 37, Decisão 6 — round-table B6).
+        integration, and budget tracking (spec 37, Decision 6 — round-table B6).
 
         When ``apply_bedrock_guardrail`` is True (default), the Bedrock
         guardrailConfig is wired so Bedrock evaluates the turn server-side.
@@ -553,6 +557,9 @@ class BedrockClient:
                 })
 
                 if error_code in ['ThrottlingException', 'ServiceUnavailableException', 'InternalServerException']:
+                    # ADD (c): count EVERY throttle (incl. the final one before exhaustion) per model
+                    if error_code == 'ThrottlingException':
+                        bedrock_throttles.add(1, {"model": model_id})
                     if attempt < self.max_retries - 1:
                         delay = self.base_delay * (2 ** attempt) + random.uniform(0, 1)
                         logger.info(f"Converse retrying in {delay:.2f}s", extra={"delay": delay})

@@ -7,7 +7,8 @@ from src.core.classifier import Classifier, ClassifierResult, AgentMatch
 from src.core.config import settings
 from src.core.guardrail import GuardrailBlockedError
 from src.core.input_scanner import InputScanner
-from src.core.model_tier import resolve_model_for_tier, validate_tier_models_at_startup
+from src.core.model_tier import resolve_model_for_tier
+from src.core.metrics import tier_routing_decisions, tier_classifier_confidence
 from src.core.state_store import storage, ConversationMessage
 from src.core.logger import logger, log_request, log_response, log_error
 from src.core.metrics import request_counter, error_counter, request_duration, fanout_calls, fanout_agents_consulted, fanout_agents_failed
@@ -49,6 +50,9 @@ def _resolve_tier_model(classification: ClassifierResult) -> str | None:
     else:
         tier = "standard"
 
+    tier_routing_decisions.add(1, {"tier": tier})
+    # ADD (e): record classifier confidence distribution per tier for drift detection
+    tier_classifier_confidence.record(confidence, {"tier": tier})
     model_id = resolve_model_for_tier(tier)
 
     logger.info("Tier routing resolved", extra={
@@ -173,10 +177,20 @@ class SupervisorAgent:
 
                 # Forced agent (OpenAI bridge per-agent model): bypass classifier.
                 if force_agent and force_agent in self.agents:
-                    direct = ClassifierResult(
-                        agents=[AgentMatch(agent=force_agent, confidence=1.0)],
-                        reasoning=f"forced to {force_agent}",
+                    # Spec 38: tier routing is orthogonal to agent selection —
+                    # apply even when the agent is forced.  Use heuristic
+                    # complexity (no LLM call) to keep the fast-path cheap.
+                    forced_match = AgentMatch(agent=force_agent, confidence=1.0)
+                    heuristic_cx = Classifier._heuristic_complexity(
+                        [forced_match], user_input
                     )
+                    direct = ClassifierResult(
+                        agents=[forced_match],
+                        reasoning=f"forced to {force_agent}",
+                        complexity=heuristic_cx,
+                    )
+                    tier_model_id = _resolve_tier_model(direct)
+
                     user_message = ConversationMessage(
                         role="user",
                         content=user_input,
@@ -185,17 +199,28 @@ class SupervisorAgent:
                     )
                     await storage.save_chat_message(user_id, session_id, force_agent, user_message)
                     return await self._single_agent_call(
-                        force_agent, direct, user_input, user_id, session_id, start_time
+                        force_agent, direct, user_input, user_id, session_id, start_time,
+                        model_id_override=tier_model_id,
                     )
 
                 # 0. Check if this warrants RCA investigation
                 force_investigate = mode == "investigate"
                 if should_investigate(user_input, force=force_investigate):
+                    # Spec 38: investigation queries are inherently complex
+                    # (multi-agent RCA fan-out). Route to deep tier when enabled.
+                    inv_cr = ClassifierResult(
+                        agents=[AgentMatch(agent="investigation", confidence=0.9)],
+                        reasoning="investigation mode",
+                        complexity="complex",
+                    )
+                    inv_tier_model_id = _resolve_tier_model(inv_cr)
+
                     rca = await run_investigation(
                         symptom=user_input,
                         agents=self.agents,
                         user_id=user_id,
                         session_id=session_id,
+                        model_id_override=inv_tier_model_id,
                     )
                     asyncio.create_task(distill_rca(rca))
                     duration_ms = (time.time() - start_time) * 1000
@@ -312,7 +337,7 @@ class SupervisorAgent:
           - Token budget exceeded
           - Unknown/unclassifiable input
         """
-        from src.core.agentic_loop_streaming import StepRouting, run_agentic_loop_streaming
+        from src.core.agentic_loop_streaming import StepRouting
 
         start_time = time.time()
 
@@ -354,6 +379,19 @@ class SupervisorAgent:
                 if not agent.has_agentic_tools():
                     return None  # legacy non-agentic agent → fall back
 
+                # Spec 38: tier routing is orthogonal to agent selection.
+                # Use heuristic complexity (no LLM call) for the fast path.
+                forced_match = AgentMatch(agent=force_agent, confidence=1.0)
+                heuristic_cx = Classifier._heuristic_complexity(
+                    [forced_match], user_input
+                )
+                forced_cr = ClassifierResult(
+                    agents=[forced_match],
+                    reasoning=f"forced to {force_agent}",
+                    complexity=heuristic_cx,
+                )
+                tier_model_id = _resolve_tier_model(forced_cr)
+
                 # Save user message
                 user_message = ConversationMessage(
                     role="user",
@@ -369,8 +407,20 @@ class SupervisorAgent:
                     user_id=user_id,
                     session_id=session_id,
                     chat_history=await storage.fetch_chat(user_id, session_id, force_agent),
+                    model_id_override=tier_model_id,
                 )
-                return step_gen
+
+                # FIX 1 (streaming undercount): wrap generator to emit RED
+                # metrics after the stream is fully consumed.
+                async def _forced_stream():
+                    try:
+                        async for event in step_gen:
+                            yield event
+                    finally:
+                        # Emit RED metrics on completion OR early close (disconnect/timeout)
+                        self._record_metrics(force_agent, "", user_id, session_id, start_time)
+
+                return _forced_stream()
 
             # ------------------------------------------------------------------
             # Path B: Auto-route (G-4) — classify and stream if single agentic
@@ -442,15 +492,24 @@ class SupervisorAgent:
             )
 
             async def _routed_stream():
-                """Yield a routing step, then proxy all agent loop steps."""
-                yield StepRouting(
-                    agent=resolved_name,
-                    confidence=agents[0].confidence,
-                    reasoning=classification.reasoning or "",
-                    sub_query=agents[0].sub_query or "",
-                )
-                async for event in agent_step_gen:
-                    yield event
+                """Yield a routing step, then proxy all agent loop steps.
+
+                FIX 1 (streaming undercount): emit request_counter +
+                request_duration once the stream completes, so streaming
+                requests are counted identically to non-streaming ones.
+                """
+                try:
+                    yield StepRouting(
+                        agent=resolved_name,
+                        confidence=agents[0].confidence,
+                        reasoning=classification.reasoning or "",
+                        sub_query=agents[0].sub_query or "",
+                    )
+                    async for event in agent_step_gen:
+                        yield event
+                finally:
+                    # Emit RED metrics on completion OR early close (client disconnect / timeout)
+                    self._record_metrics(resolved_name, "", user_id, session_id, start_time)
 
             return _routed_stream()
 
@@ -500,12 +559,16 @@ class SupervisorAgent:
         self._record_metrics(agent_name, response_text, user_id, session_id, start_time)
         await self._save_assistant_message(user_id, session_id, agent_name, response_text)
 
-        return {
+        result_dict = {
             "agent": agent_name,
             "response": response_text,
             "confidence": classification.confidence,
             "reasoning": classification.reasoning
         }
+        # Spec 41: thread quality assessment through to openai_compat
+        if result.quality_assessment is not None:
+            result_dict["quality_assessment"] = result.quality_assessment
+        return result_dict
 
     async def _fan_out(
         self, agents, classification: ClassifierResult,
@@ -548,7 +611,7 @@ class SupervisorAgent:
                     })
                     error_counter.add(1, {"agent_id": a.agent, "error_type": "fan_out"})
                 else:
-                    ok.append((a.agent, r.content))
+                    ok.append((a.agent, r.content))  # type: ignore[union-attr]  # narrowed by isinstance+continue above
 
             final_response = await synthesizer.synthesize(
                 user_input, ok, failed, user_id=user_id, session_id=session_id,
@@ -598,7 +661,7 @@ class SupervisorAgent:
 registry = AgentRegistry()
 registry.discover()
 
-# HC5: Fail loud at startup if tier model IDs are misconfigured.
-validate_tier_models_at_startup()
+# HC5 tier-model validation moved to the FastAPI lifespan (server.py) so it runs
+# once at app boot, not as an import side-effect (spec 38 FU-B).
 
 supervisor = SupervisorAgent(registry)

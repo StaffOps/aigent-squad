@@ -5,27 +5,27 @@ keywords: [root-cause-analysis, root, cause, analysis, "root cause", "cause anal
 ---
 # Root Cause Analysis
 
-Técnicas e patterns para investigação de incidentes em sistemas distribuídos cloud-native.
+Techniques and patterns for incident investigation in cloud-native distributed systems.
 
 ---
 
-## Técnicas de RCA
+## RCA Techniques
 
-### 5 Whys (adaptado para sistemas distribuídos)
+### 5 Whys (adapted for distributed systems)
 
 ```
-Sintoma: Service X retorna 500
-  Why 1: Pod X está crashloopando
-  Why 2: OOMKilled (excedeu memory limit)
-  Why 3: Heap cresce indefinidamente após deploy Y
-  Why 4: Deploy Y introduziu cache sem eviction
-  Why 5: PR review não pegou ausência de TTL no cache → PROCESS GAP
+Symptom: Service X returns 500
+  Why 1: Pod X is crashlooping
+  Why 2: OOMKilled (exceeded memory limit)
+  Why 3: Heap grows indefinitely after deploy Y
+  Why 4: Deploy Y introduced cache without eviction
+  Why 5: PR review did not catch absence of TTL in cache → PROCESS GAP
   
-Root Cause: Cache sem eviction policy (técnica)
-Systemic Cause: Review checklist não inclui "memory behavior de cache" (processo)
+Root Cause: Cache without eviction policy (technical)
+Systemic Cause: Review checklist does not include "cache memory behavior" (process)
 ```
 
-Sempre buscar a **causa sistêmica** além da técnica — o que impediria recorrência.
+Always seek the **systemic cause** beyond the technical one — what would prevent recurrence.
 
 ### Fault Tree Analysis
 
@@ -41,70 +41,70 @@ Sempre buscar a **causa sistêmica** além da técnica — o que impediria recor
   [Cache no TTL] [Lock ordering]  [ndots:5 + large cluster]
 ```
 
-Útil quando o sintoma pode ter múltiplas causas. Trabalhar cada branch até confirmar ou eliminar.
+Useful when the symptom can have multiple causes. Work each branch until confirmed or eliminated.
 
-### Método da Eliminação
+### Elimination Method
 
 ```
-Possíveis causas: [A, B, C, D, E]
+Possible causes: [A, B, C, D, E]
 
-Teste 1: Se A fosse causa, veríamos X. X presente? → NÃO → eliminar A
-Teste 2: Se B fosse causa, veríamos Y. Y presente? → SIM → B é candidato
-Teste 3: Se C fosse causa, veríamos Z. Z presente? → NÃO → eliminar C
-Teste 4: Se D fosse causa, veríamos W. W presente? → SIM → D é candidato
-Teste 5: B e D podem coexistir? → NÃO → um refuta o outro → teste decisivo
+Test 1: If A were the cause, we'd see X. X present? → NO → eliminate A
+Test 2: If B were the cause, we'd see Y. Y present? → YES → B is a candidate
+Test 3: If C were the cause, we'd see Z. Z present? → NO → eliminate C
+Test 4: If D were the cause, we'd see W. W present? → YES → D is a candidate
+Test 5: Can B and D coexist? → NO → one refutes the other → decisive test
 
-Resultado: B confirmado, D refutado pelo teste 5
+Result: B confirmed, D refuted by test 5
 ```
 
 ---
 
-## Correlação Cross-Signal
+## Cross-Signal Correlation
 
-### Matriz de sinais para problemas comuns
+### Signal matrix for common problems
 
-| Problema | Métrica | Log | Trace | Event | Deploy |
+| Problem | Metric | Log | Trace | Event | Deploy |
 |----------|---------|-----|-------|-------|--------|
-| Memory leak | `container_memory_working_set_bytes` crescente | OOMKill | Latência crescente (GC) | Pod restart | Sim (introduziu leak) |
-| Connection leak | Connections open crescente, pool exhausted | "connection pool exhausted" | Timeout no DB call | — | Sim (mudou pool config) |
-| DNS issue | Request duration spike | "lookup: i/o timeout" | Gaps entre spans | — | Não (infra) |
-| Certificate expiry | — | "x509: certificate has expired" | TLS handshake fail | — | Não (cert rotation) |
+| Memory leak | `container_memory_working_set_bytes` growing | OOMKill | Increasing latency (GC) | Pod restart | Yes (introduced leak) |
+| Connection leak | Open connections growing, pool exhausted | "connection pool exhausted" | Timeout on DB call | — | Yes (changed pool config) |
+| DNS issue | Request duration spike | "lookup: i/o timeout" | Gaps between spans | — | No (infra) |
+| Certificate expiry | — | "x509: certificate has expired" | TLS handshake fail | — | No (cert rotation) |
 | Resource starvation | CPU throttle, pending pods | — | — | FailedScheduling | Scaling event |
 | Cascading failure | Multiple services error_rate up | Circuit breaker open | Cross-service error propagation | — | Single service deploy |
 
-### Padrão de validação: 3 sinais concordam
+### Validation pattern: 3 signals agree
 
 ```
-VÁLIDO (3 sinais concordam):
-  Métrica: error_rate up at 14:03 ✅
+VALID (3 signals agree):
+  Metric: error_rate up at 14:03 ✅
   Log: first error at 14:03:12 ✅  
   Deploy: rollout finished at 14:02:58 ✅
-  → Forte correlação causal
+  → Strong causal correlation
 
-INVÁLIDO (sinais discordam):
-  Métrica: error_rate up at 14:03
-  Log: first error at 13:45 (18 min ANTES!)
-  Deploy: nenhum no período
-  → Correlação com deploy REFUTADA — buscar outra causa
+INVALID (signals disagree):
+  Metric: error_rate up at 14:03
+  Log: first error at 13:45 (18 min BEFORE!)
+  Deploy: none in the period
+  → Correlation with deploy REFUTED — seek another cause
 ```
 
 ---
 
 ## Timeline Construction
 
-### Fontes para construir timeline
+### Sources for building a timeline
 
-| Fonte | Comando/Query | Granularidade |
-|-------|---------------|---------------|
-| K8s events | `kubectl get events --sort-by=.lastTimestamp` | segundo |
+| Source | Command/Query | Granularity |
+|--------|---------------|-------------|
+| K8s events | `kubectl get events --sort-by=.lastTimestamp` | second |
 | Pod restarts | `kubectl get pods -o json \| jq '.items[].status.containerStatuses[].restartCount'` | — |
-| ArgoCD syncs | ArgoCD UI / `argocd app history <app>` | minuto |
-| Alertmanager | `/api/v2/alerts?active=true` | segundo |
-| VictoriaMetrics | `changes(metric[5m])` para detectar step changes | 15s-1min |
-| Loki | `{namespace="X"} \| level="error" \| first_over_time` | segundo |
+| ArgoCD syncs | ArgoCD UI / `argocd app history <app>` | minute |
+| Alertmanager | `/api/v2/alerts?active=true` | second |
+| VictoriaMetrics | `changes(metric[5m])` to detect step changes | 15s-1min |
+| Loki | `{namespace="X"} \| level="error" \| first_over_time` | second |
 | Git | `git log --since="2h ago" --oneline` | commit |
 
-### Formato de timeline
+### Timeline format
 
 ```
 [2026-06-01 14:00:00] BASELINE: all metrics normal
@@ -120,44 +120,44 @@ INVÁLIDO (sinais discordam):
 
 ---
 
-## Failure Patterns em K8s/Cloud-Native
+## Failure Patterns in K8s/Cloud-Native
 
 ### Pattern 1: Deploy → Crash
 
 ```
-Sinal: CrashLoopBackOff após deploy
-Investigar: OOMKill? Liveness fail? Startup crash?
-  - OOM → verificar memory requests/limits vs uso real
-  - Liveness → verificar timeout, path, startup delay
-  - Crash → verificar logs do container (Previous: kubectl logs --previous)
+Signal: CrashLoopBackOff after deploy
+Investigate: OOMKill? Liveness fail? Startup crash?
+  - OOM → check memory requests/limits vs actual usage
+  - Liveness → check timeout, path, startup delay
+  - Crash → check container logs (Previous: kubectl logs --previous)
 ```
 
 ### Pattern 2: Cascading failure
 
 ```
-Sinal: Múltiplos serviços falhando simultaneamente
-Investigar: Qual falhou PRIMEIRO? (timeline)
-  - Upstream dependency (DB, cache, queue) degradou
-  - Circuit breakers não configurados → thundering herd
-  - Shared resource (node, network) saturou
+Signal: Multiple services failing simultaneously
+Investigate: Which failed FIRST? (timeline)
+  - Upstream dependency (DB, cache, queue) degraded
+  - Circuit breakers not configured → thundering herd
+  - Shared resource (node, network) saturated
 ```
 
 ### Pattern 3: Slow degradation
 
 ```
-Sinal: Latência cresce linearmente ao longo de horas/dias
-Investigar: Memory? Connections? Queue depth?
-  - Memory leak (sem GC ou cache sem eviction)
-  - Connection pool leak (connections abertas não devolvidas)
-  - Queue backlog crescendo (consumer < producer rate)
+Signal: Latency grows linearly over hours/days
+Investigate: Memory? Connections? Queue depth?
+  - Memory leak (no GC or cache without eviction)
+  - Connection pool leak (open connections not returned)
+  - Queue backlog growing (consumer < producer rate)
 ```
 
 ### Pattern 4: Intermittent failures
 
 ```
-Sinal: Erros esporádicos, não consistentes
-Investigar: Scheduling? DNS? Certs? Specific nodes?
-  - Problemas em nodes específicos (hardware, network)
+Signal: Sporadic errors, not consistent
+Investigate: Scheduling? DNS? Certs? Specific nodes?
+  - Problems on specific nodes (hardware, network)
   - DNS resolution flapping (CoreDNS saturation)
   - Certificate renewal window (valid on some pods, expired on others)
   - Race conditions (timing-dependent, hard to reproduce)
@@ -166,8 +166,8 @@ Investigar: Scheduling? DNS? Certs? Specific nodes?
 ### Pattern 5: "Nothing changed" failures
 
 ```
-Sinal: Falha sem deploy ou mudança visível
-Investigar: O que mudou que NÃO é deploy?
+Signal: Failure without deploy or visible change
+Investigate: What changed that is NOT a deploy?
   - Certificate expiry (automated rotation failed)
   - Secret rotation (External Secrets sync delay)
   - AWS service degradation (verify status page + CloudWatch)
@@ -179,24 +179,24 @@ Investigar: O que mudou que NÃO é deploy?
 
 ---
 
-## Validação Empírica
+## Empirical Validation
 
-### Testes de confirmação
+### Confirmation tests
 
-| Tipo | Como | Quando usar |
-|------|------|-------------|
-| **Rollback** | Reverter deploy, observar recuperação | Deploy-related issues |
-| **Reprodução** | Triggerar a mesma condição deliberadamente | Bugs lógicos, race conditions |
-| **Isolamento** | Desconectar componente suspeito, observar | Cascading failures |
-| **Canary** | Aplicar fix em 1 pod, comparar com restante | Validar fix sem blast radius |
-| **Contra-factual** | Comparar pod/node COM e SEM a condição | Environment-specific issues |
+| Type | How | When to use |
+|------|-----|-------------|
+| **Rollback** | Revert deploy, observe recovery | Deploy-related issues |
+| **Reproduction** | Deliberately trigger the same condition | Logic bugs, race conditions |
+| **Isolation** | Disconnect suspected component, observe | Cascading failures |
+| **Canary** | Apply fix to 1 pod, compare with remainder | Validate fix without blast radius |
+| **Counter-factual** | Compare pod/node WITH and WITHOUT the condition | Environment-specific issues |
 
-### Checklist antes de declarar "resolvido"
+### Checklist before declaring "resolved"
 
-- [ ] Sintoma parou? (não só diminuiu)
-- [ ] Métricas voltaram ao baseline?
-- [ ] Nenhum alerta ativo relacionado?
-- [ ] Fix faz sentido causal? (não coincidência)
-- [ ] Monitorado por período adequado (≥15min para issues intermitentes)?
-- [ ] Prevenção proposta? (alerta, teste, guardrail)
-- [ ] Investigação documentada? (timeline + evidências + conclusão)
+- [ ] Symptom stopped? (not just decreased)
+- [ ] Metrics returned to baseline?
+- [ ] No active related alerts?
+- [ ] Fix makes causal sense? (not coincidence)
+- [ ] Monitored for adequate period (≥15min for intermittent issues)?
+- [ ] Prevention proposed? (alert, test, guardrail)
+- [ ] Investigation documented? (timeline + evidence + conclusion)

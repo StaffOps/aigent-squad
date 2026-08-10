@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import json
 
-import pytest
 
 
 # ---------------------------------------------------------------------------
@@ -93,7 +92,7 @@ class TestCase1TextTableCounting:
         table = _build_kubectl_table(263)
         # Table is ~18KB, truncate to 8000
         result = _truncate_with_marker(table, 8000)
-        assert "~263 items total" in result
+        assert "263 items total" in result
         # The marker must be the first line
         first_line = result.splitlines()[0]
         assert "263" in first_line
@@ -107,9 +106,9 @@ class TestCase1TextTableCounting:
         table = _build_kubectl_table(263)
         result = _truncate_with_marker(table, 8000)
         # Must NOT contain "~38" anywhere
-        assert "~38 items" not in result
+        assert "38 items" not in result
         # Must contain "~263"
-        assert "~263 items" in result
+        assert "263 items" in result
 
     def test_count_items_wide_table_263_rows(self):
         """Wide tables (more columns) still count correctly."""
@@ -151,7 +150,7 @@ class TestCase2JsonArray:
 
         data = _build_json_array(263)
         result = _truncate_with_marker(data, 2000)
-        assert "~263 items total" in result
+        assert "263 items total" in result
 
 
 # ---------------------------------------------------------------------------
@@ -187,7 +186,7 @@ class TestCase3JsonObjectItems:
 
         data = _build_json_object_with_items(263)
         result = _truncate_with_marker(data, 2000)
-        assert "~263 items total" in result
+        assert "263 items total" in result
 
 
 # ---------------------------------------------------------------------------
@@ -226,7 +225,7 @@ class TestCase4SingleTruncationPath:
 
         result = _truncate_with_marker(table, 4000)
         # Marker must say 263, NOT the number of lines visible in first 4000 chars
-        assert "~263 items total" in result
+        assert "263 items total" in result
 
         # Prove visible count would be much smaller
         content = result.split("\n", 1)[1]  # content after marker
@@ -279,7 +278,7 @@ class TestCase5SharedCountHelper:
 
         # Marker
         marker_result = _truncate_with_marker(table, 8000)
-        assert "~263 items" in marker_result
+        assert "263 items" in marker_result
 
         # Summary
         summary = _summarize_tool_result("pods_list_in_namespace", table)
@@ -293,7 +292,7 @@ class TestCase5SharedCountHelper:
         data = _build_json_array(263)
 
         marker_result = _truncate_with_marker(data, 2000)
-        assert "~263 items" in marker_result
+        assert "263 items" in marker_result
 
         summary = _summarize_tool_result("list_resources", data)
         assert "263" in summary
@@ -306,7 +305,7 @@ class TestCase5SharedCountHelper:
         data = _build_json_object_with_items(263)
 
         marker_result = _truncate_with_marker(data, 2000)
-        assert "~263 items" in marker_result
+        assert "263 items" in marker_result
 
         summary = _summarize_tool_result("get_pods", data)
         assert "263" in summary
@@ -314,7 +313,6 @@ class TestCase5SharedCountHelper:
     def test_shared_helper_is_same_function(self):
         """Both modules import count_items from the same source."""
         # This is a structural test — confirms no copy-paste divergence
-        from src.core.truncation import count_items as canonical
 
         # Verify _truncate_with_marker uses it (import inside function)
         import src.core.agentic_loop as al_mod
@@ -449,7 +447,7 @@ class TestEdgeCases:
         table = _build_kubectl_table(100)
         result = _truncate_with_marker(table, 2000)
         first_line = result.splitlines()[0]
-        assert first_line == "[truncated: showing first 2000 chars of ~100 items total]"
+        assert first_line == "[truncated: showing first 2000 chars of 100 items total]"
 
     def test_truncate_fallback_when_count_undetermined(self):
         """When count_items returns None, marker falls back to char count."""

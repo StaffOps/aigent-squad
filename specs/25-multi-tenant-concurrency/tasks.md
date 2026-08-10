@@ -34,14 +34,14 @@
 - [ ] T18: Tests by separate agent (≥80% coverage) — circuit breaker distributed, session lock, rate limiter, semaphore
 - [ ] T19: Smoke test: run k6 basic scenario locally, verify p99<10s
 
-## Ordem sugerida
+## Suggested order
 
-T1 → T2 → T3 (lock no fluxo); T4/T5/T6/T7 (rate); T8/T9 (semaphore — pode em paralelo); T10–T13 (load); T14–T17 (docs); T18 (test gate); T19 (smoke).
+T1 → T2 → T3 (lock into the flow); T4/T5/T6/T7 (rate); T8/T9 (semaphore — can be in parallel); T10–T13 (load); T14–T17 (docs); T18 (test gate); T19 (smoke).
 
-## Notas
+## Notes
 
-- **Fail-open everywhere**: Redis caiu → CircuitBreaker em-memória, SessionLock no-op, RateLimiter permite.
-- **Não usar HSET/HGET** para circuit breaker — keys separadas com TTL próprio são mais simples.
-- **Estimativa de custo**: pessimista (assume max_output_tokens). False positives aceitos.
-- **Load test**: roda contra docker compose local primeiro; CI nightly contra ambiente HML.
-- **Spec 18 (RCA workflow)** pode ser feita ANTES desta — mas se a 18 explode em uso real, esta vira urgente.
+- **Fail-open everywhere**: Redis down → CircuitBreaker in-memory, SessionLock no-op, RateLimiter allows.
+- **Do not use HSET/HGET** for circuit breaker — separate keys with their own TTL are simpler.
+- **Cost estimate**: pessimistic (assumes max_output_tokens). False positives accepted.
+- **Load test**: runs against local docker compose first; CI nightly against HML environment.
+- **Spec 18 (RCA workflow)** can be done BEFORE this — but if 18 explodes in real usage, this becomes urgent.

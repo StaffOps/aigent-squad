@@ -1,40 +1,40 @@
 # Design: Unify Agent Architecture
 
-## Padrão de referência
+## Reference pattern
 
-`src/agents/aws/{agent.py,server.py}` + `src/core/agent_base.py`. Toda a unificação converge para ele.
+`src/agents/aws/{agent.py,server.py}` + `src/core/agent_base.py`. All unification converges to it.
 
-### Estrutura alvo de cada agente
+### Target structure for each agent
 
 ```
 src/agents/<name>/
 ├── agent.py     # class <Name>Agent(Agent): async process_request(...)
-├── server.py    # FastAPI fino: instancia o agent, expõe /process e /health
+├── server.py    # Thin FastAPI: instantiates the agent, exposes /process and /health
 ├── prompt.md
 └── Dockerfile
 ```
 
-### `agent.py` (contrato)
+### `agent.py` (contract)
 
 ```python
 class XAgent(Agent):
     def __init__(self):
         super().__init__(agent_id="x", name="X Agent", description="...")
         self.system_prompt = self._load_prompt()
-        # clients específicos (boto3, k8s, httpx...)
+        # specific clients (boto3, k8s, httpx...)
 
     async def process_request(self, input_text, user_id, session_id,
                               chat_history, additional_params=None) -> ConversationMessage:
-        # 1. valida input (não-vazio, <10000)
-        # 2. checa cache (key determinística — detalhe na spec 03)
-        # 3. coleta contexto específico (inventory/cluster/costs/docs/metrics)
-        # 4. monta prompt com _format_history(chat_history)
+        # 1. validate input (non-empty, <10000)
+        # 2. check cache (deterministic key — detail in spec 03)
+        # 3. collect domain-specific context (inventory/cluster/costs/docs/metrics)
+        # 4. build prompt with _format_history(chat_history)
         # 5. bedrock.invoke(...)
-        # 6. cacheia + retorna ConversationMessage(role,content,timestamp,agent_id)
-        # tracing + log_request/log_response/log_error em todos os passos
+        # 6. cache + return ConversationMessage(role,content,timestamp,agent_id)
+        # tracing + log_request/log_response/log_error at every step
 ```
 
-### `server.py` (padrão único — espelhar o do aws)
+### `server.py` (single pattern — mirror the aws one)
 
 ```python
 app = FastAPI(title="<X> Agent Service")
@@ -47,59 +47,59 @@ class ProcessRequest(BaseModel):
     chat_history: List[ChatMessage] = []
     additional_params: Optional[dict] = None
 
-@app.post("/process")  # retorna {role, content, timestamp, agent_id}
+@app.post("/process")  # returns {role, content, timestamp, agent_id}
 @app.get("/health")
 ```
 
-## Mudança por agente
+## Changes per agent
 
-| Agente | Ação |
-|--------|------|
-| aws | Referência. Sem mudança (exceto cache/obs em spec 03). |
-| kubernetes | `agent.py` já está correto. Reescrever `server.py` para usar `KubernetesAgent` de `agent.py` (hoje redefine). |
-| finops | `agent.py` (Athena+Kubecost+history) é o correto. Reescrever `server.py` para usá-lo. Mover init de RAG (`rag_client`) do server inline para o `agent.py`. |
-| devops | `agent.py` (usa `gitlab_client`+docs) é o correto. Reescrever `server.py` para usá-lo. |
-| observability | Criar `agent.py` (`ObservabilityAgent(Agent)`) com a lógica que hoje vive no server (metrics via `PROMETHEUS_URL`, anomalies). Server vira fino. |
+| Agent | Action |
+|-------|--------|
+| aws | Reference. No change (except cache/obs in spec 03). |
+| kubernetes | `agent.py` is already correct. Rewrite `server.py` to use `KubernetesAgent` from `agent.py` (currently redefines). |
+| finops | `agent.py` (Athena+Kubecost+history) is the correct one. Rewrite `server.py` to use it. Move RAG init (`rag_client`) from server inline to `agent.py`. |
+| devops | `agent.py` (uses `gitlab_client`+docs) is the correct one. Rewrite `server.py` to use it. |
+| observability | Create `agent.py` (`ObservabilityAgent(Agent)`) with the logic that currently lives in server (metrics via `PROMETHEUS_URL`, anomalies). Server becomes thin. |
 
-## Contrato de resposta
+## Response contract
 
-Padronizar em `{role, content, timestamp, agent_id}`. Depois disso, no supervisor:
+Standardize to `{role, content, timestamp, agent_id}`. After that, in the supervisor:
 
 ```python
-# antes
+# before
 response_text = agent_response.get("content", agent_response.get("response", ""))
-# depois
+# after
 response_text = agent_response["content"]
 ```
 
-## Invariantes
+## Invariants
 
-- `process_request` é a única porta de entrada lógica de cada agente.
-- Nenhuma lógica de negócio em `server.py` (só transporte HTTP + instrumentação).
-- `chat_history` sempre formatado via `_format_history` e incluído no contexto.
-- Read-only preservado (prompts inalterados).
+- `process_request` is the only logical entry point for each agent.
+- No business logic in `server.py` (only HTTP transport + instrumentation).
+- `chat_history` always formatted via `_format_history` and included in the context.
+- Read-only preserved (prompts unchanged).
 
-## Dependências externas
+## External dependencies
 
-| Serviço | Agente |
-|---------|--------|
-| Bedrock | todos |
+| Service | Agent |
+|---------|-------|
+| Bedrock | all |
 | EC2/CE (boto3) | aws, finops |
 | Athena (boto3) | finops |
 | Kubernetes API | kubernetes |
 | GitLab API + Docs Portal | devops |
 | Prometheus HTTP | observability |
 
-## Verificação
+## Verification
 
 ```bash
-# contrato: todos os /process retornam as 4 chaves
-# teste unitário com bedrock mockado validando ConversationMessage
+# contract: all /process return the 4 keys
+# unit test with mocked bedrock validating ConversationMessage
 docker run --rm -v $(pwd):/app -w /app python:3.11-slim \
   sh -c "pip install -q -r requirements.txt pytest && pytest tests/ -v"
 ```
 
-## Riscos
+## Risks
 
-- FinOps tem duas implementações divergentes; ao escolher o `agent.py`, validar que o RAG opcional (flag `rag_enabled`) continua funcionando.
-- Observability nunca teve `agent.py`; criar com paridade ao server atual antes de trocar.
+- FinOps has two divergent implementations; when choosing `agent.py`, validate that the optional RAG (flag `rag_enabled`) continues working.
+- Observability never had an `agent.py`; create with parity to the current server before switching.

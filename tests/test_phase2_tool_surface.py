@@ -16,7 +16,7 @@ import importlib
 import time
 from dataclasses import dataclass, field
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -640,19 +640,19 @@ class TestLoopBudgetDefaults:
 
     def test_default_max_tool_steps(self):
         from src.core.agent_config import MAX_TOOL_STEPS
-        assert MAX_TOOL_STEPS == 5
+        assert MAX_TOOL_STEPS == 8
 
     def test_default_max_loop_duration_ms(self):
         from src.core.agent_config import MAX_LOOP_DURATION_MS
-        assert MAX_LOOP_DURATION_MS == 15_000
+        assert MAX_LOOP_DURATION_MS == 120_000
 
     def test_default_max_loop_tokens(self):
         from src.core.agent_config import MAX_LOOP_TOKENS
-        assert MAX_LOOP_TOKENS == 50_000
+        assert MAX_LOOP_TOKENS == 300_000
 
     def test_default_max_tool_result_chars(self):
         from src.core.agent_config import MAX_TOOL_RESULT_CHARS
-        assert MAX_TOOL_RESULT_CHARS == 8000
+        assert MAX_TOOL_RESULT_CHARS == 40_000
 
     def test_all_are_positive_integers(self):
         from src.core.agent_config import (
@@ -698,7 +698,7 @@ class TestLoopBudgetEnvOverride:
         importlib.reload(ac)
 
         assert ac.MAX_TOOL_STEPS == 99
-        assert ac.MAX_LOOP_DURATION_MS == 15000  # default preserved
+        assert ac.MAX_LOOP_DURATION_MS == 120000  # default preserved
 
         monkeypatch.delenv("AIGENT_MAX_TOOL_STEPS")
         importlib.reload(ac)

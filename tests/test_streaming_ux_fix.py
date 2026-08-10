@@ -1,7 +1,6 @@
 """Verify the streaming UX fix: terse results, details wrapping, no counter leaks."""
 import asyncio
 import json
-import sys
 
 import pytest
 
@@ -77,9 +76,9 @@ async def test_details_wrapping():
                 full_content += c
 
     # Structure assertions
-    assert "<think>" in full_content, f"Missing <think>"
+    assert "<think>" in full_content, "Missing <think>"
     assert "🔧 Tool trace" in full_content
-    assert "</think>" in full_content, f"Missing </think>"
+    assert "</think>" in full_content, "Missing </think>"
     assert full_content.index("<think>") < full_content.index("🔧 query_metrics")
     assert full_content.index("</think>") < full_content.index("Here is the answer")
     # No raw JSON / chars leaked
@@ -98,8 +97,8 @@ async def test_no_counters_leaked():
     from src.supervisor.openai_compat import sse_stream_agentic
 
     graceful_msg = (
-        "⚠️ Não consegui concluir a investigação completa no tempo "
-        "disponível — segue o que consegui coletar:"
+        "⚠️ I could not complete the full investigation within the "
+        "available time — here is what I was able to collect:"
     )
 
     async def fake_budget_events():

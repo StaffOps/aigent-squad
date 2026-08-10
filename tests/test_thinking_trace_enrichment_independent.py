@@ -21,10 +21,8 @@ from __future__ import annotations
 
 import asyncio
 import json
-import re
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock, patch
 
-import pytest
 
 
 # ---------------------------------------------------------------------------
@@ -63,8 +61,7 @@ class TestNarrationSurfacing:
         was emitted from the narration text BEFORE tool execution.
         """
         from src.core.agentic_loop_streaming import (
-            run_agentic_loop_streaming, StepThinking, StepToolCall,
-            StepFinalChunk, StepDone, StepToolResult,
+            run_agentic_loop_streaming,
         )
 
         call_count = {"n": 0}

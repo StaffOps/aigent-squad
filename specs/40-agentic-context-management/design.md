@@ -32,19 +32,19 @@ call**. A deterministic `_summarize_tool_result(tool_name, result)` already exis
 
 **Choice**: rewrite older `toolResult` *content* to a summary; keep the turn/pairing.
 
-**Justificativa (ordem de força)**:
+**Rationale (in order of strength)**:
 1. Converse requires `tool_use` ↔ `toolResult` pairing — dropping a `toolResult`
    breaks the API contract. Summarizing content keeps the pairing valid.
 2. The result CONTENT is the token driver, not the turn count.
 3. Preserves the reasoning chain (model still sees it queried X → got <summary>).
 
-**Trade-offs aceitos**:
-| Custo | Realidade |
+**Accepted trade-offs**:
+| Cost | Reality |
 |-------|-----------|
 | Older detail is lossy | The model already used it to choose next steps; a summary suffices for final synthesis. Recent N kept verbatim. |
 | Summary quality varies | Deterministic (shape/first-line/count), NOT an LLM call — cheap + predictable, no extra latency/cost. |
 
-**Quando estaria errado (signals para reabrir)**: answers start missing facts that
+**When this would be wrong (signals to reopen)**: answers start missing facts that
 were in trimmed results (esp. RCA correlations) → raise N, enrich the summary, or
 promote to an LLM-based summarizer (Phase 2).
 

@@ -21,7 +21,6 @@ from src.core.agent_config import MAX_TOOL_RESULT_CHARS
 from src.core.agentic_loop import _truncate_with_marker
 from src.core.agentic_loop_streaming import (
     StepDone,
-    StepFinalChunk,
     StepToolCall,
     StepToolResult,
     run_agentic_loop_streaming,
@@ -85,10 +84,11 @@ _LOOP_KW = dict(
 
 
 def _k8s_items_json(n: int) -> str:
-    """Build a kube-mcp-style {"items": [...n...]} response exceeding 8000 chars."""
-    pods = [{"metadata": {"name": f"pod-{i:04d}", "namespace": "ns",
-             "uid": f"00000000-0000-0000-0000-{i:012d}"},
-             "status": {"phase": "Running"}} for i in range(n)]
+    """Build a kube-mcp-style {"items": [...n...]} response exceeding 40000 chars."""
+    pods = [{"metadata": {"name": f"pod-{i:04d}-aaaabbbbccccddddeeee", "namespace": "ns-production",
+             "uid": f"00000000-0000-0000-0000-{i:012d}",
+             "labels": {"app": f"service-{i:04d}", "version": "v1.2.3", "team": "platform"}},
+             "status": {"phase": "Running", "podIP": f"10.0.{i//256}.{i%256}"}} for i in range(n)]
     return json.dumps({"kind": "PodList", "apiVersion": "v1", "items": pods, "metadata": {"resourceVersion": "999"}})
 
 
@@ -476,6 +476,6 @@ class TestBudgetsAndFailOpen:
         # items is empty so it should NOT say "0 items total"
         assert "0 items total" not in result
 
-    def test_max_tool_result_chars_default_is_8000(self):
-        """Budget constant unchanged at 8000."""
-        assert MAX_TOOL_RESULT_CHARS == 8000
+    def test_max_tool_result_chars_default_is_40000(self):
+        """Budget constant at 40000 (spec 37 scale requirement)."""
+        assert MAX_TOOL_RESULT_CHARS == 40000

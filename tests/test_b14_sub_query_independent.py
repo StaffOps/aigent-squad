@@ -12,7 +12,6 @@ implementation details. Tests the 5 assertions:
 Mocks: bedrock/classifier LLM calls. No network, no real AWS.
 """
 import json
-import asyncio
 from unittest.mock import patch, MagicMock, AsyncMock
 from dataclasses import asdict, fields
 
@@ -449,7 +448,7 @@ class TestStreamingDispatchSubQuery:
             mg.apply = MagicMock()
             mg.enabled = True
 
-            gen = await sup.process_request_streaming(
+            await sup.process_request_streaming(
                 "como tá a latência?", "u1", "s1"
             )
 
@@ -497,7 +496,7 @@ class TestStreamingDispatchSubQuery:
             mg.apply = MagicMock()
             mg.enabled = True
 
-            gen = await sup.process_request_streaming(raw_input, "u1", "s1")
+            await sup.process_request_streaming(raw_input, "u1", "s1")
 
         call_kwargs = mock_agent.process_request_streaming.call_args[1]
         assert call_kwargs["input_text"] == raw_input

@@ -15,8 +15,7 @@ Mock strategy: the guardrail is mocked so that 'framing text' (containing
 manage/delete/execute verbs) WOULD block if scanned, but the genuine benign
 user question passes — proving the scope change.
 """
-import asyncio
-from unittest.mock import patch, MagicMock, AsyncMock, call
+from unittest.mock import patch, MagicMock, AsyncMock
 import pytest
 
 from src.core.guardrail import GuardrailBlockedError, GuardrailClient
@@ -217,7 +216,7 @@ class TestFramingNotBlocked:
 
             with patch("src.core.bedrock.resolve_model", return_value="test-model"), \
                  patch("src.core.bedrock.compute_cost", return_value=0.001):
-                result = client._invoke_sync(
+                client._invoke_sync(
                     messages=messages,
                     system_prompt=system_prompt,
                     skip_input_guardrail=True,
@@ -382,7 +381,7 @@ class TestPerStageSkipsInputScan:
         with patch.object(bedrock, "converse", side_effect=capture_converse):
             from src.core.agentic_loop import run_agentic_loop
 
-            result = await run_agentic_loop(
+            await run_agentic_loop(
                 query="quais namespaces existem?",
                 system_prompt="You are k8s agent. Execute commands, manage resources.",
                 history_text="",
@@ -558,7 +557,6 @@ class TestReadOnlyFailOpenIntact:
 
     def test_guardrail_disabled_passes_through(self):
         """When guardrail is disabled (local dev), no blocking occurs."""
-        from src.core.guardrail import GuardrailClient
 
         client = GuardrailClient()
         client.enabled = False
@@ -608,7 +606,7 @@ class TestReadOnlyFailOpenIntact:
             with patch("src.supervisor.agent.storage") as mock_storage:
                 mock_storage.fetch_all_chats = AsyncMock(return_value=[])
 
-                result = await agent.process_request(
+                await agent.process_request(
                     user_input="quais namespaces existem no cluster?",
                     user_id="u1",
                     session_id="s1",
@@ -639,7 +637,6 @@ class TestReadOnlyFailOpenIntact:
         """When guardrail is enabled but misconfigured (no ID), it still
         raises GuardrailBlockedError (fail-closed, not fail-open).
         """
-        from src.core.guardrail import GuardrailClient
 
         client = GuardrailClient()
         client.enabled = True

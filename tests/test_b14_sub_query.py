@@ -175,7 +175,7 @@ class TestDispatchSubQuery:
                 reasoning="time-bound obs query"
             )
 
-            result = await SupervisorAgent._single_agent_call(
+            await SupervisorAgent._single_agent_call(
                 sup, "observability", classification,
                 "como tá a latência?", "user1", "sess1", 0.0
             )
@@ -206,7 +206,7 @@ class TestDispatchSubQuery:
                 reasoning="follow-up"
             )
 
-            result = await SupervisorAgent._single_agent_call(
+            await SupervisorAgent._single_agent_call(
                 sup, "aws", classification,
                 "yes", "user1", "sess1", 0.0
             )
@@ -241,7 +241,7 @@ class TestDispatchSubQuery:
 
             classification = ClassifierResult(agents=agents_list, reasoning="cross-domain")
 
-            result = await SupervisorAgent._fan_out(
+            await SupervisorAgent._fan_out(
                 sup, agents_list, classification,
                 "por que o custo subiu?", "user1", "sess1", 0.0
             )
@@ -281,7 +281,7 @@ class TestDispatchSubQuery:
 
             classification = ClassifierResult(agents=agents_list, reasoning="cross-domain")
 
-            result = await SupervisorAgent._fan_out(
+            await SupervisorAgent._fan_out(
                 sup, agents_list, classification,
                 "raw question here", "user1", "sess1", 0.0
             )

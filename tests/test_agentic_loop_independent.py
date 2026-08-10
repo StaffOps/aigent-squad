@@ -17,20 +17,16 @@ Coverage targets:
 """
 import asyncio
 import time
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from src.core.agentic_loop import (
     _McpSessionPool,
-    _ToolRouter,
-    _error_tool_result,
-    _guardrail_tool_args,
-    _guardrail_tool_result,
     run_agentic_loop,
 )
 from src.core.adapters import McpAdapter
-from src.core.circuit_breaker import CircuitBreaker, CircuitState
+from src.core.circuit_breaker import CircuitState
 
 
 # ---------------------------------------------------------------------------
@@ -107,7 +103,7 @@ class TestContract1SingleToolCall:
                 _text_response("2 pods found: pod-a Running, pod-b CrashLoop."),
             ])
 
-            result = await run_agentic_loop(**_loop_kwargs([adapter]))
+            result, _messages = await run_agentic_loop(**_loop_kwargs([adapter]))
 
         # Final answer contains tool data
         assert "pod-a" in result
@@ -133,7 +129,7 @@ class TestContract1SingleToolCall:
                 _text_response("done"),
             ])
 
-            await run_agentic_loop(**_loop_kwargs([adapter]))
+            _result, _messages = await run_agentic_loop(**_loop_kwargs([adapter]))
 
         # Inspect the 2nd call's messages for the tool result
         second_call = mock_bed.converse.call_args_list[1]
@@ -181,7 +177,7 @@ class TestContract2MultiStepLoop:
                 _text_response("pod-x has 3 restarts with nginx:1.25"),
             ])
 
-            result = await run_agentic_loop(**_loop_kwargs([adapter]))
+            result, _messages = await run_agentic_loop(**_loop_kwargs([adapter]))
 
         assert "3 restarts" in result
         assert mock_bed.converse.call_count == 3
@@ -212,7 +208,7 @@ class TestContract3MaxStepsCap:
                 return_value=_tool_response([{"id": "t1", "name": "list_pods", "input": {}}])
             )
 
-            result = await run_agentic_loop(**_loop_kwargs([adapter]))
+            result, _messages = await run_agentic_loop(**_loop_kwargs([adapter]))
 
         # Must be degraded response (mentions budget/incomplete)
         lower = result.lower()
@@ -236,7 +232,7 @@ class TestContract3MaxStepsCap:
                 return_value=_tool_response([{"id": "t1", "name": "list_pods", "input": {}}])
             )
 
-            result = await run_agentic_loop(**_loop_kwargs([adapter]))
+            result, _messages = await run_agentic_loop(**_loop_kwargs([adapter]))
 
         assert result  # Non-empty
         assert mock_bed.converse.call_count == 1
@@ -269,7 +265,7 @@ class TestContract4BudgetEnforcement:
                                input_tokens=50, output_tokens=30),
             ])
 
-            result = await run_agentic_loop(**_loop_kwargs([adapter]))
+            result, _messages = await run_agentic_loop(**_loop_kwargs([adapter]))
 
         lower = result.lower()
         assert "budget" in lower or "incomplete" in lower or "token" in lower
@@ -291,7 +287,7 @@ class TestContract4BudgetEnforcement:
                 return_value=_tool_response([{"id": "t1", "name": "list_pods", "input": {}}])
             )
 
-            result = await run_agentic_loop(**_loop_kwargs([adapter]))
+            result, _messages = await run_agentic_loop(**_loop_kwargs([adapter]))
 
         lower = result.lower()
         assert "budget" in lower or "incomplete" in lower or "duration" in lower
@@ -323,7 +319,7 @@ class TestContract5GuardrailB3:
                 _text_response("I cannot access that resource."),
             ])
 
-            result = await run_agentic_loop(**_loop_kwargs([adapter]))
+            result, _messages = await run_agentic_loop(**_loop_kwargs([adapter]))
 
         # Tool must NOT have been called (args blocked pre-exec)
         adapter.call_tool.assert_not_awaited()
@@ -357,7 +353,7 @@ class TestContract5GuardrailB3:
                 _text_response("Content was redacted."),
             ])
 
-            await run_agentic_loop(**_loop_kwargs([adapter]))
+            _result, _messages = await run_agentic_loop(**_loop_kwargs([adapter]))
 
         # Verify: the text sent to the model is the REDACTED message, not truncated original
         second_msgs = mock_bed.converse.call_args_list[1][1]["messages"]
@@ -391,7 +387,7 @@ class TestContract5GuardrailB3:
                 _text_response("done"),
             ])
 
-            await run_agentic_loop(**_loop_kwargs([adapter]))
+            _result, _messages = await run_agentic_loop(**_loop_kwargs([adapter]))
 
         assert len(captured_args) == 1
         assert captured_args[0] == ("list_pods", {"ns": "kube-system"})
@@ -420,7 +416,7 @@ class TestContract6FailOpen:
                 _text_response("The tool is unavailable right now."),
             ])
 
-            result = await run_agentic_loop(**_loop_kwargs([adapter]))
+            result, _messages = await run_agentic_loop(**_loop_kwargs([adapter]))
 
         # Request still produces an answer (not a crash)
         assert result is not None
@@ -446,7 +442,7 @@ class TestContract6FailOpen:
                 _text_response("That tool is not available."),
             ])
 
-            result = await run_agentic_loop(**_loop_kwargs([adapter]))
+            result, _messages = await run_agentic_loop(**_loop_kwargs([adapter]))
 
         assert result is not None
         # Model received error result for the unknown tool
@@ -466,7 +462,7 @@ class TestContract6FailOpen:
                 return_value=_text_response("No tools available, but I can help.")
             )
 
-            result = await run_agentic_loop(**_loop_kwargs([adapter]))
+            result, _messages = await run_agentic_loop(**_loop_kwargs([adapter]))
 
         assert result is not None
         # converse called with no tool_config
@@ -508,7 +504,7 @@ class TestContract7B8MultiToolUse:
                 _text_response("Both tools returned data."),
             ])
 
-            result = await run_agentic_loop(**_loop_kwargs([adapter]))
+            result, _messages = await run_agentic_loop(**_loop_kwargs([adapter]))
 
         # Sequential: list_pods first, then get_pod
         assert order == ["list_pods", "get_pod"]
@@ -547,7 +543,7 @@ class TestContract7B8MultiToolUse:
                 _text_response("list_pods worked but get_pod timed out."),
             ])
 
-            result = await run_agentic_loop(**_loop_kwargs([adapter]))
+            result, _messages = await run_agentic_loop(**_loop_kwargs([adapter]))
 
         # Inspect the tool results sent to model
         second_msgs = mock_bed.converse.call_args_list[1][1]["messages"]
@@ -771,7 +767,7 @@ class TestContract9SR2CaseSensitivity:
             ])
 
             # The loop should NOT crash — it should produce an inline error
-            result = await run_agentic_loop(**_loop_kwargs([adapter]))
+            result, _messages = await run_agentic_loop(**_loop_kwargs([adapter]))
 
         assert result is not None
 
@@ -800,7 +796,7 @@ class TestEdgeCases:
                 "usage": {"input_tokens": 30, "output_tokens": 20},
             })
 
-            result = await run_agentic_loop(**_loop_kwargs([adapter]))
+            result, _messages = await run_agentic_loop(**_loop_kwargs([adapter]))
 
         assert "Actually" in result
 
@@ -823,7 +819,7 @@ class TestEdgeCases:
                 _text_response("done"),
             ])
 
-            await run_agentic_loop(**_loop_kwargs([adapter]))
+            _result, _messages = await run_agentic_loop(**_loop_kwargs([adapter]))
 
         # The framed result in messages should be <= 100 chars of payload + framing
         second_msgs = mock_bed.converse.call_args_list[1][1]["messages"]
@@ -851,7 +847,7 @@ class TestEdgeCases:
                 return_value=_text_response("direct answer")
             )
 
-            await run_agentic_loop(**_loop_kwargs([adapter1, adapter2]))
+            _result, _messages = await run_agentic_loop(**_loop_kwargs([adapter1, adapter2]))
 
         # tool_config should have both specs
         call_kwargs = mock_bed.converse.call_args[1]
@@ -871,7 +867,7 @@ class TestEdgeCases:
                 return_value=_text_response("no tools available")
             )
 
-            result = await run_agentic_loop(**_loop_kwargs([adapter]))
+            result, _messages = await run_agentic_loop(**_loop_kwargs([adapter]))
 
         call_kwargs = mock_bed.converse.call_args[1]
         assert call_kwargs.get("tool_config") is None

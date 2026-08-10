@@ -283,6 +283,7 @@ ROADMAP is plan-only from here.
 | 36-agent-native-dev-loop | done-with-deferrals | 2026-07-04 | deferred: T11 independent review (fresh-clone dry run + .claude contract) |
 | 37-agentic-tool-calling | done | 2026-07-20 |  |
 | 38-model-tier-escalation | done | 2026-07-22 | depends_on: 37-agentic-tool-calling |
-| 39-observability-rca-uplift | in-progress | — | depends_on: 37-agentic-tool-calling |
+| 39-observability-rca-uplift | done-with-deferrals | 2026-07-23 | deferred: T3.4 deterministic investigation.py path (Phase 2 — prompt-RCA validated live, trigger not met) |
 | 40-agentic-context-management | done | 2026-07-22 | depends_on: 37-agentic-tool-calling |
+| 41-calibrated-honesty-structured | done-with-deferrals | 2026-08-08 | deferred: T3 histogram bucket boundaries (default SDK buckets — explicit boundaries need a View in the otel_helper MeterProvider; not settable via opentelemetry-api 1.29.0 create_histogram) |
 <!-- specs-status:end -->

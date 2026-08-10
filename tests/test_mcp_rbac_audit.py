@@ -19,7 +19,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 from mcp_rbac_audit import (
     MUTATING_VERBS,
     READONLY_VERBS,
-    AuditViolation,
     RBACRule,
     audit_rules,
     parse_json_output,

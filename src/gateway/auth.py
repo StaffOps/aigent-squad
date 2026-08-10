@@ -28,23 +28,28 @@ from fastapi import Header, HTTPException
 
 logger = logging.getLogger(__name__)
 
-_EXPECTED_TOKEN = os.getenv("INTERNAL_API_TOKEN", "")
-_API_KEYS = {k.strip() for k in os.getenv("GATEWAY_API_KEYS", "").split(",") if k.strip()}
 
-# G-5: per-consumer key → default agent mapping.
-# Format: "key1=agent1,key2=agent2" (comma-separated pairs).
-# Keys in this map are ALSO implicitly valid API keys (they don't need to be
-# duplicated in GATEWAY_API_KEYS). The agent name is a routing default, not a
-# hard restriction.
-_KEY_AGENT_MAP: dict[str, str] = {}
-_raw_map = os.getenv("GATEWAY_KEY_AGENT_MAP", "")
-for _pair in _raw_map.split(","):
-    _pair = _pair.strip()
-    if "=" in _pair:
-        _k, _v = _pair.split("=", 1)
-        _k, _v = _k.strip(), _v.strip()
-        if _k and _v:
-            _KEY_AGENT_MAP[_k] = _v
+def _parse_key_agent_map() -> dict[str, str]:
+    """Parse GATEWAY_KEY_AGENT_MAP from env FRESH on each call.
+
+    Format: "key1=agent1,key2=agent2" (comma-separated pairs).
+    Keys in this map are ALSO implicitly valid API keys (they don't need to be
+    duplicated in GATEWAY_API_KEYS). The agent name is a routing default, not a
+    hard restriction.
+
+    Reading fresh removes the need for importlib.reload() in tests that change
+    the env var (F-012, F-016b).
+    """
+    result: dict[str, str] = {}
+    raw = os.getenv("GATEWAY_KEY_AGENT_MAP", "")
+    for pair in raw.split(","):
+        pair = pair.strip()
+        if "=" in pair:
+            k, v = pair.split("=", 1)
+            k, v = k.strip(), v.strip()
+            if k and v:
+                result[k] = v
+    return result
 
 
 @dataclass
@@ -60,8 +65,11 @@ class AuthResult:
 
 
 def get_key_agent_map() -> dict[str, str]:
-    """Expose the parsed key→agent map (for startup validation)."""
-    return dict(_KEY_AGENT_MAP)
+    """Expose the parsed key→agent map (for startup validation).
+
+    Reads the env var fresh each call — no cached module-level state.
+    """
+    return _parse_key_agent_map()
 
 
 def _extract_bearer(authorization) -> str:
@@ -84,7 +92,8 @@ def _resolve_default_agent(matched_key: str) -> Optional[str]:
     Uses timing-safe comparison against the key-agent map keys to avoid
     leaking which keys have mappings via timing.
     """
-    for map_key, agent in _KEY_AGENT_MAP.items():
+    key_agent_map = _parse_key_agent_map()
+    for map_key, agent in key_agent_map.items():
         if hmac.compare_digest(matched_key.encode(), map_key.encode()):
             return agent
     return None
@@ -99,15 +108,22 @@ def require_edge_auth(
 
     Returns AuthResult with consumer_default_agent populated when the matched
     credential has a GATEWAY_KEY_AGENT_MAP entry.
+
+    All credential sources are read FRESH from env on each call — no module-level
+    caching that would require importlib.reload() in tests.
     """
+    # Read credentials fresh from env on every call
+    expected_token = os.getenv("INTERNAL_API_TOKEN", "")
+    api_keys = {k.strip() for k in os.getenv("GATEWAY_API_KEYS", "").split(",") if k.strip()}
+
     # 1. X-Internal-Token header → internal consumer, no agent scoping
-    if _EXPECTED_TOKEN and hmac.compare_digest(x_internal_token.encode(), _EXPECTED_TOKEN.encode()):
+    if expected_token and hmac.compare_digest(x_internal_token.encode(), expected_token.encode()):
         return AuthResult(consumer_default_agent=None)
 
     # 2. X-API-Key header
     if x_api_key:
         # Check plain API keys
-        if x_api_key in _API_KEYS:
+        if x_api_key in api_keys:
             return AuthResult(consumer_default_agent=_resolve_default_agent(x_api_key))
         # Check key-agent map keys (timing-safe lookup; they are implicitly valid)
         _mapped = _resolve_default_agent(x_api_key)
@@ -117,9 +133,9 @@ def require_edge_auth(
     # 3. Authorization: Bearer <token>
     bearer = _extract_bearer(authorization)
     if bearer:
-        if _EXPECTED_TOKEN and hmac.compare_digest(bearer.encode(), _EXPECTED_TOKEN.encode()):
+        if expected_token and hmac.compare_digest(bearer.encode(), expected_token.encode()):
             return AuthResult(consumer_default_agent=None)
-        if bearer in _API_KEYS:
+        if bearer in api_keys:
             return AuthResult(consumer_default_agent=_resolve_default_agent(bearer))
         _mapped = _resolve_default_agent(bearer)
         if _mapped is not None:

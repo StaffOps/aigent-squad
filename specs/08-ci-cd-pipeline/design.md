@@ -1,62 +1,62 @@
 # Design: CI/CD Pipeline (GitHub Actions)
 
-## Arquitetura
+## Architecture
 
-Pipeline GitHub Actions de 4 estágios, reusando o harness dockerizado (spec 23) no estágio de teste — paridade dev↔CI.
+4-stage GitHub Actions pipeline, reusing the dockerized harness (spec 23) in the test stage — dev↔CI parity.
 
 ```
 push/PR ─▶ test (harness spec 23, cov≥90 + ruff) ─▶ build-dev (multi-arch + Trivy + SBOM, tag <sha>)
-                                                          └─▶ [demo opcional] ─▶ release (manual, v<semver>)
+                                                          └─▶ [optional demo] ─▶ release (manual, v<semver>)
 ```
 
-Espelha a convenção do `staffops-chaitops` (que já tem `.github/workflows/` test/build/lint/docs).
+Mirrors the `staffops-chaitops` convention (which already has `.github/workflows/` test/build/lint/docs).
 
-## Estágios
+## Stages
 
-| Estágio | Faz | Gatilho |
-|---------|-----|---------|
-| `test` | `pytest --cov-fail-under=90` via harness (spec 23) + `ruff` + `mkdocs build --strict` (spec 24) | todo push/PR |
-| `build-dev` | `docker buildx` multi-arch (amd64+arm64) por serviço; Trivy; SBOM CycloneDX; push `<sha>` | push na default |
-| `demo` (opcional) | sobe stack + smoke (1 query single + 1 cross-domain) | push/manual |
-| `release` | tag `v<semver>`; push estável | **manual** |
+| Stage | Does | Trigger |
+|-------|------|---------|
+| `test` | `pytest --cov-fail-under=90` via harness (spec 23) + `ruff` + `mkdocs build --strict` (spec 24) | every push/PR |
+| `build-dev` | `docker buildx` multi-arch (amd64+arm64) per service; Trivy; SBOM CycloneDX; push `<sha>` | push to default |
+| `demo` (optional) | brings up stack + smoke (1 single query + 1 cross-domain) | push/manual |
+| `release` | tag `v<semver>`; push stable | **manual** |
 
-## Decisões e trade-offs
+## Decisions and trade-offs
 
-### Decisão 1: GitHub Actions (não GitLab CI)
-**Escolha**: pipeline em GitHub Actions.
-**Justificativa**: o repo **está** no GitHub (`github.com:karlipegomes/AIgent-squad`); os docs que citam GitLab CI são ficção (gitops F8). O ecossistema (chaitops) já usa GitHub Actions — consistência.
-**Trade-off**: se um dia migrar pra GitLab, o desenho de 4 estágios traduz 1:1.
+### Decision 1: GitHub Actions (not GitLab CI)
+**Choice**: pipeline in GitHub Actions.
+**Justification**: the repo **is** on GitHub (`github.com:karlipegomes/AIgent-squad`); the docs citing GitLab CI are fiction (gitops F8). The ecosystem (chaitops) already uses GitHub Actions — consistency.
+**Trade-off**: if ever migrated to GitLab, the 4-stage design translates 1:1.
 
-### Decisão 2: CI reusa o harness da spec 23 (não um caminho de teste próprio)
-**Escolha**: o estágio `test` chama o **mesmo** Dockerfile/comando da spec 23.
-**Justificativa**: mata "passa local, falha no CI" (divergência de ambiente). Um único harness, um único gate de 90%.
-**Trade-off**: acopla o CI à existência da spec 23 — desejável (é dependência declarada).
+### Decision 2: CI reuses the harness from spec 23 (not its own test path)
+**Choice**: the `test` stage calls the **same** Dockerfile/command from spec 23.
+**Justification**: kills "passes local, fails in CI" (environment divergence). A single harness, a single 90% gate.
+**Trade-off**: couples CI to the existence of spec 23 — desirable (it's a declared dependency).
 
-### Decisão 3: OIDC para AWS (sem chave de longa duração)
-**Escolha**: federation OIDC GitHub→AWS para push em ECR.
-**Justificativa**: `cloud-security` steering proíbe chave de longa duração; OIDC dá token efêmero.
-**Trade-off**: setup inicial de OIDC provider — uma vez só.
+### Decision 3: OIDC for AWS (no long-lived key)
+**Choice**: OIDC federation GitHub→AWS for ECR push.
+**Justification**: `cloud-security` steering forbids long-lived keys; OIDC gives ephemeral tokens.
+**Trade-off**: initial OIDC provider setup — one-time only.
 
-## Invariantes
-- Cobertura <90% **barra o merge** (gate, não advisory).
-- Imagens multi-arch (amd64+arm64) — single-arch quebra Graviton.
-- `latest` proibido em prod; tags imutáveis `<sha>`/`v<semver>`.
-- Sem credencial AWS de longa duração (OIDC).
-- `test` usa o harness da spec 23 (sem segundo caminho).
+## Invariants
+- Coverage <90% **blocks the merge** (gate, not advisory).
+- Multi-arch images (amd64+arm64) — single-arch breaks Graviton.
+- `latest` forbidden in prod; immutable tags `<sha>`/`v<semver>`.
+- No long-lived AWS credentials (OIDC).
+- `test` uses the harness from spec 23 (no second path).
 
-## Dependências externas
-| Serviço | Uso |
-|---------|-----|
+## External dependencies
+| Service | Usage |
+|---------|-------|
 | GitHub Actions | runner |
 | ECR/Harbor | registry |
 | Trivy, Syft/CycloneDX | scan + SBOM |
-| AWS OIDC | credenciais efêmeras |
+| AWS OIDC | ephemeral credentials |
 
-## Verificação
-- PR de teste: confirmar que cobertura forçada <90% **falha** o check.
-- Confirmar manifest multi-arch (amd64+arm64) na imagem publicada.
-- `mkdocs build --strict` verde no CI.
+## Verification
+- Test PR: confirm that coverage forced <90% **fails** the check.
+- Confirm multi-arch manifest (amd64+arm64) in the published image.
+- `mkdocs build --strict` green in CI.
 
-## Riscos
-- Build multi-arch lento (QEMU arm64) → cache de layers + buildx; aceitável.
-- OIDC mal configurado → testar push em ECR de dev antes de prod.
+## Risks
+- Multi-arch build slow (QEMU arm64) → layer caching + buildx; acceptable.
+- Misconfigured OIDC → test ECR push in dev before prod.

@@ -124,6 +124,7 @@ docker compose down -v
 make test                              # full suite + 90% gate
 make test-one FILE=tests/test_x.py    # single file
 make lint                              # ruff, CI-verbatim scope
+make typecheck                         # mypy gate (blocks the CI test job)
 ```
 
 > The private `staffops-otel-libs` dep is handled automatically: without repo

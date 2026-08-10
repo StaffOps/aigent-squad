@@ -1,91 +1,91 @@
 # Bugfix: Fix Cache & Observability
 
 **Spec**: `03-fix-cache-observability`
-**Severidade**: 🟠 High (cache) / 🟡 Medium (observabilidade)
-**Achados**: C1, C2, O1, O2, O3, O4, D5 (ver `../AUDIT.md`)
+**Severity**: 🟠 High (cache) / 🟡 Medium (observability)
+**Findings**: C1, C2, O1, O2, O3, O4, D5 (see `../AUDIT.md`)
 
 ---
 
-## C1 — `hash()` nativo na cache key
+## C1 — Native `hash()` in cache key
 
-**Current**: `cache_key = f"query:{hash(input_text)}"` em todos os agentes. `hash()` de str é randomizado por processo (`PYTHONHASHSEED`), então entre réplicas/restarts o cache nunca acerta.
+**Current**: `cache_key = f"query:{hash(input_text)}"` in all agents. `hash()` for str is randomized per process (`PYTHONHASHSEED`), so across replicas/restarts the cache never hits.
 
-**Expected**: chave determinística e estável entre processos.
+**Expected**: deterministic and stable key across processes.
 
 **Fix**: `hashlib.sha256(input_text.encode()).hexdigest()`.
 
-**Unchanged**: namespaces e TTLs por agente.
+**Unchanged**: namespaces and TTLs per agent.
 
 ---
 
-## C2 — Cache key ignora identidade e contexto
+## C2 — Cache key ignores identity and context
 
-**Current**: a key só considera `input_text`. Follow-ups ("yes", "more") colidem com respostas anteriores; usuários diferentes compartilham resposta.
+**Current**: the key only considers `input_text`. Follow-ups ("yes", "more") collide with previous responses; different users share responses.
 
-**Expected**: respostas conversacionais não vazam entre usuários/sessões; follow-ups não retornam cache equivocado.
+**Expected**: conversational responses don't leak across users/sessions; follow-ups don't return stale cache.
 
-**Fix (decisão de design)**: a resposta final do LLM **não deve ser cacheada por query** num agente conversacional. Manter cache apenas para **dados de infra** (inventory, costs, cluster_state, metrics) que são caros e independem do usuário. Remover o cache da resposta do `bedrock.invoke` ou, se mantido, compor a key com `session_id` + hash do histórico. Preferência: remover o cache de resposta; manter cache de dados.
+**Fix (design decision)**: the final LLM response **should not be cached by query** in a conversational agent. Keep cache only for **infra data** (inventory, costs, cluster_state, metrics) that are expensive and user-independent. Remove the `bedrock.invoke` response cache or, if kept, compose the key with `session_id` + history hash. Preference: remove response cache; keep data cache.
 
-**Unchanged**: cache de inventory/costs/cluster_state/metrics (esses são por-recurso, não por-usuário).
+**Unchanged**: cache of inventory/costs/cluster_state/metrics (those are per-resource, not per-user).
 
 ---
 
 ## O1 — `ConsoleSpanExporter` hardcoded
 
-**Current**: `logger.py` exporta spans só para console.
+**Current**: `logger.py` exports spans only to console.
 
-**Expected**: exporta via OTLP quando `OTEL_EXPORTER_OTLP_ENDPOINT` estiver setado; cai para console se ausente (dev).
+**Expected**: exports via OTLP when `OTEL_EXPORTER_OTLP_ENDPOINT` is set; falls back to console if absent (dev).
 
-**Fix**: usar `OTLPSpanExporter` condicional à env var.
-
----
-
-## O2 — `JSONFormatter` perde os campos extras
-
-**Current**: lê `record.extra` (não existe). Contexto estruturado (`agent_id`, `duration_ms`…) some do log.
-
-**Expected**: campos passados via `logger.info(msg, extra={...})` aparecem no JSON.
-
-**Fix**: iterar atributos do `record` que não são padrão do `LogRecord` e mesclá-los no `log_data`.
+**Fix**: use `OTLPSpanExporter` conditional on the env var.
 
 ---
 
-## O3 — `service.name` fixo
+## O2 — `JSONFormatter` loses extra fields
 
-**Current**: `"agent-squad"` para todos os serviços.
+**Current**: reads `record.extra` (doesn't exist). Structured context (`agent_id`, `duration_ms`…) disappears from the log.
 
-**Expected**: nome por serviço, de env (`SERVICE_NAME`/`OTEL_SERVICE_NAME`), default `agent-squad`.
+**Expected**: fields passed via `logger.info(msg, extra={...})` appear in the JSON.
 
-**Fix**: `Resource.create({"service.name": os.getenv("SERVICE_NAME", "agent-squad")})` + setar a env por serviço no compose.
+**Fix**: iterate attributes of `record` that are not standard `LogRecord` and merge them into `log_data`.
 
 ---
 
-## O4 — `PROMETHEUS_URL` ignorado
+## O3 — Fixed `service.name`
 
-**Current**: observability agent hardcoda a URL.
+**Current**: `"agent-squad"` for all services.
 
-**Expected**: lê de `settings`/env (12-factor III).
+**Expected**: per-service name, from env (`SERVICE_NAME`/`OTEL_SERVICE_NAME`), default `agent-squad`.
+
+**Fix**: `Resource.create({"service.name": os.getenv("SERVICE_NAME", "agent-squad")})` + set the env per service in compose.
+
+---
+
+## O4 — `PROMETHEUS_URL` ignored
+
+**Current**: observability agent hardcodes the URL.
+
+**Expected**: reads from `settings`/env (12-factor III).
 
 **Fix**: `self.prometheus_url = os.getenv("PROMETHEUS_URL", "<default cluster>")`.
 
 ---
 
-## D5 — `datetime.utcnow()` deprecado
+## D5 — `datetime.utcnow()` deprecated
 
-**Current**: usado em `state_store.py`, agentes, supervisor.
+**Current**: used in `state_store.py`, agents, supervisor.
 
 **Expected**: `datetime.now(timezone.utc)`.
 
-**Fix**: substituição mecânica, preservando formato ISO dos timestamps.
+**Fix**: mechanical substitution, preserving ISO timestamp format.
 
 ---
 
-## Critérios de aceite
+## Acceptance criteria
 
-- [ ] Cache key é determinística entre dois processos distintos (teste).
-- [ ] Resposta do LLM não é compartilhada entre `user_id` diferentes (ou cache de resposta removido).
-- [ ] Log JSON inclui os campos de `extra` (teste de formatter).
-- [ ] Com `OTEL_EXPORTER_OTLP_ENDPOINT` setado, spans vão para OTLP; sem ele, console.
-- [ ] `SERVICE_NAME` reflete cada serviço no trace.
-- [ ] `PROMETHEUS_URL` respeitada.
-- [ ] Sem `datetime.utcnow()` no código.
+- [ ] Cache key is deterministic between two distinct processes (test).
+- [ ] LLM response is not shared between different `user_id`s (or response cache removed).
+- [ ] Log JSON includes `extra` fields (formatter test).
+- [ ] With `OTEL_EXPORTER_OTLP_ENDPOINT` set, spans go to OTLP; without it, console.
+- [ ] `SERVICE_NAME` reflects each service in the trace.
+- [ ] `PROMETHEUS_URL` respected.
+- [ ] No `datetime.utcnow()` in the code.

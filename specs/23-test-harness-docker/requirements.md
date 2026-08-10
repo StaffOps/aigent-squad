@@ -10,44 +10,44 @@ deferred: []
 # Feature: Dockerized Test Harness
 
 **Spec**: `23-test-harness-docker`
-**Severidade**: 🔴 High (sem isso, não há como rodar/validar testes — máquina não tem SDK local)
-**Origem**: requisito do usuário (melhorar os testes com Dockerfile); steering `dev-environment.md` (builds/testes só via Docker), `verification-independence.md` (gate ≥90%)
-**Relação**: operacionaliza o gate de cobertura usado por TODAS as specs com código (06–22). A spec `08-ci-cd-pipeline` consome este harness no estágio de CI.
+**Severity**: 🔴 High (without this, there is no way to run/validate tests — machine has no local SDK)
+**Origin**: user requirement (improve tests with Dockerfile); steering `dev-environment.md` (builds/tests only via Docker), `verification-independence.md` (gate ≥90%)
+**Relation**: operationalizes the coverage gate used by ALL specs with code (06–22). Spec `08-ci-cd-pipeline` consumes this harness in the CI stage.
 
-Estado atual ✅ verificado: **zero** testes, sem `pytest`/`tox`, sem deps de teste, sem CI. A máquina **não tem Python local** (steering). Logo, rodar teste = rodar em container. Esta spec define o **harness de teste dockerizado** reusável: um Dockerfile de teste (ou target multi-stage) + comando único que instala deps, roda `pytest` com cobertura e **falha abaixo de 90%**, sem serviços reais (mocks).
+Current state ✅ verified: **zero** tests, no `pytest`/`tox`, no test deps, no CI. The machine **has no local Python** (steering). Therefore, running tests = running in a container. This spec defines the **reusable dockerized test harness**: a test Dockerfile (or multi-stage target) + a single command that installs deps, runs `pytest` with coverage and **fails below 90%**, without real services (mocks).
 
 ## User Stories
 
-WHEN um dev roda os testes localmente THEN ele SHALL usar **um único comando Docker** que instala deps, executa `pytest` e reporta cobertura — sem instalar Python na máquina.
+WHEN a dev runs tests locally THEN they SHALL use **a single Docker command** that installs deps, executes `pytest`, and reports coverage — without installing Python on the machine.
 
-WHEN os testes rodam THEN dependências externas (Redis, DynamoDB, Bedrock, HTTP de agentes) SHALL ser **mockadas** (fakeredis, moto/stubber, respx) — **nenhum serviço real** necessário.
+WHEN tests run THEN external dependencies (Redis, DynamoDB, Bedrock, HTTP agents) SHALL be **mocked** (fakeredis, moto/stubber, respx) — **no real service** needed.
 
-WHEN a cobertura fica **abaixo de 90%** THEN o comando SHALL retornar exit code ≠ 0 (gate de build).
+WHEN coverage falls **below 90%** THEN the command SHALL return exit code ≠ 0 (build gate).
 
-WHEN o CI (spec 08) executa THEN ele SHALL reusar **o mesmo** harness/Dockerfile (paridade dev↔CI — sem divergência de ambiente).
+WHEN the CI (spec 08) executes THEN it SHALL reuse **the same** harness/Dockerfile (dev↔CI parity — no environment divergence).
 
-WHEN a imagem de teste é construída THEN ela SHALL usar `python:3.11-slim` (não 3.12, por `pkg_resources`/OTel — steering) e cachear a camada de deps.
+WHEN the test image is built THEN it SHALL use `python:3.11-slim` (not 3.12, due to `pkg_resources`/OTel — steering) and cache the deps layer.
 
-WHEN os testes terminam THEN o relatório de cobertura SHALL ser exportável (term + xml/html) para inspeção e para o CI.
+WHEN tests finish THEN the coverage report SHALL be exportable (term + xml/html) for inspection and for the CI.
 
 ## Acceptance Criteria
 
-- [ ] `Dockerfile.test` (ou stage `test` no Dockerfile multi-stage) baseado em `python:3.11-slim`, com deps de runtime + `requirements-dev.txt` (pytest, pytest-asyncio, pytest-cov, fakeredis, respx, moto).
-- [ ] Um comando único documentado roda tudo, ex:
+- [ ] `Dockerfile.test` (or `test` stage in the multi-stage Dockerfile) based on `python:3.11-slim`, with runtime deps + `requirements-dev.txt` (pytest, pytest-asyncio, pytest-cov, fakeredis, respx, moto).
+- [ ] A single documented command runs everything, e.g.:
   `docker run --rm -v "$PWD:/app" -w /app <img> sh -c "pytest --cov=src --cov-fail-under=90 --cov-report=term-missing --cov-report=xml"`.
-- [ ] Camada de deps cacheada (copiar `requirements*.txt` antes do código).
-- [ ] **Zero serviços reais**: Redis→fakeredis, DynamoDB/Bedrock→moto/botocore stubber, HTTP agentes→respx. Testes rodam offline.
-- [ ] Gate `--cov-fail-under=90` (exit ≠ 0 abaixo disso) — alinha `verification-independence.md`.
-- [ ] `pytest.ini`/`pyproject.toml` com config de testes (asyncio mode, paths, markers).
-- [ ] `requirements-dev.txt` separado do runtime (não infla a imagem de produção).
-- [ ] Relatório `coverage.xml` (para CI) + `term-missing` (para dev).
-- [ ] CI (spec 08) reusa exatamente este harness (mesmo Dockerfile/command).
-- [ ] README seção "Rodar testes" com o comando único.
-- [ ] Testes (test-author ≠ autor): o próprio harness validado rodando a suíte mínima das specs (classifier, cache key, contrato, fail-open) sem rede.
+- [ ] Deps layer cached (copy `requirements*.txt` before the code).
+- [ ] **Zero real services**: Redis→fakeredis, DynamoDB/Bedrock→moto/botocore stubber, HTTP agents→respx. Tests run offline.
+- [ ] Gate `--cov-fail-under=90` (exit ≠ 0 below it) — aligns with `verification-independence.md`.
+- [ ] `pytest.ini`/`pyproject.toml` with test config (asyncio mode, paths, markers).
+- [ ] `requirements-dev.txt` separate from runtime (does not bloat the production image).
+- [ ] Report `coverage.xml` (for CI) + `term-missing` (for dev).
+- [ ] CI (spec 08) reuses exactly this harness (same Dockerfile/command).
+- [ ] README section "Running tests" with the single command.
+- [ ] Tests (test-author ≠ author): the harness itself validated running the minimal suite from the specs (classifier, cache key, contract, fail-open) without network.
 
-## Fora de escopo
+## Out of scope
 
-- Suíte de testes em si das features — cada spec (06–22) traz seus próprios testes; aqui é só o **harness**.
-- Testes de integração com serviços reais (docker-compose de teste) — futuro; o MVP é unit/contract com mocks.
-- Multi-arch da imagem de teste (amd64+arm64) — a de produção sim (spec 08); a de teste roda no arch do runner.
-- Mutation testing / property-based — futuro.
+- The feature test suites themselves — each spec (06–22) brings its own tests; here it is just the **harness**.
+- Integration tests with real services (docker-compose for testing) — future; the MVP is unit/contract with mocks.
+- Multi-arch of the test image (amd64+arm64) — production yes (spec 08); the test image runs on the runner's arch.
+- Mutation testing / property-based — future.

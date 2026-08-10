@@ -1,10 +1,10 @@
 ---
 spec: 39-observability-rca-uplift
-status: in-progress
-completed: null
+status: done-with-deferrals
+completed: "2026-07-23"
 superseded_by: null
 depends_on: ["37-agentic-tool-calling"]
-deferred: []
+deferred: ["T3.4 deterministic investigation.py path (Phase 2 — prompt-RCA validated live, trigger not met)"]
 ---
 
 # Feature: Observability & RCA uplift
@@ -50,7 +50,7 @@ Post spec 37 the agents are agentic (LLM picks read-only tools), but:
 - **WS3 — troubleshoot/RCA agent**: wire grafana-mcp + skills into the existing
   `investigation.py` RCA path and add `rca` as a routable specialist. **NOT
   config-only** — `triage.py::should_investigate()` intercepts RCA queries before the
-  classifier, so this needs code (see design Decisão 4). Phase 1 = a grounded,
+  classifier, so this needs code (see design Decision 4). Phase 1 = a grounded,
   time-anchored, clearly-labeled *hypothesis assistant*; Phase 2 (deterministic
   multi-query runner) is triggered by eval, not optional.
 

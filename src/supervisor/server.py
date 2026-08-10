@@ -45,6 +45,10 @@ _health_dynamodb_table = boto3.resource(
 
 @asynccontextmanager
 async def lifespan(app):
+    # HC5 (spec 38 FU-B): fail loud at BOOT if tier model IDs are misconfigured —
+    # here in the lifespan, not as an agent.py import side-effect (cleaner testing + import order).
+    from src.core.model_tier import validate_tier_models_at_startup
+    validate_tier_models_at_startup()
     await kb_store.connect()
     yield
     await kb_store.close()
@@ -215,17 +219,29 @@ async def alerts_incoming(payload: AlertmanagerPayload):
     """Receive Alertmanager webhook (v2). Triggers investigation per unique firing alert."""
     async def _run_inv(symptom: str, agents=None, fingerprint: str = ""):
         from src.supervisor.investigation import run_investigation
+        from src.supervisor.agent import _resolve_tier_model
+        from src.core.classifier import ClassifierResult, AgentMatch
         # Finding (2026-07-14 review, E2 follow-up): session_id="" made
         # bedrock.py's `charged_session_id = budget_session_id or session_id`
         # fall through to "" (falsy), so record_usage() was never called at
         # all — alert-triggered investigations spent Bedrock tokens with NO
         # budget cap. Give each unique alert (deduped by fingerprint) its own
         # stable budget bucket instead.
+        # Tier routing (spec 38, agentic28): alert-triggered RCA is inherently
+        # complex multi-signal work → route through the deep tier like the
+        # user-initiated investigation path (confidence cosmetic; complexity drives it).
+        inv_cr = ClassifierResult(
+            agents=[AgentMatch(agent="investigation", confidence=0.9)],
+            reasoning="alertmanager-triggered investigation",
+            complexity="complex",
+        )
+        tier_model_id = _resolve_tier_model(inv_cr)
         return await run_investigation(
             symptom=symptom,
             agents=supervisor.agents,
             user_id="alertmanager",
             session_id=f"alertmanager-{fingerprint}" if fingerprint else "alertmanager-unknown",
+            model_id_override=tier_model_id,
         )
 
     result = await handle_alert_payload(

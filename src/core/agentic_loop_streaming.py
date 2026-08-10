@@ -18,11 +18,10 @@ replaced with ***).
 """
 from __future__ import annotations
 
-import asyncio
 import json
 import re
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, AsyncGenerator
 
 from otel_helper import get_tracer
@@ -40,7 +39,6 @@ from src.core.agentic_loop import (
     _ToolRouter,
     _emit_metrics,
     _error_tool_result,
-    _get_server_breaker,
     _guardrail_tool_args,
     _guardrail_tool_result,
     _to_converse_assistant_blocks,
@@ -51,7 +49,7 @@ from src.core.agentic_loop import (
 from src.core.bedrock import bedrock
 from src.core.config import settings
 from src.core.logger import logger
-from src.core.metrics import meter
+from src.core.metrics import tool_call_duration
 from src.core.truncation import trim_message_history
 
 tracer = get_tracer(__name__)
@@ -300,7 +298,7 @@ async def run_agentic_loop_streaming(
                 # --- Call Converse ---
                 # Context-trimming (spec 40): replace older toolResult content
                 # with enriched summaries to bound context size.
-                trim_message_history(messages, CONTEXT_KEEP_LAST_N)
+                trim_message_history(messages, CONTEXT_KEEP_LAST_N, agent_id=agent_id)
 
                 # Guardrail strategy (spec 37, B3 + Decisão 3):
                 # - FIRST call (step==0): user input → Bedrock guardrail ON
@@ -445,8 +443,24 @@ async def run_agentic_loop_streaming(
                             )
                             continue
 
+                        # ADD (a): time the tool call for per-tool latency histogram
+                        _tool_t0 = time.time()
                         result_text = await session_pool.call_tool(
                             adapter_name, tool_name, tool_args
+                        )
+                        _tool_elapsed_ms = (time.time() - _tool_t0) * 1000
+
+                        # Determine status from result text (error/timeout/success)
+                        if "] error: timeout" in result_text:
+                            _tool_status = "timeout"
+                        elif "] error:" in result_text:
+                            _tool_status = "error"
+                        else:
+                            _tool_status = "success"
+
+                        tool_call_duration.record(
+                            _tool_elapsed_ms,
+                            {"tool_name": tool_name, "status": _tool_status},
                         )
                         tool_span.set_attribute("tool.status", "ok")
 
@@ -515,8 +529,8 @@ async def run_agentic_loop_streaming(
 
             # Graceful user-facing message (no raw counters)
             degraded_note = (
-                "⚠️ Não consegui concluir a investigação completa no tempo "
-                "disponível — segue o que consegui coletar:"
+                "⚠️ I could not complete the full investigation within the "
+                "available time — here is what I was able to collect:"
             )
 
             if partial_texts:

@@ -16,10 +16,7 @@ Assertions:
 Mock strategy: classifier, agents, storage, budget_tracker, InputScanner, and
 guardrail are all mocked to isolate the routing logic in process_request_streaming.
 """
-import asyncio
-from dataclasses import dataclass
-from unittest.mock import patch, MagicMock, AsyncMock, PropertyMock
-from typing import AsyncGenerator
+from unittest.mock import MagicMock, AsyncMock
 
 import pytest
 
@@ -587,7 +584,7 @@ class TestForcedAgentPathUnchanged:
         agent = _make_mock_agent("observability", agentic=True)
         sup, _ = _make_supervisor({"observability": agent})
 
-        gen = await sup.process_request_streaming(
+        await sup.process_request_streaming(
             user_input="list namespaces",
             user_id="u1",
             session_id="s1",

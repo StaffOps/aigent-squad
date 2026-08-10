@@ -27,12 +27,43 @@ from __future__ import annotations
 
 import hashlib
 import re
-from typing import List, Tuple
+from dataclasses import dataclass, field
+from typing import List, Optional, Tuple
 
 from src.core.config import settings
 from src.core.guardrail import GuardrailBlockedError
 from src.core.logger import logger
 from src.core.metrics import quality_violations, ungrounded_numeric_claims
+
+
+# ---------------------------------------------------------------------------
+# Structured quality assessment (spec 41 — B-16 Phase-2)
+# ---------------------------------------------------------------------------
+
+# Maximum items in unverified_claims to prevent unbounded payloads.
+_MAX_UNVERIFIED_CLAIMS = 20
+
+
+@dataclass(frozen=True)
+class QualityAssessment:
+    """Deterministic, evidence-backed confidence derived from groundedness scan.
+
+    confidence (derived purely from ungrounded NUMERIC claim count):
+        - "high"   if 0 ungrounded numeric claims.
+        - "medium" if 1–2 ungrounded numeric claims.
+        - "low"    if ≥3 ungrounded numeric claims.
+
+    Resource IDs are NOT assessed here — ungrounded resource IDs BLOCK the
+    response (GuardrailBlockedError in Phase 2 of scan). A response that
+    reaches QualityAssessment has already passed the resource-ID safety gate.
+
+    unverified_claims:
+        Deduplicated list of ungrounded numeric claims found in the response
+        that have no matching source in infra_data. Capped at
+        _MAX_UNVERIFIED_CLAIMS items.
+    """
+    confidence: str  # one of "high", "medium", "low"
+    unverified_claims: list[str] = field(default_factory=list)
 
 # --- Compiled patterns (module-level, compiled once) ---
 
@@ -91,6 +122,13 @@ _RESOURCE_ID_PATTERN = re.compile(
 # vague "a few hundred dollars" prose estimate) — 2+ digit whole part to
 # skip trivial/rounded numbers less likely to be a meaningful fabrication.
 _NUMERIC_CLAIM_PATTERN = re.compile(r"\$\d{1,3}(?:,\d{3})*\.\d{2}\b")
+# SECURITY INVARIANT (spec 41): matches of this pattern are echoed back to the
+# client verbatim in `x_aigent.quality.unverified_claims`, and that field is NOT
+# inspected by OutputFilter (the filter only walks message.content). The narrow
+# dollar-amount shape is what keeps that safe. Broadening this regex toward
+# free text — or to identifiers, hostnames, ARNs — would create an egress path
+# that bypasses redaction. If you must broaden it, run OutputFilter over
+# unverified_claims before surfacing them.
 
 
 def _digest(text: str) -> str:
@@ -116,39 +154,63 @@ class ResponseQualityGuard:
         user_id: str = "unknown",
         session_id: str = "",
         infra_data: str = "",
-    ) -> None:
-        """Scan response for structural quality defects. Raise on detection.
+    ) -> Optional[QualityAssessment]:
+        """Scan response for structural quality defects and groundedness.
 
-        If any pattern matches, the response is blocked (fail-closed). Raises
-        ``GuardrailBlockedError`` with category ``quality:<pattern_name>``.
-        A fabricated resource ID (``quality:ungrounded_resource_id``) is
-        block-worthy the same way — see module-level groundedness comment.
+        Three ordered phases:
 
-        ``infra_data`` is optional (defaults to ``""``, which makes every
-        resource ID in the response "ungrounded" by construction — callers
-        that don't pass it get NO groundedness checking, not a false-positive
-        flood): pass the same infra_data the response was generated from to
-        enable it.
+        1. **Structural defects** (tool_scaffolding, raw_adapter_error, etc.
+           from ``_find_defects``): if ANY found → ``GuardrailBlockedError``
+           (fail-closed, same as spec 35 T1).  These are never legitimate.
+
+        2. **Ungrounded resource IDs** (instance IDs, ARNs, etc. not in
+           infra_data): if ANY found → ``GuardrailBlockedError`` (safety
+           guardrail — a fabricated resource ID the user might act on is
+           NEVER surfaced, even tagged low-confidence).
+
+        3. **Numeric groundedness** (dollar amounts not in infra_data):
+           non-blocking, returns a ``QualityAssessment`` with confidence
+           derived from the ungrounded numeric count (0→high, 1-2→medium,
+           ≥3→low).
+
+        ``infra_data`` is optional (defaults to ``""``, which disables
+        groundedness checking entirely — callers that don't pass it get no
+        assessment, not a false-positive flood).
+
+        Returns a ``QualityAssessment`` when the feature is enabled and
+        infra_data is provided (spec 41 — B-16 Phase-2). Returns ``None``
+        when disabled or when no groundedness check can be performed.
 
         Does nothing if disabled or response is too short to contain a defect.
         """
         if not self.enabled:
-            return
+            return None
 
         if len(response) < _MIN_RESPONSE_LENGTH:
-            return
+            return None
 
+        # ── Phase 1: structural defects → block (fail-closed) ──
         detected = self._find_defects(response)
-        categories = [f"quality:{name}" for name, _ in detected]
 
+        # ── Phase 2: ungrounded resource IDs → block (safety guardrail) ──
+        # Checked alongside structural so all blocking categories are reported
+        # in a single raise when both are present.
+        ungrounded_ids: List[str] = []
         if infra_data:
-            ungrounded_ids = self._find_ungrounded_resource_ids(response, infra_data)
+            try:
+                ungrounded_ids = self._find_ungrounded_resource_ids(response, infra_data)
+            except Exception:
+                # Graceful degradation: if resource-ID detection itself errors,
+                # we still block on structural defects (if any) but don't
+                # propagate the detection bug to the user.
+                pass
+
+        # If ANY blocking defect found (structural or resource ID), raise with all categories
+        if detected or ungrounded_ids:
+            categories: List[str] = [f"quality:{name}" for name, _ in detected]
             if ungrounded_ids:
                 categories.append("quality:ungrounded_resource_id")
 
-            self._check_numeric_groundedness(response, infra_data, agent_id)
-
-        if categories:
             for category in categories:
                 quality_violations.add(1, {"agent_id": agent_id, "category": category.removeprefix("quality:")})
             self._audit(
@@ -164,6 +226,31 @@ class ResponseQualityGuard:
                 categories=categories,
             )
 
+        # ── Phase 3: numeric groundedness → non-blocking assessment ──
+        if not infra_data:
+            return None
+        try:
+            ungrounded_numerics = self._check_numeric_groundedness(response, infra_data, agent_id)
+
+            assessment = self._assemble_assessment(ungrounded_numerics)
+
+            # Emit the two spec-41 metrics (single site, non-blocking — T3)
+            try:
+                from src.core.metrics import quality_confidence, quality_unverified_claims
+                quality_confidence.add(1, {"level": assessment.confidence})
+                quality_unverified_claims.record(
+                    len(assessment.unverified_claims), {"agent_id": agent_id}
+                )
+            except Exception:
+                pass  # Non-blocking: metric emission failure never fails the answer
+
+            return assessment
+        except Exception:
+            # Non-blocking: numeric groundedness/assessment errors are swallowed
+            # so the answer still returns (spec 41 invariant).  Structural defects
+            # (Phase 1) and resource IDs (Phase 2) already raised above.
+            return None
+
     @staticmethod
     def _find_ungrounded_resource_ids(response: str, infra_data: str) -> List[str]:
         """Resource IDs stated in the response that don't appear anywhere in
@@ -174,12 +261,22 @@ class ResponseQualityGuard:
         ]
 
     @staticmethod
-    def _check_numeric_groundedness(response: str, infra_data: str, agent_id: str) -> None:
+    def _check_numeric_groundedness(response: str, infra_data: str, agent_id: str) -> List[str]:
         """Metric-only (non-blocking) — see module-level groundedness comment
-        for why dollar-figure claims aren't hard-blocked like resource IDs."""
+        for why dollar-figure claims aren't hard-blocked like resource IDs.
+
+        Returns the list of ungrounded numeric claims for assembly into
+        QualityAssessment (spec 41).
+        """
+        ungrounded: List[str] = []
         for claim in _NUMERIC_CLAIM_PATTERN.findall(response):
             if claim not in infra_data:
+                # Legacy per-claim counter (existing dashboards); the new per-response
+                # histogram (quality_unverified_claims) is emitted once in scan() — both
+                # intentionally coexist (per-claim audit vs per-response distribution).
                 ungrounded_numeric_claims.add(1, {"agent_id": agent_id})
+                ungrounded.append(claim)
+        return ungrounded
 
     def _find_defects(self, text: str) -> List[Tuple[str, str]]:
         """Return list of (pattern_name, matched_text) for all detections.
@@ -193,6 +290,52 @@ class ResponseQualityGuard:
             if match:
                 found.append((name, match.group()))
         return found
+
+    @staticmethod
+    def _assemble_assessment(
+        ungrounded_numerics: List[str],
+    ) -> QualityAssessment:
+        """Derive confidence + unverified_claims deterministically (spec 41).
+
+        Confidence derivation (purely from ungrounded NUMERIC claim count):
+            0       → "high"
+            1–2     → "medium"
+            ≥3      → "low"
+
+        Resource IDs are NOT passed here — they block in Phase 2 (never reach
+        this point). confidence is purely from the numeric count.
+
+        unverified_claims = deduplicated numeric claims, capped at
+        _MAX_UNVERIFIED_CLAIMS.
+
+        Dedup happens BEFORE the count: confidence must reflect DISTINCT
+        ungrounded claims, not regex match count. Counting raw matches made
+        the contract incoherent — the same "$999.99" repeated three times
+        produced confidence="low" alongside a single-item unverified_claims
+        list, so a client could not reconcile the level with the evidence.
+        """
+        # Deduplicate first (order-preserving) — this is the count that matters.
+        seen: set[str] = set()
+        distinct: list[str] = []
+        for item in ungrounded_numerics:
+            normalized = item.strip()
+            if normalized not in seen:
+                seen.add(normalized)
+                distinct.append(normalized)
+
+        n = len(distinct)
+        if n == 0:
+            confidence = "high"
+        elif n <= 2:
+            confidence = "medium"
+        else:
+            confidence = "low"
+
+        # Cap only what is SURFACED; confidence above already reflects the
+        # true distinct count, so capping never inflates the level.
+        claims = distinct[:_MAX_UNVERIFIED_CLAIMS]
+
+        return QualityAssessment(confidence=confidence, unverified_claims=claims)
 
     @staticmethod
     def _audit(

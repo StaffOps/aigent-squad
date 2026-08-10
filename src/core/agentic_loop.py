@@ -27,7 +27,7 @@ from typing import Any
 
 from otel_helper import get_tracer
 
-from src.core.adapters import McpAdapter
+from src.core.adapters import McpAdapter, mcp_error_detail
 from src.core.agent_config import (
     MAX_LOOP_DURATION_MS,
     MAX_LOOP_TOKENS,
@@ -40,6 +40,7 @@ from src.core.circuit_breaker import CircuitBreaker
 from src.core.guardrail import guardrail, GuardrailBlockedError
 from src.core.logger import logger
 from src.core.metrics import meter
+from src.core.metrics import tool_call_duration
 from src.core.truncation import trim_message_history
 
 tracer = get_tracer(__name__)
@@ -141,7 +142,7 @@ class _McpSessionPool:
             return str(e)
         except Exception as e:
             breaker.record_failure()
-            return f"[mcp:{adapter_name}:{tool_name}] error: {e}"
+            return f"[mcp:{adapter_name}:{tool_name}] error: {mcp_error_detail(e)}"
 
     async def close(self):
         """Cleanup: no-op for now since McpAdapter manages sessions per call.
@@ -256,7 +257,7 @@ async def run_agentic_loop(
     temperature: float = 0.1,
     budget_session_id: str | None = None,
     model_id_override: str | None = None,
-) -> str:
+) -> tuple[str, list[dict]]:
     """Execute the bounded agentic loop (non-streaming).
 
     Builds tool_config from the adapters' allowlisted tools, then iterates
@@ -276,7 +277,11 @@ async def run_agentic_loop(
             instead of resolving from the "agent" role.
 
     Returns:
-        The model's final text answer (possibly degraded if budgets exhausted).
+        A tuple of (final_text, messages) where:
+        - final_text: the model's final text answer (possibly degraded if
+          budgets exhausted).
+        - messages: the full Converse messages array (for spec 41
+          effective_infra_data extraction from toolResult content blocks).
     """
     loop_start = time.time()
     total_tool_calls = 0
@@ -346,7 +351,7 @@ async def run_agentic_loop(
                 # --- Call Converse ---
                 # Context-trimming (spec 40): replace older toolResult content
                 # with enriched summaries to bound context size.
-                trim_message_history(messages, CONTEXT_KEEP_LAST_N)
+                trim_message_history(messages, CONTEXT_KEEP_LAST_N, agent_id=agent_id)
 
                 # Guardrail strategy (spec 37, B3 + Decisão 3):
                 # - FIRST call (step==0): user input → Bedrock guardrail ON
@@ -396,7 +401,7 @@ async def run_agentic_loop(
                         if block.get("type") == "text" and block.get("text")
                     )
                     _emit_metrics(agent_id, total_tool_calls, loop_start)
-                    return final_text
+                    return final_text, messages
 
                 # --- Tool-use turn: execute tools sequentially (B8) ---
                 tool_use_blocks = [
@@ -410,7 +415,7 @@ async def run_agentic_loop(
                         if block.get("type") == "text" and block.get("text")
                     )
                     _emit_metrics(agent_id, total_tool_calls, loop_start)
-                    return final_text or "(no response)"
+                    return (final_text or "(no response)"), messages
 
                 # Append the assistant's tool_use turn to messages
                 messages.append({
@@ -455,8 +460,24 @@ async def run_agentic_loop(
                             tool_span.set_attribute("tool.status", "not_found")
                             continue
 
+                        # ADD (a): time the tool call for per-tool latency histogram
+                        _tool_t0 = time.time()
                         result_text = await session_pool.call_tool(
                             adapter_name, tool_name, tool_args
+                        )
+                        _tool_elapsed_ms = (time.time() - _tool_t0) * 1000
+
+                        # Determine status from result text (error/timeout/success)
+                        if "] error: timeout" in result_text:
+                            _tool_status = "timeout"
+                        elif "] error:" in result_text:
+                            _tool_status = "error"
+                        else:
+                            _tool_status = "success"
+
+                        tool_call_duration.record(
+                            _tool_elapsed_ms,
+                            {"tool_name": tool_name, "status": _tool_status},
                         )
                         tool_span.set_attribute("tool.status", "ok")
 
@@ -514,9 +535,9 @@ async def run_agentic_loop(
             degraded_note += "]"
 
             if partial_texts:
-                return "\n".join(partial_texts) + "\n\n" + degraded_note
+                return "\n".join(partial_texts) + "\n\n" + degraded_note, messages
             else:
-                return degraded_note
+                return degraded_note, messages
 
         finally:
             await session_pool.close()

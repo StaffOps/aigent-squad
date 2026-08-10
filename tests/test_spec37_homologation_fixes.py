@@ -22,7 +22,6 @@ Docker: python:3.11-slim (stub deps + env). Does NOT modify implementation.
 from __future__ import annotations
 
 import json
-import os
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -112,10 +111,11 @@ LOOP_KWARGS = dict(
 
 
 def _make_263_pod_json() -> str:
-    """Generate a JSON array of 263 pods (~30KB, exceeds 8000 chars)."""
+    """Generate a JSON array of 263 pods (~50KB, exceeds 40000 chars)."""
     pods = [
-        {"metadata": {"name": f"pod-{i:03d}", "namespace": "monitoring",
-                      "uid": f"uid-{i:08d}"}, "status": {"phase": "Running"}}
+        {"metadata": {"name": f"pod-{i:03d}-longsuffix-aaabbbccc", "namespace": "monitoring-production",
+                      "uid": f"uid-{i:08d}", "labels": {"app": f"workload-{i:03d}", "version": "v2.1.0", "team": "platform-eng", "costcenter": "Program-DataPlatform"}},
+         "status": {"phase": "Running", "podIP": f"10.0.{i//256}.{i%256}", "hostIP": "192.168.1.1"}}
         for i in range(263)
     ]
     return json.dumps(pods)
@@ -127,11 +127,11 @@ def _make_263_pod_json() -> str:
 
 
 class TestContract5_MaxToolResultCharsDefault:
-    """MAX_TOOL_RESULT_CHARS defaults to 8000 and responds to env override."""
+    """MAX_TOOL_RESULT_CHARS defaults to 40000 and responds to env override."""
 
-    def test_default_is_8000(self):
-        """The module-level constant is 8000 (raised from old 4000)."""
-        assert MAX_TOOL_RESULT_CHARS == 8000
+    def test_default_is_40000(self):
+        """The module-level constant is 40000 (raised from old 8000)."""
+        assert MAX_TOOL_RESULT_CHARS == 40000
 
     def test_env_override(self, monkeypatch):
         """AIGENT_MAX_TOOL_RESULT_CHARS env var overrides the default."""
@@ -285,7 +285,7 @@ class TestContract1_StreamingToolCalling:
         ])
         adapter = _make_adapter()
 
-        events = await _collect(run_agentic_loop_streaming(
+        await _collect(run_agentic_loop_streaming(
             mcp_adapters=[adapter], **LOOP_KWARGS
         ))
 
@@ -421,7 +421,7 @@ class TestContract2_StreamingNonStreamingParity:
         ])
         adapter = _make_adapter()
 
-        result = await run_agentic_loop(mcp_adapters=[adapter], **LOOP_KWARGS)
+        result, _messages = await run_agentic_loop(mcp_adapters=[adapter], **LOOP_KWARGS)
 
         adapter.call_tool.assert_awaited_once_with(
             "pods_list_in_namespace", {"ns": "monitoring"}
@@ -548,7 +548,7 @@ class TestContract4_MarkerAfterRedaction:
             ])
             adapter = _make_adapter(call_result=_make_263_pod_json())
 
-            result = await run_agentic_loop(mcp_adapters=[adapter], **LOOP_KWARGS)
+            await run_agentic_loop(mcp_adapters=[adapter], **LOOP_KWARGS)
 
         # The second converse call should have redacted message, not truncated JSON
         second_call = mock_bedrock.converse.call_args_list[1]
@@ -648,7 +648,7 @@ class TestContract6_UnchangedBehavior:
         adapter = _make_adapter()
 
         with patch("src.core.agentic_loop.MAX_TOOL_STEPS", 2):
-            result = await run_agentic_loop(mcp_adapters=[adapter], **LOOP_KWARGS)
+            result, _messages = await run_agentic_loop(mcp_adapters=[adapter], **LOOP_KWARGS)
 
         assert "budget was exhausted" in result
         assert adapter.call_tool.await_count <= 2
@@ -695,21 +695,21 @@ class TestStreamingHelpers:
         data = json.dumps({"name": "pod", "status": "Running", "ip": "10.0.0.1"})
         summary = _summarize_tool_result("test_tool", data)
         assert "📦" in summary
-        assert "object" in summary
+        assert "ok" in summary
 
     def test_summarize_multiline_text(self):
         from src.core.agentic_loop_streaming import _summarize_tool_result
         data = "line1: something\nline2: else\nline3: more"
         summary = _summarize_tool_result("test_tool", data)
         assert "📦" in summary
-        assert "3 lines" in summary
+        assert "3 items" in summary
 
     def test_summarize_short_text(self):
         from src.core.agentic_loop_streaming import _summarize_tool_result
         data = "OK"
         summary = _summarize_tool_result("test_tool", data)
         assert "📦" in summary
-        assert "OK" in summary
+        assert "ok" in summary.lower()
 
 
 class TestToConverseAssistantBlocks:
@@ -767,7 +767,7 @@ class TestTruncationInLoopIntegration:
         ])
         adapter = _make_adapter(call_result=big_json)
 
-        result = await run_agentic_loop(mcp_adapters=[adapter], **LOOP_KWARGS)
+        await run_agentic_loop(mcp_adapters=[adapter], **LOOP_KWARGS)
 
         # The second converse call should have truncated content
         second_call = mock_bedrock.converse.call_args_list[1]
@@ -793,7 +793,7 @@ class TestTruncationInLoopIntegration:
         ])
         adapter = _make_adapter(call_result=big_json)
 
-        events = await _collect(run_agentic_loop_streaming(
+        await _collect(run_agentic_loop_streaming(
             mcp_adapters=[adapter], **LOOP_KWARGS
         ))
 
@@ -821,7 +821,7 @@ class TestTruncationInLoopIntegration:
         ])
         adapter = _make_adapter(call_result=small_result)
 
-        events = await _collect(run_agentic_loop_streaming(
+        await _collect(run_agentic_loop_streaming(
             mcp_adapters=[adapter], **LOOP_KWARGS
         ))
 

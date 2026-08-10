@@ -11,8 +11,8 @@ deferred: []
 
 **Spec**: `37-agentic-tool-calling`
 **Severity**: 🔴 Architectural (redesigns the agent execution core; supersedes ADR-001 "Caminho A")
-**Origin**: homologation 2026-07-19. Query "quais pods no ns monitoring?" returned "monitoring
-não existe" while the namespace is Active with 263 pods. Root cause: the non-agentic
+**Origin**: homologation 2026-07-19. Query "which pods in the monitoring ns?" returned "monitoring
+does not exist" while the namespace is Active with 263 pods. Root cause: the non-agentic
 "Caminho A" adapter pre-calls a fixed tool set with no query-specific args and injects the
 (4000-char-truncated) result — it cannot target `pods_list_in_namespace(namespace="monitoring")`,
 and the namespaces list was truncated before the 57th entry. The specialists are called
@@ -90,7 +90,7 @@ guardrail-scanned summary of each result — so the user watches the subagent th
 cluster in real time, instead of a single final block. Streamed results SHALL pass the same
 redaction/guardrail as B3 (never stream raw tool output).
 
-## Fora de escopo
+## Out of scope
 
 - **Enabling execution / mutating tools** — stays read-only (ADR-0003). This spec makes the
   agent *choose read-only tools*, not *act*.

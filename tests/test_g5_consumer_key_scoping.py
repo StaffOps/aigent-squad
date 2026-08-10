@@ -9,13 +9,19 @@ Verifies:
   - Auto-route model + consumer default → applies consumer default.
   - Startup validation warns on unknown agent names.
 """
-import os
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
 
+# NOTE (F-016b): The autouse _restore_auth_module_state fixture (F-012) was
+# removed. src/gateway/auth.py now reads env vars FRESH on every call — no
+# module-level cache, no importlib.reload() needed. monkeypatch.setenv is
+# sufficient for test isolation.
+
+
 # ─── Unit tests: auth module parsing ────────────────────────────────
+
 
 class TestKeyAgentMapParsing:
     """Test GATEWAY_KEY_AGENT_MAP parsing at module level."""
@@ -26,13 +32,8 @@ class TestKeyAgentMapParsing:
         monkeypatch.setenv("INTERNAL_API_TOKEN", "internal-secret")
         monkeypatch.setenv("GATEWAY_API_KEYS", "")
 
-        # Force re-import to pick up env vars
-        import importlib
-        import src.gateway.auth as auth_mod
-        importlib.reload(auth_mod)
-
-        result = auth_mod.get_key_agent_map()
-        assert result == {"key1": "observability", "key2": "kubernetes"}
+        from src.gateway.auth import get_key_agent_map
+        assert get_key_agent_map() == {"key1": "observability", "key2": "kubernetes"}
 
     def test_parse_empty_map(self, monkeypatch):
         """Empty env var produces empty dict."""
@@ -40,11 +41,8 @@ class TestKeyAgentMapParsing:
         monkeypatch.setenv("INTERNAL_API_TOKEN", "x")
         monkeypatch.setenv("GATEWAY_API_KEYS", "")
 
-        import importlib
-        import src.gateway.auth as auth_mod
-        importlib.reload(auth_mod)
-
-        assert auth_mod.get_key_agent_map() == {}
+        from src.gateway.auth import get_key_agent_map
+        assert get_key_agent_map() == {}
 
     def test_parse_malformed_entries_skipped(self, monkeypatch):
         """Entries without '=' or with empty key/value are skipped."""
@@ -52,11 +50,8 @@ class TestKeyAgentMapParsing:
         monkeypatch.setenv("INTERNAL_API_TOKEN", "x")
         monkeypatch.setenv("GATEWAY_API_KEYS", "")
 
-        import importlib
-        import src.gateway.auth as auth_mod
-        importlib.reload(auth_mod)
-
-        assert auth_mod.get_key_agent_map() == {"good": "obs"}
+        from src.gateway.auth import get_key_agent_map
+        assert get_key_agent_map() == {"good": "obs"}
 
 
 # ─── Unit tests: auth dependency return value ───────────────────────
@@ -70,11 +65,8 @@ class TestAuthResultConsumerDefault:
         monkeypatch.setenv("INTERNAL_API_TOKEN", "internal-secret")
         monkeypatch.setenv("GATEWAY_API_KEYS", "")
 
-        import importlib
-        import src.gateway.auth as auth_mod
-        importlib.reload(auth_mod)
-
-        result = auth_mod.require_edge_auth(
+        from src.gateway.auth import require_edge_auth
+        result = require_edge_auth(
             x_internal_token="internal-secret",
             x_api_key=None,
             authorization="",
@@ -87,11 +79,8 @@ class TestAuthResultConsumerDefault:
         monkeypatch.setenv("INTERNAL_API_TOKEN", "internal-secret")
         monkeypatch.setenv("GATEWAY_API_KEYS", "")
 
-        import importlib
-        import src.gateway.auth as auth_mod
-        importlib.reload(auth_mod)
-
-        result = auth_mod.require_edge_auth(
+        from src.gateway.auth import require_edge_auth
+        result = require_edge_auth(
             x_internal_token="",
             x_api_key="grafana-key",
             authorization="",
@@ -104,11 +93,8 @@ class TestAuthResultConsumerDefault:
         monkeypatch.setenv("INTERNAL_API_TOKEN", "internal-secret")
         monkeypatch.setenv("GATEWAY_API_KEYS", "")
 
-        import importlib
-        import src.gateway.auth as auth_mod
-        importlib.reload(auth_mod)
-
-        result = auth_mod.require_edge_auth(
+        from src.gateway.auth import require_edge_auth
+        result = require_edge_auth(
             x_internal_token="",
             x_api_key=None,
             authorization="Bearer grafana-key",
@@ -121,11 +107,8 @@ class TestAuthResultConsumerDefault:
         monkeypatch.setenv("INTERNAL_API_TOKEN", "internal-secret")
         monkeypatch.setenv("GATEWAY_API_KEYS", "plain-key")
 
-        import importlib
-        import src.gateway.auth as auth_mod
-        importlib.reload(auth_mod)
-
-        result = auth_mod.require_edge_auth(
+        from src.gateway.auth import require_edge_auth
+        result = require_edge_auth(
             x_internal_token="",
             x_api_key="plain-key",
             authorization="",
@@ -138,13 +121,10 @@ class TestAuthResultConsumerDefault:
         monkeypatch.setenv("INTERNAL_API_TOKEN", "internal-secret")
         monkeypatch.setenv("GATEWAY_API_KEYS", "")
 
-        import importlib
-        import src.gateway.auth as auth_mod
-        importlib.reload(auth_mod)
-
         from fastapi import HTTPException
+        from src.gateway.auth import require_edge_auth
         with pytest.raises(HTTPException) as exc_info:
-            auth_mod.require_edge_auth(
+            require_edge_auth(
                 x_internal_token="",
                 x_api_key="wrong-key",
                 authorization="",
@@ -164,21 +144,13 @@ class TestChatCompletionsConsumerDefault:
         monkeypatch.setenv("GATEWAY_API_KEYS", "plain-key")
         monkeypatch.setenv("GATEWAY_KEY_AGENT_MAP", "grafana-key=observability")
         monkeypatch.setenv("REDIS_HOST", "localhost")
-
-    @pytest.fixture
-    def client(self, monkeypatch):
-        """Create test client with patched supervisor."""
-        # Reload auth with new env
-        import importlib
-        import src.gateway.auth as auth_mod
-        importlib.reload(auth_mod)
-
-        # Patch settings and imports for the gateway
-        monkeypatch.setattr("src.core.config.settings.redis_host", "localhost")
         monkeypatch.setattr("src.core.config.settings.rate_budget_enabled", False)
 
-        from src.gateway.main import app
+    @pytest.fixture
+    def client(self):
+        """Create test client — no reload needed (auth reads env fresh)."""
         from fastapi.testclient import TestClient
+        from src.gateway.main import app
         return TestClient(app)
 
     @patch("src.gateway.main._agent_names", ["observability", "kubernetes", "aws"])
@@ -192,7 +164,6 @@ class TestChatCompletionsConsumerDefault:
         mock_client.is_supervisor_ready = AsyncMock(return_value=True)
         mock_client.process = AsyncMock(return_value={"response": "ok"})
 
-        # Mock worker_pool.submit to yield the process result
         async def _fake_submit(job_id, gen):
             async def _iter():
                 async for item in gen:
@@ -203,14 +174,13 @@ class TestChatCompletionsConsumerDefault:
         resp = client.post(
             "/v1/chat/completions",
             json={
-                "model": "base",  # unrecognized → auto-route (None)
+                "model": "base",
                 "messages": [{"role": "user", "content": "show me metrics"}],
                 "stream": False,
             },
             headers={"X-API-Key": "grafana-key"},
         )
         assert resp.status_code == 200
-        # Verify the supervisor was called with force_agent="observability"
         mock_client.process.assert_called_once()
         call_kwargs = mock_client.process.call_args.kwargs
         assert call_kwargs["force_agent"] == "observability"
@@ -245,7 +215,6 @@ class TestChatCompletionsConsumerDefault:
         assert resp.status_code == 200
         mock_client.process.assert_called_once()
         call_kwargs = mock_client.process.call_args.kwargs
-        # Explicit model wins over consumer default
         assert call_kwargs["force_agent"] == "kubernetes"
 
     @patch("src.gateway.main._agent_names", ["observability", "kubernetes", "aws"])
@@ -278,7 +247,6 @@ class TestChatCompletionsConsumerDefault:
         assert resp.status_code == 200
         mock_client.process.assert_called_once()
         call_kwargs = mock_client.process.call_args.kwargs
-        # No consumer default → pure auto-route (None)
         assert call_kwargs["force_agent"] is None
 
     @patch("src.gateway.main._agent_names", ["observability", "kubernetes", "aws"])

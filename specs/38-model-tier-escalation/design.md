@@ -131,3 +131,4 @@ Ship **fast (Haiku) + standard (Sonnet)** pre-routing **now**; keep **deep (Opus
 behind `AIGENT_TIER_DEEP_ENABLED` (default `false`)** until Opus inference-profile
 access is confirmed. When `deep` is disabled, a `complex` classification falls back
 to `standard` (Sonnet) — never blocks. Flip the flag once Opus access is verified.
+(✅ Done agentic28: Opus 4.5 verified + enabled via overlay + tier wiring fixed → live.)

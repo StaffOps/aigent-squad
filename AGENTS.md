@@ -106,6 +106,8 @@ make smoke       # health + 1 real query + /v1/models
 make test        # full suite + 90% gate via Docker (auto-stubs the private otel dep)
 make test-one FILE=tests/test_x.py
 make lint        # ruff, CI-verbatim scope
+make typecheck   # mypy gate; CI blocks the test job on it (needs: [lint, typecheck])
+make harness-score  # AI-agent harness maturity gate (L0-L4); floor = MIN_LEVEL (default 1)
 make down        # stop (V=1 drops volumes)
 
 # Build image
@@ -260,10 +262,10 @@ No code changes needed — `AgentRegistry` auto-discovers at startup.
 | `SESSION_TOKEN_BUDGET` | | `2000000` | Per-session cumulative token cap (spec 11); raised from 200K for agentic loop cost (~30-60K/query) |
 | `AIGENT_MAX_LOOP_DURATION_MS` / `AIGENT_MAX_LOOP_TOKENS` | | `120000` / `300000` | Agentic loop wall-clock + cumulative-token budgets (deep analyses; context accumulates across turns) |
 | `AIGENT_CONTEXT_TRIM_ENABLED` / `AIGENT_CONTEXT_KEEP_LAST_N` | | `true` / `5` | Spec 40 context-trimming: keep last N tool-result turns verbatim, summarize older (bounds per-turn context) |
-| `AIGENT_TIER_ROUTING_ENABLED` / `AIGENT_TIER_DEEP_ENABLED` | | `true` / `false` | Spec 38 model-tier pre-routing; `deep`(Opus) off by default → falls back to standard until Opus access confirmed |
-| `AIGENT_TIER_CONFIDENCE_HIGH` / `BEDROCK_TIER_{FAST,STANDARD,DEEP}_MODEL_ID` | | `0.85` / haiku,sonnet,opus | Downshift threshold + tier→model map (spec 38) |
+| `AIGENT_TIER_ROUTING_ENABLED` / `AIGENT_TIER_DEEP_ENABLED` | | `true` / `false` (code); `true` in overlay | Spec 38 model-tier pre-routing. `deep`=Opus 4.5, ENABLED via overlay + live-validated (agentic28). **Tier routing wired into ALL paths** (auto-route, fan-out, force_agent, investigation, alertmanager — was inert before agentic28). |
+| `AIGENT_TIER_CONFIDENCE_HIGH` / `BEDROCK_TIER_{FAST,STANDARD,DEEP}_MODEL_ID` | | `0.85` / haiku-4.5, sonnet-4.5, **opus-4.5** | Downshift threshold + tier→model map (spec 38); deep = `us.anthropic.claude-opus-4-5-20251101-v1:0` (Opus 4.0 profile no longer exists in-account) |
 | `BEDROCK_READ_TIMEOUT_SECONDS` | | `120` | boto3 Bedrock read timeout (default 60s cut slow Converse → stream "terminated") |
-| `GATEWAY_JOB/FIRST_BYTE/IDLE_STREAM_TIMEOUT_SECONDS` | | `150`/`90`/`35` | Gateway stream timeouts; must exceed the loop budget + Bedrock read timeout |
+| `GATEWAY_JOB/FIRST_BYTE/IDLE_STREAM_TIMEOUT_SECONDS` | | `150`/`140`/`35` | Gateway stream timeouts; first-byte raised 90→140 (agentic28) for Opus deep-tier + non-streaming multi-agent/investigation first-byte ≈ loop completion (~100s); must exceed the loop budget + Bedrock read timeout |
 | `SELF_SERVICE_INSTRUCTION` / `CALIBRATED_HONESTY_INSTRUCTION` / `DECISIVENESS_INSTRUCTION` | | baked default | Env-overridable shared system-prompt instructions (no rebuild to tune) |
 | `GRAFANA_BASE_URL` | | (empty) | Grafana root URL injected into agent context for clickable DevOps dashboard links; empty default keeps the repo scrub-clean, real value set in the k8s-setup overlay |
 
@@ -370,6 +372,26 @@ Live session state + next steps: `HANDOFF.md`. Live items (findings/backlog/defe
   agent's `agent.yaml`/`prompt.md` without a docs/spec file in the same
   commit (bypass per-commit: `git commit --no-verify`)
 - **Mark tasks**: update `tasks.md` with completion dates; explicitly defer unfinished items
+- **Typecheck gate**: `make typecheck` must pass. CI blocks the test job on it
+  (`needs: [lint, typecheck]`), so a type error stops the pipeline before tests run.
+  Fix types rather than silencing them — a `# type: ignore[code]` is acceptable only for a
+  missing third-party stub or something the type system genuinely cannot express, and it
+  MUST carry a comment saying which. Do NOT add `[[tool.mypy.overrides]]` per-module
+  exclusions to make the count drop; that converts a gate into decoration. Note the gate is
+  not full `strict` — `warn_return_any` is on and ~184 missing-annotation errors remain
+  outside the enabled checks, which is registered debt, not a clean bill of health.
+- **Order-independence gate**: `make test` runs `pytest-randomly` with an **unpinned** seed,
+  so every run re-proves the suite does not depend on collection order. Never pin the seed to
+  make a red run green — a failure means real shared state leaked. The usual culprits are
+  `app.dependency_overrides` (a plain dict on the app object; clear it in an autouse
+  teardown) and module-level state parsed at import (read the env fresh instead — see F-016).
+- **Harness gate**: `make harness-score` must pass at the `MIN_LEVEL` floor set in the
+  Makefile (currently **L1**); CI enforces it (`harness_score` job). Raise the floor
+  ONLY after the score genuinely clears the next level — never to turn a red CI green.
+  **Never satisfy a check with a file no tool actually reads** (nested `CLAUDE.md`,
+  an unused `.mcp.json`, a `[tool.ruff]` block shadowed by `ruff.toml`, a
+  `.pre-commit-config.yaml` that conflicts with `.githooks/`): a scanner point bought
+  that way is a lie about the harness. Recipe: `.claude/skills/harness-score/`.
 - **Conventional commits**: `feat/fix/docs/test/refactor/chore(scope): description`
 - **Stage explicitly**: `git add <specific files>` — never `git add .`
 - **Cost discipline**: truncate adapter output before prompt, lazy-inject skills, cap history to N messages

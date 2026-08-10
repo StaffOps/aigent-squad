@@ -29,6 +29,7 @@ make up          # local two-tier stack + wait for gateway /ready
 make smoke       # health + 1 real query + /v1/models
 make test        # full suite + 90% coverage gate
 make lint        # ruff, CI-verbatim scope
+make typecheck   # mypy gate (blocks the CI test job)
 make down        # stop (V=1 drops volumes)
 ```
 
@@ -52,7 +53,7 @@ suite — you just can't exercise the LLM-backed paths live.
    feature emits ≥1 metric (`src/core/metrics.py` + `docs/METRICS.md`), and the
    relevant `docs/` file is updated in the same change (a pre-commit hook can
    enforce this locally — `make install-hooks`, opt-in).
-3. `make lint` clean, `make test` green, on the FULL scope (not just files you
+3. `make lint` + `make typecheck` clean, `make test` green, on the FULL scope (not just files you
    touched — `ruff check src/ tests/`).
 4. Conventional commit messages: `feat/fix/docs/test/refactor/chore(scope): description`.
 5. Open a PR against `dev`. CI runs lint → test and stops at the first

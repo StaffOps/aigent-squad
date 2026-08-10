@@ -2,6 +2,278 @@
 
 ## [Unreleased]
 
+### Added — two new quality gates: typecheck and order-independence (2026-08-09)
+Both existed as *claims* before today. Neither was enforced.
+
+**`make typecheck` — mypy is now a gate.** It sat in `pyproject.toml` as an unenforced
+baseline with ~14 errors, gating nothing. Now: a `make typecheck` target following the same
+local-or-Docker pattern as `make lint`, a `typecheck` CI job, and `needs: [lint, typecheck]`
+on the test job so a type error stops the pipeline before tests run.
+- **Proven able to fail**, not assumed: an independent stage injected
+  `def _deliberate_type_error() -> int: return "not an int"`, confirmed a non-zero exit, and
+  reverted. This matters because earlier the same day a `pytest.skip()` without importing
+  `pytest` shipped and 1857 tests passed over it — only `make lint` caught it. A gate nobody
+  proved can fail is decoration.
+- Errors fixed by real typing. Three `# type: ignore` remain repo-wide (one pre-existing in
+  `worker_pool.py`, two for an `asyncio.gather` union the checker cannot narrow), each with a
+  justification. **Zero** `[[tool.mypy.overrides]]` were added.
+- **Not** full `strict`: ~184 missing-annotation errors remain outside the enabled checks.
+  Registered debt, not a clean bill of health.
+
+**`pytest-randomly` with an unpinned seed — order-independence is now enforced per run.**
+See the F-016 entry below for the two real bugs this immediately exposed.
+
+**Behaviour change surfaced during the typing pass** (named because it was *not* inert):
+`os.getenv("AGENTS_DIR", "agents")` became `os.getenv("AGENTS_DIR") or "agents"`, same for
+`SKILLS_DIR`. Previously an env var set to the **empty string** returned `""` and `Path("")`
+resolved to `Path(".")`, silently pointing the loader at the current directory. Now it falls
+through to the default. Strictly safer, and **reasoned rather than tested** — no case exercises
+the empty-string edge.
+
+### Fixed — F-016: the suite was never order-independent, and measuring it broke it twice (2026-08-09)
+"Order-independent" had been asserted all session and never measured. Measuring it produced two
+distinct failures, one of them self-inflicted.
+
+**(a) The auth bypass leaked between tests.** `app.dependency_overrides` is a plain dict on the
+FastAPI app object. Two supervisor test files installed an auth bypass and never cleared it
+(`test_supervisor_server_errors.py`, pre-existing; `test_alertmanager_webhook_tier.py`, added
+earlier the same day). Under seed 1337, `test_internal_auth.py` asserted 401 and received a
+bypassed 200. The four *gateway* test files already cleared it in a fixture; the supervisor ones
+did not, and the fixed collection order hid it. Both now clear it in an autouse teardown.
+
+**(b) The F-012 fix had traded one order dependency for another.** Under seed 4242, 10 failures
+in the G-5 integration classes. Root cause confirmed by reading the code, not guessed:
+`src/gateway/auth.py` parsed `GATEWAY_KEY_AGENT_MAP` into a module-level `_KEY_AGENT_MAP` at
+import time, so those tests had to `importlib.reload()` it — and `src/gateway/main.py` binds
+symbols from `auth` at import, so after a reload `main` still held the **old** function objects
+and `dependency_overrides` keyed on them stopped matching.
+- Fixed at the source: `get_key_agent_map()` now reads the env **fresh on every call**. The
+  module global is gone, nothing needs reloading, and the teardown was dropped. That removes the
+  bug class rather than the seeds that exposed it.
+- This also means F-012 had been closed as "verified" against the fixed order plus one revert
+  experiment, never against randomized order.
+- **Scope honesty**: `importlib.reload` still appears ~32× elsewhere in the suite. It was removed
+  only where it was load-bearing for this bug — not eradicated repo-wide. A review stage claimed
+  "no reload remains anywhere"; that was an overclaim and is corrected in the F-016 backlog entry.
+
+Verified across seeds 4242, 1337, 9999, 12345, fixed order, and unpinned random.
+
+### Fixed — MCP failures reported anyio's wrapper instead of the real cause (F-011, 2026-08-09)
+`ExceptionGroup` from `anyio`'s TaskGroup surfaced to operators as
+`unhandled errors in a TaskGroup (1 sub-exception)` — the actual cause (auth failure, connection
+refused, timeout) was one level down and never printed. A new `mcp_error_detail()` helper unwraps
+the group and reports the underlying exception, applied at the three original call sites plus
+`agentic_loop.py:145` for parity. Regression tests proven to fail before the fix.
+
+### Added — coverage on the branches that carried real risk (2026-08-09)
+Coverage 93.18% → **94.00%**, by pinning decision branches rather than executing lines.
+- `src/supervisor/server.py` 70% → **89%**. The streaming endpoint's 403-vs-500 discrimination
+  (a guardrail block could previously masquerade as a crash), the `None` → fallback path (the only
+  logic that silently double-invokes the supervisor, i.e. real token spend, if the fallback
+  misfires), and the HC5 boot gate that stops the **alertmanager webhook** — the one RCA path with
+  no human in the loop — from starting with misconfigured tier models.
+- `src/gateway/supervisor_client.py` 76% → **98%**. Transport failure becomes a clean 503 instead
+  of a hanging SSE stream.
+- **Deliberately not tested**: `adapters.py` stays at 80%. It had been *named* a weak module; the
+  measurement disagreed — the uncovered lines are thin wrappers over boto3/k8s/httpx/mcp with no
+  business logic, where a test means mocking an external client to assert a formatted string. Same
+  for `kb/store.py`'s fail-open guards and `health.py`'s timeout branches. Those lines are judged
+  **not worth pinning**, which is not the same as judged correct.
+- Each high-risk test proven by breaking the code, observing the failure, and reverting.
+
+
+### Fixed — coverage blind spot on the alertmanager RCA path + the test-isolation leak (2026-08-08)
+Two test-quality gaps, both found by asking "is this actually tested?" instead of trusting a
+commit message.
+
+**1. `src/supervisor/server.py` was excluded from coverage as a "thin wrapper".** That stopped
+being true: it carries the alertmanager webhook's `_run_inv` closure, which builds a synthetic
+`ClassifierResult` and resolves the tier model for alert-triggered RCA. Measured once
+un-excluded: **62%, with the whole closure uncovered**. And `test_alert_handler.py` injects
+`run_investigation_fn`, mocking away the exact code under test — so spec 38 had named tests for
+every path that bypassed tier routing EXCEPT this one. It is the only RCA path with **no human
+in the loop**: an alert fires and the investigation spends Bedrock tokens on its own, so a
+silent regression to the wrong tier (the agentic28 failure mode was 17/17 invocations on the
+default model) would go unnoticed.
+- Removed from `.coveragerc` omit — the file is measured now; the ~0.9pp of global coverage it
+  costs buys a real gate. Comment records that logic-free entrypoints should exclude
+  lines/functions, not whole files that grow logic.
+- New `tests/test_alertmanager_webhook_tier.py` drives the real HTTP route so the real closure
+  runs: tier override threaded into `run_investigation`, alert RCA not downgraded to the fast
+  tier, budget bucket scoped per fingerprint (guarding the E2 finding where an empty
+  `session_id` disabled the budget cap), resolved alerts spend nothing.
+- `server.py` coverage 62% → **70%**, with lines 220-252 no longer in the missing list.
+
+**2. F-012 — the `reload` + `monkeypatch` leak is now closed at the cause.** An autouse teardown
+in both G-5 files pops `GATEWAY_KEY_AGENT_MAP` explicitly and reloads `src.gateway.auth` clean.
+Verified by *reverting* the symptom fix: with the original `MagicMock` pattern restored — the one
+that failed in the full suite — the suite passes 1856/1856, proving the leak is gone rather than
+masked.
+
+Suite: 1856 passed, coverage 93.36%.
+
+### Fixed — spec 41 `x_aigent` was inert in production (found in homologation, 2026-08-08)
+Spec 41 shipped with 56 passing tests and the field **never appeared in a single
+production response**. Homologating the real deployment is what caught it.
+
+`build_completion` read the assessment by attribute (`assessment.confidence`). That holds
+in-process, but the public `/v1/chat/completions` is served by the **gateway**, which obtains
+the supervisor result through `supervisor_client.process()` → `resp.json()` — and that JSON
+round-trip turns the `QualityAssessment` dataclass into a plain **dict**. So every production
+call raised `AttributeError`, a bare `except Exception: pass` swallowed it, and `x_aigent` was
+omitted silently. Every test injected the dataclass, so every test passed.
+
+- `build_completion` now accepts the assessment as **dict or dataclass**.
+- The swallow became a `logging.warning`. The spec-41 invariant ("never fail the answer") is
+  preserved without the blindness — silence is what hid this through 56 tests.
+- Two regression tests, both **verified to fail without the fix**: one injects the wire shape
+  via a real `json.dumps`/`json.loads` round-trip; the other asserts a malformed assessment
+  neither breaks the response nor passes unlogged.
+
+Homologated live on devops-core (helm rev 65): `x_aigent.quality` = `{confidence: "high",
+unverified_claims: []}` on a real agentic query. The rest of the chain was already confirmed
+working in production before this fix — `aigent.quality.confidence{level="high"}` and
+`aigent.quality.unverified_claims_per_response` were both being emitted and scraped, which is
+what proved the M1 `toolResult` extraction (T2b) works: without it `scan()` returns `None` and
+no metric would exist at all.
+
+Suite: 1852 passed, coverage 94.07% (`openai_compat.py` 99%).
+
+### Fixed — test gate GREEN: 13 stale failures cleared (2026-08-08)
+`make test` was red on committed HEAD with 13 failures. **All 13 were stale tests; zero
+production defects.** Suite now **1850 passed / 0 failed**, coverage 94.01%.
+
+> **Correction to the 2026-07-24 entry below**, which claims *"CI drift repaired (audit #6-9)"*
+> (commit `ca2c0ac`): that repair was **incomplete**. 13 failures survived it and the changelog
+> asserted otherwise for two weeks. While the gate was red it could not distinguish a new
+> regression from old debt — this session lost time to exactly that, misattributing a failure to
+> an unrelated lint pass until an isolated `git worktree` run at HEAD disproved it.
+
+Four independent root causes (tracked as F-010 in `specs/BACKLOG.md`):
+- **6 stale budget assertions.** The loop budgets were deliberately raised (spec 37, "40K scale
+  budgets") and the tests still asserted pre-raise values: `MAX_TOOL_STEPS` 8≠5,
+  `MAX_LOOP_DURATION_MS` 120000≠15000, `MAX_LOOP_TOKENS` 300000≠50000,
+  `MAX_TOOL_RESULT_CHARS` 40000≠8000. The **comments in `agent_config.py` were stale too** —
+  they documented 150000/30000, superseded values — and were corrected.
+- **4 stale guardrail assertions.** G-6 deliberately stopped wiring Bedrock's server-side
+  converse guardrail (redundant — input is guarded once at ingress — and it false-positived on
+  the agent's framed user turn). The tests asserted the pre-G-6 "turn 0 = True" contract. Checked
+  before rewriting: the security property is covered and passing in `test_g6_ingress_guard.py`
+  (17 tests, incl. injection blocked at ingress + output/tool guards still firing). Two test
+  names that asserted the wrong contract were renamed.
+- **1 stale 404 contract.** G-1 made `resolve_target` permissive (an unrecognized model id
+  auto-routes instead of raising) so the Grafana LLM app — which sends `base`/`gpt-4o` — works.
+  The endpoint test still expected 404; rewritten to assert the endpoint honours auto-route.
+- **1 test-isolation bug** (F-012). `test_lifespan_aclose` passed alone and failed in the full
+  suite: the G-5 tests `importlib.reload` the auth module under `monkeypatch.setenv`, and
+  monkeypatch restores the env var but **cannot undo a reload** — so `_KEY_AGENT_MAP` stayed
+  populated and made the gateway lifespan `await` an un-mocked attribute. The test is now
+  order-independent; **the leak itself is still open** (F-012).
+
+Also registered: **F-011** — the MCP adapter's error path fails open correctly but surfaces
+`unhandled errors in a TaskGroup` instead of the real cause (anyio wraps it), so the log line
+tells an operator nothing. Behaviour is fine; observability is not. Left open with the brittle
+assertion deliberately NOT re-added.
+
+### Added — structured calibrated honesty, B-16 Phase-2 (spec 41) (2026-08-08)
+Phase-1 shipped the `<calibrated_honesty>` prompt instruction; the model was *asked* to
+qualify uncertainty but nothing measured whether it did. Phase-2 makes the assessment
+structural and observable.
+- **`ResponseQualityGuard.scan()` now returns `Optional[QualityAssessment]`** (`confidence`,
+  `unverified_claims[]`) instead of `None`. Ordering is unchanged and deliberate: structural
+  defects block first, ungrounded **resource IDs** block second (pre-existing guardrail), and
+  only an answer that clears both gets assessed on ungrounded **numeric** claims —
+  0→`high`, 1–2→`medium`, ≥3→`low`, claims deduped and capped at 20. The count is over
+  **distinct** claims, not regex matches — counting raw matches let the same `$999.99`
+  repeated three times report `low` next to a one-item `unverified_claims` list, which a
+  client could not reconcile.
+- **M1 prerequisite — `effective_infra_data` (the part that makes it not a lie):** the agentic
+  path passes `infra_data=""`, so a naive scan finds nothing ungrounded and returns `high`
+  for *every* agentic answer — a no-op that would have actively blessed hallucinations. The
+  tool results are now extracted from the loop's `toolResult` content blocks and fed to the
+  scan. This required changing `run_agentic_loop` to return `tuple[str, list[dict]]`
+  (`(final_text, messages)`); all call sites updated.
+- **Surfaced to clients** as an optional top-level `x_aigent.quality` on **non-streaming**
+  `/v1/chat/completions` responses, omitted entirely when absent. `message.content` is
+  byte-identical — verified by a regression test. Documented in `docs/LIBRECHAT.md`.
+- **2 new metrics:** `aigent.quality.confidence{level}` (3 series) and
+  `aigent.quality.unverified_claims_per_response{agent_id}` (default SDK buckets — explicit
+  boundaries are not settable from this repo: the API's `create_histogram` takes only
+  name/unit/description and the MeterProvider lives in `otel_helper`).
+- **Feature-flagged** on `response_quality_enabled`; assessment `None` + no metrics when off.
+  Assessment failures are swallowed — the answer always returns.
+- 30 independent-author tests (verification-independence); suite 1811 passed, coverage 93.36%.
+
+### Deployed / cleanup / CI (2026-07-24)
+- Deployed **agentic29** to devops-core (helm rev 62, multi-arch) — the observability metric improvements are live in-process; VM visibility pending a scrape-path fix (app custom metrics have no VMServiceScrape — pre-existing gap, affects all `aigent.*` incl. the agentic28 tier counter).
+- Cleanup (audit #3): removed dead `src/agents/` package tree + accidentally-committed root `otel_helper/` stub (now gitignored); archived 2 superseded eval baselines.
+- CI drift repaired (audit #6-9): re-pointed the `CALIBRATED_HONESTY` import (moved to `settings`), scaled the truncation test fixture past the raised 40k cap, aligned ~38 marker assertions to the current strings, added `fakeredis[lua]` test dep.
+- Changelog hygiene: consolidated 3 stray dated `[Unreleased]` sections into `[0.1.0]`; `Dockerfile.test` dropped the vestigial `github_token` secret (otel-helper public since B-28).
+
+### Added/Fixed — observability metrics review (2026-07-24)
+Dedicated observability + code-review audit of the ~43 emitted `aigent.*` metrics (verdict: healthy,
+zero vanity, full RED+USE+cost+quality). Acted on the findings:
+- **Fixed:** streaming requests were undercounted (`request_counter`/`request.duration` now emit in a
+  `try/finally` on both streaming wrappers → counted once, incl. early client-close); guardrail blocks
+  were **double-counted** on tool paths (removed the duplicate caller-side emission; `guardrail.py` is
+  the single source); investigation fan-out failures now increment an error counter.
+- **Added 5 pertinent metrics (bounded cardinality, no vanity):** `aigent.tool.call_duration{tool_name,status}`
+  (which MCP tool is slow/broken — was trace-only), `aigent.guardrail.blocks{source,agent_id}`,
+  `aigent.bedrock.throttles{model}`, `aigent.context.trimmed_messages{agent_id}` (spec 40 pressure),
+  `aigent.tier.classifier_confidence{tier}`.
+- **Reverted a wrong "fix":** the review assumed the investigation `confidence` label was a raw float
+  (cardinality risk) — it is already a bounded string (`alta|media|baixa`); bucketizing it broke
+  `run_investigation` (caught by regression test). Kept the label as-is. 135 tier+metric tests pass.
+
+### Changed — full English translation + exhaustive 543-file audit (2026-07-24)
+- **Every file (543, ~102K lines) read + validated** (useful / recorded / current / undocumented) via
+  category fan-out (specs 107, skills 122, src 66, tests 90, docs+infra+evals+agents+scripts+config 157+).
+- **~72 files translated Portuguese→English in-place**: specs (56), skills (4), src+tests (streaming
+  degraded message + synced test assertions + Decisão→Decision comments), docs/ADRs/PRD/mcp-server/archive
+  (8), residual quoted examples (specs/37 + ADR-0008). Faithful language-only — spec frontmatter, status
+  markers, code identifiers, and the `specs_status.py` gate contract preserved (gate rc=0, tests green).
+- **Residual PT is functional/intentional** (kept by design): bilingual calibrated-honesty (config.py) +
+  investigation trigger keywords (triage.py) for PT-user support; PT eval fixtures + a PT injection
+  attack-test input; BACKLOG/archive historical runtime quotes.
+- **Audit findings** tracked in `specs/BACKLOG.md`: delete/merge candidates (await user approval) +
+  pre-existing test drift (fix-needed) + minor doc inconsistencies. Repo verdict: healthy, 0 dead/orphan files.
+- **Docs synced:** spec 39 marked `done-with-deferrals` (WS1/WS2/WS3 done + homologated; T3.4 Phase-2);
+  spec 21 design embedding dims corrected (Bedrock Titan v2/1024, matching impl); `HANDOFF.md` overwritten
+  to the agentic28 session (prior → `archive/handoffs/2026-07-17.md`); `archive/IMPLEMENTATION_HISTORY.md`
+  given a HISTORICAL banner; AGENTS/README/METRICS updated (tier routing live, Opus 4.5, `aigent.tier.routing_decisions`); ROADMAP regen; gate rc=0.
+
+### Added — MCP-usage reinforcement, RCA fold, Opus 4.5 deep tier (2026-07-23)
+- **Prompt reinforcement to leverage the bound MCPs** (harness-validated — code-review + observability
+  caught 2 blockers: an excluded Sift tool + missing `tempo_` prefix, both fixed):
+  - `observability`: cross-signal RCA (metric→trace→log→profile→alerts) + **Investigation Mode**
+    (≥3-signal gate, timeline, refute-first, structured RCA, delegation to kubernetes/devops/aws).
+  - `kubernetes`: **live read-only tools** table (helm/rollouts/cert-manager/istio/cilium/gitops/keda/
+    velero/capi/kubevirt/cost) + **fixed a stale pre-agentic instruction** ("never invoke tools") that
+    was suppressing MCP use; Jaeger→Tempo; static cluster-context caveat.
+- **spec 39 WS3 cross-signal RCA Phase-1 — FOLDED into observability** (round-table verdict: no
+  dedicated `rca` agent — routing ambiguity + duplicate allowlist + zero Phase-1 runtime diff). WS1 done.
+  T3.4 (`investigation.py` wiring) = Phase-2 with an explicit extraction trigger.
+- **Opus deep tier enabled (spec 38 T9)** — the configured Opus 4.0 profile no longer exists in-account;
+  corrected to verified-ACTIVE **Opus 4.5** (`us.anthropic.claude-opus-4-5`), pricing $5/$25 (~3× cheaper
+  than Opus 4.0); overlay flip prepared (activates on push). 77 tier tests pass.
+- **Kubernetes Grafana dashboards recheck** — the folder is NOT empty (was mis-catalogued): Argo/EKS/Istio
+  subfolders with comprehensive dashboards; `devops-grafana-dashboards` skill corrected, no new dashboard needed.
+- **`<self_service>` tone softened** — kept the self-serve/read-only intent, dropped the harsh imperative.
+- **Eval expansion** — 4 capability-oriented golden queries (logs / helm / cert / cross-signal RCA).
+- **spec 38 follow-ups documented** — Phase-2 dispatch condition; move startup-validation out of import.
+- **🔴 CRITICAL FIX — tier routing was INERT in prod, now wired into ALL paths.** Homologation of the
+  agentic28 deploy revealed `_resolve_tier_model` was only threaded in auto-route+fan-out; the
+  **force_agent streaming** path (LibreChat per-agent models) and the **investigation orchestration**
+  (RCA/why/investigate) + **alertmanager webhook** bypassed it → 17/17 live invocations were Sonnet,
+  Opus/Haiku NEVER activated. Fixed (harness pipeline dev→dev-test→code-review, 103 tests): force_agent
+  uses a heuristic complexity (no extra classify), investigation/alertmanager route as `complex`.
+  **Live-validated on devops-core (agentic28): simple→Haiku (2.4s), complex RCA→Opus 4.5 (15 Opus
+  invocations, `tier=deep` logged).** Also raised `GATEWAY_FIRST_BYTE_TIMEOUT` 90→140s — Opus + the
+  non-streaming multi-agent/investigation path make first-byte = loop completion (~100s), which 90s cut → 500.
+- _P1 DEPLOYED to devops-core (test=prod): GitLab prompts pushed (git-synced), image `agentic28` built
+  + deployed (rev 61), Opus 4.5 deep tier LIVE + validated. App code committed on branch
+  `fix/openai-compat-drop-system-messages` (not yet merged to dev — pending PR)._
+
 ### Added — grafana-mcp + kubectl-mcp read-only bindings
 - **grafana-mcp bound to the observability agent** (2026-07-22) — the deployed `mcp-servers/grafana-mcp`
   server is now wired as a datasource with a **strict read-only tool allowlist** (44 read tools:
@@ -76,8 +348,9 @@
   when there's enough to answer — curbs open-ended over-exploration (latency + tokens). Env-overridable
   (`DECISIVENESS_INSTRUCTION`); eval 6/6, no accuracy regression.
 - **`devops-grafana-dashboards` skill:** real catalog of the DevOps-GenericMonitoring Grafana folder
-  (APM, BDCOtelHelper, Synthetic Tests - Kuma) + flags the empty Kubernetes subfolder as a build
-  opportunity; wired into observability/kubernetes/devops.
+  (APM, BDCOtelHelper, Synthetic Tests - Kuma, and Kubernetes → Argo/EKS/Istio subfolders with
+  comprehensive workload/rollout/mesh dashboards — recheck 2026-07-23 corrected an earlier
+  "empty" mis-catalog); wired into observability/kubernetes/devops.
 - **Observability Rule 5 (health-verdict discipline):** never declare "healthy/EXCELENTE" without a
   tool result this turn; recurring OOM/restarts/errors = degraded, lead with the findings.
 - **Security scrub:** all BigDataCorp/BDC references removed from the project → `<ORG>` placeholders
@@ -413,7 +686,9 @@ version linkage (`appVersion` 0.2.0, scan-gated `release.yml`).
 - Tests: `test_bedrock` (llm.duration + prompt.size, snake_case key, usage-absent, backoff-excluded, not-on-failure), `test_generic_agent` (collect.duration with/without adapters), `test_run_investigation` (rounds value + no-label cardinality). Verification independence: tests reviewed/strengthened by a separate agent. 246 passed, 92.46% coverage
 - `Dockerfile.test`: switched from `--mount=type=ssh` to `--mount=type=secret,id=github_token` (matches main Dockerfile; HTTPS private dep)
 
-## [Unreleased] - 2026-06-17
+## [0.1.0] - 2026-06-17
+
+> Consolidated initial development (2026-06-14 → 06-17), pre-0.2.0. Dates below mark the original entries.
 
 ### Added (Spec 29: OpenAI-compatible bridge — LibreChat)
 - `src/supervisor/openai_compat.py`: OpenAI Chat Completions surface on the supervisor — `GET /v1/models` + `POST /v1/chat/completions` (behind `require_token`)
@@ -450,7 +725,7 @@ version linkage (`appVersion` 0.2.0, scan-gated `release.yml`).
 ### Fixed (README accuracy)
 - Residual Portuguese, stale `Claude 3.5` → `Claude Sonnet 4.5`, KB clarified as PostgreSQL+pgvector, `Last Updated` date, roadmap pointer; added LibreChat + Claude Code references
 
-## [Unreleased] - 2026-06-16
+**2026-06-16**
 
 ### Added (Terraform infrastructure — `terraform/`)
 - `iam/`: single IRSA role + scoped policies (Bedrock invoke, DynamoDB sessions = only write, read-only inventory ec2/rds/s3/ce/iam, optional Athena/CUR FinOps)
@@ -484,7 +759,7 @@ version linkage (`appVersion` 0.2.0, scan-gated `release.yml`).
 ### Added (ADR)
 - `specs/ADR-001-bedrock-direct-vs-strands.md`: decision to keep Bedrock-direct over the Strands SDK (with reopen signals)
 
-## [Unreleased] - 2026-06-14
+**2026-06-14**
 
 ### Changed (Coverage gate raised: 80% → 90%)
 - Test suite expanded from 124 to 166 tests (+42 targeted tests)

@@ -15,6 +15,8 @@ import logging
 import re
 from typing import Any
 
+from src.core.metrics import context_trimmed_messages
+
 logger = logging.getLogger(__name__)
 
 
@@ -212,7 +214,7 @@ def _extract_top_keys(text: str) -> str:
     return ""
 
 
-def trim_message_history(messages: list[dict[str, Any]], keep_last_n: int) -> list[dict[str, Any]]:
+def trim_message_history(messages: list[dict[str, Any]], keep_last_n: int, agent_id: str = "unknown") -> list[dict[str, Any]]:
     """Trim older toolResult turns in-place, keeping last N verbatim (DC2-DC5).
 
     Rules:
@@ -227,6 +229,7 @@ def trim_message_history(messages: list[dict[str, Any]], keep_last_n: int) -> li
     Args:
         messages: The mutable message list from the agentic loop.
         keep_last_n: Number of recent toolResult turns to keep verbatim.
+        agent_id: Agent identifier for the context_trimmed_messages metric.
 
     Returns:
         The same list (mutated in place) for convenience.
@@ -258,6 +261,9 @@ def trim_message_history(messages: list[dict[str, Any]], keep_last_n: int) -> li
         return messages
 
     indices_to_trim = tool_result_indices[:-effective_n]
+
+    # ADD (d): emit metric counting trimmed turns (one increment per trim event)
+    context_trimmed_messages.add(len(indices_to_trim), {"agent_id": agent_id})
 
     for idx in indices_to_trim:
         msg = messages[idx]

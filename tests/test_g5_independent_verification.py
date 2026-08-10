@@ -11,14 +11,17 @@ Written by test-author (separate from implementer) against the CONTRACT:
 Does NOT modify implementation. Reports bugs via assertion messages.
 """
 import hmac
-import importlib
 import logging
-import os
-import time
 from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi import HTTPException
+
+
+# NOTE (F-016b): The autouse _restore_auth_module_state fixture (F-012) was
+# removed. src/gateway/auth.py now reads env vars FRESH on every call — no
+# module-level cache, no importlib.reload() needed. monkeypatch.setenv is
+# sufficient for test isolation.
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -29,37 +32,36 @@ from fastapi import HTTPException
 class TestG5MapParsing:
     """Contract: env var parsed into dict; malformed entries tolerated, not crash."""
 
-    def _reload_auth(self):
+    def _get_auth(self):
         import src.gateway.auth as auth_mod
-        importlib.reload(auth_mod)
         return auth_mod
 
     def test_single_valid_pair(self, monkeypatch):
         monkeypatch.setenv("GATEWAY_KEY_AGENT_MAP", "k1=observability")
         monkeypatch.setenv("INTERNAL_API_TOKEN", "tok")
         monkeypatch.setenv("GATEWAY_API_KEYS", "")
-        auth = self._reload_auth()
+        auth = self._get_auth()
         assert auth.get_key_agent_map() == {"k1": "observability"}
 
     def test_multiple_valid_pairs(self, monkeypatch):
         monkeypatch.setenv("GATEWAY_KEY_AGENT_MAP", "a=obs,b=k8s,c=aws")
         monkeypatch.setenv("INTERNAL_API_TOKEN", "tok")
         monkeypatch.setenv("GATEWAY_API_KEYS", "")
-        auth = self._reload_auth()
+        auth = self._get_auth()
         assert auth.get_key_agent_map() == {"a": "obs", "b": "k8s", "c": "aws"}
 
     def test_empty_env_var(self, monkeypatch):
         monkeypatch.setenv("GATEWAY_KEY_AGENT_MAP", "")
         monkeypatch.setenv("INTERNAL_API_TOKEN", "tok")
         monkeypatch.setenv("GATEWAY_API_KEYS", "")
-        auth = self._reload_auth()
+        auth = self._get_auth()
         assert auth.get_key_agent_map() == {}
 
     def test_unset_env_var(self, monkeypatch):
         monkeypatch.delenv("GATEWAY_KEY_AGENT_MAP", raising=False)
         monkeypatch.setenv("INTERNAL_API_TOKEN", "tok")
         monkeypatch.setenv("GATEWAY_API_KEYS", "")
-        auth = self._reload_auth()
+        auth = self._get_auth()
         assert auth.get_key_agent_map() == {}
 
     def test_malformed_no_equals(self, monkeypatch):
@@ -67,7 +69,7 @@ class TestG5MapParsing:
         monkeypatch.setenv("GATEWAY_KEY_AGENT_MAP", "good=obs,malformed_no_eq")
         monkeypatch.setenv("INTERNAL_API_TOKEN", "tok")
         monkeypatch.setenv("GATEWAY_API_KEYS", "")
-        auth = self._reload_auth()
+        auth = self._get_auth()
         assert auth.get_key_agent_map() == {"good": "obs"}
 
     def test_malformed_empty_key(self, monkeypatch):
@@ -75,7 +77,7 @@ class TestG5MapParsing:
         monkeypatch.setenv("GATEWAY_KEY_AGENT_MAP", "=nokey,valid=agent")
         monkeypatch.setenv("INTERNAL_API_TOKEN", "tok")
         monkeypatch.setenv("GATEWAY_API_KEYS", "")
-        auth = self._reload_auth()
+        auth = self._get_auth()
         assert auth.get_key_agent_map() == {"valid": "agent"}
 
     def test_malformed_empty_value(self, monkeypatch):
@@ -83,7 +85,7 @@ class TestG5MapParsing:
         monkeypatch.setenv("GATEWAY_KEY_AGENT_MAP", "novalue=,valid=agent")
         monkeypatch.setenv("INTERNAL_API_TOKEN", "tok")
         monkeypatch.setenv("GATEWAY_API_KEYS", "")
-        auth = self._reload_auth()
+        auth = self._get_auth()
         assert auth.get_key_agent_map() == {"valid": "agent"}
 
     def test_whitespace_trimmed(self, monkeypatch):
@@ -91,7 +93,7 @@ class TestG5MapParsing:
         monkeypatch.setenv("GATEWAY_KEY_AGENT_MAP", " k1 = obs , k2 = k8s ")
         monkeypatch.setenv("INTERNAL_API_TOKEN", "tok")
         monkeypatch.setenv("GATEWAY_API_KEYS", "")
-        auth = self._reload_auth()
+        auth = self._get_auth()
         assert auth.get_key_agent_map() == {"k1": "obs", "k2": "k8s"}
 
     def test_value_with_equals_sign(self, monkeypatch):
@@ -99,7 +101,7 @@ class TestG5MapParsing:
         monkeypatch.setenv("GATEWAY_KEY_AGENT_MAP", "k1=obs=extra")
         monkeypatch.setenv("INTERNAL_API_TOKEN", "tok")
         monkeypatch.setenv("GATEWAY_API_KEYS", "")
-        auth = self._reload_auth()
+        auth = self._get_auth()
         # split("=", 1) → key="k1", value="obs=extra"
         assert auth.get_key_agent_map() == {"k1": "obs=extra"}
 
@@ -117,7 +119,8 @@ class TestG5AuthResult:
         monkeypatch.setenv("GATEWAY_KEY_AGENT_MAP", "grafana=observability,jenkins=kubernetes")
         monkeypatch.setenv("INTERNAL_API_TOKEN", "super-secret-token")
         monkeypatch.setenv("GATEWAY_API_KEYS", "plain-key-1,plain-key-2")
-        self.auth = importlib.reload(importlib.import_module("src.gateway.auth"))
+        import src.gateway.auth as _auth
+        self.auth = _auth
 
     def test_internal_token_header_no_default(self):
         """X-Internal-Token → AuthResult(consumer_default_agent=None)."""
@@ -182,7 +185,8 @@ class TestG5FailClosed:
         monkeypatch.setenv("GATEWAY_KEY_AGENT_MAP", "valid-key=observability")
         monkeypatch.setenv("INTERNAL_API_TOKEN", "secret")
         monkeypatch.setenv("GATEWAY_API_KEYS", "")
-        self.auth = importlib.reload(importlib.import_module("src.gateway.auth"))
+        import src.gateway.auth as _auth
+        self.auth = _auth
 
     def test_no_credentials_rejects(self):
         """No credential at all → 401."""
@@ -219,9 +223,9 @@ class TestG5FailClosed:
         monkeypatch.setenv("INTERNAL_API_TOKEN", "")
         monkeypatch.setenv("GATEWAY_KEY_AGENT_MAP", "")
         monkeypatch.setenv("GATEWAY_API_KEYS", "")
-        auth = importlib.reload(importlib.import_module("src.gateway.auth"))
+        from src.gateway.auth import require_edge_auth
         with pytest.raises(HTTPException) as exc:
-            auth.require_edge_auth(x_internal_token="anything", x_api_key=None, authorization="")
+            require_edge_auth(x_internal_token="anything", x_api_key=None, authorization="")
         assert exc.value.status_code == 401
 
 
@@ -238,7 +242,8 @@ class TestG5TimingSafe:
         monkeypatch.setenv("GATEWAY_KEY_AGENT_MAP", "k=obs")
         monkeypatch.setenv("INTERNAL_API_TOKEN", "secret")
         monkeypatch.setenv("GATEWAY_API_KEYS", "")
-        auth = importlib.reload(importlib.import_module("src.gateway.auth"))
+
+        from src.gateway.auth import require_edge_auth
 
         calls = []
         original = hmac.compare_digest
@@ -248,8 +253,7 @@ class TestG5TimingSafe:
             return original(a, b)
 
         with patch("src.gateway.auth.hmac.compare_digest", side_effect=tracking_compare):
-            # Reload won't help here since it's module-level; patch at call-site
-            auth.require_edge_auth(
+            require_edge_auth(
                 x_internal_token="secret", x_api_key=None, authorization=""
             )
 
@@ -271,11 +275,12 @@ class TestG5SecretsNotLogged:
         monkeypatch.setenv("GATEWAY_KEY_AGENT_MAP", "real-key=obs")
         monkeypatch.setenv("INTERNAL_API_TOKEN", "real-token")
         monkeypatch.setenv("GATEWAY_API_KEYS", "")
-        auth = importlib.reload(importlib.import_module("src.gateway.auth"))
+
+        from src.gateway.auth import require_edge_auth
 
         with caplog.at_level(logging.DEBUG):
             with pytest.raises(HTTPException):
-                auth.require_edge_auth(
+                require_edge_auth(
                     x_internal_token=secret_key,
                     x_api_key=secret_key,
                     authorization=f"Bearer {secret_key}",
@@ -292,10 +297,11 @@ class TestG5SecretsNotLogged:
         monkeypatch.setenv("GATEWAY_KEY_AGENT_MAP", "my-secret-key=obs")
         monkeypatch.setenv("INTERNAL_API_TOKEN", "tok")
         monkeypatch.setenv("GATEWAY_API_KEYS", "")
-        auth = importlib.reload(importlib.import_module("src.gateway.auth"))
+
+        from src.gateway.auth import require_edge_auth
 
         with caplog.at_level(logging.DEBUG):
-            auth.require_edge_auth(
+            require_edge_auth(
                 x_internal_token="", x_api_key="my-secret-key", authorization=""
             )
 
@@ -317,8 +323,6 @@ class TestG5Integration:
         monkeypatch.setenv("GATEWAY_KEY_AGENT_MAP", "scoped-key=observability")
         monkeypatch.setenv("REDIS_HOST", "localhost")
         monkeypatch.setattr("src.core.config.settings.rate_budget_enabled", False)
-        # Reload auth to pick up env
-        importlib.reload(importlib.import_module("src.gateway.auth"))
 
     @pytest.fixture
     def client(self):

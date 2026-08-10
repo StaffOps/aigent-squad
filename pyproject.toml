@@ -1,0 +1,24 @@
+# Tool configuration only.
+#
+# Deliberately absent:
+#   - [project] / [build-system]: this repo is deployed as a container, not
+#     published as a package. Declaring [project] without [build-system] is a
+#     false packaging signal (`pip install .` would fail). Dependencies live in
+#     requirements.txt.
+#   - [tool.ruff]: ruff.toml at the repo root is the single source of truth and
+#     takes precedence over pyproject.toml. Duplicating it here creates dead
+#     config that silently diverges.
+#   - asyncio_mode = "auto": not adopted. The suite uses explicit
+#     @pytest.mark.asyncio; switching to auto changes runtime loop-scope
+#     semantics and was never validated with a full test execution.
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.mypy]
+# CI gate (make typecheck) — zero errors required on src/.
+python_version = "3.11"
+ignore_missing_imports = true
+strict = false
+warn_return_any = true
+warn_unused_configs = true

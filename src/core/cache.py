@@ -55,7 +55,7 @@ class CacheStore:
             if not self.redis:
                 return False
             full_key = f"{namespace}:{key}"
-            return self.redis.exists(full_key) > 0
+            return bool(self.redis.exists(full_key) > 0)
         except Exception as e:
             logger.warning("Redis exists failed (fail-open)", extra={"error": str(e), "key": key})
             return False

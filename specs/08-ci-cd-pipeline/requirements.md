@@ -10,35 +10,35 @@ deferred: ["T7 demo stage"]
 # Feature: CI/CD Pipeline (GitHub Actions)
 
 **Spec**: `08-ci-cd-pipeline`
-**Severidade**: 🔴 High (elo perdido entre código e deploy; traz o gate de cobertura)
-**Origem**: `../ANALYSIS.md` gitops F8 (zero CI; docs citam GitLab mas o repo é GitHub), AUDIT "sem testes"
-**Depende de**: `01-fix-blockers` (imagens precisam buildar), `23-test-harness-docker` (reusa o harness)
+**Severity**: 🔴 High (missing link between code and deploy; brings the coverage gate)
+**Origin**: `../ANALYSIS.md` gitops F8 (zero CI; docs cite GitLab but the repo is on GitHub), AUDIT "no tests"
+**Depends on**: `01-fix-blockers` (images need to build), `23-test-harness-docker` (reuses the harness)
 
-O repo está no **GitHub** (`github.com:karlipegomes/AIgent-squad`) e **não tem CI nenhum** — docs falam de GitLab CI que não existe. Nada builda as imagens que a `05-helm-chart` assume. Esta spec cria o pipeline GitHub Actions, reusando o harness dockerizado da `23`.
+The repo is on **GitHub** (`github.com:karlipegomes/AIgent-squad`) and **has no CI at all** — docs mention GitLab CI that doesn't exist. Nothing builds the images that `05-helm-chart` assumes. This spec creates the GitHub Actions pipeline, reusing the dockerized harness from `23`.
 
 ## User Stories
 
-WHEN um push/PR chega THEN o CI SHALL rodar testes com cobertura via **o mesmo harness da spec 23** e **falhar abaixo de 90%**.
+WHEN a push/PR arrives THEN the CI SHALL run tests with coverage via **the same harness from spec 23** and **fail below 90%**.
 
-WHEN o CI builda imagens THEN SHALL ser **multi-arch** (`amd64`+`arm64`/Graviton) e escaneadas (Trivy).
+WHEN the CI builds images THEN SHALL be **multi-arch** (`amd64`+`arm64`/Graviton) and scanned (Trivy).
 
-WHEN é push na branch default THEN SHALL publicar imagens dev (`<sha>`); release estável (`v<semver>`) é **manual**.
+WHEN it's a push to the default branch THEN SHALL publish dev images (`<sha>`); stable release (`v<semver>`) is **manual**.
 
-WHEN credenciais AWS são necessárias THEN SHALL usar **OIDC federation** (sem chave de longa duração).
+WHEN AWS credentials are needed THEN SHALL use **OIDC federation** (no long-lived keys).
 
 ## Acceptance Criteria
 
-- [ ] `.github/workflows/` com estágios: `test` → `build-dev` → (`demo` opcional) → `release` (manual).
-- [ ] `test` reusa o `Dockerfile.test`/comando da spec 23 com `--cov-fail-under=90` (gate efetivo).
-- [ ] Build multi-arch (`docker buildx`, amd64+arm64) por serviço.
-- [ ] Trivy scan por imagem; SBOM (CycloneDX) gerado.
-- [ ] Tags: `<sha>` (dev, imutável), `v<semver>` (release manual); nunca `latest` em prod.
-- [ ] AWS via OIDC (sem secrets de longa duração); push pra ECR/Harbor.
-- [ ] `mkdocs build --strict` no CI (valida o portal da spec 24).
-- [ ] Lint (ruff) + o gate de cobertura barram o merge.
-- [ ] README/docs apontam o pipeline real (remove referência fantasma a GitLab CI).
+- [ ] `.github/workflows/` with stages: `test` → `build-dev` → (`demo` optional) → `release` (manual).
+- [ ] `test` reuses the `Dockerfile.test`/command from spec 23 with `--cov-fail-under=90` (effective gate).
+- [ ] Multi-arch build (`docker buildx`, amd64+arm64) per service.
+- [ ] Trivy scan per image; SBOM (CycloneDX) generated.
+- [ ] Tags: `<sha>` (dev, immutable), `v<semver>` (manual release); never `latest` in prod.
+- [ ] AWS via OIDC (no long-lived secrets); push to ECR/Harbor.
+- [ ] `mkdocs build --strict` in CI (validates the portal from spec 24).
+- [ ] Lint (ruff) + the coverage gate block merge.
+- [ ] README/docs point to the real pipeline (remove phantom GitLab CI reference).
 
-## Fora de escopo
-- ArgoCD/progressive delivery (deploy) → futuro / spec 05.
-- Assinatura cosign de imagem de app (golden base é assinada no pipeline de base) — avaliar depois.
-- Hosting do portal (GitHub Pages) — pode entrar aqui ou depois.
+## Out of scope
+- ArgoCD/progressive delivery (deploy) → future / spec 05.
+- cosign signing of app images (golden base is signed in the base pipeline) — evaluate later.
+- Hosting the portal (GitHub Pages) — may go here or later.
