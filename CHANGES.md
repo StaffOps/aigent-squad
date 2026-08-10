@@ -2,6 +2,45 @@
 
 ## [Unreleased]
 
+### Fixed — module-level state leaked between tests; CI caught what 16 local runs did not (2026-08-10)
+Merged to `dev` as PR #20 (51 commits). **The first CI run failed**, and it failed on something
+16 local configurations had missed — which is the whole argument for having CI at all.
+
+Three tests in `tests/test_agentic_loop.py` failed downstream of
+`[mcp:test-mcp:get_pods] error: circuit breaker OPEN`. `_server_breakers` in
+`src/core/agentic_loop.py` is a module-level dict keyed by MCP server URL, so one test's
+tripped breaker silently became the next test's starting state. A sweep found **three** such
+containers in `src/`: `_server_breakers`, `_detection_counts` (`canary.py`), `_agent_names`
+(`gateway/main.py`). `_server_breakers` was already being cleared — but only inside a single
+test class's `setup_method`, which is exactly how the hazard survived: known, and fixed locally.
+
+Fixed with **one autouse fixture in `tests/conftest.py`** clearing all three before every test,
+with the grep that finds new ones documented in its docstring. Deliberately repo-wide rather
+than per-file — per-file resets are what allowed this to persist.
+
+Worth being precise about the layer: unlike F-016's `_KEY_AGENT_MAP` (configuration parsed once
+at import, genuinely wrong in production), **these globals are correct in production**. A
+circuit breaker that forgets its failures cannot trip. The defect was in the test harness, so
+that is where the fix went.
+
+**This corrects an overclaim.** F-016 was committed saying the fix "removes the whole bug class
+rather than the observed seeds". It did not — it removed one global, and no sweep was ever done.
+The claim is now marked as wrong in `specs/BACKLOG.md` rather than quietly edited away.
+
+**Also: CI's random seed is now reproducible.** `pytest-randomly` prints its seed in the pytest
+header, which `-q` suppresses — so a random-order CI failure printed no seed and cost ~20
+minutes of failed reproduction attempts. CI now generates the seed, echoes it as a GitHub
+notice, and pins it through a new `PYTEST_FLAGS` passthrough on `make test-ci`. Any red run
+replays with `make test-ci PYTEST_FLAGS="--randomly-seed=<seed>"`.
+
+Causation was never reproduced locally: 4 full-suite seeds, 8 single-file seeds and 4 file-pair
+orderings all passed with and without the fix, because CI's seed was never hit. The fix is sound
+by inspection and CI was the arbiter — green on seeds `1581913328` (PR) and `183224343` (dev),
+1895 passed, coverage 94.15%.
+
+`dev` had been red since 2026-07-23. It is green again.
+
+
 ### Added — two new quality gates: typecheck and order-independence (2026-08-09)
 Both existed as *claims* before today. Neither was enforced.
 
