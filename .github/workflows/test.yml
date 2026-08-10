@@ -107,7 +107,17 @@ jobs:
 
       - name: Run tests with coverage gate
         # Same command as the local harness (scripts/test-local.sh) — spec 36
-        run: make test-ci
+        #
+        # The seed is generated and ECHOED here on purpose. pytest-randomly prints
+        # it in the pytest header, but `-q` suppresses the header, so a failing CI
+        # run used to be unreproducible: you could see the failure and never learn
+        # which order caused it. Pinning it explicitly means any red run can be
+        # replayed locally with
+        #   make test-one FILE=tests/ PYTEST_FLAGS="--randomly-seed=<seed>"
+        run: |
+          SEED=${RANDOM}${RANDOM}
+          echo "::notice title=Test order seed::--randomly-seed=$SEED (replay a failure with this)"
+          make test-ci PYTEST_FLAGS="--randomly-seed=$SEED"
         env:
           REDIS_HOST: localhost
           SERVICE_NAME: test

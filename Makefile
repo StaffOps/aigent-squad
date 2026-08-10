@@ -34,7 +34,7 @@ test-one: ## Single file/pattern: make test-one FILE=tests/test_gateway_main.py
 	./scripts/test-local.sh $(FILE)
 
 test-ci: ## CI-identical pytest gate (assumes deps installed — used by CI)
-	pytest tests/ --cov --cov-fail-under=90 --tb=short -q
+	pytest tests/ --cov --cov-fail-under=90 --tb=short -q $(PYTEST_FLAGS)
 
 lint: ## Ruff, CI-verbatim scope (run via Docker if no local ruff)
 	@command -v ruff >/dev/null 2>&1 && ruff check src/ tests/ || \
