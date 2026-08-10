@@ -127,6 +127,14 @@ datasources:
   abused via this path.
 - **Fail-open at runtime**: a broken server or a failing tool degrades to an
   `[mcp:...] error: ...` string in the context — it never crashes the agent.
+  The string names the **underlying** exception, e.g.
+  `[mcp:k8s-mcp] error: ConnectError: [Errno -2] Name or service not known`.
+  The MCP client runs its connection inside an anyio TaskGroup, so before F-011
+  this surfaced as the useless wrapper `unhandled errors in a TaskGroup
+  (1 sub-exception)`; the adapter now unwraps `ExceptionGroup` and `__cause__`
+  chains to the innermost cause and appends `(+N more)` when a group carried
+  siblings, so nothing is dropped silently. If you have log parsing or alerts
+  matching the old wrapper text, they need updating.
 
 ### Transport
 

@@ -126,11 +126,18 @@ datasources:
   exploited through this path.
 - **Fail-open at runtime** — a broken server or a failing tool call degrades to an
   `[mcp:tool-name] error: ...` string inserted into the prompt. The agent
-  continues with partial context; it never crashes.
+  continues with partial context; it never crashes. The string names the
+  **underlying** exception, e.g.
+  `[mcp:k8s-mcp] error: ConnectError: [Errno -2] Name or service not known`.
+  Because the MCP client connects inside an anyio TaskGroup, this previously
+  surfaced as the uninformative `unhandled errors in a TaskGroup (1 sub-exception)`;
+  the adapter now unwraps to the innermost cause. Log parsing or alerts matching
+  the old wrapper text need updating.
 
 ### Transport
 
-`McpAdapter` uses MCP **SSE** transport (`mcp==1.0.0`). The `url` field supports
+`McpAdapter` defaults to MCP **streamable-http** (`mcp>=1.2.0,<2.0.0`); SSE is the
+legacy, opt-in transport (`transport: sse`). The `url` field supports
 `${ENV_VAR}` interpolation so the same `agent.yaml` works across local and EKS
 environments without modification.
 
