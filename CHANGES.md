@@ -2,6 +2,86 @@
 
 ## [Unreleased]
 
+### Added — two new quality gates: typecheck and order-independence (2026-08-09)
+Both existed as *claims* before today. Neither was enforced.
+
+**`make typecheck` — mypy is now a gate.** It sat in `pyproject.toml` as an unenforced
+baseline with ~14 errors, gating nothing. Now: a `make typecheck` target following the same
+local-or-Docker pattern as `make lint`, a `typecheck` CI job, and `needs: [lint, typecheck]`
+on the test job so a type error stops the pipeline before tests run.
+- **Proven able to fail**, not assumed: an independent stage injected
+  `def _deliberate_type_error() -> int: return "not an int"`, confirmed a non-zero exit, and
+  reverted. This matters because earlier the same day a `pytest.skip()` without importing
+  `pytest` shipped and 1857 tests passed over it — only `make lint` caught it. A gate nobody
+  proved can fail is decoration.
+- Errors fixed by real typing. Three `# type: ignore` remain repo-wide (one pre-existing in
+  `worker_pool.py`, two for an `asyncio.gather` union the checker cannot narrow), each with a
+  justification. **Zero** `[[tool.mypy.overrides]]` were added.
+- **Not** full `strict`: ~184 missing-annotation errors remain outside the enabled checks.
+  Registered debt, not a clean bill of health.
+
+**`pytest-randomly` with an unpinned seed — order-independence is now enforced per run.**
+See the F-016 entry below for the two real bugs this immediately exposed.
+
+**Behaviour change surfaced during the typing pass** (named because it was *not* inert):
+`os.getenv("AGENTS_DIR", "agents")` became `os.getenv("AGENTS_DIR") or "agents"`, same for
+`SKILLS_DIR`. Previously an env var set to the **empty string** returned `""` and `Path("")`
+resolved to `Path(".")`, silently pointing the loader at the current directory. Now it falls
+through to the default. Strictly safer, and **reasoned rather than tested** — no case exercises
+the empty-string edge.
+
+### Fixed — F-016: the suite was never order-independent, and measuring it broke it twice (2026-08-09)
+"Order-independent" had been asserted all session and never measured. Measuring it produced two
+distinct failures, one of them self-inflicted.
+
+**(a) The auth bypass leaked between tests.** `app.dependency_overrides` is a plain dict on the
+FastAPI app object. Two supervisor test files installed an auth bypass and never cleared it
+(`test_supervisor_server_errors.py`, pre-existing; `test_alertmanager_webhook_tier.py`, added
+earlier the same day). Under seed 1337, `test_internal_auth.py` asserted 401 and received a
+bypassed 200. The four *gateway* test files already cleared it in a fixture; the supervisor ones
+did not, and the fixed collection order hid it. Both now clear it in an autouse teardown.
+
+**(b) The F-012 fix had traded one order dependency for another.** Under seed 4242, 10 failures
+in the G-5 integration classes. Root cause confirmed by reading the code, not guessed:
+`src/gateway/auth.py` parsed `GATEWAY_KEY_AGENT_MAP` into a module-level `_KEY_AGENT_MAP` at
+import time, so those tests had to `importlib.reload()` it — and `src/gateway/main.py` binds
+symbols from `auth` at import, so after a reload `main` still held the **old** function objects
+and `dependency_overrides` keyed on them stopped matching.
+- Fixed at the source: `get_key_agent_map()` now reads the env **fresh on every call**. The
+  module global is gone, nothing needs reloading, and the teardown was dropped. That removes the
+  bug class rather than the seeds that exposed it.
+- This also means F-012 had been closed as "verified" against the fixed order plus one revert
+  experiment, never against randomized order.
+- **Scope honesty**: `importlib.reload` still appears ~32× elsewhere in the suite. It was removed
+  only where it was load-bearing for this bug — not eradicated repo-wide. A review stage claimed
+  "no reload remains anywhere"; that was an overclaim and is corrected in the F-016 backlog entry.
+
+Verified across seeds 4242, 1337, 9999, 12345, fixed order, and unpinned random.
+
+### Fixed — MCP failures reported anyio's wrapper instead of the real cause (F-011, 2026-08-09)
+`ExceptionGroup` from `anyio`'s TaskGroup surfaced to operators as
+`unhandled errors in a TaskGroup (1 sub-exception)` — the actual cause (auth failure, connection
+refused, timeout) was one level down and never printed. A new `mcp_error_detail()` helper unwraps
+the group and reports the underlying exception, applied at the three original call sites plus
+`agentic_loop.py:145` for parity. Regression tests proven to fail before the fix.
+
+### Added — coverage on the branches that carried real risk (2026-08-09)
+Coverage 93.18% → **94.00%**, by pinning decision branches rather than executing lines.
+- `src/supervisor/server.py` 70% → **89%**. The streaming endpoint's 403-vs-500 discrimination
+  (a guardrail block could previously masquerade as a crash), the `None` → fallback path (the only
+  logic that silently double-invokes the supervisor, i.e. real token spend, if the fallback
+  misfires), and the HC5 boot gate that stops the **alertmanager webhook** — the one RCA path with
+  no human in the loop — from starting with misconfigured tier models.
+- `src/gateway/supervisor_client.py` 76% → **98%**. Transport failure becomes a clean 503 instead
+  of a hanging SSE stream.
+- **Deliberately not tested**: `adapters.py` stays at 80%. It had been *named* a weak module; the
+  measurement disagreed — the uncovered lines are thin wrappers over boto3/k8s/httpx/mcp with no
+  business logic, where a test means mocking an external client to assert a formatted string. Same
+  for `kb/store.py`'s fail-open guards and `health.py`'s timeout branches. Those lines are judged
+  **not worth pinning**, which is not the same as judged correct.
+- Each high-risk test proven by breaking the code, observing the failure, and reverting.
+
+
 ### Fixed — coverage blind spot on the alertmanager RCA path + the test-isolation leak (2026-08-08)
 Two test-quality gaps, both found by asking "is this actually tested?" instead of trusting a
 commit message.

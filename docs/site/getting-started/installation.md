@@ -77,6 +77,7 @@ Everything runs via Docker + `make` — never install Python deps locally:
 make test                          # full suite + 90% coverage gate
 make test-one FILE=tests/test_x.py # single file
 make lint                          # ruff, CI-verbatim scope
+make typecheck                     # mypy gate (blocks the CI test job)
 ```
 
 `make test` auto-stubs the `otel-helper` dependency locally
