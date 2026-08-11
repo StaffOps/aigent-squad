@@ -392,3 +392,18 @@ investigation_fanout_errors = meter.create_counter(
     ),
     unit="1",
 )
+
+# === F-019: Per-session token budget (Redis-backed, fail-closed) ===
+# Labels: session_id — NOT a high-cardinality risk here because this counter only
+# increments on REFUSAL (a rare event, not every request). A session that hits the
+# cap adds 1 series; sessions that don't hit it add zero. Worst case bounded by
+# the number of sessions that blow their budget in a scrape interval (~0).
+token_budget_exceeded_blocks = meter.create_counter(
+    name="aigent.token_budget.exceeded",
+    description=(
+        "Requests refused because the session token budget was exhausted "
+        "(or Redis was unavailable and the budget failed closed). "
+        "Label: session_id. Observable signal for the cap that was previously silent."
+    ),
+    unit="1",
+)
