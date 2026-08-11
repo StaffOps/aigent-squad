@@ -2,7 +2,7 @@
 import asyncio
 import time
 from dataclasses import dataclass, field
-from typing import Callable, Awaitable
+from typing import Any, Callable, Awaitable
 
 
 @dataclass
@@ -39,8 +39,8 @@ class DependencyChecker:
         self._cache[key] = result
         return result
 
-    async def check_redis(self, redis_client) -> DepResult:
-        async def _check():
+    async def check_redis(self, redis_client: Any) -> DepResult:
+        async def _check() -> DepResult:
             try:
                 # redis-py sync ping wrapped in thread so we don't block the loop
                 pong = await asyncio.to_thread(redis_client.ping)
@@ -52,8 +52,8 @@ class DependencyChecker:
 
         return await self._run("redis", _check)
 
-    async def check_dynamodb(self, dynamodb_table) -> DepResult:
-        async def _check():
+    async def check_dynamodb(self, dynamodb_table: Any) -> DepResult:
+        async def _check() -> DepResult:
             try:
                 await asyncio.to_thread(dynamodb_table.load)
                 return DepResult(ok=True, detail="dynamodb: table reachable")
@@ -62,8 +62,8 @@ class DependencyChecker:
 
         return await self._run("dynamodb", _check)
 
-    async def check_bedrock_creds(self, sts_client) -> DepResult:
-        async def _check():
+    async def check_bedrock_creds(self, sts_client: Any) -> DepResult:
+        async def _check() -> DepResult:
             try:
                 await asyncio.to_thread(sts_client.get_caller_identity)
                 return DepResult(ok=True, detail="bedrock-creds: identity ok")
@@ -72,10 +72,10 @@ class DependencyChecker:
 
         return await self._run("bedrock-creds", _check)
 
-    async def check_http(self, url: str, client) -> DepResult:
+    async def check_http(self, url: str, client: Any) -> DepResult:
         key = f"http:{url}"
 
-        async def _check():
+        async def _check() -> DepResult:
             try:
                 resp = await client.get(url, timeout=self._timeout)
                 if resp.status_code < 500:

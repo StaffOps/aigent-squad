@@ -27,7 +27,7 @@ def check_budget(estimated_cost: float) -> bool:
         return True
 
 
-def record_cost(cost: float):
+def record_cost(cost: float) -> None:
     try:
         current = float(cache.get(_key(), namespace="budget") or 0.0)
         cache.set(_key(), current + cost, ttl=2678400, namespace="budget")  # 31 days

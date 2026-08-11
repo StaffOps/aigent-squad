@@ -74,7 +74,7 @@ class ToolNameMap:
 # ---------------------------------------------------------------------------
 
 
-def _resolve_refs(schema: dict[str, Any], defs: dict[str, Any], _ref_depth: int = 0) -> dict[str, Any]:
+def _resolve_refs(schema: Any, defs: dict[str, Any], _ref_depth: int = 0) -> Any:
     """Inline $ref references using the provided $defs mapping.
 
     S3 carry-over: caps $ref resolution depth at MAX_NESTING_DEPTH to prevent
@@ -117,7 +117,7 @@ def _resolve_refs(schema: dict[str, Any], defs: dict[str, Any], _ref_depth: int 
     return result
 
 
-def _simplify_unions(schema: dict[str, Any]) -> dict[str, Any]:
+def _simplify_unions(schema: Any) -> Any:
     """Simplify anyOf/oneOf unions unsupported by Converse.
 
     Strategy: if anyOf/oneOf has exactly one non-null type, unwrap it.
@@ -160,7 +160,7 @@ def _simplify_unions(schema: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
-def _cap_depth(schema: dict[str, Any], current_depth: int = 0) -> dict[str, Any]:
+def _cap_depth(schema: Any, current_depth: int = 0) -> Any:
     """Cap nesting depth at MAX_NESTING_DEPTH. Beyond that, collapse to generic object."""
     if not isinstance(schema, dict):
         return schema
@@ -184,7 +184,7 @@ def _cap_depth(schema: dict[str, Any], current_depth: int = 0) -> dict[str, Any]
     return output
 
 
-def _strip_unsupported_keys(schema: dict[str, Any]) -> dict[str, Any]:
+def _strip_unsupported_keys(schema: Any) -> Any:
     """Remove JSON Schema keywords not supported by Converse toolSpec.
 
     Converse accepts: type, properties, required, items, description, enum,

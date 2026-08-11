@@ -7,7 +7,7 @@ import re
 import time
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
-from typing import TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 
 import boto3
 import httpx
@@ -117,7 +117,7 @@ class Boto3Adapter(DatasourceAdapter):
         return "boto3:" + ",".join(sorted(self.services))
 
     @staticmethod
-    def _client(service: str):
+    def _client(service: str) -> Any:
         """Build a boto3 client with an explicit region.
 
         botocore resolves the region from AWS_DEFAULT_REGION (not AWS_REGION),
@@ -358,7 +358,7 @@ class McpAdapter(DatasourceAdapter):
         self._specs_cached_at = time.time()
         return specs
 
-    def _build_specs_from_session(self, session, name_map: "ToolNameMap", tools_result) -> list[dict]:
+    def _build_specs_from_session(self, session: Any, name_map: "ToolNameMap", tools_result: Any) -> list[dict[str, Any]]:
         """Build toolSpec list from session.list_tools() result ∩ allowlist."""
         from src.core.tool_schema import build_tool_spec
 
@@ -490,7 +490,7 @@ class McpAdapter(DatasourceAdapter):
                 return f"[mcp:{self.name}] error: {mcp_error_detail(e)}"
         return "\n".join(results)
 
-    async def _invoke_tools(self, session, query: str) -> list[str]:
+    async def _invoke_tools(self, session: Any, query: str) -> list[str]:
         """Shared session logic: initialize, list available tools, invoke each
         allowlisted tool, collect results. Factored out to avoid duplication
         across transport branches."""
@@ -512,7 +512,7 @@ class McpAdapter(DatasourceAdapter):
         return results
 
     @staticmethod
-    def _render(result) -> str:
+    def _render(result: Any) -> str:
         """Flatten an MCP CallToolResult into text (text content blocks only)."""
         parts: list[str] = []
         for block in getattr(result, "content", []) or []:

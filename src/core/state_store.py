@@ -23,7 +23,7 @@ class ConversationMessage:
 class ChatStorage:
     """DynamoDB conversation storage with fail-open resilience"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.dynamodb = boto3.resource(
             'dynamodb',
             region_name=settings.aws_region,
@@ -38,7 +38,7 @@ class ChatStorage:
         agent_id: str,
         message: ConversationMessage,
         max_history: int = 20
-    ):
+    ) -> None:
         try:
             pk = f"{user_id}#{session_id}"
             sk = f"{agent_id}#{datetime.now(timezone.utc).isoformat()}"

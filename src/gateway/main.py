@@ -7,7 +7,7 @@ setup_telemetry()
 
 import uuid  # noqa: E402
 from contextlib import asynccontextmanager  # noqa: E402
-from typing import Optional  # noqa: E402
+from typing import Any, AsyncGenerator, Optional  # noqa: E402
 
 import redis.asyncio as aioredis  # noqa: E402
 from fastapi import Depends, FastAPI, Header, HTTPException  # noqa: E402
@@ -67,7 +67,7 @@ _agent_names: list[str] = []
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # G-5: validate GATEWAY_KEY_AGENT_MAP agent names against registry at startup.
     # Best-effort: warn and skip unknown agents (don't crash the gateway).
     import logging as _logging
@@ -131,7 +131,7 @@ def _retry_after() -> int:
     return max(1, base) + random.randint(0, 3)  # nosec B311 - jitter, not crypto
 
 
-def _busy_response(subtype: str, detail: str):
+def _busy_response(subtype: str, detail: str) -> JSONResponse:
     """503 with a subtype the caller can act on (round-table decision)."""
     return JSONResponse(
         status_code=503,
@@ -140,7 +140,7 @@ def _busy_response(subtype: str, detail: str):
     )
 
 
-async def _check_admission(user_id: str, max_tokens: int = 4096):
+async def _check_admission(user_id: str, max_tokens: int = 4096) -> Optional[JSONResponse]:
     """Global rate + budget admission (spec 31 L3). Fail-open.
 
     Returns ``None`` when admitted, or a ready-to-return JSONResponse (429 rate /
@@ -172,7 +172,7 @@ async def _check_admission(user_id: str, max_tokens: int = 4096):
 
 
 @app.post("/query", dependencies=[Depends(require_edge_auth)])
-async def query(request: QueryRequest):
+async def query(request: QueryRequest) -> Any:
     """Native entrypoint — admission control, then forward to the supervisor."""
     denied = await _check_admission(request.user_id)
     if denied is not None:
@@ -184,7 +184,7 @@ async def query(request: QueryRequest):
 
     job_id = str(uuid.uuid4())
 
-    async def _one_shot():
+    async def _one_shot() -> Any:
         result = await supervisor_client.process(
             user_input=request.user_input,
             user_id=request.user_id,
@@ -209,7 +209,7 @@ async def query(request: QueryRequest):
 
 
 @app.get("/v1/models", dependencies=[Depends(require_edge_auth)])
-async def openai_list_models():
+async def openai_list_models() -> Any:
     names = _agent_names or await _refresh_agents()
     return list_models(names).model_dump()
 
@@ -219,7 +219,7 @@ async def openai_chat_completions(
     request: ChatCompletionRequest,
     auth: AuthResult = Depends(require_edge_auth),
     x_session_id: str = Header(default=""),
-):
+) -> Any:
     """OpenAI Chat Completions → admission → supervisor (shaping reused, spec 29).
 
     Agent resolution priority (G-5):
@@ -266,7 +266,7 @@ async def openai_chat_completions(
                 force_agent=force_agent,
             )
 
-            async def _proxy_sse():
+            async def _proxy_sse() -> Any:
                 """Proxy supervisor SSE body verbatim to the client.
 
                 The supervisor already emits properly-framed SSE (data: ...\n\n).
@@ -308,7 +308,7 @@ async def openai_chat_completions(
         )
 
     # --- Non-streaming path: existing _one_shot + worker-pool logic unchanged ---
-    async def _one_shot():
+    async def _one_shot() -> Any:
         yield await supervisor_client.process(
             user_input=user_input,
             user_id=user_id,
@@ -332,7 +332,7 @@ async def openai_chat_completions(
 
 
 @app.post("/jobs/{job_id}/cancel", status_code=202, dependencies=[Depends(require_edge_auth)])
-async def cancel_job(job_id: str):
+async def cancel_job(job_id: str) -> Any:
     """Signal cancellation; the worker stops within ~one poll interval."""
     cancelled = await worker_pool.cancel(job_id)
     if not cancelled:
@@ -341,20 +341,20 @@ async def cancel_job(job_id: str):
 
 
 @app.get("/healthz")
-async def healthz():
+async def healthz() -> dict[str, str]:
     """Liveness — never checks external deps."""
     return {"status": "ok", "service": "gateway"}
 
 
 @app.get("/ready")
-async def ready():
+async def ready() -> Any:
     """Readiness — Redis reachable + pool functional.
 
     Intentionally does NOT check the supervisor (round-table): coupling would
     turn a supervisor outage into a gateway-removed-from-LB cascade. Supervisor
     availability is handled per-request via preflight → 503.
     """
-    checks = {"pool": {"ok": worker_pool.has_capacity() or worker_pool.active_count >= 0}}
+    checks: dict[str, dict[str, bool | str]] = {"pool": {"ok": worker_pool.has_capacity() or worker_pool.active_count >= 0}}
     redis_ok = True
     if _redis is not None:
         try:
@@ -370,7 +370,7 @@ async def ready():
 
 
 @app.get("/health", include_in_schema=False)
-async def health_legacy():
+async def health_legacy() -> dict[str, str]:
     return {"status": "ok", "service": "gateway"}
 
 
@@ -387,7 +387,7 @@ async def _refresh_agents() -> list[str]:
     return _agent_names
 
 
-def _forward_error(exc: Exception):
+def _forward_error(exc: Exception) -> JSONResponse:
     """Map a forwarded supervisor error to an HTTP response.
 
     A 403 from the supervisor is the guardrail (spec 14) — surface it as-is.

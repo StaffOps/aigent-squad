@@ -1,7 +1,7 @@
 """KbStore: async PostgreSQL client for kb_items."""
 import os
 import json
-from typing import Optional
+from typing import Any, Optional
 
 import asyncpg
 
@@ -10,10 +10,10 @@ from src.core.logger import logger
 
 
 class KbStore:
-    def __init__(self):
+    def __init__(self) -> None:
         self._pool: Optional[asyncpg.Pool] = None
 
-    async def connect(self):
+    async def connect(self) -> None:
         if self._pool is not None:
             return
         try:
@@ -30,7 +30,7 @@ class KbStore:
             logger.warning("Postgres unavailable (KB disabled)", extra={"error": str(e)})
             self._pool = None
 
-    async def close(self):
+    async def close(self) -> None:
         if self._pool:
             await self._pool.close()
             self._pool = None
@@ -124,7 +124,7 @@ class KbStore:
         except Exception:
             return []
 
-    def _row_to_item(self, r) -> KbItem:
+    def _row_to_item(self, r: dict[str, Any]) -> KbItem:
         meta = r["metadata"]
         if isinstance(meta, str):
             meta = json.loads(meta)

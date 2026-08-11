@@ -32,7 +32,7 @@ _LANGUAGE_DIRECTIVE = (
 class BedrockClient:
     """AWS Bedrock client with async invoke, circuit breaker, and retry with jitter"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.client = boto3.client(
             'bedrock-runtime',
             region_name=settings.aws_region,

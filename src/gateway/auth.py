@@ -72,7 +72,7 @@ def get_key_agent_map() -> dict[str, str]:
     return _parse_key_agent_map()
 
 
-def _extract_bearer(authorization) -> str:
+def _extract_bearer(authorization: str) -> str:
     """Extract token from 'Bearer <token>' header value.
 
     Case-insensitive prefix match. Returns empty string on missing/malformed.

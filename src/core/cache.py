@@ -8,9 +8,9 @@ from src.core.logger import logger
 class CacheStore:
     """ElastiCache Redis with fail-open resilience"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         try:
-            self.redis = redis.Redis(
+            self.redis: Optional[redis.Redis[str]] = redis.Redis(
                 host=settings.redis_host,
                 port=settings.redis_port,
                 ssl=settings.redis_ssl,
@@ -32,7 +32,7 @@ class CacheStore:
             logger.warning("Redis unavailable (fail-open)", extra={"error": str(e), "key": key})
             return None
 
-    def set(self, key: str, value: Any, ttl: int, namespace: str = "default"):
+    def set(self, key: str, value: Any, ttl: int, namespace: str = "default") -> None:
         try:
             if not self.redis:
                 return
@@ -41,7 +41,7 @@ class CacheStore:
         except Exception as e:
             logger.warning("Redis set failed (fail-open)", extra={"error": str(e), "key": key})
 
-    def delete(self, key: str, namespace: str = "default"):
+    def delete(self, key: str, namespace: str = "default") -> None:
         try:
             if not self.redis:
                 return

@@ -1,5 +1,6 @@
 """Slack webhook handler for Agent Squad."""
 import os
+from typing import Any
 from fastapi import FastAPI, Request, HTTPException
 from slack_sdk import WebClient
 from slack_sdk.signature import SignatureVerifier
@@ -13,7 +14,7 @@ signature_verifier = SignatureVerifier(os.getenv("SLACK_SIGNING_SECRET", ""))
 
 
 @app.post("/slack/events")
-async def slack_events(request: Request):
+async def slack_events(request: Request) -> dict[str, Any]:
     """Handle Slack events (app_mention)."""
     body = await request.body()
     timestamp = request.headers.get("X-Slack-Request-Timestamp", "")
@@ -53,7 +54,7 @@ async def slack_events(request: Request):
 
 
 @app.get("/health")
-async def health():
+async def health() -> dict[str, str]:
     return {"status": "healthy", "service": "slack-api"}
 
 

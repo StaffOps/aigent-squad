@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import time
 from datetime import datetime, timezone
+from typing import Any
 
 from src.core.logger import logger
 from src.core.metrics import rate_limit_blocks
@@ -62,7 +63,7 @@ class AdmissionGuard:
     never raising. The caller (gateway admission) maps a deny to HTTP 429/503.
     """
 
-    def __init__(self, redis_client=None, rate_per_minute: int = 60, daily_budget_usd: float = 50.0):
+    def __init__(self, redis_client: Any = None, rate_per_minute: int = 60, daily_budget_usd: float = 50.0) -> None:
         self._redis = redis_client
         self._rate = rate_per_minute
         self._budget = daily_budget_usd

@@ -1,6 +1,6 @@
 """Alertmanager webhook handler: parse, dedup, dispatch investigation."""
 import os
-from typing import Optional
+from typing import Any, Optional
 from pydantic import BaseModel, Field
 from src.core.cache import cache
 from src.core.logger import logger
@@ -65,7 +65,7 @@ def is_duplicate(fingerprint: str) -> bool:
         return False
 
 
-async def handle_alert_payload(payload: AlertmanagerPayload, run_investigation_fn, slack_post_fn) -> dict:
+async def handle_alert_payload(payload: AlertmanagerPayload, run_investigation_fn: Any, slack_post_fn: Any) -> dict[str, Any]:
     """Process Alertmanager payload: dedup, trigger investigation per unique alert, post results.
 
     Returns a summary dict (counts) for the webhook response.

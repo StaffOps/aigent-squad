@@ -6,7 +6,7 @@ from otel_helper import metrics_app, setup_telemetry
 setup_telemetry()
 
 from contextlib import asynccontextmanager
-from typing import Optional
+from typing import Any, Optional
 import boto3
 import redis as redis_lib
 from fastapi import FastAPI, HTTPException, Depends
@@ -44,7 +44,7 @@ _health_dynamodb_table = boto3.resource(
 
 
 @asynccontextmanager
-async def lifespan(app):
+async def lifespan(app: Any) -> Any:
     # HC5 (spec 38 FU-B): fail loud at BOOT if tier model IDs are misconfigured —
     # here in the lifespan, not as an agent.py import side-effect (cleaner testing + import order).
     from src.core.model_tier import validate_tier_models_at_startup
@@ -74,7 +74,7 @@ class QueryRequest(BaseModel):
 
 
 @app.post("/internal/process", dependencies=[Depends(require_internal_token)])
-async def internal_process(request: QueryRequest):
+async def internal_process(request: QueryRequest) -> Any:
     """Gateway-only orchestration entrypoint (spec 31).
 
     The edge gateway forwards here after admission control (auth, rate/budget,
@@ -99,13 +99,13 @@ async def internal_process(request: QueryRequest):
 
 
 @app.get("/internal/agents", dependencies=[Depends(require_internal_token)])
-async def internal_agents():
+async def internal_agents() -> Any:
     """Agent names for the gateway's OpenAI /v1/models listing (spec 31)."""
     return {"agents": supervisor.registry.agent_names()}
 
 
 @app.post("/internal/process/stream", dependencies=[Depends(require_internal_token)])
-async def internal_process_stream(request: QueryRequest):
+async def internal_process_stream(request: QueryRequest) -> Any:
     """Streaming process endpoint (Phase 3.5, S1).
 
     Returns an SSE stream of OpenAI chat.completion.chunk frames as the agentic
@@ -159,13 +159,13 @@ async def internal_process_stream(request: QueryRequest):
 
 
 @app.get("/healthz")
-async def healthz():
+async def healthz() -> dict[str, str]:
     """Liveness probe — process is alive. Never checks external deps."""
     return {"status": "ok", "service": "supervisor"}
 
 
 @app.get("/ready")
-async def ready():
+async def ready() -> Any:
     """Readiness probe — checks Redis, DynamoDB, and ≥1 in-process agent loaded."""
     results = {}
 
@@ -187,19 +187,19 @@ async def ready():
 
 
 @app.get("/health")
-async def health():
+async def health() -> dict[str, str]:
     """Legacy alias for /healthz — kept for backwards compatibility."""
     return {"status": "healthy", "service": "supervisor"}
 
 
 @app.get("/kb/pending", dependencies=[Depends(require_token)])
-async def list_kb_pending():
+async def list_kb_pending() -> Any:
     items = await kb_store.list_pending_review()
     return {"items": [{"id": i.id, "type": i.type, "title": i.title, "content": i.content, "confidence": i.confidence_score} for i in items]}
 
 
 @app.post("/kb/{item_id}/approve", dependencies=[Depends(require_token)])
-async def approve_kb_item(item_id: str):
+async def approve_kb_item(item_id: str) -> Any:
     ok = await kb_store.update_status(item_id, "active")
     if not ok:
         raise HTTPException(status_code=404, detail="Item not found or update failed")
@@ -207,7 +207,7 @@ async def approve_kb_item(item_id: str):
 
 
 @app.post("/kb/{item_id}/reject", dependencies=[Depends(require_token)])
-async def reject_kb_item(item_id: str):
+async def reject_kb_item(item_id: str) -> Any:
     ok = await kb_store.update_status(item_id, "rejected")
     if not ok:
         raise HTTPException(status_code=404, detail="Item not found or update failed")
@@ -215,9 +215,9 @@ async def reject_kb_item(item_id: str):
 
 
 @app.post("/alerts/incoming", dependencies=[Depends(require_token)])
-async def alerts_incoming(payload: AlertmanagerPayload):
+async def alerts_incoming(payload: AlertmanagerPayload) -> Any:
     """Receive Alertmanager webhook (v2). Triggers investigation per unique firing alert."""
-    async def _run_inv(symptom: str, agents=None, fingerprint: str = ""):
+    async def _run_inv(symptom: str, agents: Any = None, fingerprint: str = "") -> Any:
         from src.supervisor.investigation import run_investigation
         from src.supervisor.agent import _resolve_tier_model
         from src.core.classifier import ClassifierResult, AgentMatch
