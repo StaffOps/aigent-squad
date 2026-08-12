@@ -286,4 +286,5 @@ ROADMAP is plan-only from here.
 | 39-observability-rca-uplift | done-with-deferrals | 2026-07-23 | deferred: T3.4 deterministic investigation.py path (Phase 2 — prompt-RCA validated live, trigger not met) |
 | 40-agentic-context-management | done | 2026-07-22 | depends_on: 37-agentic-tool-calling |
 | 41-calibrated-honesty-structured | done-with-deferrals | 2026-08-08 | deferred: T3 histogram bucket boundaries (default SDK buckets — explicit boundaries need a View in the otel_helper MeterProvider; not settable via opentelemetry-api 1.29.0 create_histogram) |
+| 42-distributed-topology-internal-a2a | not-started | — | depends_on: 37-agentic-tool-calling, 14-security-hardening |
 <!-- specs-status:end -->

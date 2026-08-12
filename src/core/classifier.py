@@ -1,5 +1,5 @@
 import json
-from typing import List, Optional
+from typing import Any, List, Optional
 from dataclasses import dataclass, field
 from src.core.bedrock import bedrock
 from src.core.guardrail import GuardrailBlockedError
@@ -95,7 +95,7 @@ When in doubt, prefer "standard" over "simple" — under-tiering is safer than o
 
 If unable to classify, return an empty agents list."""
 
-    def __init__(self, registry):
+    def __init__(self, registry: Any) -> None:
         from src.core.registry import AgentRegistry
         self._registry: AgentRegistry = registry
         self._agent_names = registry.agent_names()

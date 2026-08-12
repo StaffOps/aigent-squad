@@ -11,7 +11,7 @@ Supports two execution paths:
 import asyncio
 import time
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import Any, AsyncGenerator, List, Optional
 
 from otel_helper import get_tracer
 
@@ -99,7 +99,7 @@ def _extract_tool_result_text(messages: list[dict]) -> str:
 class GenericAgent:
     """Config-driven agent. Behavior defined by agent.yaml + prompt.md, not code."""
 
-    def __init__(self, config: AgentConfig, prompt: str, adapters: list[DatasourceAdapter], skill_registry=None):
+    def __init__(self, config: AgentConfig, prompt: str, adapters: list[DatasourceAdapter], skill_registry: Any = None):
         self.config = config
         self.prompt = prompt
         self.adapters = adapters
@@ -240,7 +240,7 @@ class GenericAgent:
         chat_history: List[ConversationMessage],
         budget_session_id: Optional[str] = None,
         model_id_override: Optional[str] = None,
-    ):
+    ) -> AsyncGenerator[Any, None]:
         """Return a streaming async generator for the agentic loop (Phase 3.5).
 
         Prepares the same system prompt and adapters as the non-streaming path,

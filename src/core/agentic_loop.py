@@ -144,7 +144,7 @@ class _McpSessionPool:
             breaker.record_failure()
             return f"[mcp:{adapter_name}:{tool_name}] error: {mcp_error_detail(e)}"
 
-    async def close(self):
+    async def close(self) -> None:
         """Cleanup: no-op for now since McpAdapter manages sessions per call.
 
         In future optimization, this will close pooled persistent sessions.
@@ -160,11 +160,11 @@ class _McpSessionPool:
 class _ToolRouter:
     """Maps Converse tool names to the adapter that declared them."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         # converse_name -> adapter_name
         self._routes: dict[str, str] = {}
 
-    def register(self, converse_name: str, adapter_name: str):
+    def register(self, converse_name: str, adapter_name: str) -> None:
         self._routes[converse_name] = adapter_name
 
     def resolve(self, converse_name: str) -> str | None:
@@ -608,7 +608,7 @@ def _error_tool_result(tool_use_id: str, message: str) -> dict:
     }
 
 
-def _emit_metrics(agent_id: str, total_tool_calls: int, loop_start: float):
+def _emit_metrics(agent_id: str, total_tool_calls: int, loop_start: float) -> None:
     """Emit observability metrics (T13) at loop end."""
     elapsed = (time.time() - loop_start) * 1000
     attrs = {"agent_id": agent_id}

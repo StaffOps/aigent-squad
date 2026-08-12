@@ -116,7 +116,7 @@ class ChatCompletionResponse(BaseModel):
     # top-level fields. message.content is byte-identical to today.
     x_aigent: Optional[dict] = Field(default=None, json_schema_extra={"description": "Structured quality assessment (spec 41)"})
 
-    def model_dump(self, **kwargs) -> dict:
+    def model_dump(self, **kwargs: Any) -> dict[str, Any]:
         """Override to omit x_aigent when None (clean contract for clients)."""
         data: dict[str, Any] = super().model_dump(**kwargs)
         if data.get("x_aigent") is None:

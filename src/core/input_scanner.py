@@ -25,7 +25,7 @@ import base64
 import hashlib
 import re
 import unicodedata
-from typing import Optional
+from typing import Any, Optional
 
 from src.core.config import settings
 from src.core.guardrail import GuardrailBlockedError
@@ -341,7 +341,7 @@ class InputScanner:
         agent_id: str,
         user_id: str,
         session_id: str,
-        **extra,
+        **extra: Any,
     ) -> None:
         """Structured audit log (no raw payload — digest only)."""
         logger.warning(

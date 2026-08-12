@@ -31,13 +31,13 @@ class CircuitBreaker:
         # HALF_OPEN: allow one attempt
         return True
 
-    def record_success(self):
+    def record_success(self) -> None:
         if self.state == CircuitState.HALF_OPEN:
             circuit_breaker_transitions.add(1, {"name": self.name, "from": "half_open", "to": "closed"})
         self.failure_count = 0
         self.state = CircuitState.CLOSED
 
-    def record_failure(self):
+    def record_failure(self) -> None:
         self.failure_count += 1
         self.last_failure_time = time.time()
         if self.failure_count >= self.failure_threshold:

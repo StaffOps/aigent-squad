@@ -20,7 +20,7 @@ import asyncio
 import json
 import time
 from datetime import datetime, timezone
-from typing import AsyncGenerator, Optional
+from typing import Any, AsyncGenerator, Optional
 
 from src.core.logger import logger
 from src.core.metrics import (
@@ -58,8 +58,8 @@ class WorkerPool:
         first_byte_timeout: float,
         idle_timeout: float,
         cancel_poll_interval: float = 0.5,
-        redis_client=None,
-    ):
+        redis_client: Any = None,
+    ) -> None:
         self._max = max_concurrent
         self._sem = asyncio.Semaphore(max_concurrent)
         self._job_timeout = job_timeout

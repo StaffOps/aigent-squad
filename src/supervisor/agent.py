@@ -1,5 +1,5 @@
 import asyncio
-from typing import Dict
+from typing import Any, Dict
 import time
 from datetime import datetime, timezone
 from opentelemetry import trace
@@ -322,7 +322,7 @@ class SupervisorAgent:
         session_id: str,
         mode: str = "query",
         force_agent: str | None = None,
-    ):
+    ) -> Any:
         """Streaming-aware process (Phase 3.5, S1 + G-4 auto-route).
 
         Returns an async generator of AgenticStepEvent if the request can be
@@ -412,7 +412,7 @@ class SupervisorAgent:
 
                 # FIX 1 (streaming undercount): wrap generator to emit RED
                 # metrics after the stream is fully consumed.
-                async def _forced_stream():
+                async def _forced_stream() -> Any:
                     try:
                         async for event in step_gen:
                             yield event
@@ -491,7 +491,7 @@ class SupervisorAgent:
                 model_id_override=tier_model_id,
             )
 
-            async def _routed_stream():
+            async def _routed_stream() -> Any:
                 """Yield a routing step, then proxy all agent loop steps.
 
                 FIX 1 (streaming undercount): emit request_counter +
@@ -571,7 +571,7 @@ class SupervisorAgent:
         return result_dict
 
     async def _fan_out(
-        self, agents, classification: ClassifierResult,
+        self, agents: Any, classification: ClassifierResult,
         user_input: str, user_id: str, session_id: str, start_time: float,
         model_id_override: str | None = None,
     ) -> Dict:
@@ -636,14 +636,14 @@ class SupervisorAgent:
                 "confidence": min(a.confidence for a in agents),
             }
 
-    def _record_metrics(self, agent_name: str, response_text: str, user_id: str, session_id: str, start_time: float):
+    def _record_metrics(self, agent_name: str, response_text: str, user_id: str, session_id: str, start_time: float) -> None:
         duration_ms = (time.time() - start_time) * 1000
         agent_attrs = {"agent_id": agent_name}
         request_counter.add(1, agent_attrs)
         request_duration.record(duration_ms, agent_attrs)
         log_response("supervisor", user_id, session_id, len(response_text), duration_ms)
 
-    async def _save_assistant_message(self, user_id: str, session_id: str, agent_name: str, content: str):
+    async def _save_assistant_message(self, user_id: str, session_id: str, agent_name: str, content: str) -> None:
         assistant_message = ConversationMessage(
             role="assistant",
             content=content,
@@ -652,7 +652,7 @@ class SupervisorAgent:
         )
         await storage.save_chat_message(user_id, session_id, agent_name, assistant_message)
 
-    async def close(self):
+    async def close(self) -> None:
         """No-op — agents are in-process, no connections to close."""
         pass
 

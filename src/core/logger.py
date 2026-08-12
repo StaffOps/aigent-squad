@@ -57,14 +57,14 @@ def setup_logger(name: str = "agent-squad", level: str = "INFO") -> logging.Logg
 logger = setup_logger()
 
 
-def log_request(agent_id: str, user_id: str, session_id: str, input_text: str):
+def log_request(agent_id: str, user_id: str, session_id: str, input_text: str) -> None:
     logger.info("Request received", extra={
         "agent_id": agent_id, "user_id": user_id,
         "session_id": session_id, "input_length": len(input_text),
     })
 
 
-def log_response(agent_id: str, user_id: str, session_id: str, response_length: int, duration_ms: float):
+def log_response(agent_id: str, user_id: str, session_id: str, response_length: int, duration_ms: float) -> None:
     logger.info("Response sent", extra={
         "agent_id": agent_id, "user_id": user_id,
         "session_id": session_id, "response_length": response_length,
@@ -72,7 +72,7 @@ def log_response(agent_id: str, user_id: str, session_id: str, response_length: 
     })
 
 
-def log_error(agent_id: str, error: Exception, **kwargs):
+def log_error(agent_id: str, error: Exception, **kwargs: Any) -> None:
     logger.error(f"Error in {agent_id}", extra={
         "agent_id": agent_id, "error_type": type(error).__name__,
         "error_message": str(error), **kwargs,
