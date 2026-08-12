@@ -75,3 +75,11 @@ def _reset_module_level_state():
         except (ImportError, AttributeError):
             # A module that isn't importable in this context cannot leak state.
             pass
+
+    # F-019: budget_tracker is a module-level singleton whose _usage dict
+    # accumulates state in the in-memory fallback path (tests have no Redis).
+    try:
+        from src.core.token_budget import budget_tracker
+        budget_tracker._usage.clear()
+    except (ImportError, AttributeError):
+        pass
