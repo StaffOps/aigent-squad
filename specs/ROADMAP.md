@@ -289,4 +289,5 @@ ROADMAP is plan-only from here.
 | 42-distributed-topology-internal-a2a | not-started | — | depends_on: 37-agentic-tool-calling, 14-security-hardening |
 | 43-agent-capability-tiers | not-started | — | depends_on: 37-agentic-tool-calling, 14-security-hardening |
 | 44-write-capable-agents | not-started | — | depends_on: 43-agent-capability-tiers, 21-incident-memory-learning, 37-agentic-tool-calling |
+| 45-supply-chain-hardening | not-started | — | depends_on: 08-ci-cd-pipeline, 36-agent-native-dev-loop |
 <!-- specs-status:end -->
