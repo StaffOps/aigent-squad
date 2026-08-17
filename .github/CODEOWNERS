@@ -1,0 +1,25 @@
+# Code owners — review is requested automatically on every PR touching these paths.
+#
+# Effect note: CODEOWNERS only REQUESTS review. It becomes an enforced gate only when branch
+# protection on the target branch enables "Require review from Code Owners" (spec 45 T1.7).
+# Until then this file documents ownership and drives review requests.
+
+# Default owner for everything not matched below.
+*                       @karlipegomes
+
+# Supply chain and CI: any change here can alter what gets published or what runs with our
+# credentials. Never merge these without an explicit look.
+/.github/               @karlipegomes
+/Dockerfile             @karlipegomes
+/requirements.txt       @karlipegomes
+/.trivyignore*          @karlipegomes
+
+# Security posture and the read-only invariant.
+/docs/SECURITY.md           @karlipegomes
+/docs/READ_ONLY_POLICY.md   @karlipegomes
+
+# Specs are the planning SSOT — changes here change what we agreed to build.
+/specs/                 @karlipegomes
+
+# Deployment surface.
+/infra/                 @karlipegomes

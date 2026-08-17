@@ -6,7 +6,30 @@ on:
   pull_request:
     branches: [main, dev]
 
+# Least privilege for every job in this workflow. Previously absent, which meant the repository
+# default applied — and the default can be read-write. No job here needs to write anything
+# (spec 45 T2.3).
+permissions:
+  contents: read
+
 jobs:
+  # Every `uses:` in this repo must be pinned to a full 40-hex commit SHA. A mutable ref (@v4,
+  # @master) lets whoever can move that tag run code inside our runner on the next execution —
+  # the mechanism behind the Codecov (2021) and tj-actions/changed-files (2025) compromises.
+  #
+  # The check INVERTS the match on purpose: it fails on anything after `@` that is NOT a 40-hex
+  # SHA. An earlier draft used a denylist of tag shapes (`@(v[0-9]|main|master|[a-z-]+)$`) which
+  # silently MISSED `@v4.1.0` — the `$`-anchored alternation matches nothing with dots and digits,
+  # so it would have passed the very refs it existed to ban.
+  #
+  # Local (`uses: ./...`) and Docker (`uses: docker://...`) refs carry no `@<ref>` and are
+  # unaffected. Same command as `make pin-check` — spec 36 same-harness.
+  pin_check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - run: make pin-check
+
   # main accepts PRs ONLY from dev (branch protection can't enforce source branch).
   # Required check on main only — it won't run on dev PRs, so it never hangs them.
   guard:
@@ -24,8 +47,8 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.11"
       - run: pip install ruff
@@ -35,8 +58,8 @@ jobs:
   typecheck:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.11"
       - run: pip install mypy
@@ -47,8 +70,8 @@ jobs:
   specs_status:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.11"
       - run: pip install "pyyaml==6.0.2"
@@ -61,8 +84,8 @@ jobs:
   harness_score:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: "20"
       # Same target devs/agents run locally (make harness-score) — spec 36 same-harness
@@ -72,9 +95,9 @@ jobs:
   dep_scan:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Trivy filesystem (dependencies)
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: fs
           scan-ref: .
@@ -87,18 +110,20 @@ jobs:
     runs-on: ubuntu-latest
     needs: [lint, typecheck]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - name: Configure git credentials for private deps
-        env:
-          DOCS_DEPLOY_TOKEN: ${{ secrets.DOCS_DEPLOY_TOKEN }}
-        run: |
-          git config --global credential.helper store
-          printf "https://x-access-token:%s@github.com\n" "${DOCS_DEPLOY_TOKEN}" > ~/.git-credentials
-
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.11"
+
+      # No credential setup: `otel-helper` (the one git+https dep in requirements.txt) lives in a
+      # PUBLIC repo since 2026-07-14 (StaffOps/otel-libs d8dc822), so a plain pip install resolves
+      # it. The previous `~/.git-credentials` write here was dead code carrying a live secret: it
+      # put DOCS_DEPLOY_TOKEN — a PAT with write access to StaffOps/staffops.github.io — on the
+      # runner filesystem, readable by every third-party action running later in this job. The
+      # Dockerfile dropped the equivalent mount on 2026-07-15 (B-28); this job never did.
+      # Removed by spec 45 T2.4 after verifying `pip download` succeeds with no credentials.
+      # If a private git dependency ever returns, do NOT restore this pattern — see spec 45 D8.
 
       - name: Install dependencies
         run: |

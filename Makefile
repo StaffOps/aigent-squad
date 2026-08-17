@@ -1,7 +1,7 @@
 # Canonical command surface (spec 36). Every golden path is a target here;
 # AGENTS.md/QUICKSTART reference these instead of raw commands. CI calls the
 # same targets (same-harness principle — spec 23 extended to the entrypoint).
-.PHONY: up down smoke test test-one test-ci lint typecheck eval specs-status mcp-rbac-audit harness-score install-hooks help
+.PHONY: up down smoke test test-one test-ci lint typecheck eval specs-status pin-check mcp-rbac-audit harness-score install-hooks help
 
 # AI-agent harness maturity floor (harness-score L0-L4). Raise this ONLY after
 # the score genuinely clears the next level — never to make a red CI go green.
@@ -56,6 +56,20 @@ specs-status: ## Spec status SSOT lint (spec 32) — frontmatter consistency + R
 	@python3 -c "import yaml" >/dev/null 2>&1 && python3 scripts/specs_status.py || \
 	docker run --rm -v "$$(pwd):/app" -w /app python:3.11-slim \
 	  sh -c "pip install -q pyyaml==6.0.2 && python3 scripts/specs_status.py"
+
+pin-check: ## Fail if any GitHub Action is not pinned to a 40-hex commit SHA (spec 45 T2.2)
+	@# INVERSE match on purpose: fail on anything after `@` that is not 40 hex chars. A denylist
+	@# of tag shapes misses semver like @v4.1.0. Local (./…) and docker:// refs have no @ref.
+	@if grep -rPn 'uses:\s+[^#\s]+@(?![0-9a-f]{40}\b)' .github/workflows/; then \
+	  echo ""; \
+	  echo "ERROR: unpinned action ref(s) above. Pin to a full 40-char commit SHA:"; \
+	  echo "  uses: owner/repo@<40-hex-sha> # vX.Y.Z"; \
+	  echo "Resolve with: curl -s https://api.github.com/repos/<owner>/<repo>/git/ref/tags/<tag>"; \
+	  echo "(if .object.type is 'tag', deref via /git/tags/<sha> to get the commit)"; \
+	  exit 1; \
+	else \
+	  echo "pin-check OK — every action ref is a 40-hex commit SHA"; \
+	fi
 
 mcp-rbac-audit: ## Prove MCP ServiceAccount is read-only (spec 37 gate). SA=<name> NS=<ns> [CTX=<ctx>]
 	@test -n "$(SA)" || { echo "ERROR: SA env var required (ServiceAccount name)"; exit 1; }

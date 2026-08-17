@@ -1,5 +1,7 @@
 # Agent Squad - Multi-Agent System for AWS/Kubernetes Operations
 
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/StaffOps/aigent-squad/badge)](https://scorecard.dev/viewer/?uri=github.com/StaffOps/aigent-squad)
+
 **Version**: 0.4.0
 **Status**: ✅ Cluster-validated (devops-core, 2026-07) — see `specs/ROADMAP.md`
 **Architecture**: Two-tier (edge gateway → supervisor), in-process specialists, Bedrock-direct
