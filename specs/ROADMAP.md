@@ -17,7 +17,7 @@ section at the bottom of this file (generated + CI-checked). Product/release
 state and the current work order are below; live items are in [`BACKLOG.md`](BACKLOG.md).
 
 **Suggested real version**: `0.4.0` cut 2026-07-15 (tag `v0.4.0`, GitHub Release
-published, image `karlipegomes/aigent-squad:0.4.0` on Docker Hub — spec 34's
+published, image `ghcr.io/staffops/aigent-squad:0.4.0` on GHCR — spec 34's
 `RELEASE.md` executed for real, Phases 0-2: pre-flight, PR `dev→main` #19
 merged, tag pushed, `release.yml` green, image content verified to contain
 this milestone's code). Cluster (devops-core) still runs via the separate

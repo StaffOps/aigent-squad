@@ -74,7 +74,7 @@
 2. `git tag vX.Y.Z && git push origin vX.Y.Z`
 3. `release.yml` fires: single-arch build → **Trivy gate** (CRITICAL/HIGH,
    `.trivyignore` exceptions) → multi-arch (`linux/amd64,linux/arm64`) build +
-   push to Docker Hub (`karlipegomes/aigent-squad:X.Y.Z` + `:latest`) → SBOM →
+   push to GHCR (`ghcr.io/staffops/aigent-squad:X.Y.Z` + `:latest`) → SBOM →
    GitHub Release (auto-generated notes).
 4. **Verify the published image actually contains this milestone's code** —
    this is the 0.2.0 lesson (the `0.2.0` tag was published WITHOUT the
@@ -82,8 +82,8 @@
    commit landed). Pull the tagged image and grep for a marker unique to this
    cycle's work, e.g.:
    ```
-   docker pull karlipegomes/aigent-squad:X.Y.Z
-   docker run --rm karlipegomes/aigent-squad:X.Y.Z python3 -c \
+   docker pull ghcr.io/staffops/aigent-squad:X.Y.Z
+   docker run --rm ghcr.io/staffops/aigent-squad:X.Y.Z python3 -c \
      "import src.core.response_quality; print('groundedness OK' if hasattr(src.core.response_quality, 'ungrounded_numeric_claims') else 'MISSING')"
    ```
    (swap the marker per release — pick something from this cycle's actual diff.)
@@ -97,7 +97,7 @@
 >
 > **Standing gap, not yet fixed (see BACKLOG)**: `charts/aigent-squad/
 > values.yaml`'s `image.repository` still points at a personal Docker Hub
-> account (`karlipegomes/aigent-squad`), from the pre-org-migration era —
+> GHCR (`ghcr.io/staffops/aigent-squad`) — migrated from Docker Hub —
 > the "neutralize this" TODO from the 0.3.0 cycle was never actually done.
 > Not blocking a release (the value still works), but check whether THIS
 > cycle is the one to finally fix it before assuming it's someone else's problem.

@@ -63,12 +63,12 @@ See [HOW-TO-NEW-AGENT.md](HOW-TO-NEW-AGENT.md).
 
 ### Image
 
-The image is published to Docker Hub (`karlipegomes/aigent-squad`) on every
+The image is published to GHCR (`ghcr.io/staffops/aigent-squad`) on every
 merge to `main` (`latest` + `sha-<short>` tags) and on every version tag
 (`vX.Y.Z` → `X.Y.Z` + a GitHub Release). Multi-arch manifest (amd64 + arm64).
 
 ```bash
-docker pull karlipegomes/aigent-squad:latest
+docker pull ghcr.io/staffops/aigent-squad:latest
 ```
 
 ### Deploy via Helm
@@ -86,7 +86,7 @@ helm install aigent-squad staffops/aigent-squad \
 
 `global.image.registry` defaults to `""` (Docker Hub as-is) and
 `services.{gateway,supervisor}.image.repository` already default to
-`karlipegomes/aigent-squad`, versioned by `Chart.appVersion` — no image
+`ghcr.io/staffops/aigent-squad`, versioned by `Chart.appVersion` — no image
 override needed for a vanilla install. See
 `helm-charts/charts/aigent-squad/README.md` for the full values reference.
 
@@ -94,6 +94,6 @@ override needed for a vanilla install. See
 
 Pipeline runs on GitHub Actions (`.github/workflows/`):
 - **test.yml**: lint (ruff) + pytest `--cov-fail-under=90` (≥90% enforced)
-- **build.yml**: multi-arch Docker build → Docker Hub (`karlipegomes/aigent-squad`, `latest`+SHA tags) + Trivy scan + SBOM, on every merge to `main`
+- **build.yml**: multi-arch Docker build → GHCR (`ghcr.io/staffops/aigent-squad`, `latest`+SHA tags) + Trivy scan + SBOM, on every merge to `main`
 - **release.yml**: same build, triggered by a `vX.Y.Z` tag — publishes the version tag + a GitHub Release (see `RELEASE.md`)
 - **helm-charts repo**: `release.yaml` (chart-releaser) + `lint-test.yaml` (ct lint + kind install)

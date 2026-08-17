@@ -9,7 +9,7 @@ Multi-agent AI platform for AWS/Kubernetes operations: **edge gateway + supervis
 read-only by default, defense-in-depth anti-prompt-injection (spec 14).
 
 > **Status**: `0.4.0` released 2026-07-15 (tag `v0.4.0`, GitHub Release, image
-> `karlipegomes/aigent-squad:0.4.0` on Docker Hub — spec 34's `RELEASE.md` executed for
+> `ghcr.io/staffops/aigent-squad:0.4.0` on GHCR — spec 34's `RELEASE.md` executed for
 > real, Phases 0-2). Specs 11 (model tiering), 14 (security L1–L6, all findings closed),
 > 35 (quality eval harness, complete), and 36 (dev loop) shipped. The devops-core cluster
 > runs the same code via a separate path (Harbor `labs/aigent-squad:0.3.0-dev`, digest

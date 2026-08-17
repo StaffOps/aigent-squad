@@ -6,7 +6,7 @@ with AWS Bedrock, ElastiCache, and DynamoDB as backing services.
 
 **Chart version**: `0.9.3`  
 **Repository**: `https://staffops.github.io/helm-charts/`  
-**Image**: `karlipegomes/aigent-squad:latest` (Docker Hub, multi-arch `amd64` + `arm64`)
+**Image**: `ghcr.io/staffops/aigent-squad:latest` (GHCR, multi-arch `amd64` + `arm64`)
 
 ---
 
@@ -56,7 +56,7 @@ helm install aigent-squad staffops/aigent-squad \
 |-----|---------|-------------|
 | `topology` | `inProcess` | Deployment topology: `inProcess` or `distributed` |
 | `global.image.registry` | `""` | Registry prefix; empty = Docker Hub direct |
-| `services.supervisor.image.repository` | `karlipegomes/aigent-squad` | Image repository |
+| `services.supervisor.image.repository` | `ghcr.io/staffops/aigent-squad` | Image repository |
 | `services.supervisor.image.tag` | `latest` | Image tag — use `sha-<commit>` to pin in production |
 
 ### LLM / Bedrock
