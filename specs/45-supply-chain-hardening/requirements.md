@@ -1,6 +1,6 @@
 ---
 spec: 45-supply-chain-hardening
-status: not-started
+status: in-progress
 completed: null
 superseded_by: null
 depends_on: ["08-ci-cd-pipeline", "36-agent-native-dev-loop"]

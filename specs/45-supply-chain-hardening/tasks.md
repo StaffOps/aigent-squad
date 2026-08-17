@@ -11,8 +11,8 @@ by a pipeline that can be hijacked signs the wrong thing convincingly.
 | Phase | Scope | Status | Done when |
 |-------|-------|--------|-----------|
 | **0** | Spec + harness + settle Q1–Q4 | `not-started` | Open questions answered with evidence; harness findings folded in |
-| **1** | Disclosure + governance | `not-started` | `SECURITY.md`, private reporting on, `CODEOWNERS`, Scorecard published + badge |
-| **2** | CI integrity | `not-started` | Zero mutable refs (CI-enforced, with `make pin-check`), explicit `permissions:` in all 5 workflows, dead credential write deleted, base image by digest |
+| **1** | Disclosure + governance | `in-progress` | T1.1–T1.5 DONE 2026-08-12. Open: T1.6 (baseline score — needs the first Scorecard run on `main`), T1.7 (branch protection — repo setting, needs an explicit decision) |
+| **2** | CI integrity | `done` | DONE 2026-08-12. 38 refs pinned across 6 workflows, zero mutable remaining; `pin-check` job + `make pin-check` (negative-tested against `@v4.1.0`); explicit `permissions:` in all 6; dead credential write deleted after proving the dep resolves unauthenticated; base image pinned to the OCI index digest with a multi-arch build proving amd64+arm64 still build |
 | **3** | Artifact provenance | `not-started` | `release.yml` split into publish+verify (gate and push still in ONE job); release signed + attested + SBOM attached; pushed manifest scanned; verify job proves it from outside and has a negative test |
 | **4** | Hygiene automation | `not-started` | Suppressions expire; Renovate opens grouped bump PRs |
 | **5** | Docs | `not-started` | Consumer verification doc; `README`/`docs/SECURITY.md` consistent with reality |
@@ -51,16 +51,16 @@ by a pipeline that can be hijacked signs the wrong thing convincingly.
 
 ## Phase 1 — Disclosure + governance (cannot break a build)
 
-- [ ] T1.1: `.github/SECURITY.md` — supported versions, how to report privately, expected response
+- [x] T1.1: `.github/SECURITY.md` — supported versions, how to report privately, expected response
       window, disclosure expectations. Must NOT duplicate `docs/SECURITY.md`; that one is the threat
       model and stays. Cross-link both ways so neither looks like the whole story.
-- [ ] T1.2: Enable **GitHub Private Vulnerability Reporting** on the repo (Settings → Security).
+- [x] T1.2: Enable **GitHub Private Vulnerability Reporting** on the repo (Settings → Security).
       Record in `T1.1` that it is the preferred channel.
-- [ ] T1.3: `.github/CODEOWNERS`.
-- [ ] T1.4: `.github/workflows/scorecard.yml` — `ossf/scorecard-action` pinned by SHA, on
+- [x] T1.3: `.github/CODEOWNERS`.
+- [x] T1.4: `.github/workflows/scorecard.yml` — `ossf/scorecard-action` pinned by SHA, on
       `push: [main]` + weekly `schedule`, `permissions: id-token: write` + `security-events: write`,
       `publish_results: true`.
-- [ ] T1.5: Scorecard badge in `README.md`. **Do not gate CI on the score** — several checks are
+- [x] T1.5: Scorecard badge in `README.md`. **Do not gate CI on the score** — several checks are
       permanently unfixable here (`Contributors` needs 3+ orgs; `Fuzzing` has no Python support;
       `Packaging` does not recognise Docker Hub), so a threshold gate would encode noise as policy.
 - [ ] T1.6: Record the baseline score in `CHANGES.md` before any Phase 2/3 work, so the delta is
@@ -73,13 +73,13 @@ by a pipeline that can be hijacked signs the wrong thing convincingly.
 
 ## Phase 2 — CI integrity (must land before Phase 3)
 
-- [ ] T2.1: Pin **every** `uses:` in all 5 workflows to a 40-char commit SHA with a trailing
+- [x] T2.1: Pin **every** `uses:` in all 5 workflows to a 40-char commit SHA with a trailing
       `# vX.Y.Z` comment. Full inventory to convert: `actions/checkout`, `actions/setup-python`,
       `actions/setup-node`, `docker/setup-buildx-action`, `docker/setup-qemu-action`,
       `docker/login-action`, `docker/build-push-action`, `softprops/action-gh-release`,
       `peaceiris/actions-gh-pages`, and `aquasecurity/trivy-action` (**three call sites, all
       `@master`** — a branch ref, the worst case).
-- [ ] T2.2: `pin-check` — fail if any `uses:` is not a full 40-hex SHA. **Use inverse matching, not a
+- [x] T2.2: `pin-check` — fail if any `uses:` is not a full 40-hex SHA. **Use inverse matching, not a
       denylist of tag shapes.** A first draft used
       `grep -rE 'uses: .*@(v[0-9]|main|master|[a-z-]+)$'`, which **misses `@v4.1.0`** (the alternation
       is `$`-anchored, so a semver tail with dots and digits matches nothing) — i.e. it would have
@@ -88,7 +88,7 @@ by a pipeline that can be hijacked signs the wrong thing convincingly.
       Local (`uses: ./...`) and Docker (`uses: docker://...`) refs have no `@<ref>` and are unaffected.
       Add it to `test.yml` so it blocks PRs, **and add `make pin-check`** running the identical command
       (spec 36 same-harness).
-- [ ] T2.3: Explicit top-level `permissions:` in all 5 workflows, minimum viable:
+- [x] T2.3: Explicit top-level `permissions:` in all 5 workflows, minimum viable:
   - `test.yml`: `contents: read` (currently **absent** → repo default).
   - `docs.yml`: `contents: read` **only**. Verified: the deploy step uses `peaceiris/actions-gh-pages`
     with `personal_token: ${{ secrets.DOCS_DEPLOY_TOKEN }}` pushing to the **external** repo
@@ -99,7 +99,7 @@ by a pipeline that can be hijacked signs the wrong thing convincingly.
   - `release.yml`: `contents: write` for the Release; Phase 3 adds `id-token: write` and
     `attestations: write` **on the publishing job only**. Per-job permissions do override top level, so
     this works.
-- [ ] T2.4: **Delete** the `~/.git-credentials` write from `test.yml` (design D8) — do not scope it,
+- [x] T2.4: **Delete** the `~/.git-credentials` write from `test.yml` (design D8) — do not scope it,
       do not convert it to `GIT_ASKPASS`. Order of operations:
   1. Confirm `pip install -r requirements.txt` resolves
      `otel-helper @ git+https://github.com/StaffOps/otel-libs.git@v0.2.0` with **no** auth (the repo
@@ -109,10 +109,10 @@ by a pipeline that can be hijacked signs the wrong thing convincingly.
   3. Confirm the test job still installs and passes.
       If step 1 fails, STOP and re-cost the dedicated-job option from D8 — do not restore the file
       write.
-- [ ] T2.5: Pin the base image by **manifest-list** digest in both `Dockerfile` stages. Get it with
+- [x] T2.5: Pin the base image by **manifest-list** digest in both `Dockerfile` stages. Get it with
       `docker buildx imagetools inspect python:3.11-alpine` and take the top-level index digest —
       **not** a per-platform digest, which would break `linux/amd64,linux/arm64`.
-- [ ] T2.6: Prove the multi-arch build still produces both platforms after T2.5
+- [x] T2.6: Prove the multi-arch build still produces both platforms after T2.5
       (`docker buildx imagetools inspect` on the resulting tag).
 
 ---

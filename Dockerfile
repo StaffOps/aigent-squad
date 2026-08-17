@@ -2,7 +2,7 @@
 
 # ── Stage 1: builder ──────────────────────────────────────────────────────────
 # Build tools and SSH are builder-only — absent from the runtime image.
-FROM python:3.11-alpine AS builder
+FROM python:3.11-alpine@sha256:25976e9d34a0fab1f278cae931f34c8303d97bf0c0d7f85b6b4dcf641d7702a4 AS builder
 
 RUN apk add --no-cache \
     gcc musl-dev libffi-dev openssl-dev \
@@ -25,7 +25,7 @@ RUN pip install --no-cache-dir -r requirements.txt \
 
 # ── Stage 2: runtime ──────────────────────────────────────────────────────────
 # Alpine: no perl, no ncurses, no apt — drastically smaller CVE surface.
-FROM python:3.11-alpine AS runtime
+FROM python:3.11-alpine@sha256:25976e9d34a0fab1f278cae931f34c8303d97bf0c0d7f85b6b4dcf641d7702a4 AS runtime
 
 COPY --from=builder /venv /venv
 ENV PATH="/venv/bin:$PATH"

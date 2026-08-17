@@ -108,6 +108,7 @@ make test-one FILE=tests/test_x.py
 make lint        # ruff, CI-verbatim scope
 make typecheck   # mypy gate; CI blocks the test job on it (needs: [lint, typecheck])
 make harness-score  # AI-agent harness maturity gate (L0-L4); floor = MIN_LEVEL (default 1)
+make pin-check   # fail if any GitHub Action is not pinned to a 40-hex commit SHA (spec 45)
 make down        # stop (V=1 drops volumes)
 
 # Build image
