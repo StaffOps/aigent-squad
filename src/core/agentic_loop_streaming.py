@@ -547,5 +547,6 @@ async def run_agentic_loop_streaming(
 
         finally:
             await session_pool.close()
+            current_agent_id.reset(_agent_id_token)
             loop_span.set_attribute("tool_calls_total", total_tool_calls)
             loop_span.set_attribute("tokens_total", total_tokens_used)

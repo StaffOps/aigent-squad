@@ -48,7 +48,7 @@ _health_dynamodb_table = boto3.resource(
 # construction fails, _session_redis stays None and SessionLock allows all.
 try:
     _session_redis: Optional[aioredis.Redis] = aioredis.from_url(  # type: ignore[misc]
-        f"redis://{settings.redis_host}:{settings.redis_port}",
+        f"{rediss if settings.redis_ssl else redis}://{settings.redis_host}:{settings.redis_port}",
         password=settings.redis_password,
         decode_responses=True,
     )

@@ -56,7 +56,7 @@ class BedrockClient:
         sem = getattr(self, "_semaphore", None)
         if sem is None:
             limit = getattr(self, "_semaphore_limit", 20)
-            sem = asyncio.Semaphore(limit)
+            sem = asyncio.Semaphore(max(limit, 1))
             self._semaphore = sem
         return sem
 
@@ -329,10 +329,11 @@ class BedrockClient:
         wait_start = time.time()
         try:
             await sem.acquire()
-        finally:
-            wait_elapsed = time.time() - wait_start
+        except BaseException:
             bedrock_queue_depth.add(-1)
-            bedrock_queue_wait.record(wait_elapsed)
+            raise
+        bedrock_queue_depth.add(-1)
+        bedrock_queue_wait.record(time.time() - wait_start)
 
         try:
             result = await asyncio.to_thread(
@@ -759,10 +760,11 @@ class BedrockClient:
         wait_start = time.time()
         try:
             await sem.acquire()
-        finally:
-            wait_elapsed = time.time() - wait_start
+        except BaseException:
             bedrock_queue_depth.add(-1)
-            bedrock_queue_wait.record(wait_elapsed)
+            raise
+        bedrock_queue_depth.add(-1)
+        bedrock_queue_wait.record(time.time() - wait_start)
 
         try:
             result = await asyncio.to_thread(
