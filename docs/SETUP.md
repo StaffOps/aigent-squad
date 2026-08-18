@@ -4,8 +4,12 @@
 
 ### Prerequisites
 - Docker + Docker Compose
-- SSH key configured for GitHub (for private otel-helper repo)
-- AWS credentials (`~/.aws/`) — optional, agents degrade gracefully without them
+- AWS credentials with Bedrock access (`~/.aws/`) — needed for real agent
+  answers (every query is a live Bedrock call, no offline/fixture mode
+  today). NOT needed for `make lint` / `make test`, which run entirely in
+  Docker with no AWS involved. See `docs/PREREQUISITES.md` for exactly what
+  a live demo does (and doesn't) require — short version: no Terraform, no
+  IRSA, no EKS, just a Bedrock-capable credential.
 
 ### Quick start
 
@@ -14,25 +18,22 @@
 git clone git@github.com:StaffOps/staffops-aigent-squad.git
 cd staffops-aigent-squad
 
-# 2. Ensure ssh-agent is running (for private dep install during build)
-eval $(ssh-agent -s)
-ssh-add ~/.ssh/id_ed25519
+# 2. Build + run (make handles Docker build/up/health-wait — see AGENTS.md)
+make up
+make smoke   # health + 1 real query + /v1/models
 
-# 3. Build + run
-docker compose build
-docker compose up -d
-
-# 4. Verify
-curl http://localhost:8000/healthz  # liveness
-curl http://localhost:8000/ready    # readiness (Redis + DynamoDB + agents)
-curl http://localhost:3001         # Grafana dashboards
+# 3. Verify manually if you want
+curl http://localhost:8000/healthz  # gateway liveness
+curl http://localhost:8000/ready    # gateway readiness (supervisor + deps)
+curl http://localhost:3001          # Grafana dashboards
 ```
 
 ### Services
 
 | Service | URL | Purpose |
 |---------|-----|---------|
-| Supervisor | http://localhost:8000 | Main API (query routing) |
+| Gateway | http://localhost:8000 | Public front door — `/query`, `/v1/*`, health |
+| Supervisor | http://localhost:8001 | Backend-only — `/internal/*` (not for direct client use) |
 | MCP Server | http://localhost:8006 | Kiro CLI integration |
 | Grafana | http://localhost:3001 | Dashboards + traces |
 | Prometheus | http://localhost:9099 | Metrics |
@@ -57,17 +58,18 @@ See [HOW-TO-NEW-AGENT.md](HOW-TO-NEW-AGENT.md).
 ### Prerequisites
 - EKS cluster with IRSA configured
 - Helm 3.x
-- AWS ECR or Harbor registry
+- A container registry (GHCR is the CI target; ECR/Harbor
+  also work — see `helm-charts/charts/aigent-squad/README.md`)
 
 ### Image
 
-The image is published to Docker Hub on every merge to `main`:
+The image is published to GHCR (`ghcr.io/staffops/aigent-squad`) on every
+merge to `main` (`latest` + `sha-<short>` tags) and on every version tag
+(`vX.Y.Z` → `X.Y.Z` + a GitHub Release). Multi-arch manifest (amd64 + arm64).
 
 ```bash
-docker pull karlipegomes/aigent-squad:latest
+docker pull ghcr.io/staffops/aigent-squad:latest
 ```
-
-Tags: `latest` + `sha-<short>`. Multi-arch manifest (amd64 + arm64).
 
 ### Deploy via Helm
 
@@ -76,20 +78,22 @@ Tags: `latest` + `sha-<short>`. Multi-arch manifest (amd64 + arm64).
 helm repo add staffops https://StaffOps.github.io/helm-charts
 helm repo update
 
-# Install (inProcess topology — one pod, all agents in-process)
+# Install (inProcess topology — one release, gateway + supervisor)
 helm install aigent-squad staffops/aigent-squad \
   --namespace aigent-squad --create-namespace \
-  --set global.image.registry="" \
-  --set services.supervisor.image.repository=karlipegomes/aigent-squad \
-  --set services.supervisor.image.tag=latest \
   --set redis.host=my-elasticache.cache.amazonaws.com
 ```
 
-See `helm-charts/charts/aigent-squad/README.md` for full values reference.
+`global.image.registry` defaults to `""` (GHCR path is in the repository field) and
+`services.{gateway,supervisor}.image.repository` already default to
+`ghcr.io/staffops/aigent-squad`, versioned by `Chart.appVersion` — no image
+override needed for a vanilla install. See
+`helm-charts/charts/aigent-squad/README.md` for the full values reference.
 
 ### CI/CD
 
 Pipeline runs on GitHub Actions (`.github/workflows/`):
 - **test.yml**: lint (ruff) + pytest `--cov-fail-under=90` (≥90% enforced)
-- **build.yml**: multi-arch Docker build → ECR (OIDC) + Docker Hub (`karlipegomes/aigent-squad`) + Trivy scan + SBOM
+- **build.yml**: multi-arch Docker build → GHCR (`ghcr.io/staffops/aigent-squad`, `latest`+SHA tags) + Trivy scan + SBOM, on every merge to `main`
+- **release.yml**: same build, triggered by a `vX.Y.Z` tag — publishes version tag + cosign sign + build provenance + SBOM attestation + verify job + GitHub Release (see `RELEASE.md`, `docs/VERIFYING-RELEASES.md`)
 - **helm-charts repo**: `release.yaml` (chart-releaser) + `lint-test.yaml` (ct lint + kind install)

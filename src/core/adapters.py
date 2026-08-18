@@ -7,6 +7,7 @@ import re
 import time
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
+from typing import Any, TYPE_CHECKING
 
 import boto3
 import httpx
@@ -17,6 +18,48 @@ from src.core.agent_config import DatasourceConfig
 from src.core.cache import cache
 from src.core.config import settings
 from src.core.metrics import cache_hits, cache_misses
+
+if TYPE_CHECKING:
+    from src.core.tool_schema import ToolNameMap
+
+
+# Maximum nesting we will unwrap. Groups nest at most a couple of levels in
+# practice; the bound exists so a pathological chain cannot spin.
+_MAX_UNWRAP_DEPTH = 5
+
+
+def mcp_error_detail(exc: BaseException, _depth: int = 0) -> str:
+    """Describe an MCP failure by its ROOT CAUSE, not by its wrapper.
+
+    The MCP client runs its connection inside an anyio TaskGroup, so a plain
+    `str(exc)` yields ``unhandled errors in a TaskGroup (1 sub-exception)`` —
+    which tells an operator reading the log absolutely nothing about why the
+    server is unreachable. The real cause (``connection refused``, a DNS
+    failure, a TLS error, a timeout) is one or two levels down.
+
+    Fail-open behaviour is unchanged: callers still return an error STRING and
+    never raise. This only makes that string useful. (BACKLOG F-011.)
+
+    Returns ``"<ExceptionType>: <message>"`` for the innermost exception, and
+    appends ``(+N more)`` when a group carried several so nothing is hidden.
+    """
+    if _depth < _MAX_UNWRAP_DEPTH:
+        # ExceptionGroup / BaseExceptionGroup (Python 3.11+) — anyio's wrapper.
+        subs = getattr(exc, "exceptions", None)
+        if subs:
+            detail = mcp_error_detail(subs[0], _depth + 1)
+            extra = len(subs) - 1
+            return f"{detail} (+{extra} more)" if extra > 0 else detail
+        # Plain chained exception (`raise X from Y`).
+        cause = getattr(exc, "__cause__", None)
+        if cause is not None and cause is not exc:
+            return mcp_error_detail(cause, _depth + 1)
+
+    msg = str(exc).strip()
+    name = type(exc).__name__
+    # Some transport errors stringify to "" — the type alone is still a clue.
+    return f"{name}: {msg}" if msg else name
+
 
 
 class DatasourceAdapter(ABC):
@@ -54,7 +97,7 @@ class DatasourceAdapter(ABC):
             hit = None
         if hit is not None:
             cache_hits.add(1, {"namespace": ns})
-            return hit
+            return str(hit)
         cache_misses.add(1, {"namespace": ns})
         result = await self._collect(query)
         try:
@@ -74,7 +117,7 @@ class Boto3Adapter(DatasourceAdapter):
         return "boto3:" + ",".join(sorted(self.services))
 
     @staticmethod
-    def _client(service: str):
+    def _client(service: str) -> Any:
         """Build a boto3 client with an explicit region.
 
         botocore resolves the region from AWS_DEFAULT_REGION (not AWS_REGION),
@@ -216,13 +259,24 @@ class AthenaAdapter(DatasourceAdapter):
 
 
 class McpAdapter(DatasourceAdapter):
-    """Collects read-only context from an MCP server (SSE transport).
+    """Collects read-only context from an MCP server.
+
+    Supports two transports:
+      - 'sse' (default) — Server-Sent Events, compatible with mcp ≥1.0.
+      - 'streamable-http' — HTTP-based streaming, required by servers like
+        grafana-mcp and kubectl-mcp that do not expose SSE.
 
     Security: tools are fail-closed. Only tools explicitly listed in the
     YAML allowlist (`tools`) may be invoked. An empty allowlist collects
     nothing. This keeps the adapter consistent with "read-only is law":
     the operator curates which (read-only) tools an agent may call, and the
     model never picks tools autonomously.
+
+    Agentic interface (Phase 2, spec 37):
+      - `list_tool_specs()`: returns Converse-format `toolSpec[]` for the
+        allowlisted tools. Cached per cache_ttl.
+      - `call_tool(name, args)`: execute ONE allowlisted tool. Fail-closed:
+        refuses any name not in allowlist.
     """
 
     def __init__(
@@ -233,6 +287,7 @@ class McpAdapter(DatasourceAdapter):
         headers: dict[str, str] | None = None,
         tool_arguments: dict[str, str] | None = None,
         inject_query_as: str = "",
+        transport: str = "streamable-http",
     ):
         self.name = name or "mcp"
         self.url = HttpAdapter._interpolate_env(url)
@@ -240,9 +295,169 @@ class McpAdapter(DatasourceAdapter):
         self.headers = headers or {}
         self.tool_arguments = tool_arguments or {}
         self.inject_query_as = inject_query_as
+        self.transport = transport
+        # SR1: immutable allowlist set for O(1) membership checks (Phase-2 carry-over)
+        self._allowlist_set: frozenset[str] = frozenset(self.tools)
+        # Agentic: tool name map and cached specs (Phase 2)
+        self._name_map: "ToolNameMap | None" = None
+        self._cached_tool_specs: list[dict[str, Any]] | None = None
+        self._specs_cached_at: float = 0.0
 
     def _cache_id(self) -> str:
         return f"mcp:{self.url}:" + ",".join(sorted(self.tools))
+
+    # ------------------------------------------------------------------
+    # Agentic tool-spec builder (Phase 2, spec 37 Decision 2)
+    # ------------------------------------------------------------------
+
+    async def list_tool_specs(self) -> list[dict[str, Any]]:
+        """Return Converse-format toolSpec[] for this datasource's allowlisted tools.
+
+        Fetches the MCP server's tool catalog (session.list_tools()), intersects
+        with the YAML allowlist, normalizes each schema via tool_schema.py, and
+        caches the result per cache_ttl.
+        """
+        # Check cache validity (time-based)
+        if self._cached_tool_specs is not None and self.cache_ttl > 0:
+            elapsed = time.time() - self._specs_cached_at
+            if elapsed < self.cache_ttl:
+                return self._cached_tool_specs
+
+        from src.core.tool_schema import ToolNameMap
+
+        name_map = ToolNameMap()
+        specs: list[dict[str, Any]] = []
+
+        if not self.tools:
+            self._name_map = name_map
+            self._cached_tool_specs = []
+            self._specs_cached_at = time.time()
+            return []
+
+        try:
+            from mcp import ClientSession
+
+            if self.transport == "streamable-http":
+                from mcp.client.streamable_http import streamablehttp_client
+                async with streamablehttp_client(self.url, headers=self.headers) as (read, write, _):
+                    async with ClientSession(read, write) as session:
+                        await session.initialize()
+                        specs = self._build_specs_from_session(session, name_map, await session.list_tools())
+            else:
+                from mcp.client.sse import sse_client
+                async with sse_client(self.url, headers=self.headers) as (read, write):
+                    async with ClientSession(read, write) as session:
+                        await session.initialize()
+                        specs = self._build_specs_from_session(session, name_map, await session.list_tools())
+        except Exception:
+            # Fail-open: if we can't reach the server, contribute no tools (degraded)
+            specs = []
+
+        self._name_map = name_map
+        self._cached_tool_specs = specs
+        self._specs_cached_at = time.time()
+        return specs
+
+    def _build_specs_from_session(self, session: Any, name_map: "ToolNameMap", tools_result: Any) -> list[dict[str, Any]]:
+        """Build toolSpec list from session.list_tools() result ∩ allowlist."""
+        from src.core.tool_schema import build_tool_spec
+
+        allowlist_set = self._allowlist_set
+        specs: list[dict[str, Any]] = []
+        for tool in tools_result.tools:
+            if tool.name not in allowlist_set:
+                continue
+            input_schema = None
+            if hasattr(tool, "inputSchema") and tool.inputSchema:
+                input_schema = tool.inputSchema
+            spec = build_tool_spec(
+                server_name=tool.name,
+                description=getattr(tool, "description", "") or "",
+                input_schema=input_schema,
+                name_map=name_map,
+            )
+            specs.append(spec)
+        return specs
+
+    # ------------------------------------------------------------------
+    # Agentic single-tool execution (Phase 2, spec 37 Decision 2)
+    # ------------------------------------------------------------------
+
+    # OOM safety cap: prevents unbounded memory from a malicious MCP server.
+    # Semantic truncation (with true-count marker) is done by the agentic loop
+    # via _truncate_with_marker — this cap is strictly a memory guard.
+    _ADAPTER_SAFETY_CAP: int = 1_000_000
+
+    async def call_tool(self, name: str, args: dict[str, Any]) -> str:
+        """Execute ONE tool by its Converse name. Fail-closed on allowlist.
+
+        Args:
+            name: The tool name as the model emitted it (Converse-safe, possibly
+                  with underscores replacing hyphens).
+            args: Arguments dict from the model's toolUse block.
+
+        Returns:
+            Full text result from the tool (capped only at _ADAPTER_SAFETY_CAP
+            for OOM protection). Semantic truncation with a true-count marker
+            is applied downstream by the agentic loop's _truncate_with_marker.
+
+        Raises:
+            PermissionError: if name is not in the allowlist (fail-closed).
+        """
+        # Resolve the server-side name via the name map
+        server_name = self._resolve_server_name(name)
+
+        # FAIL-CLOSED: refuse if not allowlisted
+        if server_name not in self._allowlist_set:
+            raise PermissionError(
+                f"[mcp:{self.name}] tool '{name}' (server: '{server_name}') "
+                f"not in read-only allowlist. Refusing execution."
+            )
+
+        # Merge static tool_arguments
+        merged_args = {**self.tool_arguments, **args}
+
+        try:
+            from mcp import ClientSession
+
+            if self.transport == "streamable-http":
+                from mcp.client.streamable_http import streamablehttp_client
+                async with streamablehttp_client(self.url, headers=self.headers) as (read, write, _):
+                    async with ClientSession(read, write) as session:
+                        await session.initialize()
+                        result = await session.call_tool(server_name, merged_args)
+                        return self._render(result)[:self._ADAPTER_SAFETY_CAP]
+            else:
+                from mcp.client.sse import sse_client
+                async with sse_client(self.url, headers=self.headers) as (read, write):
+                    async with ClientSession(read, write) as session:
+                        await session.initialize()
+                        result = await session.call_tool(server_name, merged_args)
+                        return self._render(result)[:self._ADAPTER_SAFETY_CAP]
+        except PermissionError:
+            raise  # Re-raise allowlist violations
+        except Exception as e:
+            return f"[mcp:{self.name}:{server_name}] error: {mcp_error_detail(e)}"
+
+    def _resolve_server_name(self, converse_name: str) -> str:
+        """Resolve a Converse tool name back to the MCP server's real name.
+
+        Uses the name map if available; falls back to reversing underscore→hyphen
+        if the map hasn't been populated yet (e.g. list_tool_specs not called).
+        """
+        if self._name_map:
+            server_name = self._name_map.to_server_name(converse_name)
+            if server_name:
+                return server_name
+        # Fallback: try direct match first (name might be in allowlist as-is)
+        if converse_name in self._allowlist_set:
+            return converse_name
+        # Try hyphen variant
+        hyphen_name = converse_name.replace("_", "-")
+        if hyphen_name in self._allowlist_set:
+            return hyphen_name
+        # Nothing matched — return as-is (will fail the allowlist check)
+        return converse_name
 
     async def _collect(self, query: str) -> str:
         if not self.tools:
@@ -253,43 +468,58 @@ class McpAdapter(DatasourceAdapter):
             # Imported lazily so the rest of the adapters work even if the
             # mcp client extras are unavailable in a given environment.
             from mcp import ClientSession
-            from mcp.client.sse import sse_client
 
-            async with sse_client(self.url, headers=self.headers) as (read, write):
-                async with ClientSession(read, write) as session:
-                    await session.initialize()
+            if self.transport == "streamable-http":
+                from mcp.client.streamable_http import streamablehttp_client
 
-                    available = {t.name for t in (await session.list_tools()).tools}
-                    for tool_name in self.tools:
-                        if tool_name not in available:
-                            results.append(f"[mcp:{self.name}:{tool_name}] not exposed by server")
-                            continue
-                        args = dict(self.tool_arguments)
-                        if self.inject_query_as:
-                            args[self.inject_query_as] = query
-                        try:
-                            res = await session.call_tool(tool_name, args)
-                            results.append(f"[mcp:{self.name}:{tool_name}] {self._render(res)}")
-                        except Exception as e:  # one tool failing must not kill the rest
-                            results.append(f"[mcp:{self.name}:{tool_name}] error: {e}")
+                async with streamablehttp_client(self.url, headers=self.headers) as (read, write, _):
+                    async with ClientSession(read, write) as session:
+                        results = await self._invoke_tools(session, query)
+            else:
+                from mcp.client.sse import sse_client
+
+                async with sse_client(self.url, headers=self.headers) as (read, write):
+                    async with ClientSession(read, write) as session:
+                        results = await self._invoke_tools(session, query)
         except Exception as e:
-            # The SSE transport (mcp 1.0.0 + anyio) can raise an exception
-            # group during stream teardown *after* tools ran successfully.
-            # Don't discard data we already collected — only surface the
-            # error when nothing was gathered.
+            # The transport layer can raise an exception group during stream
+            # teardown *after* tools ran successfully.  Don't discard data we
+            # already collected — only surface the error when nothing was
+            # gathered (fail-open for partial results).
             if not results:
-                return f"[mcp:{self.name}] error: {e}"
+                return f"[mcp:{self.name}] error: {mcp_error_detail(e)}"
         return "\n".join(results)
 
+    async def _invoke_tools(self, session: Any, query: str) -> list[str]:
+        """Shared session logic: initialize, list available tools, invoke each
+        allowlisted tool, collect results. Factored out to avoid duplication
+        across transport branches."""
+        results: list[str] = []
+        await session.initialize()
+        available = {t.name for t in (await session.list_tools()).tools}
+        for tool_name in self.tools:
+            if tool_name not in available:
+                results.append(f"[mcp:{self.name}:{tool_name}] not exposed by server")
+                continue
+            args = dict(self.tool_arguments)
+            if self.inject_query_as:
+                args[self.inject_query_as] = query
+            try:
+                res = await session.call_tool(tool_name, args)
+                results.append(f"[mcp:{self.name}:{tool_name}] {self._render(res)}")
+            except Exception as e:  # one tool failing must not kill the rest
+                results.append(f"[mcp:{self.name}:{tool_name}] error: {mcp_error_detail(e)}")
+        return results
+
     @staticmethod
-    def _render(result) -> str:
+    def _render(result: Any) -> str:
         """Flatten an MCP CallToolResult into text (text content blocks only)."""
         parts: list[str] = []
         for block in getattr(result, "content", []) or []:
             text = getattr(block, "text", None)
             if text is not None:
                 parts.append(text)
-        return ("\n".join(parts))[:4000] if parts else "(no text content)"
+        return "\n".join(parts) if parts else "(no text content)"
 
 
 def create_adapters(
@@ -317,6 +547,7 @@ def create_adapters(
                 headers=cfg.headers,
                 tool_arguments=cfg.tool_arguments,
                 inject_query_as=cfg.inject_query_as,
+                transport=cfg.transport,
             ))
     for adapter in adapters:
         adapter.cache_ttl = cache_ttl

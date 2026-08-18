@@ -1,78 +1,87 @@
+---
+spec: 25-multi-tenant-concurrency
+status: done
+completed: 2026-08-18
+superseded_by: null
+depends_on: []
+deferred: []
+---
+
 # Feature: Multi-Tenant Concurrency
 
 **Spec**: `25-multi-tenant-concurrency`
-**Severidade**: 🟠 High (necessário para produção real com >5-10 usuários simultâneos)
-**Origem**: análise de buracos em multi-conversation handling (chat session 2026-06-14)
-**Depende de**: `06-resilience-patterns` (async já feito), `17-multi-agent-collaboration` (fan-out já feito)
+**Severity**: 🟠 High (required for real production with >5-10 simultaneous users)
+**Origin**: analysis of gaps in multi-conversation handling (chat session 2026-06-14)
+**Depends on**: `06-resilience-patterns` (async already done), `17-multi-agent-collaboration` (fan-out already done)
 
-O sistema atual atende bem 5-10 usuários simultâneos no mesmo pod, mas tem buracos para escala real: circuit breaker in-memory (não multi-replica safe), sem session locking (race em mensagens rápidas), sem rate limit / budget guard, sem semáforo no Bedrock (pode estourar TPS limit), e sem teste de carga.
+The current system handles 5-10 simultaneous users in the same pod well, but has gaps for real scale: in-memory circuit breaker (not multi-replica safe), no session locking (race on fast messages), no rate limit / budget guard, no semaphore on Bedrock (can exceed TPS limit), and no load test.
 
-Esta spec endereça os 5 buracos para tornar o sistema **multi-tenant production-ready**.
+This spec addresses the 5 gaps to make the system **multi-tenant production-ready**.
 
 ---
 
 ## User Stories
 
-WHEN há N replicas do supervisor THEN o circuit breaker SHALL ter estado **compartilhado** (uma replica abre → todas respeitam imediatamente).
+WHEN there are N replicas of the supervisor THEN the circuit breaker SHALL have **shared** state (one replica opens → all respect it immediately).
 
-WHEN um usuário envia 2 mensagens muito rápido na mesma session THEN a segunda SHALL aguardar a primeira terminar (locking por session_id), evitando race no histórico.
+WHEN a user sends 2 messages very quickly in the same session THEN the second SHALL wait for the first to complete (locking by session_id), avoiding a race on the history.
 
-WHEN um usuário ultrapassa o limite de queries/min OU custo/dia THEN o sistema SHALL retornar erro `429 Too Many Requests` com nota de quando voltar.
+WHEN a user exceeds the queries/min limit OR cost/day THEN the system SHALL return error `429 Too Many Requests` with a note of when to retry.
 
-WHEN o custo total do dia ultrapassa o budget global THEN novas queries SHALL ser bloqueadas (`503 Service Unavailable`) até o reset diário.
+WHEN the total daily cost exceeds the global budget THEN new queries SHALL be blocked (`503 Service Unavailable`) until the daily reset.
 
-WHEN há muitas chamadas Bedrock simultâneas THEN o sistema SHALL serializar via semáforo (default: 10 concorrentes) — evita estourar TPS.
+WHEN there are many simultaneous Bedrock calls THEN the system SHALL serialize via semaphore (default: 10 concurrent) — prevents exceeding TPS.
 
-WHEN N usuários simultâneos enviam queries THEN o sistema SHALL processar todos sem cross-contamination de contexto (já testado isolamento; agora **load test** com k6 confirma).
+WHEN N simultaneous users send queries THEN the system SHALL process all without cross-contamination of context (isolation already tested; now a **load test** with k6 confirms).
 
-WHEN a load test roda 100 usuários × 10 queries simultâneas THEN p99 < 10s e zero erros 5xx **NÃO causados pelo Bedrock** (rate limit do modelo é aceitável e cai em retry).
+WHEN the load test runs 100 users × 10 simultaneous queries THEN p99 < 10s and zero 5xx errors **NOT caused by Bedrock** (model rate limit is acceptable and falls into retry).
 
 ---
 
 ## Acceptance Criteria
 
 ### 1. Distributed circuit breaker
-- [ ] CircuitBreaker state movido para Redis (key: `cb:<name>:state`, `cb:<name>:failures`, `cb:<name>:last_failure`)
-- [ ] Lock atomic via Redis SETNX nas transições de estado
-- [ ] Fail-open mantido: se Redis cair, breaker funciona em-memória local
-- [ ] TTL na key (auto-cleanup após recovery_timeout * 2)
+- [ ] CircuitBreaker state moved to Redis (key: `cb:<name>:state`, `cb:<name>:failures`, `cb:<name>:last_failure`)
+- [ ] Atomic lock via Redis SETNX on state transitions
+- [ ] Fail-open maintained: if Redis goes down, breaker works in local memory
+- [ ] TTL on the key (auto-cleanup after recovery_timeout * 2)
 
 ### 2. Session locking
-- [ ] Lock no Redis (key: `lock:session:<session_id>`) via SETNX com TTL=30s
-- [ ] Wait por até 5s se outro request tem o lock
-- [ ] Liberado em finally (sempre) + TTL como fallback
-- [ ] Se Redis cair: lock é skipped (degradação aceita)
+- [ ] Lock in Redis (key: `lock:session:<session_id>`) via SETNX with TTL=30s
+- [ ] Wait up to 5s if another request holds the lock
+- [ ] Released in finally (always) + TTL as fallback
+- [ ] If Redis goes down: lock is skipped (accepted degradation)
 
 ### 3. Rate limit / budget
-- [ ] Per-user rate: 60 queries/min (configurável) — Redis sliding window
-- [ ] Global daily budget em USD (default: $50/dia) — Redis counter com TTL=24h
-- [ ] Per-user daily soft cap: 20% do budget global por padrão
-- [ ] Headers de resposta: `X-RateLimit-Remaining`, `X-Budget-Remaining-USD`
-- [ ] Custo estimado **antes** da chamada (max_tokens + system prompt) para pre-check
-- [ ] Métrica `aigent.rate_limit.blocks` (counter, labels: reason=user/global)
+- [ ] Per-user rate: 60 queries/min (configurable) — Redis sliding window
+- [ ] Global daily budget in USD (default: $50/day) — Redis counter with TTL=24h
+- [ ] Per-user daily soft cap: 20% of global budget by default
+- [ ] Response headers: `X-RateLimit-Remaining`, `X-Budget-Remaining-USD`
+- [ ] Estimated cost **before** the call (max_tokens + system prompt) for pre-check
+- [ ] Metric `aigent.rate_limit.blocks` (counter, labels: reason=user/global)
 
 ### 4. Bedrock semaphore
-- [ ] `asyncio.Semaphore(10)` (configurável) no `BedrockClient`
-- [ ] Métrica `aigent.bedrock.queue_depth` (gauge)
-- [ ] Métrica `aigent.bedrock.queue_wait_ms` (histogram)
-- [ ] Timeout de aquisição: 30s (raise antes de esperar pra sempre)
+- [ ] `asyncio.Semaphore(10)` (configurable) in `BedrockClient`
+- [ ] Metric `aigent.bedrock.queue_depth` (gauge)
+- [ ] Metric `aigent.bedrock.queue_wait_ms` (histogram)
+- [ ] Acquisition timeout: 30s (raise before waiting forever)
 
 ### 5. Load testing
-- [ ] Script `tests/load/scenario_basic.js` (k6) — 50 usuários × queries variadas (single + cross-domain)
-- [ ] Script `tests/load/scenario_burst.js` — 200 usuários × 30s (stress)
+- [ ] Script `tests/load/scenario_basic.js` (k6) — 50 users × varied queries (single + cross-domain)
+- [ ] Script `tests/load/scenario_burst.js` — 200 users × 30s (stress)
 - [ ] CI workflow `.github/workflows/load.yml` (manual / nightly)
-- [ ] Dashboard Grafana com KPIs: p50/p99 latência, error rate, throughput
-- [ ] Documentação em `docs/LOAD-TESTING.md` com baseline esperado
+- [ ] Grafana dashboard with KPIs: p50/p99 latency, error rate, throughput
+- [ ] Documentation in `docs/LOAD-TESTING.md` with expected baseline
 
-### 6. Documentação
-- [ ] `docs/MULTI-TENANCY.md` explicando isolamento, scaling, limits
-- [ ] `docs/METRICS.md` atualizado com novas métricas (queue, rate_limit)
+### 6. Documentation
+- [ ] `docs/MULTI-TENANCY.md` explaining isolation, scaling, limits
+- [ ] `docs/METRICS.md` updated with new metrics (queue, rate_limit)
 
 ---
 
-## Fora de escopo
+## Out of scope
 
-- Quotas por organização/tenant complexas (multi-org com billing) — futuro
-- LLM caching de respostas (cache de queries idênticas) — separado
-- Queue persistente para queries (Kafka/SQS) — exagero pra esse perfil de uso
-- Auto-scaling do supervisor (HPA) — já vem do Helm chart, não muda aqui
+- Complex per-organization/tenant quotas (multi-org with billing) — future
+- LLM response caching (cache of identical queries) — separate
+- Persistent queue for queries (Kafka/SQS) — overkill for this usage profile
+- Auto-scaling of the supervisor (HPA) — already comes from the Helm chart, unchanged here

@@ -1,7 +1,9 @@
 """Gateway worker pool — bounded local concurrency + backpressure (spec 31, L2).
 
-Pattern adapted from `staffops-chaitops` `agent-api/app/worker_pool.py`
-(BDC-internal, reuse authorized). Differences from the reference:
+Pattern adapted from a sibling internal project (`staffops-chaitops`
+`agent-api/app/worker_pool.py`, reuse authorized within the org — see
+`steering/licensing-clean-room.md` for the third-party-vs-internal reuse
+distinction). Differences from the reference:
   - A two-timeout model (first-byte + idle-stream) on top of the overall job
     timeout, tuned for a Bedrock-backed workload (round-table 2026-06-22).
   - Job lifecycle is fail-open: a Redis outage degrades to log-only, never
@@ -18,7 +20,7 @@ import asyncio
 import json
 import time
 from datetime import datetime, timezone
-from typing import AsyncGenerator, Optional
+from typing import Any, AsyncGenerator, Optional
 
 from src.core.logger import logger
 from src.core.metrics import (
@@ -56,8 +58,8 @@ class WorkerPool:
         first_byte_timeout: float,
         idle_timeout: float,
         cancel_poll_interval: float = 0.5,
-        redis_client=None,
-    ):
+        redis_client: Any = None,
+    ) -> None:
         self._max = max_concurrent
         self._sem = asyncio.Semaphore(max_concurrent)
         self._job_timeout = job_timeout
@@ -65,7 +67,7 @@ class WorkerPool:
         self._idle_timeout = idle_timeout
         self._cancel_poll = cancel_poll_interval
         self._redis = redis_client
-        self._active: dict[str, asyncio.Task] = {}
+        self._active: dict[str, asyncio.Task[None]] = {}
 
     @property
     def active_count(self) -> int:
@@ -116,7 +118,7 @@ class WorkerPool:
         gateway_pool_depth.add(1)
 
         self._active[job_id] = asyncio.current_task()  # type: ignore[assignment]
-        poll_task: Optional[asyncio.Task] = asyncio.create_task(self._poll_cancel(job_id))
+        poll_task: Optional[asyncio.Task[None]] = asyncio.create_task(self._poll_cancel(job_id))
         first_byte_seen = False
         try:
             while True:

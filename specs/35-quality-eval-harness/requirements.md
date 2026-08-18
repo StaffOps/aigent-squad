@@ -1,3 +1,12 @@
+---
+spec: 35-quality-eval-harness
+status: done-with-deferrals
+completed: 2026-07-15
+superseded_by: null
+depends_on: []
+deferred: ["TRIGGERS.md rows (deferred to spec 33 T1)"]
+---
+
 # Feature: Quality Eval Harness (golden sets per agent + RCA scenarios, CI-gated)
 
 **Spec**: `35-quality-eval-harness`

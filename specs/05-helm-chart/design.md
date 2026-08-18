@@ -1,57 +1,57 @@
 # Design: Helm Chart
 
-## Decisão de arquitetura do chart
+## Chart architecture decision
 
-Os 7 serviços são quase idênticos (FastAPI, mesma imagem-base, diferindo em: nome, porta, IRSA role, env, scaling, dependências). Três abordagens:
+The 7 services are nearly identical (FastAPI, same base image, differing in: name, port, IRSA role, env, scaling, dependencies). Three approaches:
 
-| Abordagem | Prós | Contras | Veredito |
-|-----------|------|---------|----------|
-| **A. Single chart + loop `range` sobre `.Values.services`** | DRY total; um template por tipo de recurso; fácil adicionar serviço | templates com mais lógica (`range`/`include`) | ✅ **Escolhida** |
-| B. Umbrella chart + 1 subchart por serviço | isolamento forte | 7× duplicação; manutenção pesada para serviços quase iguais | ❌ |
-| C. Library chart + 7 charts finos | reuso via `define`/`include` | overhead de 8 charts para uma app pequena | ❌ (overkill agora) |
+| Approach | Pros | Cons | Verdict |
+|----------|------|------|---------|
+| **A. Single chart + `range` loop over `.Values.services`** | DRY total; one template per resource type; easy to add service | templates with more logic (`range`/`include`) | ✅ **Chosen** |
+| B. Umbrella chart + 1 subchart per service | strong isolation | 7× duplication; heavy maintenance for nearly identical services | ❌ |
+| C. Library chart + 7 thin charts | reuse via `define`/`include` | overhead of 8 charts for a small app | ❌ (overkill now) |
 
-**Escolha: A.** Um chart `aigent-squad`, um mapa `services` em `values.yaml`, e templates que iteram com `range`. Cada recurso (Deployment/Rollout, Service, SA, ScaledObject, NetworkPolicy) é renderizado por serviço via helper `_helpers.tpl`. Se o projeto crescer muito, migra-se para C sem quebrar consumidores (mesmo `values`).
+**Choice: A.** One `aigent-squad` chart, one `services` map in `values.yaml`, and templates that iterate with `range`. Each resource (Deployment/Rollout, Service, SA, ScaledObject, NetworkPolicy) is rendered per service via `_helpers.tpl` helpers. If the project grows substantially, migrate to C without breaking consumers (same `values`).
 
-## Estrutura do chart
+## Chart structure
 
 ```
 helm/aigent-squad/
-├── Chart.yaml                  # version (chart) + appVersion (= versão da app)
-├── values.yaml                 # defaults: mapa `services`, global, flags
-├── values-dev.yaml             # overrides DEV (Deployment, réplicas baixas, OTLP dev)
+├── Chart.yaml                  # version (chart) + appVersion (= app version)
+├── values.yaml                 # defaults: `services` map, global, flags
+├── values-dev.yaml             # DEV overrides (Deployment, low replicas, dev OTLP)
 ├── values-hml.yaml
-├── values-prd.yaml             # Rollout canary, réplicas altas, NetworkPolicy on
+├── values-prd.yaml             # Rollout canary, high replicas, NetworkPolicy on
 ├── values-btc.yaml
 ├── templates/
-│   ├── _helpers.tpl            # labels comuns, selectorLabels, nome, image
-│   ├── serviceaccount.yaml     # range services → SA + IRSA annotation
+│   ├── _helpers.tpl            # common labels, selectorLabels, name, image
+│   ├── serviceaccount.yaml     # range services → SA + conditional IRSA annotation
 │   ├── deployment.yaml         # range services WHERE rollout=false
 │   ├── rollout.yaml            # range services WHERE rollout=true (Argo Rollouts)
 │   ├── service.yaml            # range services → ClusterIP
 │   ├── scaledobject.yaml       # range services → KEDA ScaledObject
-│   ├── networkpolicy.yaml      # ingress: agentes←supervisor, supervisor←ingress/mcp
+│   ├── networkpolicy.yaml      # ingress: agents←supervisor, supervisor←ingress/mcp
 │   ├── externalsecret.yaml     # ExternalSecret → Secret `aigent-squad-secrets`
-│   ├── configmap.yaml          # env não-sensível compartilhado
-│   ├── ingress.yaml            # só supervisor + mcp-server
-│   ├── rbac.yaml               # Role/RoleBinding read-only p/ kubernetes-agent
+│   ├── configmap.yaml          # shared non-sensitive env
+│   ├── ingress.yaml            # only supervisor + mcp-server
+│   ├── rbac.yaml               # Role/RoleBinding read-only for kubernetes-agent
 │   └── NOTES.txt
-└── README.md                   # uso, values, exemplos helm template
+└── README.md                   # usage, values, helm template examples
 ```
 
-## `values.yaml` (forma)
+## `values.yaml` (shape)
 
 ```yaml
 global:
   image:
-    repository: harbor.bdc.app.br/aigent-squad   # Kyverno reescreve p/ proxy
+    repository: harbor.<org>.app.br/aigent-squad   # Kyverno rewrites to proxy
     tag: ""                                       # default = .Chart.AppVersion
   environment: DEV                                # DEV/HML/PRD/BTC
-  costCenter: Platform-Infrastructure             # CONFIRMAR com tags.md
+  costCenter: Platform-Infrastructure             # CONFIRM with tags.md
   otelEndpoint: ""                                # OTEL_EXPORTER_OTLP_ENDPOINT
   awsRegion: us-east-1
-  bedrockModelId: ""                              # fonte única (= config.py default)
+  bedrockModelId: ""                              # single source (= config.py default)
 
-useRollout: false                                 # true em PRD/HML (canary)
+useRollout: false                                 # true in PRD/HML (canary)
 
 externalSecrets:
   enabled: true
@@ -67,15 +67,15 @@ ingress:
   enabled: true
   className: alb
   hosts:
-    supervisor: aigent.bdc.app.br
-    mcp: aigent-mcp.bdc.app.br
+    supervisor: aigent.<org>.app.br
+    mcp: aigent-mcp.<org>.app.br
 
-# Mapa de serviços — fonte da verdade do range
+# Service map — source of truth for the range
 services:
   supervisor:
     port: 8000
-    public: true                # entra no Ingress
-    iamRole: ""                 # supervisor não chama AWS direto
+    public: true                # goes in the Ingress
+    iamRole: ""                 # supervisor doesn't call AWS directly
     extraEnv: [SLACK_*, DYNAMODB_*]
     scaling: { min: 2, max: 10, trigger: cpu, value: "70" }
   aws-agent:
@@ -84,7 +84,7 @@ services:
     scaling: { min: 1, max: 8, trigger: cpu, value: "70" }
   kubernetes-agent:
     port: 8002
-    rbac: true                  # cria Role read-only
+    rbac: true                  # creates read-only Role
     scaling: { min: 1, max: 6 }
   finops-agent:
     port: 8003
@@ -102,12 +102,12 @@ services:
   mcp-server:
     port: 8006
     public: true
-    command: mcp                # imagem/cmd do mcp-server
+    command: mcp                # mcp-server image/cmd
     scaling: { min: 1, max: 4 }
 
 resources:
   requests: { cpu: 100m, memory: 256Mi }
-  limits:   { memory: 512Mi }     # sem CPU limit (ScaleOps)
+  limits:   { memory: 512Mi }     # no CPU limit (ScaleOps)
 
 securityContext:
   runAsNonRoot: true
@@ -117,7 +117,7 @@ securityContext:
   capabilities: { drop: ["ALL"] }
 ```
 
-## `_helpers.tpl` — labels obrigatórios
+## `_helpers.tpl` — mandatory labels
 
 ```yaml
 {{- define "aigent.labels" -}}
@@ -130,9 +130,9 @@ Environment: {{ .root.Values.global.environment }}
 {{- end -}}
 ```
 
-## Deployment/Rollout (esqueleto, por serviço)
+## Deployment/Rollout (skeleton, per service)
 
-Comum aos dois (a diferença é `kind` e `strategy`):
+Common to both (the difference is `kind` and `strategy`):
 
 ```yaml
 spec:
@@ -151,24 +151,24 @@ spec:
             - { name: AWS_REGION, value: {{ $.Values.global.awsRegion }} }
             - { name: BEDROCK_MODEL_ID, value: {{ $.Values.global.bedrockModelId }} }
             - { name: INTERNAL_API_TOKEN, valueFrom: { secretKeyRef: { name: aigent-squad-secrets, key: INTERNAL_API_TOKEN } } }
-            # REDIS_HOST/REDIS_PASSWORD/... idem
+            # REDIS_HOST/REDIS_PASSWORD/... same pattern
           livenessProbe:  { httpGet: { path: /healthz, port: http }, initialDelaySeconds: 5, periodSeconds: 10 }
           readinessProbe: { httpGet: { path: /ready,   port: http }, initialDelaySeconds: 5, periodSeconds: 5 }
           lifecycle: { preStop: { exec: { command: ["sh","-c","sleep 5"] } } }
           resources: {{ .Values.resources }}
           volumeMounts: [{ name: tmp, mountPath: /tmp }]
       terminationGracePeriodSeconds: 30
-      volumes: [{ name: tmp, emptyDir: {} }]    # readOnlyRootFilesystem precisa disso
+      volumes: [{ name: tmp, emptyDir: {} }]    # readOnlyRootFilesystem needs this
 ```
 
-Rollout (PRD/HML) adiciona:
+Rollout (PRD/HML) adds:
 ```yaml
 strategy:
   canary:
     steps: [{ setWeight: 20 }, { pause: { duration: 60s } }, { setWeight: 50 }, { pause: { duration: 60s } }, { setWeight: 100 }]
 ```
 
-## KEDA ScaledObject (por serviço)
+## KEDA ScaledObject (per service)
 
 ```yaml
 spec:
@@ -180,61 +180,61 @@ spec:
       metricType: Utilization
       metadata: { value: "{{ $svc.scaling.value | default "70" }}" }
 ```
-> HPA cru é proibido (`k8s-best-practices`). KEDA é o superset.
+> Raw HPA is forbidden (`k8s-best-practices`). KEDA is the superset.
 
-## NetworkPolicy (zero-trust interno)
+## NetworkPolicy (internal zero-trust)
 
-- **agentes (8001–8005)**: ingress só de pods com label `app.kubernetes.io/name=supervisor`.
-- **supervisor (8000)**: ingress do ingress-controller e do `mcp-server`.
-- **mcp-server (8006)**: ingress do ingress-controller.
-- egress liberado para DNS, Bedrock/AWS (443), Redis, DynamoDB, OTLP collector.
+- **agents (8001–8005)**: ingress only from pods with label `app.kubernetes.io/name=supervisor`.
+- **supervisor (8000)**: ingress from ingress-controller and `mcp-server`.
+- **mcp-server (8006)**: ingress from ingress-controller.
+- egress open for DNS, Bedrock/AWS (443), Redis, DynamoDB, OTLP collector.
 
 ## IRSA + RBAC
 
-- ServiceAccount por serviço; annotation `eks.amazonaws.com/role-arn` só onde `iamRole` definido (aws, finops; supervisor não chama AWS direto — só roteia).
-- `kubernetes-agent`: `Role` com `verbs: [get, list, watch]` (read-only, casa com a política read-only da app) + `RoleBinding` à sua SA. Cluster-wide via `ClusterRole` se precisar ver todos os namespaces (o agente faz `list_pod_for_all_namespaces`) — **decisão**: `ClusterRole` read-only restrito a pods/nodes/namespaces.
+- ServiceAccount per service; annotation `eks.amazonaws.com/role-arn` only where `iamRole` is defined (aws, finops; supervisor doesn't call AWS directly — only routes).
+- `kubernetes-agent`: `Role` with `verbs: [get, list, watch]` (read-only, matches the app's read-only policy) + `RoleBinding` to its SA. Cluster-wide via `ClusterRole` if it needs to see all namespaces (the agent does `list_pod_for_all_namespaces`) — **decision**: read-only `ClusterRole` restricted to pods/nodes/namespaces.
 
 ## Secrets (External Secrets Operator)
 
-Um `ExternalSecret` materializa `aigent-squad-secrets` a partir do AWS Secrets Manager (`aigent-squad/<env>`). Pods consomem via `secretKeyRef`. **Nada** de secret em values/ConfigMap (`cloud-security.md`).
+One `ExternalSecret` materializes `aigent-squad-secrets` from AWS Secrets Manager (`aigent-squad/<env>`). Pods consume via `secretKeyRef`. **Nothing** in values/ConfigMap (`cloud-security.md`).
 
-## Backing services (fora do chart)
+## Backing services (outside the chart)
 
-| Serviço | Como o chart consome |
-|---------|----------------------|
-| DynamoDB | env `DYNAMODB_SESSIONS_TABLE`; IRSA dá acesso |
+| Service | How the chart consumes |
+|---------|------------------------|
+| DynamoDB | env `DYNAMODB_SESSIONS_TABLE`; IRSA gives access |
 | ElastiCache Redis | `REDIS_HOST` (ConfigMap) + `REDIS_PASSWORD` (ExternalSecret) + `REDIS_SSL=true` |
 | Bedrock | IRSA; `BEDROCK_MODEL_ID` via global |
 
-Provisionados por Terraform (spec futura de infra), não pelo chart.
+Provisioned by Terraform (future infra spec), not by the chart.
 
-## GAP de código (pré-requisito)
+## Code GAP (prerequisite)
 
-O steering exige probes `/healthz` (liveness) e `/ready` (readiness). O código atual só expõe `/health`. **Antes** de aplicar o chart em cluster, adicionar os dois endpoints (vira task na spec de código / parte da 02 ou nova). O chart já assume `/healthz` + `/ready` para não nascer divergente.
+The steering requires `/healthz` (liveness) and `/ready` (readiness) probes. The current code only exposes `/health`. **Before** applying the chart to a cluster, add both endpoints (becomes a task in the code spec / part of 02 or new). The chart already assumes `/healthz` + `/ready` so it doesn't start divergent.
 
-## Invariantes
+## Invariants
 
-- Uma imagem por serviço, tag = versão (sem `latest`); multi-arch (amd64+arm64/Graviton).
-- Mesma imagem em todos os ambientes; só `values-<env>` muda (12-factor V/X).
-- PRD/HML/BTC só via ArgoCD (GitOps); DEV pode `helm upgrade` manual.
-- Todo pod: labels obrigatórios + `resources.requests` + securityContext + probes (senão Kyverno rejeita).
+- One image per service, tag = version (no `latest`); multi-arch (amd64+arm64/Graviton).
+- Same image in all environments; only `values-<env>` changes (12-factor V/X).
+- PRD/HML/BTC only via ArgoCD (GitOps); DEV allows manual `helm upgrade`.
+- Every pod: mandatory labels + `resources.requests` + securityContext + probes (otherwise Kyverno rejects).
 
-## Verificação
+## Verification
 
 ```bash
 helm lint helm/aigent-squad -f helm/aigent-squad/values-prd.yaml
 helm template aigent-squad helm/aigent-squad -f helm/aigent-squad/values-dev.yaml | kubectl apply --dry-run=client -f -
-# checar: 7 SAs, 7 Services, 7 ScaledObjects, NetworkPolicies, ExternalSecret, Ingress (2 hosts)
+# check: 7 SAs, 7 Services, 7 ScaledObjects, NetworkPolicies, ExternalSecret, Ingress (2 hosts)
 ```
 
-## Dependências externas (add-ons de cluster — não no chart)
+## External dependencies (cluster add-ons — not in the chart)
 
-KEDA, Argo Rollouts, External Secrets Operator, cert-manager, Istio Ambient, Kyverno, ALB controller. Referência ao steering; instalados via helmfile do cluster.
+KEDA, Argo Rollouts, External Secrets Operator, cert-manager, Istio Ambient, Kyverno, ALB controller. Reference to steering; installed via cluster helmfile.
 
-## Decisões em aberto (CONFIRMAR com o usuário)
+## Open decisions (CONFIRM with user)
 
-1. `CostCenter` correto (steering `clarification-protocol`: não inventar). Placeholder `Platform-Infrastructure`.
-2. Domínios de Ingress (`aigent.bdc.app.br`?).
-3. Conta AWS / ARNs das roles IRSA.
-4. Namespace alvo (`aigent-squad-<env>`?).
-5. `kubernetes-agent` precisa mesmo de `ClusterRole` (all namespaces) ou escopo por namespace?
+1. Correct `CostCenter` (steering `clarification-protocol`: don't invent). Placeholder `Platform-Infrastructure`.
+2. Ingress domains (`aigent.<org>.app.br`?).
+3. AWS account / IRSA role ARNs.
+4. Target namespace (`aigent-squad-<env>`?).
+5. Does `kubernetes-agent` really need `ClusterRole` (all namespaces) or can it be scoped per namespace?

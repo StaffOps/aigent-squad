@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | **proposto** (decision owner: Carlos Felipe Gomes — undecided) |
+| **Status** | **accepted** (2026-07-15) — **Option B: OSS product** |
 | **Date** | 2026-07-04 |
 | **Deciders** | Carlos Felipe Gomes |
 | **Related to** | `docs/prd/aigent-squad.md` (open questions), `docs/COMPETITIVE-ANALYSIS.md`, spec 36 (dev loop), ADR-0006 (standalone product) |
@@ -19,7 +19,7 @@ collecting the benefits of neither:
   private repo — external users **cannot even run the tests**), quickstart that
   requires provisioning a Bedrock Guardrail via Terraform to work with secure
   defaults, image on a personal Docker Hub namespace, deploys and homologation
-  exclusively on the BDC devops-core cluster, zero community surface (no
+  exclusively on the <ORG> devops-core cluster, zero community surface (no
   issues, no demo, no external users).
 
 Every roadmap decision (interface choice, quickstart investment, dependency
@@ -28,9 +28,36 @@ the most expensive option: OSS overhead with zero OSS upside.
 
 ## Decision
 
-**Pending.** Two candidate resolutions, with a recommendation:
+**Decided 2026-07-15: Option B (OSS product).** Real-state check against
+Option B's own consequence list, same day:
+- `otel-helper` private dependency — **already resolved** (commit `d8dc822`,
+  earlier the same session arc: the library moved to a public org repo,
+  `pip install` needs no auth).
+- Spec 35 (quality eval harness) as the public quality bar — **shipped**
+  (2026-07-15, same session).
+- **Resolved 2026-07-15**: `CONTRIBUTING.md` written; real-org references
+  (`.<org>.app.br` hostnames, "<ORG>-internal" comments) scrubbed from
+  `infra/values/values.yaml`, `infra/librechat/librechat.yaml`,
+  `agents/kubernetes/agent.yaml`, `src/gateway/worker_pool.py`, and several
+  spec/doc files — real infra examples stay as internal reference material
+  (matches the existing `infra/terraform/example/` neutral-defaults pattern),
+  not deleted, just not literally present in the public-facing tree.
+- **Resolved 2026-07-16** (B-29, option b): the "demo needs zero AWS" framing
+  was itself the gap, not missing code — `docs/PREREQUISITES.md` and its
+  mkdocs mirror now state plainly that a Bedrock-capable credential is the
+  ONLY AWS requirement (no Terraform/IRSA/EKS/Guardrail setup), and several
+  stale references to a private `otel-helper` / SSH-key build step (already
+  obsolete since B-28) were corrected across `docs/SETUP.md`,
+  `docs/OBSERVABILITY.md`, and the mkdocs installation guide. A
+  fixture-driven fake-Bedrock mode (the alternative, heavier option) stays
+  unbuilt — left open if real demand shows up.
+- CLOSED: migrated to GHCR org namespace `ghcr.io/staffops/aigent-squad` (B-27 closed 2026-08-17
+  account for now, no org account exists yet).
 
-- **Option A — Internal-first (recommended for now)**: declare BDC the sole
+Two candidate resolutions were considered, with a recommendation (kept for
+the record):
+
+- **Option A — Internal-first (recommended for now)**: declare <ORG> the sole
   target for the next phase. Consequences: drop OSS overhead from the critical
   path (site stays but stops gating releases), keep the private dep, prioritize
   the internal interface (Slack v2 / in-cluster callers), revisit OSS after the

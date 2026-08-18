@@ -343,8 +343,10 @@ class TestSkillInjection:
         )
 
         system_prompt = mock_bedrock.invoke.call_args.kwargs.get("system_prompt")
-        assert system_prompt == "BASE PROMPT"
+        assert system_prompt.startswith("BASE PROMPT")
         assert "<skills>" not in system_prompt
+        # B-16: CALIBRATED_HONESTY is always appended
+        assert "<calibrated_honesty>" in system_prompt
 
     @patch("src.core.generic_agent.bedrock")
     async def test_no_registry_keeps_plain_prompt(self, mock_bedrock):
@@ -356,4 +358,6 @@ class TestSkillInjection:
         )
 
         system_prompt = mock_bedrock.invoke.call_args.kwargs.get("system_prompt")
-        assert system_prompt == "BASE PROMPT"
+        assert system_prompt.startswith("BASE PROMPT")
+        # B-16: CALIBRATED_HONESTY is always appended
+        assert "<calibrated_honesty>" in system_prompt

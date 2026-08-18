@@ -1,3 +1,12 @@
+---
+spec: 14-security-hardening
+status: done
+completed: 2026-07-03
+superseded_by: null
+depends_on: ["04-harden-security"]
+deferred: []
+---
+
 # Feature: Security Hardening — Anti-Prompt-Injection Defense-in-Depth
 
 **Spec**: `14-security-hardening`

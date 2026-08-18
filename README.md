@@ -1,7 +1,9 @@
 # Agent Squad - Multi-Agent System for AWS/Kubernetes Operations
 
-**Version**: 0.3.0
-**Status**: ✅ Cluster-validated (devops-core, 2026-07) — see `specs/ROADMAP.md`
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/StaffOps/aigent-squad/badge)](https://scorecard.dev/viewer/?uri=github.com/StaffOps/aigent-squad)
+
+**Version**: 0.4.0 (dev: 0.5.0-rc)
+**Status**: ✅ Cluster-validated (devops-core) | dev: mypy strict, supply-chain signed, GHCR — see `specs/ROADMAP.md`
 **Architecture**: Two-tier (edge gateway → supervisor), in-process specialists, Bedrock-direct
 
 > **Real state**: stabilization (Phase 0) and hardening are done — the squad runs
@@ -16,7 +18,7 @@
 
 ## 🎯 Overview
 
-Agent Squad is a multi-agent system with 1 supervisor + 5 specialist agents for AWS/Kubernetes operations, designed for ChatOps integration with Slack and proactive monitoring.
+Agent Squad is a multi-agent system with 1 supervisor + 6 specialist agents for AWS/Kubernetes operations, designed for ChatOps integration with Slack and proactive monitoring.
 
 **Key Features**:
 - 🤖 Intelligent classifier-based routing
@@ -26,7 +28,11 @@ Agent Squad is a multi-agent system with 1 supervisor + 5 specialist agents for 
 - 📊 OpenTelemetry distributed tracing
 - 🔒 Read-only by default (current posture; execution is an open roadmap item, gated by guardrails + human-in-the-loop)
 - 🚀 Kubernetes-native deployment
-- 🔌 MCP integration (squad as server for Kiro + agents as MCP clients)
+- 🔌 MCP integration (squad as server for Kiro + agents as **agentic** MCP clients — the LLM selects read-only tools+args via Bedrock Converse, spec 37)
+- 🎚️ Complexity-aware model **pre-routing** (spec 38) — simple→Haiku, standard→Sonnet, complex→Opus 4.5, one-shot from the classifier; **live on all request paths** (auto-route/fan-out/force_agent/investigation)
+- ✂️ Agentic **context-trimming** (spec 40) — keeps the last N tool-result turns verbatim + summarizes older, so deep multi-step queries don't exhaust the token budget
+- 🧭 **Self-service** posture — never suggests `kubectl`; the agent fetches data itself or points to the specific Grafana/ArgoCD dashboard
+- 🧠 Collapsible **Thinking** trace (LibreChat `<think>`) with model narration + routing focus
 - 🤖 OpenAI-compatible API (`/v1`) — plugs into LibreChat or any OpenAI client ([docs](docs/LIBRECHAT.md))
 - 💲 Per-agent Bedrock cost attribution (Application Inference Profiles + token metrics)
 
@@ -279,8 +285,10 @@ User Query: "How many EC2 instances are running?"
 **Infrastructure**:
 - **DynamoDB**: Conversation state (24h TTL)
 - **Redis**: Datasource cache (1-60min TTL) + rate/budget counters + job lifecycle
-- **Bedrock**: model tiering (spec 11) — Haiku classifier / Sonnet agents &
-  synthesis, prompt caching, Application Inference Profiles for cost attribution
+- **Bedrock**: complexity-aware model tiering (spec 11 + **spec 38**) — Haiku classifier;
+  agents **pre-routed** per query complexity (fast Haiku / standard Sonnet / deep Opus 4.5 one-shot,
+  live on all paths); prompt caching; **context-trimming** (spec 40) to bound per-turn context;
+  Application Inference Profiles for cost attribution
 - **Knowledge Base**: incident-memory RAG via PostgreSQL+pgvector (spec 21). The Bedrock Knowledge Bases / OpenSearch path in the diagram above is an aspirational alternative, not the current implementation.
 
 ---
@@ -329,9 +337,12 @@ curl http://localhost:8000/ready   # gateway (public front door)
 - [`docs/architecture/decisions/`](docs/architecture/decisions/README.md) - **ADRs** 0001–0006: Bedrock-direct, in-process agents, read-only posture, fail-closed vs fail-open, two-tier gateway, standalone product
 
 ### Specs & Planning (spec-driven — `specs/`)
-- [`specs/ROADMAP.md`](specs/ROADMAP.md) - **Authoritative** phased roadmap + real status of every spec
-- [`specs/AUDIT.md`](specs/AUDIT.md) - Historical audit (2026-05-30) that seeded the spec backlog — findings since fixed
-- [`HANDOFF.md`](HANDOFF.md) - Session-by-session state (what shipped, what's pending)
+- [`specs/README.md`](specs/README.md) - **How the spec process works** — lifecycle, status frontmatter (the SSOT), spec tiers (full spec vs `bugfix.md`), verification pipeline, conventions
+- [`specs/ROADMAP.md`](specs/ROADMAP.md) - Phased plan + the single **canonical status table** (CI-validated by `scripts/specs_status.py`; status itself is authored in each spec's frontmatter)
+- [`specs/BACKLOG.md`](specs/BACKLOG.md) - Live items: findings (`F-*`), product backlog (`B-*`), dormant work, deferred register
+- [`specs/VISION.md`](specs/VISION.md) - Long-term maturity levels (autonomous multi-agent north star)
+- [`specs/AUDIT.md`](specs/AUDIT.md) - Historical audit (2026-05-30) that seeded the spec backlog — findings since fixed (frozen)
+- [`HANDOFF.md`](HANDOFF.md) - Current session + next steps (overwritten each session; prior sessions in `archive/handoffs/`)
 - [`specs/01-fix-blockers/`](specs/01-fix-blockers/) - Unblock build and broken code
 - [`specs/02-unify-agent-architecture/`](specs/02-unify-agent-architecture/) - Unify agents on the base pattern
 - [`specs/03-fix-cache-observability/`](specs/03-fix-cache-observability/) - Deterministic cache + OTel
@@ -551,6 +562,6 @@ Apache 2.0 — See [LICENSE](LICENSE) for details.
 
 ---
 
-**Last Updated**: 2026-07-03
-**Version**: 0.3.0
+**Last Updated**: 2026-07-16
+**Version**: 0.4.0 (dev: 0.5.0-rc)
 **Status**: ✅ Cluster-validated (devops-core) — see `specs/ROADMAP.md` for what's next

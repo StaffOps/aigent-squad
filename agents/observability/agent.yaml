@@ -7,12 +7,39 @@ datasources:
   - type: http
     name: prometheus
     url: "${PROMETHEUS_URL}/api/v1/query?query=up"
+  # VictoriaMetrics MCP (mcp-servers ns) — full read-only MetricsQL surface.
+  # vm-mcp talks to vmselect (read path). Uses streamable-http (/mcp): homolog
+  # 2026-07-18 showed its /sse endpoint returns text/html (not a real SSE
+  # stream) so SSE times out — /mcp is the working transport. Same rationale as
+  # k8s-mcp on the kubernetes agent: the mcp-victoriametrics catalog is
+  # query-only (no write/delete tools), so the allowlist is a readability/audit
+  # aid, not the security boundary.
+  - type: mcp
+    name: vm-mcp
+    url: http://vm-mcp.mcp-servers.svc.cluster.local:8080/mcp
+    transport: streamable-http
+    tools:
+      - query
+      - query_range
+      - series
+      - labels
+      - label_values
+      - metrics
+      - metrics_metadata
+      - metric_statistics
+      - tsdb_status
+      - rules
+      - alerts
+      - active_queries
+      - top_queries
+      - explain_query
 cache:
   ttl: 60
 model:
   tier: standard
   temperature: 0.1
 read_only: true
+capability_tier: 0
 evidence_types: [metric, log, trace]
 delegates_to:
   - agent: kubernetes
@@ -20,3 +47,78 @@ delegates_to:
   - agent: devops
     when: "latency regression correlates with recent deploy"
 port: 8005
+skills:
+  - alerting-strategy
+  - alertmanager-slack-config
+  - apm-metrics-cross-runtime
+  - argo-events-metrics
+  - argo-rollouts-metrics
+  - argo-workflows-metrics
+  - argocd-metrics
+  - aws-csi-driver-metrics
+  - aws-load-balancer-controller-metrics
+  - backing-services-metrics
+  - backstage-metrics
+  - cert-manager-metrics
+  - collector-internal-metrics
+  - crossplane-metrics
+  - datahub-metrics
+  - defectdojo-metrics
+  - dependency-track-metrics
+  - descheduler-metrics
+  - dotnet-apm-metrics
+  - error-budget-framework
+  - external-dns-metrics
+  - external-secrets-metrics
+  - fluent-bit-loki-pipeline
+  - fluent-bit-vs-otel-logs
+  - gitlab-runner-metrics
+  - go-apm-metrics
+  - grafana-cross-signal-correlation
+  - grafana-self-metrics
+  - harbor-metrics
+  - incident-response-runbook
+  - ingress-nginx-metrics
+  - istio-ambient-metrics
+  - istio-ambient-otel
+  - k8s-pvc-tagger-metrics
+  - k8s-workload-metrics
+  - karpenter-metrics
+  - keda-metrics
+  - keycloak-metrics
+  - kiali-metrics
+  - kubecost-metrics
+  - kubelet-scrape-architecture
+  - kubescape-metrics
+  - kyverno-metrics
+  - loki-logql-patterns
+  - loki-tempo-self-metrics
+  - metrics-server-metrics
+  - multicluster-label-strategy
+  - nexus3-metrics
+  - nodejs-apm-metrics
+  - oomkill-investigation
+  - opensearch-metrics
+  - otel-collector-multi-cluster
+  - otel-ebpf-instrumentation
+  - post-mortem-templates
+  - pyroscope-profiling-patterns
+  - pyroscope-self-metrics
+  - python-apm-metrics
+  - reloader-metrics
+  - root-cause-analysis
+  - runbook-authoring
+  - scaleops-metrics
+  - sla-slo-design
+  - sonarqube-metrics
+  - streaming-aggregation
+  - strimzi-kafka-metrics
+  - superset-metrics
+  - tempo-traceql-patterns
+  - tempo-v3-kafka-operations
+  - trace-derived-metrics
+  - traefik-metrics
+  - velero-metrics
+  - victoriametrics-self-metrics
+  - vm-cardinality-management
+  - vmalert-configuration

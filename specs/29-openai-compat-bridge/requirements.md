@@ -1,3 +1,12 @@
+---
+spec: 29-openai-compat-bridge
+status: done
+completed: 2026-07-01
+superseded_by: null
+depends_on: []
+deferred: []
+---
+
 # Feature: OpenAI-Compatible Bridge (LibreChat-direct)
 
 **Spec**: `29-openai-compat-bridge`

@@ -14,7 +14,7 @@ from src.core.metrics import kb_distillation_cost, kb_items_created
 ESTIMATED_COST_PER_DISTILL = 0.27  # USD (extractor + enricher + embedding)
 
 
-async def distill_rca(rca: RCAResult, investigation_id: str | None = None):
+async def distill_rca(rca: RCAResult, investigation_id: str | None = None) -> None:
     """Run distillation pipeline on a finished RCA. Best-effort: never raises."""
     try:
         if rca.confidence == "baixa":

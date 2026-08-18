@@ -60,11 +60,36 @@
       meaning elsewhere in this repo) — reworded to "fails loudly" with an
       explicit note that no branch protection backs it. **F8** (Low) Phase
       1.5 missed `docs.yml`'s `mkdocs.yml` trigger path — added.
-- [ ] T7: execute `RELEASE.md` verbatim on the 0.4.0 release; fold friction back
-      into the runbook in the same PR. **This is now** (2026-07-15) — in progress.
+- [x] T7 (partial, 2026-07-15): executed Phases 0-2 of `RELEASE.md` for real
+      — pre-flight (`CHANGES.md` cut to `[0.4.0]`, CI confirmed green), PR
+      `dev→main` (#19, already existed as a rolling PR since 2026-07-02 —
+      updated title/body and merged rather than opening a new one, guard job
+      + all checks green), tag `v0.4.0` pushed, `release.yml` green (1m37s,
+      cache-warm from the same-commit `build.yml` push moments earlier),
+      GitHub Release auto-published, image content verified
+      (`karlipegomes/aigent-squad:0.4.0` contains the groundedness module —
+      Phase 2's "does the tag contain this milestone's code" check, passed).
+      This is the FIRST time the Docker-Hub/tag path has ever been exercised
+      for real (see `specs/BACKLOG.md` B-25) — friction found and folded back
+      into `RELEASE.md` in the same commits as T1-T6 (the existing-open-PR
+      case wasn't originally anticipated in Phase 1's text). **Phases 3-5
+      (chart bump/publish, overlay revert, rollout FROM the new tag)
+      deliberately NOT executed this cycle** — the cluster already runs this
+      milestone's code via the separate Harbor path (redeployed +
+      homologated earlier the same day); reconciling the two paths is B-25,
+      an open decision, not something to force through silently inside a
+      release cutover. Phase 6 (homologation) already happened, against the
+      Harbor-deployed cluster, before the tag was even cut. Phase 7 (close):
+      credential hygiene checked (no cycle-specific temporary tokens used —
+      `gh auth token`/AWS SSO are the operator's own long-lived
+      credentials, nothing to revoke), `CHANGES.md` cut, `specs/ROADMAP.md`
+      "Suggested real version" updated, this file updated. HANDOFF
+      overwrite / spec-33 review steps stay not-yet-active per RELEASE.md's
+      own note (specs 32/33 unshipped).
 
 ## Order
-T1 → T2/T3 → T4 → T5 → T6; T7 rides the next real release.
+T1 → T2/T3 → T4 → T5 → T6 → T7 (2026-07-15, Phases 0-2 + 7 executed;
+Phases 3-5 deferred to whenever B-25 is resolved).
 
 ## Notes
 - The runbook sequences EXISTING CI — any CI gap found in T4 is a BACKLOG item, not scope.

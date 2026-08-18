@@ -1,27 +1,27 @@
 # Tasks: Multi-Agent Collaboration
 
-> Pré-requisito: `06-resilience-patterns` (async-first) e `09-otel-instrumentation` (propagação de trace) implementadas. Sem async real, o fan-out não paraleliza.
+> Prerequisite: `06-resilience-patterns` (async-first) and `09-otel-instrumentation` (trace propagation) implemented. Without real async, the fan-out does not parallelize.
 
-- [x] T1: Estender `ClassifierResult` para `agents: list[AgentMatch]` + propriedade compat `selected_agent`; atualizar prompt do classifier p/ 1..N agentes + `max_agents` (default 3) — done 2026-06-14
-- [x] T2: Atualizar parsing do classifier p/ lista (robusto: JSON em markdown, truncado, agente desconhecido filtrado) (depends on: T1) — done 2026-06-14
-- [x] T3: Implementar `_fan_out` no supervisor com `asyncio.gather(..., return_exceptions=True)` + tolerância a falha parcial (depends on: T1) — done 2026-06-14
-- [x] T4: Criar `src/supervisor/synthesizer.py` — 1 chamada Bedrock (Sonnet) que funde N respostas → 1 com atribuição + nota de degradação (depends on: T3) — done 2026-06-14
-- [x] T5: Wire no `process_request`: N=1 → fast-path atual; N≥2 → `_fan_out` → `synthesizer` (depends on: T3, T4) — done 2026-06-14
-- [x] T6: Hop guard — header `X-Agent-Hop` no contrato `/process`; rejeitar `≥2`; propagar nos agentes (depends on: —) — done 2026-06-14 (implemented as agent-as-tools with hop limit)
-- [x] T7: Criar `src/core/agent_tools.py` — cliente p/ um agente chamar outro (via supervisor, hop=1) + expor como ferramenta opcional no `agent_base` (depends on: T6) — done 2026-06-14
-- [x] T8: Métricas/trace: span único supervisor→N→síntese; métricas `fanout_size`, `synthesis_calls`, `partial_failures` (depends on: spec 09) — done 2026-06-14 (mostly via existing OTel tracing; context propagation in fan-out)
-- [x] T9 (test-author DIFERENTE do autor): testes pytest ≥90% — classifier multi, fan-out paralelo (assert tempo≈max), síntese, falha parcial, `X-Agent-Hop=2` rejeitado, fast-path N=1 sem síntese (depends on: T5, T6, T7) — done 2026-06-14 (coverage ~85% globally; spec target 90%, project gate 80%)
-- [x] T10: Review independente (`code-review`): valida contrato, anti-ciclo, custo (max_agents aplicado antes das chamadas), read-only preservado (depends on: T9) — done 2026-06-14
-- [ ] T11: Build + smoke via Docker: 1 query single-domain (fast-path) + 1 cross-domain (fan-out+síntese) (depends on: T10) — NOT IMPLEMENTED (manual smoke only)
+- [x] T1: Extend `ClassifierResult` to `agents: list[AgentMatch]` + compat property `selected_agent`; update classifier prompt for 1..N agents + `max_agents` (default 3) — done 2026-06-14
+- [x] T2: Update classifier parsing for list (robust: JSON in markdown, truncated, unknown agent filtered) (depends on: T1) — done 2026-06-14
+- [x] T3: Implement `_fan_out` in supervisor with `asyncio.gather(..., return_exceptions=True)` + partial failure tolerance (depends on: T1) — done 2026-06-14
+- [x] T4: Create `src/supervisor/synthesizer.py` — 1 Bedrock call (Sonnet) that merges N responses → 1 with attribution + degradation note (depends on: T3) — done 2026-06-14
+- [x] T5: Wire into `process_request`: N=1 → current fast-path; N≥2 → `_fan_out` → `synthesizer` (depends on: T3, T4) — done 2026-06-14
+- [x] T6: Hop guard — header `X-Agent-Hop` in the `/process` contract; reject `≥2`; propagate in agents (depends on: —) — done 2026-06-14 (implemented as agent-as-tools with hop limit)
+- [x] T7: Create `src/core/agent_tools.py` — client for one agent to call another (via supervisor, hop=1) + expose as optional tool in `agent_base` (depends on: T6) — done 2026-06-14
+- [x] T8: Metrics/trace: single span supervisor→N→synthesis; metrics `fanout_size`, `synthesis_calls`, `partial_failures` (depends on: spec 09) — done 2026-06-14 (mostly via existing OTel tracing; context propagation in fan-out)
+- [x] T9 (test-author DIFFERENT from author): pytest tests ≥90% — multi classifier, parallel fan-out (assert time≈max), synthesis, partial failure, `X-Agent-Hop=2` rejected, fast-path N=1 without synthesis (depends on: T5, T6, T7) — done 2026-06-14 (coverage ~85% globally; spec target 90%, project gate 80%)
+- [x] T10: Independent review (`code-review`): validates contract, anti-cycle, cost (max_agents applied before calls), read-only preserved (depends on: T9) — done 2026-06-14
+- [ ] T11: Build + smoke via Docker: 1 single-domain query (fast-path) + 1 cross-domain (fan-out+synthesis) (depends on: T10) — NOT IMPLEMENTED (manual smoke only)
 
-## Ordem sugerida
-T1→T2; T6 em paralelo; T3→T4→T5; T7 (após T6); T8 (após spec 09); T9→T10→T11.
+## Suggested order
+T1→T2; T6 in parallel; T3→T4→T5; T7 (after T6); T8 (after spec 09); T9→T10→T11.
 
-## Notas
-- Pipeline de verificação (steering `verification-independence.md`): T1–T8 = autor; T9 = test-author em sessão diferente; T10 = code-review.
-- N=1 é caminho crítico — não pode regredir em latência nem custo (sem síntese).
-- Custo é o maior risco: `max_agents` é gate duro, não recomendação.
-- Não reintroduzir LangGraph (steering `project.md`) — orquestração é código próprio no supervisor.
+## Notes
+- Verification pipeline (steering `verification-independence.md`): T1–T8 = author; T9 = test-author in a different session; T10 = code-review.
+- N=1 is the critical path — must not regress in latency or cost (no synthesis).
+- Cost is the biggest risk: `max_agents` is a hard gate, not a recommendation.
+- Do not reintroduce LangGraph (steering `project.md`) — orchestration is custom code in the supervisor.
 
 ## Status (2026-06-14)
 

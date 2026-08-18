@@ -75,7 +75,7 @@ integration available: it makes the squad valuable WITHOUT anyone asking a quest
 **PR-08 · 🟡 · Skills mechanism built, knowledge starved.** Lazy-skill machinery is
 done (spec 26, 100% cov); content = 1 skill (oomkill). The cheap way to make answers
 feel senior is encoding the team's real runbook knowledge — zero code required.
-→ Orientation: skills content sprint — 5–10 SKILL.md from real BDC operational
+→ Orientation: skills content sprint — 5–10 SKILL.md from real <ORG> operational
 knowledge (throttling, IRSA debugging, node pressure, cost spikes…). → Tracked: BACKLOG.
 
 **PR-09 · 🟡 · 24h memory is a silent product decision.** DynamoDB TTL=24h means "what

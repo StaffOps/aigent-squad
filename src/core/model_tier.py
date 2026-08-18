@@ -33,7 +33,9 @@ class ModelPricing:
 MODEL_PRICING: Dict[str, ModelPricing] = {
     "haiku": ModelPricing(input_per_1m=1.00, output_per_1m=5.00, cache_read_per_1m=0.10),
     "sonnet": ModelPricing(input_per_1m=3.00, output_per_1m=15.00, cache_read_per_1m=0.30),
-    "opus": ModelPricing(input_per_1m=15.00, output_per_1m=75.00, cache_read_per_1m=1.50),
+    # Opus 4.5 GA pricing ($5/$25 per 1M) — ~3x cheaper than Opus 4.0's $15/$75.
+    # Verify against current Bedrock pricing if it drifts; used for cost-estimate logging only.
+    "opus": ModelPricing(input_per_1m=5.00, output_per_1m=25.00, cache_read_per_1m=0.50),
 }
 
 # Prompt-cache WRITE tokens cost more than base input (Anthropic: 1.25x for the
@@ -51,7 +53,7 @@ def _model_family(model_id: str) -> str:
     Examples:
         "us.anthropic.claude-haiku-4-5-20251001-v1:0" → "haiku"
         "us.anthropic.claude-sonnet-4-5-20250929-v1:0" → "sonnet"
-        "us.anthropic.claude-opus-4-20250514-v1:0" → "opus"
+        "us.anthropic.claude-opus-4-5-20251101-v1:0" → "opus"
     """
     lower = model_id.lower()
     for family in ("haiku", "sonnet", "opus"):
@@ -76,6 +78,57 @@ def resolve_model(role: str) -> str:
         "synthesis": settings.bedrock_synthesis_model_id,
     }
     return role_map.get(role, settings.bedrock_agent_model_id)
+
+
+# ── Model-tier PRE-ROUTING (spec 38 Phase 1) ────────────────────────────────
+
+
+def resolve_model_for_tier(tier: str) -> str:
+    """Resolve a complexity tier to a concrete Bedrock model ID.
+
+    Tiers:
+        - "fast"     → bedrock_tier_fast_model_id (Haiku)
+        - "standard" → bedrock_tier_standard_model_id (Sonnet)
+        - "deep"     → bedrock_tier_deep_model_id (Opus), BUT falls back to
+                       standard when AIGENT_TIER_DEEP_ENABLED is false.
+
+    Unknown tiers resolve to standard (safe: Sonnet, the mid-tier).
+    """
+    if tier == "fast":
+        return settings.bedrock_tier_fast_model_id
+    if tier == "deep":
+        # Phase 1 rollout: deep disabled by default → falls back to standard.
+        if not settings.aigent_tier_deep_enabled:
+            return settings.bedrock_tier_standard_model_id
+        return settings.bedrock_tier_deep_model_id
+    # "standard" or anything unknown → standard
+    return settings.bedrock_tier_standard_model_id
+
+
+def validate_tier_models_at_startup() -> None:
+    """Fail loud at startup if any tier model ID is empty or unrecognizable.
+
+    HC5: startup validation — no silent fallback. A misconfigured tier must
+    crash the process before serving traffic.
+    """
+    tier_ids = {
+        "fast": settings.bedrock_tier_fast_model_id,
+        "standard": settings.bedrock_tier_standard_model_id,
+        "deep": settings.bedrock_tier_deep_model_id,
+    }
+    for tier_name, model_id in tier_ids.items():
+        if not model_id or not model_id.strip():
+            raise RuntimeError(
+                f"BEDROCK_TIER_{tier_name.upper()}_MODEL_ID is empty — "
+                f"cannot start. Set a valid inference-profile ID."
+            )
+        family = _model_family(model_id)
+        if family == "unknown":
+            raise RuntimeError(
+                f"BEDROCK_TIER_{tier_name.upper()}_MODEL_ID='{model_id}' — "
+                f"unrecognized model family (expected haiku/sonnet/opus in the ID). "
+                f"Fix the env var or update MODEL_PRICING for the new family."
+            )
 
 
 def get_pricing(model_id: str) -> ModelPricing:

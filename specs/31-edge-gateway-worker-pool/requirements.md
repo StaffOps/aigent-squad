@@ -1,9 +1,18 @@
+---
+spec: 31-edge-gateway-worker-pool
+status: done-with-deferrals
+completed: 2026-07-01
+superseded_by: null
+depends_on: []
+deferred: ["T21 k6 load test"]
+---
+
 # Feature: Edge Gateway + Worker Pool (multi-replica supervisor front door)
 
 **Spec**: `31-edge-gateway-worker-pool`
 **Severity**: 🟠 High (prerequisite for scaling the supervisor beyond a single replica)
 **Depends on**: `25-multi-tenant-concurrency` (distributed state), `29-openai-compat-bridge` (the `/v1` surface this gateway will front)
-**Reference architecture**: `staffops-chaitops` (`agent-api/` — gateway-only FastAPI + `WorkerPool` + channel adapters). ChaitOps is a BDC-internal project; reuse of its patterns/code is explicitly permitted by the user (exception to `licensing-clean-room`).
+**Reference architecture**: `staffops-chaitops` (`agent-api/` — gateway-only FastAPI + `WorkerPool` + channel adapters). ChaitOps is a <ORG>-internal project; reuse of its patterns/code is explicitly permitted by the user (exception to `licensing-clean-room`).
 
 ---
 

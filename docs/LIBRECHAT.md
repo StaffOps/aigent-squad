@@ -36,11 +36,64 @@ backpressure in front of it.
 
 (Per-agent models are derived from the registry — they match your enabled agents.)
 
+## Setup — in-cluster LibreChat (Helm chart, optional)
+
+The chart ships an **optional** in-cluster LibreChat + single-pod MongoDB
+(`librechat.enabled`, default `false`; requires chart **≥ 0.9.5**). Enabled on
+devops-core (`staffops` namespace) for homologation.
+
+Enable it in the release values:
+
+```yaml
+librechat:
+  enabled: true
+  route:                      # expose the UI via an Istio GatewayAPI HTTPRoute
+    enabled: true
+    host: librechat-ais.<org>.app.br
+    annotations:
+      external-dns.alpha.kubernetes.io/hostname: librechat-ais.<org>.app.br
+    parentRef:                # omit to inherit routing.gatewayapi.parentRef
+      name: istio-dvps-internal
+      namespace: istio-gateway
+      sectionName: https-<org>-app-br
+```
+
+- **baseURL** auto-computes to this release's own gateway (`http://<release>-gateway:8000/v1`).
+- **API key** auto-wires: with `librechat.apiKey`/`apiKeySecretName` empty and
+  `externalSecrets.enabled: true`, the chart injects `AIGENT_SQUAD_API_KEY` from
+  the gateway's `INTERNAL_API_TOKEN` — the token LibreChat sends as `X-Internal-Token`.
+- **route** is optional — omit it (or `route.enabled: false`) for ClusterIP-only
+  access via `kubectl -n staffops port-forward svc/<release>-librechat 3080:3080`.
+  `route.annotations`/`labels` follow the same convention as the gateway route
+  (`routing.gatewayapi.annotations`); set the `external-dns` hostname there.
+
+**Chart requirement (≥ 0.9.5):** the LibreChat container runs with a read-only
+root filesystem, so the chart mounts `emptyDir` scratch dirs (`/app/logs`,
+`/app/uploads`, `/app/client/public/images`). Without them LibreChat CrashLoops
+on `EROFS: read-only file system`.
+
+### First user (registration is OFF by default)
+
+`librechat.allowRegistration` defaults to `false` (internal tool, not a public
+signup) — so there is **no default user/password**; you create the first account:
+
+1. Temporarily enable registration and redeploy:
+   `--set librechat.allowRegistration=true` (or set it in values).
+2. Open the UI (`https://<route.host>` or the port-forward above) → **Sign up**
+   (you choose email + password).
+3. No SMTP is configured, so mark the account verified directly:
+   ```bash
+   kubectl -n staffops exec -it <release>-librechat-mongo-0 -- \
+     mongosh LibreChat --eval 'db.users.updateOne({email:"you@x.com"},{$set:{emailVerified:true}})'
+   ```
+4. Turn registration back **off** once your account exists
+   (`--set librechat.allowRegistration=false`, redeploy).
+
 ## Setup — local LibreChat against the real cluster (default, recommended)
 
 The squad itself doesn't need to run anywhere near LibreChat — only
 `mongo` + `librechat` run locally, pointed at the real devops-core gateway
-(`https://aigent-squad.bdc.app.br`). No Helm chart, no in-cluster LibreChat
+(`https://aigent-squad.<org>.app.br`). No Helm chart, no in-cluster LibreChat
 deployment: same call `staffops-chaitops` made for its own LibreChat
 (docker-compose only; a K8s migration is explicitly deferred there until a
 real trigger — `TODO.md` §1). `infra/librechat/librechat.yaml`'s `baseURL` is
@@ -64,6 +117,10 @@ field — only `apiKey`/`headers` values get `${VAR}` interpolation).
    `aigent-squad-<agent>` to ask one specialist directly. `GET /api/models`
    (LibreChat's own API) confirms the `AIgent-Squad` custom endpoint fetched
    the live model list from the real gateway.
+
+   The gateway accepts **any** `model` value — an unknown id (`base`, `large`, …) auto-routes
+   via the classifier, so OpenAI-style clients that can't set a model still work (G-1). It also
+   accepts `Authorization: Bearer <token>` in addition to `X-Internal-Token`/`X-API-Key` (G-2).
 
 To point LibreChat at a **fully-local** squad instead (`make up` running
 gateway+supervisor too), edit `baseURL` in `infra/librechat/librechat.yaml` to
@@ -89,6 +146,49 @@ curl -N http://localhost:8000/v1/chat/completions \
   -H 'Content-Type: application/json' \
   -d '{"model":"aigent-squad-aws","messages":[{"role":"user","content":"list S3 buckets"}],"stream":true}'
 ```
+
+## `x_aigent` — structured quality assessment (spec 41)
+
+Non-streaming responses may carry an extra top-level field, `x_aigent`, holding a
+structured self-assessment of the answer's groundedness. It is **namespaced and
+additive**: `choices[].message.content` is byte-identical to what it would be
+without the field, and standard OpenAI clients ignore unknown top-level keys — so
+LibreChat and the OpenAI SDKs are unaffected.
+
+```json
+{
+  "id": "chatcmpl-...",
+  "object": "chat.completion",
+  "choices": [{ "message": { "role": "assistant", "content": "…" } }],
+  "x_aigent": {
+    "quality": {
+      "confidence": "medium",
+      "unverified_claims": ["263", "1.4TB"]
+    }
+  }
+}
+```
+
+| Field | Meaning |
+|-------|---------|
+| `quality.confidence` | `high` (0 ungrounded numeric claims), `medium` (1–2), `low` (≥3) |
+| `quality.unverified_claims` | The ungrounded numeric claims themselves, deduped, capped at 20 |
+
+Behaviour worth knowing before you build on it:
+
+- **Omitted, not null.** When there is no assessment the key is absent from the
+  JSON entirely — check for presence, don't assume `null`.
+- **Non-streaming only.** With `stream: true` there is no `x_aigent`; the SSE
+  frame format stays strictly OpenAI-shaped.
+- **Off when the guard is off.** Gated on `response_quality_enabled`; the whole
+  path (field + metrics) is a no-op when disabled.
+- **Advisory, not a verdict.** "Unverified" means *not found in the collected
+  infra data* — a legitimate derived sum (an average, a total) counts as
+  unverified. This never blocks an answer; ungrounded *resource IDs* are what
+  gets blocked, and that is a separate, pre-existing guardrail.
+
+Observability counterpart: `aigent.quality.confidence` and
+`aigent.quality.unverified_claims_per_response` (see `docs/METRICS.md`).
 
 ## Known limitations (current)
 

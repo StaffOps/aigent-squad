@@ -18,7 +18,7 @@ just function calls.
                │                │         │  allowFrom)                 │
                │                │         └──────────────┬──────────────┘
                └────────────────┴────────────────────────┘
-                                │  edge auth (X-Internal-Token / X-API-Key)
+                                │  edge auth (X-Internal-Token / X-API-Key / Bearer)
                                 ▼
         ┌──────────────────────────────────────────────────────────┐
         │                   GATEWAY (:8000)                         │
@@ -126,6 +126,10 @@ Learns from completed investigations. Distills RCA results into KB items stored 
 | `/v1/models` | GET | edge auth | OpenAI-compatible model list |
 | `/v1/chat/completions` | POST | edge auth | OpenAI-compatible chat (LibreChat) |
 | `/jobs/{id}/cancel` | POST | edge auth | Cancel an in-flight job |
+
+Edge auth accepts `X-Internal-Token`, `X-API-Key`, or `Authorization: Bearer <token>`
+(any one). The OpenAI surface accepts **any** `model` value: `aigent-squad-<agent>` forces a
+specialist, and any other id (`aigent-squad`, `base`, `large`, …) auto-routes via the classifier.
 
 Backpressure: `503` with `Retry-After` and a body `error.type` of
 `service_overloaded` (pool full, self-healing) or `backend_unavailable`

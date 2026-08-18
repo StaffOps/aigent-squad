@@ -1,8 +1,56 @@
 """Agent configuration schema — defines what an agent IS via YAML."""
-from pydantic import BaseModel, Field
+from __future__ import annotations
+
+import os
+from typing import Literal, Optional
+
+from pydantic import BaseModel, Field, model_validator
 
 
-class DatasourceConfig(BaseModel):
+# ---------------------------------------------------------------------------
+# Agentic loop budget defaults (B4 — spec 37, Decision 5).
+# Env-overridable; enforcement happens in Phase 3 (agentic loop).
+#
+# SCALE cost/latency tradeoff (spec 37 scale requirement):
+#   MAX_TOOL_RESULT_CHARS (40000 ≈ 10K tokens) defines the SAMPLE size the
+#   model sees from a single tool result — NOT a way to ingest entire lists.
+#   The true total count comes from the truncation marker (e.g. "267 items
+#   total"); specifics come from follow-up filtered queries. This gives a rich
+#   sample for pattern recognition while keeping per-call cost bounded.
+#
+#   MAX_LOOP_TOKENS (300000) provides headroom for a few large-sample results
+#   + reasoning within the ~200K context window.  Still cost-conscious: a
+#   typical 3-tool loop uses ~30K tokens; the 150K ceiling is for complex
+#   multi-step investigations, not routine queries.
+#
+#   MAX_LOOP_DURATION_MS (120000) accommodates the slower Converse turns that
+#   naturally result from larger context windows.
+# ---------------------------------------------------------------------------
+
+MAX_TOOL_STEPS: int = int(os.environ.get("AIGENT_MAX_TOOL_STEPS", "8"))
+MAX_LOOP_DURATION_MS: int = int(os.environ.get("AIGENT_MAX_LOOP_DURATION_MS", "120000"))
+MAX_LOOP_TOKENS: int = int(os.environ.get("AIGENT_MAX_LOOP_TOKENS", "300000"))
+MAX_TOOL_RESULT_CHARS: int = int(os.environ.get("AIGENT_MAX_TOOL_RESULT_CHARS", "40000"))
+
+# ---------------------------------------------------------------------------
+# Context-trimming config (spec 40, DC4/DC5).
+# Keep last N tool-result turns verbatim; older results get a deterministic
+# enriched summary (shape + sample + keys).  Reduces per-turn context size so
+# MAX_LOOP_TOKENS is not exhausted and latency drops.
+# ---------------------------------------------------------------------------
+
+CONTEXT_TRIM_ENABLED: bool = os.environ.get("AIGENT_CONTEXT_TRIM_ENABLED", "true").lower() in ("true", "1", "yes")
+CONTEXT_KEEP_LAST_N: int = max(int(os.environ.get("AIGENT_CONTEXT_KEEP_LAST_N", "5")), 1)
+
+
+class HitlConfig(BaseModel):  # type: ignore[misc]
+    """Human-in-the-loop configuration for Tier 3 agents."""
+    channel: str  # notification channel (e.g. Slack channel ID)
+    timeout_seconds: int = 300
+    approvers: list[str] = []
+
+
+class DatasourceConfig(BaseModel):  # type: ignore[misc]
     type: str  # boto3, kubernetes, http, athena, mcp
     name: str = ""
     services: list[str] = []  # boto3 services
@@ -16,24 +64,25 @@ class DatasourceConfig(BaseModel):
     tools: list[str] = []
     tool_arguments: dict[str, str] = {}  # static args merged into each tool call
     inject_query_as: str = ""  # if set, the user query is passed under this arg key; else not passed
+    transport: Literal["sse", "streamable-http"] = "streamable-http"  # mcp transport: 'streamable-http' (default) or 'sse' (legacy, explicit opt-in)
 
 
-class CacheConfig(BaseModel):
+class CacheConfig(BaseModel):  # type: ignore[misc]
     ttl: int = 300
     namespace: str = ""
 
 
-class ModelConfig(BaseModel):
+class ModelConfig(BaseModel):  # type: ignore[misc]
     tier: str = "standard"  # fast | standard | premium
     temperature: float = 0.1
 
 
-class DelegateConfig(BaseModel):
+class DelegateConfig(BaseModel):  # type: ignore[misc]
     agent: str
     when: str
 
 
-class AgentConfig(BaseModel):
+class AgentConfig(BaseModel):  # type: ignore[misc]
     """Schema for agents/<name>/agent.yaml"""
     name: str
     description: str
@@ -50,3 +99,37 @@ class AgentConfig(BaseModel):
     required_env: list[str] = []
     enabled: bool = True
     port: int = 8001
+    # --- Capability tiering (spec 43 Phase 1) ---
+    capability_tier: int = Field(default=0, ge=0, le=3)
+    write_scope: list[str] = []
+    hitl: Optional[HitlConfig] = None
+
+    @model_validator(mode="after")  # type: ignore[untyped-decorator]
+    def _validate_capability_tier(self) -> "AgentConfig":
+        """Enforce capability tier invariants.
+
+        - Tier 0 ⟺ read_only is True AND write_scope is empty.
+        - Tier 3 requires hitl to be configured.
+        """
+        if self.capability_tier == 0:
+            if not self.read_only:
+                raise ValueError(
+                    "capability_tier=0 requires read_only=True"
+                )
+            if self.write_scope:
+                raise ValueError(
+                    "capability_tier=0 requires write_scope to be empty"
+                )
+        if self.read_only and self.capability_tier != 0:
+            raise ValueError(
+                "read_only=True is only valid with capability_tier=0"
+            )
+        if self.capability_tier == 3 and self.hitl is None:
+            raise ValueError(
+                "capability_tier=3 requires hitl configuration"
+            )
+        if self.capability_tier > 0 and not self.write_scope:
+            raise ValueError(
+                f"capability_tier={self.capability_tier} requires non-empty write_scope"
+            )
+        return self

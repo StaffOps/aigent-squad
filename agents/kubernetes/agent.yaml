@@ -3,14 +3,13 @@ description: "Kubernetes cluster specialist. Queries pods, nodes, deployments, s
 domain: container-orchestration
 capabilities: [pod_status, node_health, deployment_management, service_discovery]
 routing_keywords: [pod, node, deployment, service, namespace, kubectl, k8s, cluster, replica, hpa]
-skills:
-  - oomkill-investigation
 datasources:
   # Access to the cluster via the kube-mcp server (mcp-servers namespace).
   # Caminho A of ADR-001: MCP-as-adapter, not autonomous tool-calling.
+  # Transport: streamable-http (default since 2026-07-18; /mcp endpoint).
   #
   # Full tool catalog allowlisted (2026-07-13): kube-mcp's own protocol
-  # surface is read-only-only — its tool catalog (queried live via
+  # surface is read-only — its tool catalog (queried live via
   # session.list_tools()) has no delete/exec/run/apply/patch tools at all,
   # only list/get/log/top/view. RBAC enforcement lives at the MCP server
   # itself (its ServiceAccount), so the app-level allowlist here is a
@@ -21,14 +20,9 @@ datasources:
   # In-cluster Service DNS, not the external hostname: the supervisor runs in
   # the SAME cluster as kube-mcp, so this avoids an unnecessary round-trip
   # through the public ingress (extra latency + an extra failure domain).
-  # Discovered 2026-07-13: the external hostname this previously pointed at
-  # (devops-mcp-kube-core.bdc.app.br) 404s with Traefik's default cert — the
-  # Ingress was renamed to mcp-kube.bdc.app.br at some point; the in-cluster
-  # Service name is stable either way and is the right target for an
-  # in-cluster caller regardless of what the external hostname is this week.
   - type: mcp
     name: k8s-mcp
-    url: http://kube-mcp.mcp-servers.svc.cluster.local:8080/sse
+    url: http://kube-mcp.mcp-servers.svc.cluster.local:8080/mcp
     tools:
       - configuration_view
       - events_list
@@ -59,6 +53,7 @@ model:
   tier: standard
   temperature: 0.1
 read_only: true
+capability_tier: 0
 evidence_types: [k8s_resource_state]
 delegates_to:
   - agent: aws
@@ -66,3 +61,31 @@ delegates_to:
   - agent: observability
     when: "need metrics to correlate with pod behavior"
 port: 8002
+skills:
+  - aws-csi-driver-metrics
+  - aws-load-balancer-controller-metrics
+  - backing-services-metrics
+  - cert-manager-metrics
+  - descheduler-metrics
+  - external-dns-metrics
+  - external-secrets-aws-sm
+  - external-secrets-metrics
+  - helmfile-applicationset
+  - helmfile-k8s-addon
+  - helmfile-templating
+  - ingress-nginx-metrics
+  - istio-ambient-debugging
+  - istio-ambient-metrics
+  - istio-ambient-otel
+  - k8s-pvc-tagger-metrics
+  - k8s-workload-metrics
+  - karpenter-consolidation
+  - karpenter-metrics
+  - keda-metrics
+  - kubescape-metrics
+  - kyverno-metrics
+  - metrics-server-metrics
+  - oomkill-investigation
+  - reloader-metrics
+  - scaleops-metrics
+  - traefik-metrics

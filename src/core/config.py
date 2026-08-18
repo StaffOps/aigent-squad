@@ -1,7 +1,7 @@
 from pydantic_settings import BaseSettings
-from typing import Optional
+from typing import Any, Optional
 
-class Settings(BaseSettings):
+class Settings(BaseSettings):  # type: ignore[misc]
     # AWS
     aws_region: str = "us-east-1"
     bedrock_model_id: str = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"  # Claude Sonnet 4.5 (US inference profile; model requires INFERENCE_PROFILE, not on-demand)
@@ -12,13 +12,65 @@ class Settings(BaseSettings):
     bedrock_agent_model_id: str = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
     bedrock_synthesis_model_id: str = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
 
+    # Model-tier PRE-ROUTING (spec 38): complexity-aware tier → model ID.
+    # Override via env BEDROCK_TIER_FAST_MODEL_ID / BEDROCK_TIER_STANDARD_MODEL_ID /
+    # BEDROCK_TIER_DEEP_MODEL_ID.
+    bedrock_tier_fast_model_id: str = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+    bedrock_tier_standard_model_id: str = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
+    bedrock_tier_deep_model_id: str = "us.anthropic.claude-opus-4-5-20251101-v1:0"  # Opus 4.5 (verified ACTIVE in-account 2026-07-23; the older Opus 4.0 profile no longer exists here)
+
+    # Tier routing control flags (spec 38 Phase 1).
+    aigent_tier_routing_enabled: bool = True
+    aigent_tier_deep_enabled: bool = False  # code default false; enable per-env via overlay (Opus 4.5 access CONFIRMED 2026-07-23)
+    aigent_tier_confidence_high: float = 0.85
+
+    # Shared always-on agent instructions — appended to EVERY agent's system prompt.
+    # Env-overridable (CALIBRATED_HONESTY_INSTRUCTION / SELF_SERVICE_INSTRUCTION) so the
+    # policy text is tunable via Helm values WITHOUT a rebuild.
+    calibrated_honesty_instruction: str = (
+        "<calibrated_honesty>\n"
+        "Separate VERIFIED facts (backed by a tool result or datasource response THIS turn) "
+        "from INFERRED/assumed statements — label inferences explicitly.\n"
+        "NEVER state a metric value, resource state, or count you did not retrieve this turn. "
+        "If you didn't verify it, say 'não consegui confirmar' / 'I could not verify'.\n"
+        "End every answer with one short line: confidence level (alta/média/baixa or high/medium/low) "
+        "AND a brief list of claims you could NOT verify this turn "
+        "(or 'nada não-verificado' / 'nothing unverified').\n"
+        "</calibrated_honesty>"
+    )
+    self_service_instruction: str = (
+        "<self_service>\n"
+        "You have live read-only tools — fetch the data yourself and answer directly. The user may "
+        "not have CLI access, so lead with the answer from your tools rather than handing them "
+        "kubectl/aws/helm commands to run. When something needs a UI, or an action you can't take, "
+        "point to the right place and say which and how:\n"
+        "- The DevOps monitoring dashboards live in Grafana — recommend the specific dashboard "
+        "(see the devops-grafana-dashboards skill for the exact folders and UIDs) with its link.\n"
+        "- Also: Grafana (metrics/logs/traces), ArgoCD (deploy/sync/rollback), Argo Workflows (jobs).\n"
+        "If nothing quite fits, offer to help build it (a dashboard, a PromQL query, or the change).\n"
+        "</self_service>"
+    )
+    decisiveness_instruction: str = (
+        "<decisiveness>\n"
+        "Be decisive with tools. Do ONE discovery pass (list metrics/labels/resources) THEN run "
+        "TARGETED queries — do NOT exhaustively enumerate or re-query the same thing with minor "
+        "variations. Prefer a few high-value tool calls over many. Batch independent lookups in a "
+        "single turn when possible. As soon as you have enough to answer, STOP and answer — do not "
+        "keep gathering 'for completeness'.\n"
+        "</decisiveness>"
+    )
+    # Grafana root URL for clickable DevOps-GenericMonitoring dashboard links.
+    # Default empty (scrub-clean); real value injected via GRAFANA_BASE_URL in the
+    # k8s-setup overlay (internal infra config), not hardcoded in this repo.
+    grafana_base_url: str = ""
+
     # Prompt caching (spec 11): add cache_control to system block.
     # Disable if the region/model rejects it (graceful degradation).
     bedrock_prompt_cache_enabled: bool = True
 
     # Token budget (spec 11): hard cap per session (total input+output tokens).
     # Default 200k — generous but prevents runaway sessions.
-    session_token_budget: int = 200_000
+    session_token_budget: int = 2_000_000
 
     # History truncation by tokens (spec 11). Controls how many tokens of chat
     # history are included in each Bedrock call (not session-wide budget).
@@ -90,10 +142,18 @@ class Settings(BaseSettings):
     supervisor_url: str = "http://localhost:8001"
     # Worker pool (gateway-side admission). Defaults from spec 31 round-table.
     gateway_max_concurrent: int = 20
-    gateway_job_timeout_seconds: int = 45
-    gateway_first_byte_timeout_seconds: int = 15
-    gateway_idle_stream_timeout_seconds: int = 10
+    gateway_job_timeout_seconds: int = 150
+    gateway_first_byte_timeout_seconds: int = 90
+    gateway_idle_stream_timeout_seconds: int = 35
+    # Bedrock boto3 client timeouts. Default read_timeout (60s) was cut on slow Converse
+    # turns (large context + Sonnet) → ReadTimeoutError → stream 'terminated'. Keep below
+    # gateway_job_timeout_seconds so the gateway doesn't cut first.
+    bedrock_read_timeout_seconds: int = 120
+    bedrock_connect_timeout_seconds: int = 10
     gateway_cancel_poll_seconds: float = 0.5
+    # Bedrock concurrency semaphore (spec 25 T8): max in-flight Bedrock calls.
+    # Prevents overwhelming the Bedrock endpoint (ThrottlingException cascade).
+    bedrock_max_concurrent: int = 20
 
     # Admission guards (spec 31 L3 / spec 25 logic) — global, Redis-coordinated.
     # Account-wide limits (distinct from the per-replica worker-pool semaphore).
@@ -107,7 +167,7 @@ class Settings(BaseSettings):
     gitlab_url: str = "https://gitlab.com"
     
     # MCP Servers
-    mcp_servers: dict = {
+    mcp_servers: dict[str, str] = {
         "aws-mcp": "http://aws-mcp-server.default.svc.cluster.local:8080",
         "k8s-mcp": "http://k8s-mcp-server.default.svc.cluster.local:8080",
     }

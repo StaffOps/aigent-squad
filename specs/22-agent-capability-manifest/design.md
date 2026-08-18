@@ -1,10 +1,10 @@
 # Design: Config-Driven Agent Platform
 
-## Arquitetura
+## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│  AGENTS_DIR (volume — fonte: local/configmap/git/s3)            │
+│  AGENTS_DIR (volume — source: local/configmap/git/s3)           │
 │                                                                 │
 │  agents/aws/           agents/finops/        agents/custom/     │
 │  ├── agent.yaml        ├── agent.yaml        ├── agent.yaml    │
@@ -29,32 +29,32 @@
                     ┌────────────┴────────────┐
                     ▼                         ▼
               Classifier                 Supervisor
-              (usa registry)             (roteia por registry)
+              (uses registry)            (routes via registry)
 ```
 
 ## Schema: `agent.yaml`
 
 ```yaml
-# Campos obrigatórios
-name: aws                           # identificador único
-description: >                      # usado pelo classifier para roteamento
+# Required fields
+name: aws                           # unique identifier
+description: >                      # used by the classifier for routing
   AWS infrastructure specialist.
   Queries EC2, S3, RDS, IAM. Read-only.
-domain: cloud-infrastructure        # agrupamento lógico
+domain: cloud-infrastructure        # logical grouping
 
-# Campos de roteamento
-capabilities:                       # O QUE sabe fazer
+# Routing fields
+capabilities:                       # WHAT it can do
   - ec2_inventory
   - security_group_audit
   - cost_summary
-routing_keywords:                   # fast-path sem LLM (match literal)
+routing_keywords:                   # fast-path without LLM (literal match)
   - ec2
   - instance
   - security group
   - s3 bucket
   - iam role
 
-# Dados que coleta
+# Data it collects
 datasources:
   - type: boto3
     services: [ec2, s3, rds, iam]
@@ -64,16 +64,16 @@ datasources:
     headers:
       Authorization: "Bearer ${CW_TOKEN}"
 
-# Comportamento
+# Behavior
 cache:
-  ttl: 300                          # segundos
-  namespace: aws                    # isolamento de cache
+  ttl: 300                          # seconds
+  namespace: aws                    # cache isolation
 model:
   tier: standard                    # fast (Haiku) | standard (Sonnet) | premium (Opus)
   temperature: 0.1
-read_only: true                     # invariante de segurança
+read_only: true                     # security invariant
 
-# Colaboração (spec 17 — fan-out)
+# Collaboration (spec 17 — fan-out)
 evidence_types: [aws_api_response, cloudwatch_metric]
 delegates_to:
   - agent: kubernetes
@@ -81,16 +81,16 @@ delegates_to:
   - agent: finops
     when: "question involves cost attribution"
 
-# Operacional
-required_env: [AWS_REGION]          # validado no startup
-enabled: true                       # false = ignorado
-port: 8001                          # porta do container
+# Operational
+required_env: [AWS_REGION]          # validated at startup
+enabled: true                       # false = ignored
+port: 8001                          # container port
 ```
 
-### Campos opcionais vs obrigatórios
+### Optional vs required fields
 
-| Campo | Obrigatório | Default |
-|-------|:-----------:|---------|
+| Field | Required | Default |
+|-------|:--------:|---------|
 | `name` | ✅ | — |
 | `description` | ✅ | — |
 | `domain` | ✅ | — |
@@ -108,21 +108,21 @@ port: 8001                          # porta do container
 | `enabled` | ❌ | `true` |
 | `port` | ❌ | auto-assign |
 
-## Componentes
+## Components
 
-| Componente | Responsabilidade |
-|-----------|------------------|
-| `AgentRegistry` | Discovery + validação + acesso ao roster |
-| `GenericAgent` | Classe única: load prompt + call adapters + build context + call Bedrock |
-| `DatasourceAdapter` (interface) | Contrato: `async collect(query, params) → str` |
+| Component | Responsibility |
+|-----------|----------------|
+| `AgentRegistry` | Discovery + validation + access to the roster |
+| `GenericAgent` | Single class: load prompt + call adapters + build context + call Bedrock |
+| `DatasourceAdapter` (interface) | Contract: `async collect(query, params) → str` |
 | `Boto3Adapter` | AWS SDK (read-only by config) |
 | `KubernetesAdapter` | kubernetes-client |
-| `HttpAdapter` | Qualquer HTTP (Prometheus, GitLab, docs portal, APIs internas) |
+| `HttpAdapter` | Any HTTP (Prometheus, GitLab, docs portal, internal APIs) |
 | `AthenaAdapter` | AWS Athena queries |
-| `Classifier` (atualizado) | Consome registry em vez de lista hardcoded |
-| `Supervisor` (atualizado) | Roteia para URL do registry |
+| `Classifier` (updated) | Consumes registry instead of hardcoded list |
+| `Supervisor` (updated) | Routes to URL from registry |
 
-## GenericAgent — fluxo unificado
+## GenericAgent — unified flow
 
 ```python
 class GenericAgent:
@@ -167,9 +167,9 @@ class AthenaAdapter(DatasourceAdapter):
     def __init__(self, database: str, table: str, workgroup: str): ...
 ```
 
-Adapters são **stateless** e **read-only** (o `Boto3Adapter` só chama `describe_*`, `list_*`, `get_*`).
+Adapters are **stateless** and **read-only** (the `Boto3Adapter` only calls `describe_*`, `list_*`, `get_*`).
 
-## Helm chart (deploy N agentes de 1 imagem)
+## Helm chart (deploy N agents from 1 image)
 
 ```yaml
 # values.yaml
@@ -179,7 +179,7 @@ image:
 
 agentsSource:
   type: configmap           # configmap | git | s3
-  # Para git:
+  # For git:
   # repo: https://github.com/company/agent-definitions.git
   # path: agents/
   # ref: main
@@ -197,7 +197,7 @@ agents:
     port: 8004
   - name: observability
     port: 8005
-  # Adicionar um novo: basta uma linha + um dir com agent.yaml+prompt.md
+  # Adding a new one: just a line + a dir with agent.yaml+prompt.md
   - name: security
     port: 8010
 ```
@@ -245,68 +245,68 @@ spec:
 
 ## Rationale
 
-### Decisão 1: Imagem única genérica (não 1 imagem por agente)
+### Decision 1: Single generic image (not 1 image per agent)
 
-**Escolha**: todos os agentes rodam a mesma imagem Docker, diferenciados apenas por config.
+**Choice**: all agents run the same Docker image, differentiated only by config.
 
-**Justificativa**:
-1. **Produto customizável**: o usuário final cria agentes sem código, Docker, ou CI — só YAML + prompt.
-2. **Manutenção**: 1 imagem para patchar, atualizar, scannear. Não 5+ pipelines.
-3. **Extensibilidade**: de 5 para 50 agentes sem build a mais.
+**Justification**:
+1. **Customizable product**: the end user creates agents without code, Docker, or CI — just YAML + prompt.
+2. **Maintenance**: 1 image to patch, update, scan. Not 5+ pipelines.
+3. **Extensibility**: from 5 to 50 agents without extra builds.
 
-**Trade-offs aceitos**:
-| Custo | Realidade |
-|-------|-----------|
-| Imagem maior (tem todos os adapters) | ~200MB total — aceitável. Adapters são libs Python leves |
-| Adapter não usado consome memória? | Não — instanciado só o declarado no agent.yaml |
+**Accepted trade-offs**:
+| Cost | Reality |
+|------|---------|
+| Larger image (has all adapters) | ~200MB total — acceptable. Adapters are lightweight Python libs |
+| Unused adapter consumes memory? | No — only the ones declared in agent.yaml are instantiated |
 
-**Quando estaria errada**: se um agente precisar de runtime diferente (Go, .NET) — aí seria sidecar. Fora de escopo.
+**When it would be wrong**: if an agent needs a different runtime (Go, .NET) — then it would be a sidecar. Out of scope.
 
-### Decisão 2: Directory-per-agent (filesystem as config)
+### Decision 2: Directory-per-agent (filesystem as config)
 
-**Escolha**: cada agente é um diretório (`agent.yaml` + `prompt.md` + extras), não uma entrada num YAML monolítico.
+**Choice**: each agent is a directory (`agent.yaml` + `prompt.md` + extras), not an entry in a monolithic YAML.
 
-**Justificativa**:
-1. **Prompts longos não poluem**: um `prompt.md` de 200 linhas fica em arquivo próprio.
-2. **Padrão estabelecido**: ArgoCD ApplicationSets, Terraform modules, Backstage catalog — todos usam directory-per-entity.
-3. **Git-friendly**: PR mostra diff de 1 agent sem ruído dos outros.
-4. **Extras por agent**: examples/, few-shot.md, RAG docs — vivem no mesmo dir.
+**Justification**:
+1. **Long prompts don't pollute**: a 200-line `prompt.md` stays in its own file.
+2. **Established pattern**: ArgoCD ApplicationSets, Terraform modules, Backstage catalog — all use directory-per-entity.
+3. **Git-friendly**: a PR shows the diff of 1 agent without noise from the others.
+4. **Extras per agent**: examples/, few-shot.md, RAG docs — live in the same dir.
 
-**Trade-off aceito**: mais arquivos vs menos — complexidade de FS é gerenciável com bom tooling.
+**Trade-off accepted**: more files vs fewer — FS complexity is manageable with good tooling.
 
-### Decisão 3: Fonte do diretório é configuração de deploy (não de código)
+### Decision 3: Directory source is a deploy configuration (not a code concern)
 
-**Escolha**: o runtime lê de `AGENTS_DIR` (um path). De onde esse path vem (local mount, configmap, git clone, S3) é decisão de **deploy**, via Helm values.
+**Choice**: the runtime reads from `AGENTS_DIR` (a path). Where that path comes from (local mount, configmap, git clone, S3) is a **deploy** decision, via Helm values.
 
-**Justificativa**: desacopla plataforma de configuração de agentes. Permite cenários diversos (dev local com volume, prod com git-sync, multi-tenant com buckets separados) sem mudar código.
+**Justification**: decouples the platform from agent configuration. Allows diverse scenarios (local dev with volume, prod with git-sync, multi-tenant with separate buckets) without changing code.
 
-## Invariantes
+## Invariants
 
-- Zero código para criar um agente novo (só YAML + prompt).
-- 1 imagem Docker para todo o sistema (exceto infra: redis, dynamodb).
-- `read_only` honrado em todos os adapters.
-- Config inválida → falha no startup (fail-fast, não fail-runtime).
-- Adapters são stateless e paralelizáveis.
+- Zero code to create a new agent (just YAML + prompt).
+- 1 Docker image for the entire system (except infra: redis, dynamodb).
+- `read_only` honored in all adapters.
+- Invalid config → startup failure (fail-fast, not fail-at-runtime).
+- Adapters are stateless and parallelizable.
 
-## Migração dos 5 agentes atuais
+## Migration of the 5 current agents
 
-| Agente atual | Migra para |
-|-------------|------------|
-| `src/agents/aws/agent.py` | `agents/aws/agent.yaml` + `prompt.md` (lógica absorvida pelo GenericAgent + Boto3Adapter) |
+| Current agent | Migrates to |
+|--------------|-------------|
+| `src/agents/aws/agent.py` | `agents/aws/agent.yaml` + `prompt.md` (logic absorbed by GenericAgent + Boto3Adapter) |
 | `src/agents/kubernetes/agent.py` | `agents/kubernetes/agent.yaml` + `prompt.md` + KubernetesAdapter |
 | `src/agents/finops/agent.py` | `agents/finops/agent.yaml` + `prompt.md` + Boto3Adapter + AthenaAdapter |
 | `src/agents/devops/agent.py` | `agents/devops/agent.yaml` + `prompt.md` + HttpAdapter(gitlab) + HttpAdapter(docs) |
 | `src/agents/observability/agent.py` | `agents/observability/agent.yaml` + `prompt.md` + HttpAdapter(prometheus) |
 
-Após migração, `src/agents/*/agent.py` são **deletados** — a lógica vive no `GenericAgent` + adapters.
+After migration, `src/agents/*/agent.py` are **deleted** — the logic lives in `GenericAgent` + adapters.
 
-## Dependências externas
+## External dependencies
 
-| Lib | Uso |
-|-----|-----|
-| `pydantic` | Schema validation do agent.yaml |
-| `PyYAML` | Parse |
+| Lib | Usage |
+|-----|-------|
+| `pydantic` | Schema validation of agent.yaml |
+| `PyYAML` | Parsing |
 | `boto3` | Boto3Adapter |
 | `kubernetes` | KubernetesAdapter |
 | `httpx` | HttpAdapter |
-| Existentes no requirements.txt | Nenhuma dep nova |
+| Existing in requirements.txt | No new dependencies |

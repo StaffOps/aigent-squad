@@ -1,0 +1,58 @@
+name: Load Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      scenario:
+        description: 'Which scenario to run'
+        required: false
+        default: 'basic'
+        type: choice
+        options:
+          - basic
+          - burst
+
+permissions:
+  contents: read
+
+jobs:
+  load-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Start local stack
+        run: |
+          docker compose up -d --wait --timeout 60
+        env:
+          API_KEY: test-load-key
+
+      - name: Wait for gateway health
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8000/health; then
+              echo "Gateway healthy"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Gateway not healthy after 60s"
+          docker compose logs gateway
+          exit 1
+
+      - name: Run k6 load test
+        uses: grafana/k6-action@e4714b734f2b0afaabeb7b4a69142745548ab9ec # v0.3.1
+        with:
+          filename: tests/load/scenario_${{ inputs.scenario || 'basic' }}.js
+        env:
+          BASE_URL: http://localhost:8000
+          API_KEY: test-load-key
+
+      - name: Collect logs on failure
+        if: failure()
+        run: docker compose logs --tail=100
+
+      - name: Teardown
+        if: always()
+        run: docker compose down -v

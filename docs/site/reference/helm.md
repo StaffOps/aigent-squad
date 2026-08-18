@@ -4,9 +4,9 @@ The `staffops/aigent-squad` chart deploys the full AIgent-squad stack on Kuberne
 It supports two topologies controlled by a single `topology` value and targets EKS
 with AWS Bedrock, ElastiCache, and DynamoDB as backing services.
 
-**Chart version**: `0.6.0`  
+**Chart version**: `0.9.3`  
 **Repository**: `https://staffops.github.io/helm-charts/`  
-**Image**: `karlipegomes/aigent-squad:latest` (Docker Hub, multi-arch `amd64` + `arm64`)
+**Image**: `ghcr.io/staffops/aigent-squad:latest` (GHCR, multi-arch `amd64` + `arm64`)
 
 ---
 
@@ -55,8 +55,8 @@ helm install aigent-squad staffops/aigent-squad \
 | Key | Default | Description |
 |-----|---------|-------------|
 | `topology` | `inProcess` | Deployment topology: `inProcess` or `distributed` |
-| `global.image.registry` | `""` | Registry prefix; empty = Docker Hub direct |
-| `services.supervisor.image.repository` | `karlipegomes/aigent-squad` | Image repository |
+| `global.image.registry` | `""` | Registry prefix; empty = GHCR path is in repository field |
+| `services.supervisor.image.repository` | `ghcr.io/staffops/aigent-squad` | Image repository |
 | `services.supervisor.image.tag` | `latest` | Image tag — use `sha-<commit>` to pin in production |
 
 ### LLM / Bedrock
@@ -76,6 +76,13 @@ helm install aigent-squad staffops/aigent-squad \
 |-----|---------|-------------|
 | `global.probes.liveness.path` | `/healthz` | Liveness probe path |
 | `global.probes.readiness.path` | `/ready` | Readiness probe path |
+
+### Observability (chart 0.9.3+)
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `global.otel.metricsPrometheusScrape` | `true` | Also expose `/metrics` on each service's own port for direct Prometheus/VictoriaMetrics scrape, in addition to the existing OTLP push through the collector (`otel-helper` v0.2.0+ runs both exporters on the same MeterProvider). |
+| `serviceMonitor.enabled` | `false` | Create a Prometheus Operator `ServiceMonitor` per enabled service. Requires the CRD to already exist on the cluster — off by default since that isn't guaranteed. |
 
 ### Redis
 
@@ -117,6 +124,25 @@ helm install aigent-squad staffops/aigent-squad \
     is `true`, the chart creates `ExternalSecret` resources that pull values from AWS
     Secrets Manager. In environments without ESO, inject secrets via a CI/CD secret
     store or Kubernetes `Secret` objects managed outside the chart.
+
+### Optional chat UI (chart 0.9.4+)
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `librechat.enabled` | `false` | Deploy [LibreChat](https://github.com/danny-avila/LibreChat) + an in-cluster MongoDB `StatefulSet`, pre-wired to this release's gateway via the OpenAI-compatible bridge (spec 29) |
+| `librechat.baseURL` | auto | Gateway URL LibreChat talks to; auto-computed to this release's own gateway Service when left empty |
+| `librechat.apiKey` / `apiKeySecretName` | `""` | Token LibreChat sends as `X-Internal-Token`. If both are empty and `externalSecrets.enabled` is `true`, the chart injects `AIGENT_SQUAD_API_KEY` from the gateway's `INTERNAL_API_TOKEN` automatically |
+| `librechat.allowRegistration` | `false` | Self-service signup. Off by default (internal tool → no default user). Enable temporarily to create the first account, then turn back off |
+| `librechat.route.enabled` / `host` | `false` / `""` | Expose the UI via an Istio GatewayAPI HTTPRoute at `host`. Off → ClusterIP only (`port-forward svc/<release>-librechat 3080`) |
+| `librechat.route.parentRef` / `annotations` / `labels` / `path` / `pathType` | `{}` / `PathPrefix` / `/` | Route customization; `parentRef` empty inherits `routing.gatewayapi.parentRef`. Set the `external-dns` hostname in `route.annotations` (same convention as the gateway route) |
+
+!!! info "Minimal by design, not production-grade"
+    This is a quick homologation/demo aid, not a hardened deployment: single
+    Mongo pod, no HA, no auth on Mongo (same posture as `redis.inCluster`).
+    JWT/CREDS secrets auto-generate per install unless pinned via
+    `librechat.jwtSecret` etc. For anything beyond quick demo use, run
+    LibreChat separately with its own production-grade Mongo and secret
+    management.
 
 ### Agent configuration
 

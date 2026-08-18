@@ -10,7 +10,6 @@ import pytest
 from src.supervisor.openai_compat import (
     ChatCompletionRequest,
     ChatMessage,
-    UnknownModelError,
     build_completion,
     list_models,
     messages_to_user_input,
@@ -52,14 +51,15 @@ def test_resolve_target_per_agent_returns_agent():
     assert resolve_target("aigent-squad-finops", AGENTS) == "finops"
 
 
-def test_resolve_target_unknown_agent_raises():
-    with pytest.raises(UnknownModelError):
-        resolve_target("aigent-squad-nosuch", AGENTS)
+def test_resolve_target_unknown_agent_auto_routes():
+    # G-1: an unknown "aigent-squad-<x>" agent id auto-routes (returns None) rather
+    # than raising, so OpenAI-style clients that send arbitrary model ids still work.
+    assert resolve_target("aigent-squad-nosuch", AGENTS) is None
 
 
-def test_resolve_target_unrelated_model_raises():
-    with pytest.raises(UnknownModelError):
-        resolve_target("gpt-4o", AGENTS)
+def test_resolve_target_unrelated_model_auto_routes():
+    # G-1: an unrelated model id (e.g. the LLM app's "base"/"gpt-4o") auto-routes.
+    assert resolve_target("gpt-4o", AGENTS) is None
 
 
 # ─── messages_to_user_input ─────────────────────────────────────────
@@ -73,16 +73,25 @@ def test_messages_translator_takes_last_user_turn():
     assert messages_to_user_input(msgs) == "second"
 
 
-def test_messages_translator_prepends_system_context():
+def test_messages_translator_drops_system_messages():
+    # System messages from integration clients (Grafana LLM app, LibreChat) must
+    # NOT reach the guardrail — only the user turn is forwarded.
     msgs = [
-        ChatMessage(role="system", content="be terse"),
+        ChatMessage(role="system", content="You are a helpful assistant."),
         ChatMessage(role="user", content="list ec2"),
     ]
     out = messages_to_user_input(msgs)
-    assert "be terse" in out and "list ec2" in out
+    assert out == "list ec2"
+    assert "helpful assistant" not in out
 
 
-def test_messages_translator_no_user_falls_back_to_last():
+def test_messages_translator_system_only_returns_empty():
+    # A request with only a system message yields no user input (no fallback to system).
+    msgs = [ChatMessage(role="system", content="You are a helpful assistant.")]
+    assert messages_to_user_input(msgs) == ""
+
+
+def test_messages_translator_no_user_falls_back_to_last_non_system():
     msgs = [ChatMessage(role="assistant", content="orphan")]
     assert messages_to_user_input(msgs) == "orphan"
 

@@ -12,9 +12,16 @@ model:
   tier: standard
   temperature: 0.1
 read_only: true
+capability_tier: 0
 evidence_types: [cost_data]
 delegates_to:
   - agent: aws
     when: "need resource details to attribute costs"
 required_env: [AWS_REGION]
 port: 8003
+skills:
+  - cost-explorer
+  - ec2-rightsizing-patterns
+  - kubecost-metrics
+  - savings-plans-strategy
+  - untagged-resources-bulk-fix

@@ -54,7 +54,10 @@ variable "pii_entities" {
     "AWS_SECRET_KEY",
     "PASSWORD",
     "USERNAME",
-    "IP_ADDRESS",
+    # IP_ADDRESS intentionally excluded: pod/node IPs, CIDRs and log lines are
+    # normal, ubiquitous content for a K8s/DevOps assistant. Treating them as PII
+    # with action=BLOCK made legitimate queries fail with a 403 guardrail_block
+    # (dozens of pii:IP_ADDRESS hits on pasted logs). Secrets/keys stay blocked.
   ]
 }
 

@@ -140,7 +140,7 @@ Chart A.B.C ── chart-releaser ──▶ Helm repo (staffops.github.io/helm-c
 | Secret | Used by | Purpose |
 |--------|---------|---------|
 | `DOCS_DEPLOY_TOKEN` | test, build, docs, release | clone private dep (HTTPS) + deploy portal |
-| `DOCKERHUB_USERNAME` / `DOCKERHUB_TOKEN` | build, release | Docker Hub login |
+| `GITHUB_TOKEN` (automatic) | build, release | GHCR login (no manual secret needed) |
 
 ---
 

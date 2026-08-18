@@ -73,6 +73,15 @@ def sup_client():
     return TestClient(app)
 
 
+class TestSupervisorMetrics:
+    def test_metrics_mounted_and_reachable_unauthenticated(self, sup_client):
+        """otel-helper v0.2.0+ Prometheus scrape endpoint — deliberate
+        exception to the /internal/*-only trust boundary (infra-level
+        scrape target, same class as /healthz + /ready)."""
+        resp = sup_client.get("/metrics")
+        assert resp.status_code == 200
+
+
 class TestSupervisorInternalProcess:
     def test_401_without_token(self, sup_client):
         resp = sup_client.post("/internal/process", json={

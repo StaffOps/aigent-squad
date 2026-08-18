@@ -10,9 +10,9 @@
 #
 # baseURL is NOT env-templated — LibreChat only interpolates ${VAR} for
 # specific fields (apiKey, headers values), not arbitrary ones (confirmed
-# empirically: an untemplated baseURL loads as the literal string). It's
-# hardcoded below to the REAL devops-core squad — that's the common case:
-# LibreChat runs local, the squad runs in the real cluster (only mongo +
+# empirically: an untemplated baseURL loads as the literal string). REPLACE
+# THE PLACEHOLDER BELOW with your squad's real public gateway URL. Common
+# case: LibreChat runs local, the squad runs in a real cluster (only mongo +
 # librechat need to run locally; see docker-compose.yaml). Point it at
 # http://gateway:8000/v1 instead only when also running the full local stack
 # (`make up`) with a fully-local squad.
@@ -22,7 +22,7 @@ cache: true
 endpoints:
   custom:
     - name: "AIgent-Squad"
-      baseURL: "https://aigent-squad.bdc.app.br/v1"
+      baseURL: "https://your-aigent-squad-host.example.com/v1"  # <- replace with your real gateway URL
       apiKey: "${AIGENT_SQUAD_API_KEY}"
       # The squad authenticates via X-Internal-Token, not a Bearer apiKey —
       # forward the key in that header.

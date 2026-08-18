@@ -1,3 +1,12 @@
+---
+spec: 30-datasource-cache-layer
+status: done
+completed: 2026-06-21
+superseded_by: null
+depends_on: []
+deferred: []
+---
+
 # Requirements: Datasource Cache Layer
 
 ## Context

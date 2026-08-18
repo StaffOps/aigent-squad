@@ -22,6 +22,23 @@ MCP Server ──[X-Internal-Token]──▶ Supervisor ──[X-Internal-Token]
 
 **Fail-closed**: if `INTERNAL_API_TOKEN` env is empty, ALL requests are denied (401).
 
+### Per-consumer agent scoping (`GATEWAY_KEY_AGENT_MAP`) — scoping, not a boundary
+
+`GATEWAY_KEY_AGENT_MAP` (csv, `key:agent`) maps an edge credential to a **default agent**,
+applied only on auto-route models (`base`/`large`). It exists so a narrow consumer — e.g. a
+Grafana plugin that should only ever get observability answers — lands on the right agent
+without having to name it.
+
+**This is not an authorization boundary, and must not be used as one.** An explicit
+`aigent-squad-<agent>` model in the request still wins over the mapping. A holder of a mapped
+key can therefore reach any agent by naming it. If you need a credential that genuinely cannot
+reach a given capability, that has to be enforced at the agent/tool layer (see
+`READ_ONLY_POLICY.md`), not here.
+
+Reading is per-call rather than parsed once at import (F-016), which makes the behaviour
+testable — but note the value still comes from the **process environment**, so in Kubernetes a
+change to the Secret requires a pod restart to take effect like any other env var.
+
 ## Non-root containers (S2)
 
 All images run as `appuser` (uid 65534). No image runs as root.
@@ -128,6 +145,25 @@ worker L1+L2 and route auth).
 Combined with the read-only policy (agents never mutate infrastructure today),
 the residual blast radius of any bypass is limited to information exposure —
 itself covered by L4/L5.
+
+### Agentic tool-calling guardrail (spec 37)
+
+With agentic tool-calling the guardrail runs in a 3-tier arrangement around the Converse loop:
+**INPUT** (user turn), **tool ARGS** (pre-exec — blocks SSRF/injection/exfil in arguments), and
+**tool RESULT** (pre-context/stream — redacts secrets/PII), plus the **OUTPUT** assessment of the
+model response. The Bedrock server-side guardrail runs on the first turn only; intermediate
+tool-result turns use app-level redaction. `converse()` also uses Bedrock **guardContent
+input-tagging** — only the latest user message is wrapped, so the server-side guardrail evaluates
+the genuine user turn, not the system/tool framing.
+
+**Resolved (G-6, 2026-07-21):** the app-level Tier-1 input guardrail used to evaluate the assembled
+per-stage prompt (the classifier's agent-catalog and the agent's instructions live inside the
+user-role messages), so the squad's own framing tripped PROMPT_ATTACK (MEDIUM) and base/auto-route
+cluster queries 403'd. Fixed in two layers: (1) skip the per-stage app-level INPUT scan on assembled
+framing + guard the genuine user question once at ingress; (2) disable the redundant Bedrock
+server-side converse guardrail (input guarded at ingress; app-level OUTPUT + B3 cover the rest).
+PROMPT_ATTACK was NOT disabled (security-refuted — read-only reads can still exfiltrate tokens/PII;
+the output PII filter has gaps). Live: benign cluster query → 200 real data; injection → 403.
 
 ## AWS credentials (S5)
 

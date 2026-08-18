@@ -82,19 +82,38 @@ docker compose logs mcp-server
 
 ## Outbound — agents as MCP clients (`type: mcp` datasource)
 
-An agent can pull read-only context from an external MCP server by adding an
-`mcp` datasource to its `agent.yaml`. This is **Caminho A** of ADR-001:
-MCP-as-adapter, *not* autonomous tool-calling. The collector connects, calls
-the allowlisted tools, and injects the result into the prompt — the model
-never selects tools itself.
+An agent consumes an MCP server by adding an `mcp` datasource to its
+`agent.yaml` (a read-only tool allowlist). **As of spec 37 / ADR-0008 this is
+AGENTIC**: the LLM selects the tool AND its arguments via the Bedrock Converse
+API tool-use loop — superseding the old "Caminho A" (MCP-as-adapter, which
+pre-called fixed tools and injected the result; the model never chose). The
+read-only invariant holds via the allowlist (fail-closed) + the MCP server's own
+ServiceAccount RBAC + the guardrail (input, tool args, tool results). Transport
+is streamable-http by default (`/mcp`), SSE opt-in (`transport: sse`).
+
+### Currently wired MCPs (2026-07-23)
+
+| Agent | MCP datasource | Server (in-cluster) | Read surface | Read-only enforcement |
+|-------|----------------|---------------------|--------------|-----------------------|
+| observability | `vm-mcp` | `vm-mcp:8080/mcp` | VictoriaMetrics (MetricsQL) | query-only server + allowlist |
+| observability | `grafana-mcp` | `grafana-mcp:8000/mcp` | Loki logs, Tempo traces, Pyroscope profiles, alerts/incidents/OnCall/Sift (44 tools) | **allowlist only** — the Grafana SA token is write-capable, so no mutating tool is exposed (Viewer token declined 2026-07-23) |
+| kubernetes | `k8s-mcp` (kube-mcp) | `kube-mcp:8080/mcp` | K8s core read (pods/nodes/resources/events/kiali) | allowlist + **SA RBAC read-only** |
+| kubernetes | `kubectl-mcp` | `kubectl-mcp:8080/mcp` | helm, Argo Rollouts, cert-manager, Istio, Cilium, GitOps, KEDA, Velero, CAPI, KubeVirt, CRDs, cost (157 tools) | allowlist + **SA RBAC read-only (audited 2026-07-22: 0 write perms)** |
+
+`aws`, `devops`, `finops`, `security` have no MCP datasource (skills + non-MCP adapters).
+
+> **Gotcha:** Bedrock Converse **rejects duplicate tool names across merged datasources**
+> (`ValidationException: The tool <x> is already defined`). When binding a 2nd MCP to an agent,
+> dedupe its allowlist against the existing datasource's tools.
 
 ```yaml
 # agents/kubernetes/agent.yaml
 datasources:
   - type: mcp
     name: k8s-mcp
-    url: ${K8S_MCP_URL}              # e.g. http://k8s-mcp.aigent-squad:8080/sse
-    tools: [list_pods, get_pod_metrics, list_events]   # read-only allowlist
+    url: ${K8S_MCP_URL}              # e.g. http://kube-mcp.mcp-servers.svc.cluster.local:8080/mcp
+    transport: streamable-http
+    tools: [pods_list, nodes_top, events_list]         # read-only allowlist
     tool_arguments:                  # static args merged into every call
       namespace: devops
 ```
@@ -108,10 +127,19 @@ datasources:
   abused via this path.
 - **Fail-open at runtime**: a broken server or a failing tool degrades to an
   `[mcp:...] error: ...` string in the context — it never crashes the agent.
+  The string names the **underlying** exception, e.g.
+  `[mcp:k8s-mcp] error: ConnectError: [Errno -2] Name or service not known`.
+  The MCP client runs its connection inside an anyio TaskGroup, so before F-011
+  this surfaced as the useless wrapper `unhandled errors in a TaskGroup
+  (1 sub-exception)`; the adapter now unwraps `ExceptionGroup` and `__cause__`
+  chains to the innermost cause and appends `(+N more)` when a group carried
+  siblings, so nothing is dropped silently. If you have log parsing or alerts
+  matching the old wrapper text, they need updating.
 
 ### Transport
 
-Uses MCP **SSE** transport (`mcp==1.0.0`). `url` supports `${ENV_VAR}`
+Uses MCP **streamable-http** (`/mcp`) by default; SSE (`transport: sse`) is the legacy,
+opt-in transport. `url` supports `${ENV_VAR}`
 interpolation so it differs per environment (local vs EKS). For stdio-based
 servers, a `type: mcp` over stdio variant is a future extension.
 
@@ -121,3 +149,104 @@ Use `mcp` when a capability is already packaged as an MCP server (e.g. a
 Kubernetes or Prometheus MCP server). Use `boto3`/`http`/`athena` for direct
 SDK/API access you control. Both feed the same prompt-injection-guarded
 `<infra_data>` block.
+
+---
+
+## REQUIRED: RBAC Audit Gate (spec 37 security boundary)
+
+Every MCP server consumed by aigent-squad (`type: mcp` datasource) MUST have a
+Kubernetes ServiceAccount that is **strictly read-only**. This is the
+non-negotiable security boundary for zero-code MCP onboarding.
+
+### What it proves
+
+The audit script enumerates the ServiceAccount's EFFECTIVE permissions via
+`kubectl auth can-i --list --as=system:serviceaccount:<ns>:<sa>` and:
+
+- **PASSES** if all granted rules use only `get`, `list`, `watch` verbs.
+- **FAILS** (exit 1) if ANY rule grants `create`, `update`, `patch`, `delete`,
+  `deletecollection`, or the wildcard verb `*`.
+- A wildcard **resource** (`*`) with only read verbs is OK; a wildcard **verb**
+  is always a FAIL.
+
+### Running the gate
+
+```bash
+# Single ServiceAccount
+make mcp-rbac-audit SA=kube-mcp NS=mcp-servers
+
+# With explicit context
+make mcp-rbac-audit SA=kube-mcp NS=mcp-servers CTX=<org>-workloads-dev-nv
+
+# Direct invocation
+python3 scripts/mcp_rbac_audit.py \
+  --serviceaccount kube-mcp \
+  --namespace mcp-servers \
+  --context <org>-workloads-dev-nv
+```
+
+### CI integration
+
+The gate runs in CI where cluster credentials exist (IRSA / kubeconfig from
+GitLab CI variables). Add to your pipeline:
+
+```yaml
+rbac-audit:
+  stage: pre-build
+  script:
+    - make mcp-rbac-audit SA=$MCP_SA NS=$MCP_NS CTX=$KUBE_CONTEXT
+  rules:
+    - changes:
+        - agents/*/agent.yaml
+        - infra/terraform/mcp-*/**
+```
+
+### Onboarding a new MCP datasource — checklist
+
+1. **Create the ServiceAccount** with a Role/ClusterRole binding that grants
+   ONLY `get`, `list`, `watch` on the resources the MCP server needs.
+2. **Run the audit gate** and confirm PASS:
+   ```bash
+   make mcp-rbac-audit SA=<new-sa> NS=<ns>
+   ```
+3. **Add the datasource** to the agent's `agent.yaml`:
+   ```yaml
+   datasources:
+     - type: mcp
+       name: <name>
+       url: ${MY_MCP_URL}
+       tools: [<read-only-tools-only>]
+   ```
+4. **The gate MUST pass before the MR is merged.** No exceptions — a mutating
+   SA breaks the read-only invariant that makes zero-code onboarding safe.
+
+### Output example
+
+```
+======================================================================
+MCP ServiceAccount RBAC Audit
+======================================================================
+  ServiceAccount: kube-mcp
+  Namespace:      mcp-servers
+  Parse format:   json
+  Total rules:    5
+----------------------------------------------------------------------
+  [✅ OK  ] Rule 1: pods → [get, list, watch]
+  [✅ OK  ] Rule 2: services → [get, list, watch]
+  [✅ OK  ] Rule 3: events → [get, list, watch]
+  [✅ OK  ] Rule 4: nodes → [get, list, watch]
+  [✅ OK  ] Rule 5: (non-resource) [/healthz, /version] → [get]
+----------------------------------------------------------------------
+
+✅ PASS: All 5 rules are read-only (get/list/watch).
+The ServiceAccount meets the read-only requirement for MCP onboarding.
+======================================================================
+```
+
+### Exit codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | PASS — all permissions are read-only |
+| 1 | FAIL — mutating verbs detected |
+| 2 | ERROR — kubectl not found, SA not found, timeout, etc. |

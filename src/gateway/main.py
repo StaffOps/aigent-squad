@@ -1,4 +1,4 @@
-from otel_helper import setup_telemetry
+from otel_helper import metrics_app, setup_telemetry
 
 # CRITICAL (spec 31 / round-table): setup_telemetry MUST run before any project
 # import that creates tracers/meters at module load (e.g. src.core.metrics).
@@ -7,7 +7,7 @@ setup_telemetry()
 
 import uuid  # noqa: E402
 from contextlib import asynccontextmanager  # noqa: E402
-from typing import Optional  # noqa: E402
+from typing import Any, AsyncGenerator, Optional  # noqa: E402
 
 import redis.asyncio as aioredis  # noqa: E402
 from fastapi import Depends, FastAPI, Header, HTTPException  # noqa: E402
@@ -18,7 +18,7 @@ import uvicorn  # noqa: E402
 from src.core.config import settings  # noqa: E402
 from src.core.rate_limiter import AdmissionGuard, estimate_cost  # noqa: E402
 from src.gateway import __version__  # noqa: E402
-from src.gateway.auth import require_edge_auth  # noqa: E402
+from src.gateway.auth import AuthResult, get_key_agent_map, require_edge_auth  # noqa: E402
 from src.gateway.supervisor_client import (  # noqa: E402
     SupervisorClient,
     SupervisorUnavailableError,
@@ -67,15 +67,55 @@ _agent_names: list[str] = []
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    # G-5: validate GATEWAY_KEY_AGENT_MAP agent names against registry at startup.
+    # Best-effort: warn and skip unknown agents (don't crash the gateway).
+    import logging as _logging
+    _log = _logging.getLogger("aigent_squad.gateway")
+    key_agent_map = get_key_agent_map()
+    if key_agent_map:
+        startup_agents = await _refresh_agents()
+        if startup_agents:
+            for _masked_key, agent_name in key_agent_map.items():
+                if agent_name not in startup_agents:
+                    _log.warning(
+                        "GATEWAY_KEY_AGENT_MAP: agent '%s' not found in registry "
+                        "(available: %s). Key will auth but scoping will be ignored.",
+                        agent_name,
+                        ", ".join(startup_agents),
+                    )
+        else:
+            _log.warning(
+                "GATEWAY_KEY_AGENT_MAP configured but could not fetch agent list from "
+                "supervisor at startup — agent name validation deferred."
+            )
     yield
     await supervisor_client.aclose()
 
 
 app = FastAPI(title="AIgent-squad Gateway", version=__version__, lifespan=lifespan)
 
+# Prometheus scrape endpoint (otel-helper v0.2.0+): mounted on the app's own
+# port rather than otel-helper's standalone listener, since that listener
+# can't bind under multi-worker servers — set OTEL_METRICS_EXPORTER=
+# otlp,prometheus and OTEL_HELPER_METRICS_PORT=0 to run both the existing
+# OTLP push (traces/logs/metrics via the collector) AND this direct-scrape
+# endpoint on the SAME MeterProvider. Unauthenticated by design, matching
+# the /healthz, /ready convention below — metrics carry no user data.
+#
+# Known Starlette Mount quirk (verified live, not a bug here): a bare GET
+# /metrics (no trailing slash) 307-redirects to /metrics/ — this is
+# Mount's own default routing behavior for the exact mount path, and
+# disabling it (redirect_slashes=False) makes /metrics 404 instead
+# (Mount then ONLY answers /metrics/), which is worse. Real scrapers
+# (Prometheus's Go http.Client, curl -L) follow 307 transparently, method
+# preserved — harmless. The ServiceMonitor template targets /metrics/
+# directly (trailing slash) to skip the hop in the one place it's
+# actually worth avoiding.
+app.mount("/metrics", metrics_app())
 
-class QueryRequest(BaseModel):
+
+class QueryRequest(BaseModel):  # type: ignore[misc]
     user_input: str
     user_id: str
     session_id: str
@@ -91,7 +131,7 @@ def _retry_after() -> int:
     return max(1, base) + random.randint(0, 3)  # nosec B311 - jitter, not crypto
 
 
-def _busy_response(subtype: str, detail: str):
+def _busy_response(subtype: str, detail: str) -> JSONResponse:
     """503 with a subtype the caller can act on (round-table decision)."""
     return JSONResponse(
         status_code=503,
@@ -100,7 +140,7 @@ def _busy_response(subtype: str, detail: str):
     )
 
 
-async def _check_admission(user_id: str, max_tokens: int = 4096):
+async def _check_admission(user_id: str, max_tokens: int = 4096) -> Optional[JSONResponse]:
     """Global rate + budget admission (spec 31 L3). Fail-open.
 
     Returns ``None`` when admitted, or a ready-to-return JSONResponse (429 rate /
@@ -131,8 +171,8 @@ async def _check_admission(user_id: str, max_tokens: int = 4096):
     return None
 
 
-@app.post("/query", dependencies=[Depends(require_edge_auth)])
-async def query(request: QueryRequest):
+@app.post("/query", dependencies=[Depends(require_edge_auth)])  # type: ignore[untyped-decorator]
+async def query(request: QueryRequest) -> Any:
     """Native entrypoint — admission control, then forward to the supervisor."""
     denied = await _check_admission(request.user_id)
     if denied is not None:
@@ -144,7 +184,7 @@ async def query(request: QueryRequest):
 
     job_id = str(uuid.uuid4())
 
-    async def _one_shot():
+    async def _one_shot() -> Any:
         result = await supervisor_client.process(
             user_input=request.user_input,
             user_id=request.user_id,
@@ -168,18 +208,25 @@ async def query(request: QueryRequest):
     return result
 
 
-@app.get("/v1/models", dependencies=[Depends(require_edge_auth)])
-async def openai_list_models():
+@app.get("/v1/models", dependencies=[Depends(require_edge_auth)])  # type: ignore[untyped-decorator]
+async def openai_list_models() -> Any:
     names = _agent_names or await _refresh_agents()
     return list_models(names).model_dump()
 
 
-@app.post("/v1/chat/completions", dependencies=[Depends(require_edge_auth)])
+@app.post("/v1/chat/completions")  # type: ignore[untyped-decorator]
 async def openai_chat_completions(
     request: ChatCompletionRequest,
+    auth: AuthResult = Depends(require_edge_auth),
     x_session_id: str = Header(default=""),
-):
-    """OpenAI Chat Completions → admission → supervisor (shaping reused, spec 29)."""
+) -> Any:
+    """OpenAI Chat Completions → admission → supervisor (shaping reused, spec 29).
+
+    Agent resolution priority (G-5):
+      (a) Explicit forced model (aigent-squad-<agent>) → honor it always.
+      (b) Auto-route model + consumer has mapped default agent → use that.
+      (c) Else → normal classifier auto-route (None).
+    """
     names = _agent_names or await _refresh_agents()
     try:
         force_agent = resolve_target(request.model, names)
@@ -188,6 +235,10 @@ async def openai_chat_completions(
             status_code=404,
             content={"error": {"type": "invalid_request_error", "message": str(exc)}},
         )
+
+    # G-5: apply consumer default agent when model is auto-route (force_agent is None)
+    if force_agent is None and auth and auth.consumer_default_agent:
+        force_agent = auth.consumer_default_agent
 
     user_id = request.user or "librechat"
     denied = await _check_admission(user_id, max_tokens=request.max_tokens or 4096)
@@ -202,7 +253,62 @@ async def openai_chat_completions(
     session_id = x_session_id or f"openai-{user_id}"
     job_id = str(uuid.uuid4())
 
-    async def _one_shot():
+    # --- Phase 3.5 FIX: check request.stream BEFORE any LLM call ---
+    # A streaming request makes exactly ONE agentic invocation (process_stream).
+    # Only on failure does it fall back to non-streaming process() + pseudo-stream.
+    # This prevents the double-invocation that was 2x-ing token cost + latency.
+    if request.stream:
+        try:
+            resp = await supervisor_client.process_stream(
+                user_input=user_input,
+                user_id=user_id,
+                session_id=session_id,
+                force_agent=force_agent,
+            )
+
+            async def _proxy_sse() -> Any:
+                """Proxy supervisor SSE body verbatim to the client.
+
+                The supervisor already emits properly-framed SSE (data: ...\n\n).
+                We forward raw bytes as-is to preserve valid SSE framing.
+                """
+                try:
+                    async for chunk in resp.aiter_bytes():
+                        yield chunk
+                finally:
+                    await resp.aclose()
+
+            return StreamingResponse(
+                _proxy_sse(),
+                media_type="text/event-stream",
+                headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+            )
+        except (SupervisorUnavailableError, Exception):
+            # Streaming endpoint unavailable — fall back to non-streaming
+            # process() + pseudo-stream (single invocation fallback).
+            pass
+
+        # Fallback: non-streaming call + pseudo-stream to the client
+        try:
+            fallback_result = await supervisor_client.process(
+                user_input=user_input,
+                user_id=user_id,
+                session_id=session_id,
+                force_agent=force_agent,
+            )
+        except SupervisorUnavailableError:
+            return _busy_response("backend_unavailable", "supervisor backend unavailable")
+        except Exception as exc:
+            return _forward_error(exc)
+
+        return StreamingResponse(
+            sse_stream(fallback_result, request.model),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        )
+
+    # --- Non-streaming path: existing _one_shot + worker-pool logic unchanged ---
+    async def _one_shot() -> Any:
         yield await supervisor_client.process(
             user_input=user_input,
             user_id=user_id,
@@ -222,17 +328,11 @@ async def openai_chat_completions(
     except Exception as exc:
         return _forward_error(exc)
 
-    if request.stream:
-        return StreamingResponse(
-            sse_stream(result, request.model),
-            media_type="text/event-stream",
-            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
-        )
-    return build_completion(result, request.model).model_dump()
+    return build_completion(result if isinstance(result, dict) else {}, request.model).model_dump()
 
 
-@app.post("/jobs/{job_id}/cancel", status_code=202, dependencies=[Depends(require_edge_auth)])
-async def cancel_job(job_id: str):
+@app.post("/jobs/{job_id}/cancel", status_code=202, dependencies=[Depends(require_edge_auth)])  # type: ignore[untyped-decorator]
+async def cancel_job(job_id: str) -> Any:
     """Signal cancellation; the worker stops within ~one poll interval."""
     cancelled = await worker_pool.cancel(job_id)
     if not cancelled:
@@ -240,21 +340,21 @@ async def cancel_job(job_id: str):
     return {"job_id": job_id, "status": "cancelling"}
 
 
-@app.get("/healthz")
-async def healthz():
+@app.get("/healthz")  # type: ignore[untyped-decorator]
+async def healthz() -> dict[str, str]:
     """Liveness — never checks external deps."""
     return {"status": "ok", "service": "gateway"}
 
 
-@app.get("/ready")
-async def ready():
+@app.get("/ready")  # type: ignore[untyped-decorator]
+async def ready() -> Any:
     """Readiness — Redis reachable + pool functional.
 
     Intentionally does NOT check the supervisor (round-table): coupling would
     turn a supervisor outage into a gateway-removed-from-LB cascade. Supervisor
     availability is handled per-request via preflight → 503.
     """
-    checks = {"pool": {"ok": worker_pool.has_capacity() or worker_pool.active_count >= 0}}
+    checks: dict[str, dict[str, bool | str]] = {"pool": {"ok": worker_pool.has_capacity() or worker_pool.active_count >= 0}}
     redis_ok = True
     if _redis is not None:
         try:
@@ -269,8 +369,8 @@ async def ready():
     return JSONResponse(status_code=200, content={"status": "ready", "checks": checks})
 
 
-@app.get("/health", include_in_schema=False)
-async def health_legacy():
+@app.get("/health", include_in_schema=False)  # type: ignore[untyped-decorator]
+async def health_legacy() -> dict[str, str]:
     return {"status": "ok", "service": "gateway"}
 
 
@@ -287,7 +387,7 @@ async def _refresh_agents() -> list[str]:
     return _agent_names
 
 
-def _forward_error(exc: Exception):
+def _forward_error(exc: Exception) -> JSONResponse:
     """Map a forwarded supervisor error to an HTTP response.
 
     A 403 from the supervisor is the guardrail (spec 14) — surface it as-is.

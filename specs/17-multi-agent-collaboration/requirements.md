@@ -1,41 +1,50 @@
+---
+spec: 17-multi-agent-collaboration
+status: done-with-deferrals
+completed: null
+superseded_by: null
+depends_on: []
+deferred: ["T11 formal smoke"]
+---
+
 # Feature: Multi-Agent Collaboration
 
 **Spec**: `17-multi-agent-collaboration`
-**Severidade**: 🟢 Feature (capability nova, não correção)
-**Origem**: `../ANALYSIS.md` → "Comportamentos novos" (agent-as-tools + execução paralela)
-**Depende de**: `06-resilience-patterns` (async-first — sem ela o fan-out serializa), `09-otel-instrumentation` (trace pra enxergar o grafo de chamadas)
+**Severity**: 🟢 Feature (new capability, not a fix)
+**Origin**: `../ANALYSIS.md` → "New behaviors" (agent-as-tools + parallel execution)
+**Depends on**: `06-resilience-patterns` (async-first — without it the fan-out serializes), `09-otel-instrumentation` (trace to visualize the call graph)
 
-Hoje o sistema é **hub-and-spoke**: o classifier escolhe **exatamente 1** agente por query e queries cross-domain caem em `"unknown"`. Esta spec adiciona colaboração: o supervisor pode acionar **N agentes em paralelo** quando a query toca múltiplos domínios e **sintetizar** uma resposta única; e um agente pode pedir dado a outro (**agent-as-tools**) quando precisa de contexto fora do seu domínio.
+Today the system is **hub-and-spoke**: the classifier picks **exactly 1** agent per query and cross-domain queries fall into `"unknown"`. This spec adds collaboration: the supervisor can invoke **N agents in parallel** when the query touches multiple domains and **synthesize** a single response; and an agent can request data from another (**agent-as-tools**) when it needs context outside its domain.
 
 ## User Stories
 
-WHEN a query do usuário toca múltiplos domínios (ex: "por que meu custo AWS subiu após o último deploy no k8s?") THEN o classifier SHALL retornar uma lista ordenada de agentes relevantes (1..N), não um único.
+WHEN a user query touches multiple domains (e.g., "why did my AWS cost go up after the last k8s deploy?") THEN the classifier SHALL return an ordered list of relevant agents (1..N), not a single one.
 
-WHEN o classifier seleciona N≥2 agentes THEN o supervisor SHALL chamá-los **em paralelo** (não sequencial) e sintetizar as respostas em uma única resposta coerente.
+WHEN the classifier selects N≥2 agents THEN the supervisor SHALL call them **in parallel** (not sequentially) and synthesize the responses into a single coherent answer.
 
-WHEN N=1 THEN o comportamento SHALL ser idêntico ao atual (sem overhead de síntese).
+WHEN N=1 THEN behavior SHALL be identical to the current flow (no synthesis overhead).
 
-WHEN um agente precisa de dado de outro domínio para responder THEN ele SHALL poder requisitar esse dado a outro agente via uma chamada de ferramenta controlada (agent-as-tools), com profundidade máxima de 1 salto.
+WHEN an agent needs data from another domain to answer THEN it SHALL be able to request that data from another agent via a controlled tool call (agent-as-tools), with a maximum depth of 1 hop.
 
-WHEN a síntese é feita THEN o supervisor SHALL preservar atribuição (qual agente disse o quê) e a política read-only.
+WHEN synthesis is performed THEN the supervisor SHALL preserve attribution (which agent said what) and the read-only policy.
 
-WHEN qualquer agente no fan-out falha ou estoura timeout THEN o supervisor SHALL sintetizar com as respostas disponíveis e sinalizar a degradação (não falhar a query inteira).
+WHEN any agent in the fan-out fails or times out THEN the supervisor SHALL synthesize with the available responses and signal the degradation (not fail the entire query).
 
 ## Acceptance Criteria
 
-- [ ] Classifier retorna `agents: [{agent, confidence, reasoning}]` ordenado por relevância (contrato novo, retrocompatível com `selected_agent`).
-- [ ] Supervisor executa fan-out **concorrente** (`asyncio.gather`) para N≥2 agentes; tempo total ≈ max(latência dos agentes), não soma.
-- [ ] Etapa de síntese: 1 chamada Bedrock que recebe as N respostas + a query e produz a resposta final com atribuição.
-- [ ] N=1 não dispara síntese (fast-path inalterado).
-- [ ] Agent-as-tools: um agente pode chamar **≤1** outro agente; recursão/ciclo bloqueado por `hop` header (max depth = 1).
-- [ ] Fan-out tolera falha parcial: 1 agente caído → resposta sai com os demais + nota de degradação.
-- [ ] Limite duro: máximo de agentes paralelos por query configurável (default 3) — proteção de custo.
-- [ ] Trace único atravessa supervisor → N agentes → síntese (propagação de contexto — depende da spec 09).
-- [ ] Testes (autor ≠ test-author, ≥90%): classifier multi-agente, fan-out paralelo, síntese, falha parcial, bloqueio de ciclo, fast-path N=1.
+- [ ] Classifier returns `agents: [{agent, confidence, reasoning}]` ordered by relevance (new contract, backward-compatible with `selected_agent`).
+- [ ] Supervisor executes **concurrent** fan-out (`asyncio.gather`) for N≥2 agents; total time ≈ max(agent latencies), not the sum.
+- [ ] Synthesis step: 1 Bedrock call that receives the N responses + the query and produces the final response with attribution.
+- [ ] N=1 does not trigger synthesis (unchanged fast-path).
+- [ ] Agent-as-tools: an agent can call **≤1** other agent; recursion/cycles blocked by `hop` header (max depth = 1).
+- [ ] Fan-out tolerates partial failure: 1 agent down → response goes out with the remaining ones + degradation note.
+- [ ] Hard limit: maximum parallel agents per query configurable (default 3) — cost protection.
+- [ ] Single trace spans supervisor → N agents → synthesis (context propagation — depends on spec 09).
+- [ ] Tests (author ≠ test-author, ≥90%): multi-agent classifier, parallel fan-out, synthesis, partial failure, cycle blocking, fast-path N=1.
 
-## Fora de escopo
+## Out of scope
 
-- Streaming da resposta sintetizada (futuro; `agent_base` já tem `AsyncIterable`).
-- Debate/negociação entre agentes (round-trips múltiplos) — esta spec faz **1 rodada** de fan-out + síntese.
-- Profundidade de agent-as-tools > 1 salto (explicitamente proibida por custo/latência/ciclo).
-- Mudança no isolamento de histórico por agente (spec 02 mantém).
+- Streaming of the synthesized response (future; `agent_base` already has `AsyncIterable`).
+- Debate/negotiation between agents (multiple round-trips) — this spec does **1 round** of fan-out + synthesis.
+- Agent-as-tools depth > 1 hop (explicitly forbidden due to cost/latency/cycles).
+- Change in per-agent history isolation (spec 02 maintains it).

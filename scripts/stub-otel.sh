@@ -4,6 +4,7 @@
 #
 # The stub mirrors the API surface src/ actually uses:
 #   setup_telemetry() · get_tracer().start_as_current_span(...) · get_meter().create_*()
+#   · metrics_app() (mounted at /metrics — otel-helper v0.2.0+)
 #
 # Usage: stub-otel.sh <target-dir>   → writes <target-dir>/otel_helper/__init__.py
 set -euo pipefail
@@ -61,6 +62,21 @@ def get_tracer(*a, **kw):
 
 def get_meter(*a, **kw):
     return _Meter()
+
+
+class _StubMetricsApp:
+    """Minimal ASGI app standing in for otel-helper's real Prometheus
+    /metrics endpoint (v0.2.0+) — enough for `app.mount("/metrics", ...)`
+    to succeed under test, not a real scrape target."""
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            return
+        await send({"type": "http.response.start", "status": 200, "headers": []})
+        await send({"type": "http.response.body", "body": b""})
+
+
+def metrics_app(*a, **kw):
+    return _StubMetricsApp()
 PY
 
 echo "otel_helper stub written to ${TARGET}/otel_helper/"

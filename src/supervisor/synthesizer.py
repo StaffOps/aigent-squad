@@ -66,6 +66,9 @@ Synthesize a single answer for the user."""
                 agent_id="synthesizer",
                 user_id=user_id,
                 session_id=session_id,
+                # G-6: ingress already guarded the user question; this prompt is
+                # our framing + trusted agent outputs — do not re-scan (FP source).
+                skip_input_guardrail=True,
             )
             return response
 

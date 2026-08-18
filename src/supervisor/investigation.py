@@ -1,4 +1,8 @@
 """RCA investigation orchestrator: fan-out evidence collection + synthesis."""
+from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from src.core.generic_agent import GenericAgent
 import asyncio
 import json
 import os
@@ -11,14 +15,15 @@ from src.core.guardrail import GuardrailBlockedError
 from src.core.input_scanner import InputScanner
 from src.core.investigation import (
     Evidence, RCAResult, InvestigationState,
-    build_timeline, correlate,
+    build_timeline, correlate, score_confidence,
+    count_independent, validate_temporal_order,
 )
 from src.core.kb.rag import inject_similar_cases
 from src.core.logger import logger, log_request, log_response
 from src.core.metrics import (
     investigation_started, investigation_completed,
     investigation_duration, investigation_evidence_count,
-    investigation_rounds,
+    investigation_rounds, investigation_fanout_errors,
 )
 
 tracer = get_tracer(__name__)
@@ -57,10 +62,11 @@ RULES:
 
 async def run_investigation(
     symptom: str,
-    agents: dict,  # {name: GenericAgent}
+    agents: dict[str, "GenericAgent"],  # {name: GenericAgent}
     user_id: str = "investigator",
     session_id: str = "",
     relevant_agent_names: list[str] | None = None,
+    model_id_override: str | None = None,
 ) -> RCAResult:
     """Run a single-round RCA investigation.
 
@@ -111,6 +117,7 @@ async def run_investigation(
                 session_id=f"{session_id}-inv-{state.id[:8]}",
                 chat_history=[],
                 budget_session_id=session_id,
+                model_id_override=model_id_override,
             )
             for name in chosen
         ]
@@ -130,8 +137,13 @@ async def run_investigation(
                 logger.warning("Evidence collection failed", extra={
                     "agent": name, "error": str(result)
                 })
+                # FIX 3: emit per-agent error counter for investigation fan-out failures
+                investigation_fanout_errors.add(1, {"agent_id": name})
                 continue
-            evidence_items = _parse_evidence(result.content, source_agent=name)
+            evidence_items = _parse_evidence(
+                result.content,  # type: ignore[union-attr]  # narrowed by isinstance+continue above
+                source_agent=name,
+            )
             state.evidence.extend(evidence_items)
 
         state.rounds_completed = 1
@@ -148,6 +160,9 @@ async def run_investigation(
 
         # Investigation completion metrics
         duration_ms = (time_mod.time() - t0) * 1000
+        # rca.confidence is ALREADY a bounded string (alta|media|baixa) — safe, low-cardinality
+        # label as-is. (The earlier "bucketize float" fix was based on a wrong assumption:
+        # confidence is not a float here. English-normalization is a tracked backlog item.)
         investigation_duration.record(duration_ms, {"confidence": rca.confidence})
         investigation_completed.add(1, {"confidence": rca.confidence})
         investigation_evidence_count.record(len(rca.evidence))
@@ -232,6 +247,9 @@ Produce the RCA JSON."""
         agent_id="rca-synthesizer",
         user_id=user_id,
         session_id=session_id,
+        # G-6: ingress already guarded the user question; this prompt is our
+        # framing + trusted evidence/timeline — do not re-scan (FP source).
+        skip_input_guardrail=True,
     )
 
     # Parse JSON
@@ -248,7 +266,41 @@ Produce the RCA JSON."""
         prevention = []
 
     contradicting = [evidence[i] for i in contradicting_indices if 0 <= i < len(evidence)]
+
+    # T13: LLM confidence as ceiling — the evidence model computes the maximum
+    # achievable confidence; the LLM (via its contradicting_indices) can only lower.
+    confidence_level, confidence_track = score_confidence(evidence)
+    independent_count = count_independent(evidence)
+    temporal_violations = validate_temporal_order(evidence)
+
+    # Legacy correlate for backward-compat metrics (alta/media/baixa)
     confidence = correlate(evidence, contradicting)
+
+    # Ceiling enforcement: if the LLM identified contradictions that lower
+    # confidence below the model's ceiling, the lower value wins.
+    # Map: alta=HIGH, media=MEDIUM, baixa=LOW
+    _LEVEL_RANK = {"baixa": 0, "media": 1, "alta": 2}
+    _MODEL_RANK = {"LOW": 0, "MEDIUM": 1, "HIGH": 2}
+    _RANK_TO_LEGACY = {0: "baixa", 1: "media", 2: "alta"}
+
+    model_rank = _MODEL_RANK.get(confidence_level, 0)
+    llm_rank = _LEVEL_RANK.get(confidence, 0)
+
+    # Ceiling: cap LLM at model level (LLM can lower, never raise)
+    effective_rank = min(model_rank, llm_rank)
+    confidence = _RANK_TO_LEGACY[effective_rank]
+
+    if effective_rank < llm_rank:
+        logger.info(
+            "confidence_ceiling_applied",
+            extra={
+                "event": "confidence_ceiling",
+                "model_level": confidence_level,
+                "llm_level": _RANK_TO_LEGACY[llm_rank],
+                "effective": confidence,
+                "track": confidence_track,
+            },
+        )
 
     return RCAResult(
         hypothesis=hypothesis,
@@ -257,4 +309,8 @@ Produce the RCA JSON."""
         timeline=timeline,
         contradicting=contradicting,
         prevention=prevention,
+        confidence_level=confidence_level,
+        confidence_track=confidence_track,
+        independent_signal_count=independent_count,
+        temporal_violations=temporal_violations,
     )

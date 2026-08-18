@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 # Test harness — spec 23 / spec 07.
-# Build: docker build --secret id=github_token,env=GH_TOKEN -f Dockerfile.test -t aigent-test .
+# Build: docker build -f Dockerfile.test -t aigent-test .
 # Run:   docker run --rm \
 #          -e REDIS_HOST=localhost \
 #          -e SERVICE_NAME=test \
@@ -14,11 +14,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /
 WORKDIR /app
 
 COPY requirements.txt .
-RUN --mount=type=secret,id=github_token \
-    git config --global credential.helper store \
-    && printf "https://x-access-token:%s@github.com\n" "$(cat /run/secrets/github_token)" > ~/.git-credentials \
-    && pip install --no-cache-dir -r requirements.txt \
-    && rm -f ~/.git-credentials
+# otel-helper went public 2026-07-14 (BACKLOG B-28) — no token/SSH needed; plain pip install.
+RUN pip install --no-cache-dir -r requirements.txt
 RUN pip install --no-cache-dir pytest pytest-asyncio pytest-cov ruff
 
 COPY src/ ./src/

@@ -10,27 +10,28 @@
 > - `[helm-charts]` — `github.com:StaffOps/helm-charts`, chart `charts/aigent-squad`
 > - `[k8s-setup]` — `gitlab.com:.../k8s-setup`, `staffops/` (helmfile + values)
 >
-> **Two tooling gaps this runbook works around, honestly, not silently**:
-> the spec-32 automated status-gate script (`scripts/specs_status.py`) and
-> `specs/README.md`'s verification pipeline don't exist yet (specs 32/33 are
-> themselves unfinished, even though spec 34 formally depends on them) — Phase
-> 0's status check is manual until that script ships. `steering/
-> version-management.md` (a "global steering" file referenced by
-> `steering/project.md`) also isn't present in this repo or found anywhere on
-> this machine — the operative local rule is `steering/milestone-criteria.md`
-> + the bump-gate tracked in `specs/ROADMAP.md`'s "Suggested real version"
-> line. Both gaps are BACKLOG items, not blockers for this runbook (design.md:
-> "any CI gap found in T4 is a BACKLOG item, not scope").
+> **Tooling note (updated 2026-07-17)**: spec 32 shipped, so Phase 0's status
+> check is now automated — `make specs-status` (`scripts/specs_status.py`)
+> validates the `specs/ROADMAP.md` canonical table against every spec's
+> frontmatter, and the verification pipeline lives in `specs/README.md`. Spec 33
+> (operational review) is still unstarted, so Phase 6's review step stays
+> not-yet-active. `steering/version-management.md` (a "global steering" file
+> referenced by `steering/project.md`) isn't present in this repo — the operative
+> local rule is `steering/milestone-criteria.md` + the bump-gate tracked in
+> `specs/ROADMAP.md`'s "Suggested real version" line. That remaining gap is a
+> BACKLOG item, not a blocker for this runbook (design.md: "any CI gap found in
+> T4 is a BACKLOG item, not scope").
 
 ---
 
 ## Phase 0 — Pre-flight `[app]`
 
 1. **CI green on `dev`**: `gh run list --branch dev -L 5` — all `completed success`.
-2. **Spec status sanity** (manual — no `scripts/specs_status.py` yet): read
-   `specs/ROADMAP.md`'s status table; confirm no spec claims "✅ done" while its
-   own `tasks.md` still has unchecked boxes that aren't explicitly noted as
-   deferred. Confirm `HANDOFF.md`'s most recent entries match `git log`.
+2. **Spec status gate**: `make specs-status` — `scripts/specs_status.py`
+   validates the `specs/ROADMAP.md` canonical table against every spec's
+   frontmatter and fails on any drift (unknown status, a `done` carrying
+   deferrals, a `deferred:` item missing from `specs/BACKLOG.md`). Confirm
+   `HANDOFF.md`'s most recent entries match `git log`.
 3. **`CHANGES.md` `[Unreleased]` accurate**: read the section top-to-bottom;
    every entry must correspond to something actually shipped and reachable
    from `dev`. Stale/superseded entries get folded or removed before the cut,
@@ -73,7 +74,7 @@
 2. `git tag vX.Y.Z && git push origin vX.Y.Z`
 3. `release.yml` fires: single-arch build → **Trivy gate** (CRITICAL/HIGH,
    `.trivyignore` exceptions) → multi-arch (`linux/amd64,linux/arm64`) build +
-   push to Docker Hub (`karlipegomes/aigent-squad:X.Y.Z` + `:latest`) → SBOM →
+   push to GHCR (`ghcr.io/staffops/aigent-squad:X.Y.Z` + `:latest`) → SBOM →
    GitHub Release (auto-generated notes).
 4. **Verify the published image actually contains this milestone's code** —
    this is the 0.2.0 lesson (the `0.2.0` tag was published WITHOUT the
@@ -81,8 +82,8 @@
    commit landed). Pull the tagged image and grep for a marker unique to this
    cycle's work, e.g.:
    ```
-   docker pull karlipegomes/aigent-squad:X.Y.Z
-   docker run --rm karlipegomes/aigent-squad:X.Y.Z python3 -c \
+   docker pull ghcr.io/staffops/aigent-squad:X.Y.Z
+   docker run --rm ghcr.io/staffops/aigent-squad:X.Y.Z python3 -c \
      "import src.core.response_quality; print('groundedness OK' if hasattr(src.core.response_quality, 'ungrounded_numeric_claims') else 'MISSING')"
    ```
    (swap the marker per release — pick something from this cycle's actual diff.)
@@ -95,8 +96,8 @@
 > --versions`) before assuming a bump is required.
 >
 > **Standing gap, not yet fixed (see BACKLOG)**: `charts/aigent-squad/
-> values.yaml`'s `image.repository` still points at a personal Docker Hub
-> account (`karlipegomes/aigent-squad`), from the pre-org-migration era —
+> values.yaml`'s `image.repository` was migrated to GHCR (2026-08-17). Historical note: previously Docker Hub
+> GHCR (`ghcr.io/staffops/aigent-squad`) — migrated from Docker Hub —
 > the "neutralize this" TODO from the 0.3.0 cycle was never actually done.
 > Not blocking a release (the value still works), but check whether THIS
 > cycle is the one to finally fix it before assuming it's someone else's problem.
@@ -141,10 +142,12 @@
 ## Phase 5 — Rollout `[k8s-setup]`
 
 1. `cd staffops && helmfile -e default -l name=aigent-squad diff` — **if this
-   errors** (as of 2026-07-15 it does: `helm-diff` 3.10.0 plugin incompatible
-   with the installed Helm v4.2.3 CLI, `--validate`/`--dry-run` flag
-   conflict — separate unresolved tooling issue), fall back to `helmfile
-   build`. Be precise about what that fallback actually proves: `helmfile
+   errors** with a `--validate`/`--dry-run` flag-group conflict, your local
+   `helm-diff` plugin predates Helm v4 support: `helm plugin update diff`
+   (fixed locally 2026-07-15 this way, upstream added v4 support in
+   `helm-diff` 3.15.10 — see `specs/BACKLOG.md` B-26). If updating the
+   plugin isn't possible right now, fall back to `helmfile build`. Be
+   precise about what that fallback actually proves: `helmfile
    build` only confirms the CURRENTLY COMMITTED values render without a
    syntax error — it does NOT by itself prove there's no delta from what's
    ACTUALLY DEPLOYED. To get that second guarantee, diff the rendered output
@@ -166,10 +169,10 @@
    ```
    Every pod's digest must match the digest pushed in Phase 2 (or Phase 2's
    Harbor-mirror equivalent, if `[k8s-setup]` still points at Harbor rather
-   than the now-public Docker Hub tag — reconcile this discrepancy the first
+   than the GHCR tag — reconcile this discrepancy the first
    time Phase 3/4 actually get executed for real; as of 2026-07-15 the
    cluster still pulls from Harbor `labs/aigent-squad`, a separate,
-   private, manually-pushed image, NOT the Docker Hub tag Phase 2 publishes.
+   private, manually-pushed image, NOT the GHCR tag Phase 2 publishes.
    Until Phase 3/4 are executed for real, Phase 5 in practice means: rebuild
    + push the SAME image content to Harbor's `0.3.0-dev` tag, then
    `kubectl rollout restart` to force a re-pull — no helmfile/chart
@@ -186,7 +189,7 @@ IAT=$(aws secretsmanager get-secret-value --secret-id STAFFOPS_AIGENT_SQUAD \
   python3 -c "import json,sys; print(json.load(sys.stdin)['internal-api-token'])")
 ```
 
-1. **Health**: `curl -s https://aigent-squad.bdc.app.br/ready` → `{"status":"ready",...}`.
+1. **Health**: `curl -s https://aigent-squad.<org>.app.br/ready` → `{"status":"ready",...}`.
 2. **Real query per critical agent** — at minimum `aws` (e.g. "How many EC2
    instances are running?") and one other agent touched by this cycle's
    changes; confirm `agent` field in the response matches expectation and
@@ -225,9 +228,9 @@ IAT=$(aws secretsmanager get-secret-value --secret-id STAFFOPS_AIGENT_SQUAD \
    version + the honest next bump gate.
 4. **`specs/<NN>/tasks.md`** for every spec that shipped this cycle: confirm
    `[x]` + completion dates are accurate (not just "some things checked").
-5. **`HANDOFF.md` overwrite** (spec 32 rule, once spec 32 ships — until then,
-   HANDOFF stays append-only; note here as a known future change, don't
-   pretend the rule is active yet).
+5. **`HANDOFF.md` overwrite** (spec 32 rule, now active): overwrite `HANDOFF.md`
+   with the current session + next steps only, moving the prior content to
+   `archive/handoffs/YYYY-MM-DD.md`.
 6. **Run the operational review** (spec 33, once it ships — same
    not-yet-active note as above).
 
@@ -301,7 +304,7 @@ mapped onto a phase above — zero orphans found:
 | Real homologation queries (EC2/S3/IAM counts, cost trend) | Phase 6.2 |
 | Gateway timeout bump (15→30s) found live | Phase 6 finding → Phase 0 pre-flight next cycle (config gaps found during homologation feed back into the NEXT release's pre-flight, not silently forgotten) |
 | "Commit-time TODO" list: publish chart, revert local-path override, revert pullPolicy, **revoke 2 PATs** | Phase 3 (publish+revert), Phase 4 (pullPolicy), Phase 7.1 (PAT revocation) |
-| "neutralize `gateway.image.repository`" (same TODO list) | **Corrected 2026-07-15 (T6 review finding F1)**: this is `[helm-charts]`'s `charts/aigent-squad/values.yaml` `image.repository: karlipegomes/aigent-squad` (Phase 3, NOT Phase 4/`[k8s-setup]` — the overlay has its own separate `repository`/`pullPolicy` fields, a different concern). Still unedited as of 2026-07-15 (confirmed live on `helm-charts` `main`) — **never actually done**, and wasn't tracked anywhere until this dry-run surfaced it; added to `specs/BACKLOG.md` same day rather than left as a RELEASE.md-only mention |
+| "neutralize `gateway.image.repository`" (same TODO list) | **Corrected 2026-07-15 (T6 review finding F1)**: this is `[helm-charts]`'s `charts/aigent-squad/values.yaml` `image.repository: ghcr.io/staffops/aigent-squad (migrated 2026-08-17)` (Phase 3, NOT Phase 4/`[k8s-setup]` — the overlay has its own separate `repository`/`pullPolicy` fields, a different concern). Still unedited as of 2026-07-15 (confirmed live on `helm-charts` `main`) — **never actually done**, and wasn't tracked anywhere until this dry-run surfaced it; added to `specs/BACKLOG.md` same day rather than left as a RELEASE.md-only mention |
 | Tag mismatch (chart appVersion=0.3.0 vs real image 0.3.0-dev) found + fixed via overlay pin | Invariants (coherence rule) + Phase 4.2 |
 | 4 security findings (A/B/C/D) found during homologation, deferred | Phase 6.3 (negative-probe homologation is exactly what surfaces this class) + tracked in the spec, not lost |
 | Two local commits "NOT pushed yet, awaiting approval" | Phase 0/1 (pre-flight literally starts with "is `dev` even pushed" — this runbook assumes yes; if not, that's a step before Phase 0, added implicitly by "CI green on dev" requiring a push to have happened) |

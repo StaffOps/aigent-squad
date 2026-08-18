@@ -1,5 +1,6 @@
 """Agent-as-tools: an agent can request data from another agent (1 hop max)."""
 import contextvars
+from typing import Any
 
 # Tracks call depth per async context
 _call_depth: contextvars.ContextVar[int] = contextvars.ContextVar("agent_call_depth", default=0)
@@ -12,7 +13,7 @@ class AgentToolError(Exception):
 class AgentTools:
     """Helper that lets a GenericAgent call other agents (depth=1 max)."""
 
-    def __init__(self, supervisor):
+    def __init__(self, supervisor: Any) -> None:
         self._supervisor = supervisor
 
     async def ask(self, agent_name: str, query: str, user_id: str = "agent-tool", session_id: str = "agent-tool") -> str:
@@ -29,6 +30,7 @@ class AgentTools:
             result = await target.process_request(
                 input_text=query, user_id=user_id, session_id=session_id, chat_history=[]
             )
-            return result.content
+            content: str = result.content
+            return content
         finally:
             _call_depth.reset(token)

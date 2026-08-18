@@ -68,6 +68,12 @@ and by model.
 |--------|------|--------|-------------|
 | `aigent.tokens.total` | Counter | `agent_id`, `model`, `direction` | Tokens consumed (input and output tracked separately) |
 | `aigent.cost.estimated` | Counter | `agent_id`, `model` | Estimated USD cost from Bedrock pricing |
+| `aigent.tier.routing_decisions` | Counter | `tier` | Spec 38 tier-routing decisions (fast/standard/deep) — tier distribution / Opus invocation ratio (3 series) |
+| `aigent.tool.call_duration` | Histogram | `tool_name`, `status` | Per-MCP-tool latency + success/error/timeout (tool_name bounded by read-only allowlist) |
+| `aigent.guardrail.blocks` | Counter | `source`, `agent_id` | Guardrail blocks/redactions by source — safety signal |
+| `aigent.bedrock.throttles` | Counter | `model` | Bedrock throttling (429) — provider saturation |
+| `aigent.context.trimmed_messages` | Counter | `agent_id` | Spec 40 context-trim events (context pressure) |
+| `aigent.tier.classifier_confidence` | Histogram | `tier` | Classifier confidence at tier routing (low = misroute risk) |
 
 The `direction` label (`input` / `output`) is important: output tokens are
 approximately 5x more expensive than input tokens on Claude models.
@@ -210,6 +216,8 @@ recently.
 |--------|------|--------|-------------|
 | `aigent.quality.violations` | Counter | `agent_id`, `category` | Structural quality defects blocked in a response — tool-scaffolding leaks (`tool_scaffolding`), raw adapter/infra error text (`raw_adapter_error`, `raw_traceback`, `raw_botocore_exception`, `raw_boto3_error_string`, `raw_taskgroup_exception`), or an ungrounded resource ID (`ungrounded_resource_id` — groundedness dimension, PR-05, 2026-07-15). The F-001/F-002/F-003 defect classes as a metric. |
 | `aigent.quality.ungrounded_numeric_claims` | Counter | `agent_id` | A dollar-amount claim with no match in `infra_data` — signal only, never blocking (a derived sum/average legitimately won't always appear verbatim). Groundedness dimension, PR-05. |
+| `aigent.quality.confidence` | Counter | `level` | Structured confidence from the groundedness scan (spec 41): `high` (0 ungrounded numeric claims), `medium` (1–2), `low` (≥3) — counted on **distinct** claims. One increment per assessed response; 3 series. Requires `response_quality_enabled`. |
+| `aigent.quality.unverified_claims_per_response` | Histogram | `agent_id` | **Distinct** ungrounded numeric claims per response (deduped, capped at 20). Spec 41 — the counter says *how bad*, this says *how many*. Resource IDs never reach here (they block earlier). Default SDK buckets; explicit boundaries would require a View in the `otel_helper` provider. |
 | `aigent.eval.score` | Histogram | `suite`, `agent_id` | Per-question/scenario score (0-1). `suite="golden"` from `make eval`'s golden-set + LLM-judge run (mechanical checks are the floor — a failure zeroes the score regardless of judge opinion). `suite="rca"` from `make eval-rca`'s fixture-fed scenarios (spec 35 Phase 3, mechanical-only, no judge); `agent_id` holds the scenario id for this suite, not an agent name. |
 
 ## Health and readiness (spec 07)

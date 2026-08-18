@@ -1,78 +1,78 @@
 # Design: Bedrock Cost & Model Tiering
 
-## Arquitetura
+## Architecture
 
-Camada fina sobre o `bedrock.py` (já async pela spec 06): escolhe modelo por papel, liga caching, aplica budget.
+Thin layer over `bedrock.py` (already async from spec 06): chooses model by role, enables caching, applies budget.
 
 ```
-papel (classifier|agent|synthesis) ─▶ model_tier (config 19/22) ─▶ modelo Bedrock
-system prompt grande ─▶ cache_control: ephemeral ─▶ ~90% desconto no input repetido
-sessão ─▶ token budget (hard cap) ─▶ corta antes de explodir
+role (classifier|agent|synthesis) ─▶ model_tier (config 19/22) ─▶ Bedrock model
+large system prompt ─▶ cache_control: ephemeral ─▶ ~90% discount on repeated input
+session ─▶ token budget (hard cap) ─▶ cuts before exploding
 ```
 
-## Componentes
+## Components
 
-| Componente | Responsabilidade | Onde |
-|-----------|------------------|------|
-| Model resolver | papel → modelo (do config) | `src/core/bedrock.py` |
-| Prompt cache | `cache_control: ephemeral` no system block | `src/core/bedrock.py` |
-| Token budget | hard cap por sessão + truncamento por tokens | `src/core/bedrock.py` / classifier |
-| Cost emit | métrica input/output por agente+modelo | `src/core/bedrock.py` (hook p/ spec 10) |
+| Component | Responsibility | Where |
+|-----------|----------------|-------|
+| Model resolver | role → model (from config) | `src/core/bedrock.py` |
+| Prompt cache | `cache_control: ephemeral` in system block | `src/core/bedrock.py` |
+| Token budget | hard cap per session + truncation by tokens | `src/core/bedrock.py` / classifier |
+| Cost emit | metric input/output per agent+model | `src/core/bedrock.py` (hook for spec 10) |
 
-## Custo (ordem de grandeza, @200 queries/dia — do `ANALYSIS.md`)
+## Cost (order of magnitude, @200 queries/day — from `ANALYSIS.md`)
 
-| Item | Atual | Com esta spec |
-|------|-------|---------------|
-| Classifier (Sonnet→Haiku) | ~$24/mês | ~$2/mês |
-| System prompt sem caching | ~$103/mês desperdiçado | ~$10/mês |
-| **Efeito combinado** | — | **~$207→~$99/mês** |
+| Item | Current | With this spec |
+|------|---------|----------------|
+| Classifier (Sonnet→Haiku) | ~$24/mo | ~$2/mo |
+| System prompt without caching | ~$103/mo wasted | ~$10/mo |
+| **Combined effect** | — | **~$207→~$99/mo** |
 
-## Decisões e trade-offs
+## Decisions and trade-offs
 
-### Decisão 1: Model tiering por camada (Haiku / Sonnet / Opus)
+### Decision 1: Model tiering per layer (Haiku / Sonnet / Opus)
 
-**Escolha**: cada camada do sistema usa o modelo mais custo-eficiente para sua complexidade.
+**Choice**: each system layer uses the most cost-effective model for its complexity.
 
-**Tabela de tiering (config-driven, não hardcoded):**
+**Tiering table (config-driven, not hardcoded):**
 
-| Camada | Modelo | Justificativa | Custo/chamada |
-|--------|--------|---------------|---------------|
-| Classifier (roteamento) | **Haiku** | Classificação simples (qual agente?). 1/13 do custo, menos latência. | ~$0.001 |
-| Agentes coletores (evidência) | **Sonnet** | Query direcionada a datasource, raciocínio moderado. | ~$0.02 |
-| Synthesizer Nível 1–2 (correlação) | **Sonnet** | Correlação com ≤5 rodadas de evidência. Suficiente. | ~$0.05 |
-| Synthesizer Nível 3–4 (correlação complexa) | **Opus** | Correlação multi-rodada (10–25 rounds), raciocínio causal profundo. | ~$0.50 |
-| Destilação extractor (draft KB) | **Sonnet** | Extrair fatos estruturados de investigação. Volume alto, qualidade OK. | ~$0.03 |
-| Destilação enricher (refine KB) | **Opus** | Generalizar, encontrar padrões não-óbvios, escrever pra reuso futuro. Qualidade > velocidade. | ~$0.24 |
+| Layer | Model | Justification | Cost/call |
+|-------|-------|---------------|-----------|
+| Classifier (routing) | **Haiku** | Simple classification (which agent?). 1/13 the cost, less latency. | ~$0.001 |
+| Collector agents (evidence) | **Sonnet** | Directed datasource query, moderate reasoning. | ~$0.02 |
+| Synthesizer Level 1–2 (correlation) | **Sonnet** | Correlation with ≤5 evidence rounds. Sufficient. | ~$0.05 |
+| Synthesizer Level 3–4 (complex correlation) | **Opus** | Multi-round correlation (10–25 rounds), deep causal reasoning. | ~$0.50 |
+| Distillation extractor (draft KB) | **Sonnet** | Extract structured facts from investigation. High volume, OK quality. | ~$0.03 |
+| Distillation enricher (refine KB) | **Opus** | Generalize, find non-obvious patterns, write for future reuse. Quality > speed. | ~$0.24 |
 
-**Promotion triggers entre modelos:**
-- Synthesizer Sonnet→Opus: RCA com confiança 'baixa' em >40% dos casos Nível 3+.
-- Enricher Opus→Sonnet (demotion): Opus não adiciona valor mensurável em >60% das destilações (output ≈ input do Sonnet).
+**Promotion triggers between models:**
+- Synthesizer Sonnet→Opus: RCA with 'low' confidence in >40% of Level 3+ cases.
+- Enricher Opus→Sonnet (demotion): Opus doesn't add measurable value in >60% of distillations (output ≈ Sonnet input).
 
-**Trade-off**: Haiku pode errar roteamento em query muito ambígua → mitigado pelo fallback do classifier (spec 06) e pelo fan-out multi-agente (spec 17) que cobre vários domínios.
-**Quando reabrir**: se medições mostrarem queda de acurácia de roteamento com Haiku > limiar aceitável.
+**Trade-off**: Haiku may misroute on very ambiguous queries → mitigated by classifier fallback (spec 06) and multi-agent fan-out (spec 17) covering multiple domains.
+**When to reopen**: if measurements show routing accuracy drop with Haiku > acceptable threshold.
 
-### Decisão 2: Reabilitar prompt caching
-**Escolha**: ligar `cache_control: ephemeral` no system block (estava comentado "por compatibilidade").
-**Justificativa**: o system prompt (~6400 tokens) é idêntico entre chamadas; caching dá ~90% de desconto no input cacheado dentro da janela. O motivo "compatibilidade" precisa ser investigado — o Bedrock suporta desde 2024.
-**Trade-off**: validar suporte no modelo escolhido no startup; se indisponível, degradar (sem cache) sem quebrar.
+### Decision 2: Re-enable prompt caching
+**Choice**: enable `cache_control: ephemeral` in system block (was commented "for compatibility").
+**Justification**: the system prompt (~6400 tokens) is identical across calls; caching gives ~90% discount on cached input within the window. The "compatibility" reason needs investigation — Bedrock has supported it since 2024.
+**Trade-off**: validate support on the chosen model at startup; if unavailable, degrade (no cache) without breaking.
 
-## Invariantes
-- Modelo por papel vem do **config** (specs 19/22), nunca hardcoded.
-- Budget de sessão é **hard cap** (corta, não adverte).
-- Caching indisponível → degradar sem quebrar.
+## Invariants
+- Model per role comes from **config** (specs 19/22), never hardcoded.
+- Session budget is a **hard cap** (cuts, doesn't merely warn).
+- Caching unavailable → degrade without breaking.
 
-## Dependências externas
-| Serviço | Uso |
-|---------|-----|
-| Bedrock | Haiku (classifier) + Sonnet (agente/síntese) + prompt caching |
+## External dependencies
+| Service | Usage |
+|---------|-------|
+| Bedrock | Haiku (classifier) + Sonnet (agent/synthesis) + prompt caching |
 
-## Verificação
+## Verification
 ```bash
 docker run --rm -v "$PWD:/app" -w /app python:3.11-slim sh -c \
   "pip install -q -r requirements.txt -r requirements-dev.txt && pytest tests/ -v --cov=src --cov-fail-under=90"
 ```
-Testes (Bedrock mockado): classifier usa Haiku / agente usa Sonnet; `cache_control` presente no body; budget excedido corta; histórico truncado por tokens.
+Tests (mocked Bedrock): classifier uses Haiku / agent uses Sonnet; `cache_control` present in body; exceeded budget cuts; history truncated by tokens.
 
-## Riscos
-- Haiku degrada roteamento → fallback (06) + fan-out (17) cobrem; medir acurácia.
-- Caching "incompatível" (motivo do comentário original) → validar no startup, degradar se preciso.
+## Risks
+- Haiku degrades routing → fallback (06) + fan-out (17) cover; measure accuracy.
+- Caching "incompatible" (reason for the original comment) → validate at startup, degrade if needed.

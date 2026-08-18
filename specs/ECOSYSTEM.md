@@ -1,5 +1,9 @@
 # StaffOps Ecosystem — Integration and Reuse
 
+> **Status: frozen (2026-06-02)** — historical integration/reuse analysis. NOT current
+> state: live status is in each spec's frontmatter + `ROADMAP.md`. Kept as-is per the
+> spec-process convention (`specs/README.md`).
+
 **Date**: 2026-06-02
 **Scope**: analysis of `staffops-chaitops`, `staffops-anomaly-detection` and
 `01-DEVOPS/LABS/anomaly-detection` for reuse/integration into AIgent-squad.

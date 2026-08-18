@@ -1,5 +1,10 @@
 # Cross-Domain Analysis — AIgent-squad
 
+> **Status: frozen (2026-06-02)** — historical cross-domain deliberation that seeded
+> specs 06–31. NOT current state: per-spec status lives in each spec's `requirements.md`
+> frontmatter and the canonical table in `ROADMAP.md`. Kept as-is (not retranslated,
+> not maintained) per the spec-process convention (`specs/README.md`).
+
 **Date**: 2026-06-02
 **Branch**: `dev`
 **Method**: 8 specialists (dev, security, observability, aws, finops, gitops, sre,
@@ -187,7 +192,7 @@ app fallback + distinguish transient from permanent errors.
   `.github/workflows/`. **Nothing builds the images the `05-helm-chart` spec
   assumes exist.** It's the missing link between code and deploy.
 - **F4 — Dockerfiles**: single-stage, `python:3.12-alpine` (should be
-  `3.11-slim`), no multi-arch (BDC runs Graviton/arm64), no `USER`.
+  `3.11-slim`), no multi-arch (<ORG> runs Graviton/arm64), no `USER`.
 - **F3 — each image contains the whole `src/`** (all 5 agents) — surface + size.
 - **F5 — `.gitignore` ignores `.dockerignore`** (inverted logic) → the build
   context ships the whole repo.

@@ -8,10 +8,16 @@ Multi-agent AI platform for AWS/Kubernetes operations: **edge gateway + supervis
 (1 process, 6 in-process specialists) + MCP server**. Config-driven, Bedrock-direct,
 read-only by default, defense-in-depth anti-prompt-injection (spec 14).
 
-> **Status**: `0.3.0` released and cluster-validated (devops-core, 2026-07) — gateway +
-> supervisor end-to-end with IRSA→Bedrock, Guardrail, DynamoDB. Specs 11 (model tiering),
-> 14 (security L1–L6), and 35 (quality eval harness) shipped; re-homologated in-cluster
-> 2026-07-15 (image digest `e94a901`). Work on branch `dev`. Never push to `main`.
+> **Status**: `0.4.0` released 2026-07-15 (tag `v0.4.0`, GitHub Release, image
+> `ghcr.io/staffops/aigent-squad:0.4.0` on GHCR — spec 34's `RELEASE.md` executed for
+> real, Phases 0-2). Specs 11 (model tiering), 14 (security L1–L6, all findings closed),
+> 35 (quality eval harness, complete), and 36 (dev loop) shipped. The devops-core cluster
+> runs `0.5.0-dev-205fb21` from Harbor (cluster deploy 2026-08-18). Registry migrated to GHCR;
+> B-25 closed. CI publishes to `ghcr.io/staffops/aigent-squad` on merge to `main`.
+> **dev branch (2026-08-17)**: mypy strict, spec 45 (supply-chain) closed, registry → GHCR,
+> spec 43 Phase 1 (capability gate), spec 25 Phases 1-3 (distributed concurrency).
+> 139 commits ahead of `main`. Next release: when user decides to cut.
+> through a PR (see `RELEASE.md` for the release flow specifically).
 > Real status per spec in `specs/ROADMAP.md`; session state in `HANDOFF.md`.
 > `specs/AUDIT.md` is the historical 2026-05-30 audit (findings fixed — kept as record).
 
@@ -24,7 +30,7 @@ User (LibreChat /v1 · HTTP /query · Alertmanager · MCP :8006)
          │
          ▼
   Gateway :8000 (public front door — spec 31)
-  ├── Edge auth (INTERNAL_API_TOKEN / GATEWAY_API_KEYS, fail-closed)
+  ├── Edge auth (INTERNAL_API_TOKEN / GATEWAY_API_KEYS / Authorization: Bearer, fail-closed; per-consumer GATEWAY_KEY_AGENT_MAP scope)
   ├── AdmissionGuard: per-user rate + global daily budget (Redis, fail-open)
   ├── WorkerPool backpressure (semaphore 20, 503 + Retry-After)
   └── OpenAI /v1 shaping (spec 29) · /jobs/{id}/cancel
@@ -35,7 +41,7 @@ User (LibreChat /v1 · HTTP /query · Alertmanager · MCP :8006)
   ├── Classifier (Bedrock Haiku) → routes to 1–3 agents
   ├── Fan-out (parallel) → synthesizer merges N responses
   ├── RCA investigation → agents collect evidence in parallel
-  ├── Bedrock Guardrail (input+output, fail-closed 403) + canary + output filter
+  ├── Guardrail: ingress INPUT + agentic tool-args + tool-result + OUTPUT (fail-closed 403) + canary + guardContent input-tagging
   └── DynamoDB (history, 24h TTL, per-agent isolated)
          │
   ┌──────┴──────────────────────────────┐
@@ -57,7 +63,10 @@ User (LibreChat /v1 · HTTP /query · Alertmanager · MCP :8006)
 4. **Model tiering from config, never hardcoded** (spec 11) — `src/core/model_tier.py`
    resolves role→model: `BEDROCK_CLASSIFIER_MODEL_ID` (Haiku) / `BEDROCK_MODEL_ID`
    (agents) / `BEDROCK_SYNTHESIS_MODEL_ID`; misconfig fails loudly at startup
-5. **Read-only posture** — 4 layers: system prompt + IAM deny + K8s RBAC + response templates
+5. **Read-only posture** — system prompt + IAM deny + K8s RBAC + response templates; for
+   **agentic tool-calling (spec 37)** it holds via a positive fail-closed tool **allowlist** +
+   the MCP server's own ServiceAccount RBAC + guardrail on tool args+results (proven by the MCP
+   SA-RBAC audit gate, `scripts/mcp_rbac_audit.py`)
 6. **Fail-open for availability, fail-closed for security** — Redis/DynamoDB loss =
    service continues (empty history/cache miss); rate/budget guards fail-open. BUT
    security layers (Guardrail, InputScanner, output filter — spec 14) are
@@ -76,6 +85,15 @@ User (LibreChat /v1 · HTTP /query · Alertmanager · MCP :8006)
 10. **Two-tier trust boundary** — supervisor `/internal/*` accepts only the gateway
     (`SUPERVISOR_INTERNAL_TOKEN`, distinct secret, + NetworkPolicy); public routes
     live exclusively on the gateway
+11. **Agentic tool-calling is config-only** (spec 37) — the LLM selects read-only tools+args via
+    the Bedrock **Converse** loop (`src/core/agentic_loop.py`, bounded steps/tokens/time); a new
+    MCP server = URL + read-only allowlist, **zero code**. The gateway accepts any model id
+    (unknown → auto-route) and streams the loop's steps (🔧 tool call / 📦 result).
+12. **Calibrated honesty + accuracy discipline** — agents separate verified (tool-backed) facts from
+    inferred ones, never fabricate an unretrieved value/state, and end with a confidence + unverified
+    list (`<calibrated_honesty>`, all agents); observability DISCOVERS metric names/labels before
+    querying (canonical OTel names, `service`/`job` not `app`). Regression-guarded by the eval harness
+    (`scripts/eval_squad.py` + `evals/golden_queries.yaml`). Loop budgets: 8 steps / 60s / 150K tokens.
 
 ---
 
@@ -90,6 +108,9 @@ make smoke       # health + 1 real query + /v1/models
 make test        # full suite + 90% gate via Docker (auto-stubs the private otel dep)
 make test-one FILE=tests/test_x.py
 make lint        # ruff, CI-verbatim scope
+make typecheck   # mypy gate; CI blocks the test job on it (needs: [lint, typecheck])
+make harness-score  # AI-agent harness maturity gate (L0-L4); floor = MIN_LEVEL (default 1)
+make pin-check   # fail if any GitHub Action is not pinned to a 40-hex commit SHA (spec 45)
 make down        # stop (V=1 drops volumes)
 
 # Build image
@@ -125,7 +146,7 @@ curl -X POST http://localhost:8000/query \
 | Symptom | Cause | Fix |
 |---------|-------|-----|
 | `403` on any query | Fail-closed security (spec 14): guardrail block, InputScanner, or `GUARDRAIL_ENABLED=true` with no `GUARDRAIL_ID` | Local compose defaults guardrail OFF — check env overrides; prod: this is working as designed |
-| `401` on `/query` or `/v1/*` | Edge token mismatch | Header `X-Internal-Token` must equal `INTERNAL_API_TOKEN` (NOT `SUPERVISOR_INTERNAL_TOKEN` — that's the gateway→supervisor link only) |
+| `401` on `/query` or `/v1/*` | Edge token mismatch | `X-Internal-Token` (or `X-API-Key` / `Authorization: Bearer`) must match `INTERNAL_API_TOKEN` or a `GATEWAY_API_KEYS` entry (NOT `SUPERVISOR_INTERNAL_TOKEN` — that's the gateway→supervisor link only) |
 | `503 backend_unavailable` | Supervisor down/unreachable | `docker compose logs supervisor` — usual cause: invalid `agent.yaml` (Pydantic fails at startup) |
 | `503 service_overloaded` | WorkerPool full (backpressure) | Self-healing; persistent → raise `GATEWAY_MAX_CONCURRENT` |
 | Empty history / no context | DynamoDB fail-open (by design) | Check `dynamodb-local` health; the query still answers |
@@ -240,6 +261,18 @@ No code changes needed — `AgentRegistry` auto-discovers at startup.
 | `SUPERVISOR_INTERNAL_TOKEN` | ✅ | — | Gateway→supervisor `/internal/*` link (distinct secret, fail-closed) |
 | `GUARDRAIL_ENABLED` | | `true` | Spec-14 Bedrock Guardrail (fail-closed; needs `GUARDRAIL_ID`) |
 | `GUARDRAIL_ID` / `GUARDRAIL_VERSION` | when enabled | — / `DRAFT` | From `infra/terraform/guardrail/` outputs |
+| `AIGENT_TRACE_STYLE` | | `think` | Streaming tool-trace wrapper: `think` (collapsible in LibreChat/Open WebUI) / `details` / `plain` / `off` |
+| `SESSION_TOKEN_BUDGET` | | `2000000` | Per-session cumulative token cap (spec 11); raised from 200K for agentic loop cost (~30-60K/query) |
+| `AIGENT_MAX_LOOP_DURATION_MS` / `AIGENT_MAX_LOOP_TOKENS` | | `120000` / `300000` | Agentic loop wall-clock + cumulative-token budgets (deep analyses; context accumulates across turns) |
+| `AIGENT_CONTEXT_TRIM_ENABLED` / `AIGENT_CONTEXT_KEEP_LAST_N` | | `true` / `5` | Spec 40 context-trimming: keep last N tool-result turns verbatim, summarize older (bounds per-turn context) |
+| `AIGENT_TIER_ROUTING_ENABLED` / `AIGENT_TIER_DEEP_ENABLED` | | `true` / `false` (code); `true` in overlay | Spec 38 model-tier pre-routing. `deep`=Opus 4.5, ENABLED via overlay + live-validated (agentic28). **Tier routing wired into ALL paths** (auto-route, fan-out, force_agent, investigation, alertmanager — was inert before agentic28). |
+| `AIGENT_TIER_CONFIDENCE_HIGH` / `BEDROCK_TIER_{FAST,STANDARD,DEEP}_MODEL_ID` | | `0.85` / haiku-4.5, sonnet-4.5, **opus-4.5** | Downshift threshold + tier→model map (spec 38); deep = `us.anthropic.claude-opus-4-5-20251101-v1:0` (Opus 4.0 profile no longer exists in-account) |
+| `BEDROCK_READ_TIMEOUT_SECONDS` | | `120` | boto3 Bedrock read timeout (default 60s cut slow Converse → stream "terminated") |
+| `GATEWAY_JOB/FIRST_BYTE/IDLE_STREAM_TIMEOUT_SECONDS` | | `150`/`140`/`35` | Gateway stream timeouts; first-byte raised 90→140 (agentic28) for Opus deep-tier + non-streaming multi-agent/investigation first-byte ≈ loop completion (~100s); must exceed the loop budget + Bedrock read timeout |
+| `SELF_SERVICE_INSTRUCTION` / `CALIBRATED_HONESTY_INSTRUCTION` / `DECISIVENESS_INSTRUCTION` | | baked default | Env-overridable shared system-prompt instructions (no rebuild to tune) |
+| `GRAFANA_BASE_URL` | | (empty) | Grafana root URL injected into agent context for clickable DevOps dashboard links; empty default keeps the repo scrub-clean, real value set in the k8s-setup overlay |
+
+> **Deploy gotcha:** set numeric envs via `helm --set-string` — plain `--set` renders large ints as `2e+06` → pydantic int-parse crash on startup.
 | `INPUT_SCANNER_ENABLED` / `OUTPUT_FILTER_ENABLED` / `CANARY_ENABLED` | | `true` | Spec-14 L2/L4/L5 toggles |
 | `RATE_BUDGET_ENABLED` | | `true` | Gateway admission guards (rate + daily budget) |
 | `GATEWAY_MAX_CONCURRENT` | | `20` | WorkerPool size (+ `GATEWAY_*_TIMEOUT_SECONDS`) |
@@ -298,20 +331,11 @@ in `docs/METRICS.md`.
 
 ## Phase status
 
-| Phase | Description | Status |
-|-------|-------------|--------|
-| 0 | Stabilization (fix blockers, unify architecture, harden security) | ✅ Complete |
-| 1 | Quality + docs (tests ~93% w/ 90% gate, cost metrics, MkDocs site, CI/CD) | ✅ Complete |
-| 2 | Deploy (Helm chart 0.9.x, EKS/IRSA, gateway two-tier) | ✅ Cluster-validated (devops-core, 2026-07; `0.3.0`) |
-| 2.5 | Hardening (spec 14 L1–L6, spec 11 tiering, budget TOCTOU) | ✅ Shipped; all findings (A/B/C/D/E1/E2/F/F-005) CLOSED |
-| 3+ | Features (Slack v2, multi-round RCA, distributed topology, RAG bench) | ⏳ Next — see `specs/ROADMAP.md` |
-
-Current work: spec 14 and spec 35 (quality eval harness) are both fully
-shipped and cluster-homologated (devops-core, `0.3.0-dev`, digest `e94a901`,
-2026-07-15). `0.4.0` is not gated on anything technical — it stays uncut
-because the team is deliberately accumulating more improvements first (see
-`HANDOFF.md` for the live session state). Next real item: spec 18 Phase 1.5
-(EVIDENCE-MODEL correlator).
+Phase/spec status is **not duplicated here**. Authoritative per-spec status lives in
+each spec's `requirements.md` frontmatter and the single canonical table in
+[`specs/ROADMAP.md`](specs/ROADMAP.md) (CI-validated by `scripts/specs_status.py`).
+Live session state + next steps: `HANDOFF.md`. Live items (findings/backlog/deferred):
+[`specs/BACKLOG.md`](specs/BACKLOG.md).
 
 ---
 
@@ -336,7 +360,13 @@ because the team is deliberately accumulating more improvements first (see
 
 ## Workflow rules
 
-- **Spec-driven**: update `specs/<NN>/design.md` BEFORE implementing
+> **Spec process** — lifecycle, status frontmatter (the SSOT), full-spec vs `bugfix.md`
+> tiers, the verification-independence pipeline, the mandatory security-review rule, and
+> numbering + language conventions — is defined once in
+> [`specs/README.md`](specs/README.md). Don't restate it here. The bullets below are the
+> repo's dev conventions.
+
+- **Spec-driven**: update the spec's `design.md` BEFORE implementing (process: `specs/README.md`)
 - **Tests ship with code**: ≥90% coverage, Docker-measured, independent author
 - **Metrics ship with code**: new feature = new `aigent.*` metric in `metrics.py` + `docs/METRICS.md`
 - **Docs ship with code**: update relevant `docs/` files in the same change.
@@ -345,6 +375,26 @@ because the team is deliberately accumulating more improvements first (see
   agent's `agent.yaml`/`prompt.md` without a docs/spec file in the same
   commit (bypass per-commit: `git commit --no-verify`)
 - **Mark tasks**: update `tasks.md` with completion dates; explicitly defer unfinished items
+- **Typecheck gate**: `make typecheck` must pass. CI blocks the test job on it
+  (`needs: [lint, typecheck]`), so a type error stops the pipeline before tests run.
+  Fix types rather than silencing them — a `# type: ignore[code]` is acceptable only for a
+  missing third-party stub or something the type system genuinely cannot express, and it
+  MUST carry a comment saying which. Do NOT add `[[tool.mypy.overrides]]` per-module
+  exclusions to make the count drop; that converts a gate into decoration. Note the gate is
+  not full `strict` — `warn_return_any` is on and ~184 missing-annotation errors remain
+  outside the enabled checks, which is registered debt, not a clean bill of health.
+- **Order-independence gate**: `make test` runs `pytest-randomly` with an **unpinned** seed,
+  so every run re-proves the suite does not depend on collection order. Never pin the seed to
+  make a red run green — a failure means real shared state leaked. The usual culprits are
+  `app.dependency_overrides` (a plain dict on the app object; clear it in an autouse
+  teardown) and module-level state parsed at import (read the env fresh instead — see F-016).
+- **Harness gate**: `make harness-score` must pass at the `MIN_LEVEL` floor set in the
+  Makefile (currently **L1**); CI enforces it (`harness_score` job). Raise the floor
+  ONLY after the score genuinely clears the next level — never to turn a red CI green.
+  **Never satisfy a check with a file no tool actually reads** (nested `CLAUDE.md`,
+  an unused `.mcp.json`, a `[tool.ruff]` block shadowed by `ruff.toml`, a
+  `.pre-commit-config.yaml` that conflicts with `.githooks/`): a scanner point bought
+  that way is a lie about the harness. Recipe: `.claude/skills/harness-score/`.
 - **Conventional commits**: `feat/fix/docs/test/refactor/chore(scope): description`
 - **Stage explicitly**: `git add <specific files>` — never `git add .`
 - **Cost discipline**: truncate adapter output before prompt, lazy-inject skills, cap history to N messages
@@ -355,8 +405,11 @@ because the team is deliberately accumulating more improvements first (see
 
 | Need to... | Go to |
 |------------|-------|
-| Understand real state / blockers | `specs/AUDIT.md` |
+| Understand real state / blockers | historical audit (frozen): `specs/AUDIT.md`; **current** per-spec status: `specs/ROADMAP.md` canonical table + spec frontmatter |
+| How the spec process works (lifecycle, status, tiers, review) | `specs/README.md` |
 | See phased plan | `specs/ROADMAP.md` |
+| Live items (findings `F-*`, product `B-*`, decisions `D-*`, deferred, dormant) | `specs/BACKLOG.md` |
+| Long-term vision (maturity levels) | `specs/VISION.md` |
 | Work a feature | `specs/<NN-feature>/requirements.md` + `design.md` + `tasks.md` |
 | Add a new agent | `docs/HOW-TO-NEW-AGENT.md` |
 | Architecture overview | `docs/ARCHITECTURE.md` |

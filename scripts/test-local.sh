@@ -38,7 +38,7 @@ docker run --rm -v "$(pwd):/app" -w /app \
   -e OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317 -e AWS_REGION=us-east-1 \
   "${IMG}" sh -c "
     pip install --quiet -r ${REQ} && \
-    pip install --quiet pytest pytest-asyncio pytest-cov 'fakeredis[lua]>=2.36,<3' 'respx>=0.22,<0.23' opentelemetry-api && \
+    pip install --quiet pytest pytest-asyncio pytest-cov pytest-randomly 'fakeredis[lua]>=2.36,<3' 'respx>=0.22,<0.23' opentelemetry-api && \
     ${PYTEST_CMD}
   " || RC=$?
 

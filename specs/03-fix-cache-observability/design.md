@@ -2,28 +2,28 @@
 
 ## Cache (C1, C2)
 
-### Princípio
-Separar **dois tipos de cache** que hoje estão misturados:
+### Principle
+Separate **two types of cache** that are currently mixed:
 
-| Tipo | Exemplo | Chave | Por quê |
-|------|---------|-------|---------|
-| Dados de infra | inventory, aws_costs, cluster_state, metrics | por-recurso (`"inventory"`, `"aws_costs"`) | caro, independe do usuário — **manter** |
-| Resposta do LLM | `query:{hash}` | por-query | conversacional, depende de history/usuário — **remover** |
+| Type | Example | Key | Why |
+|------|---------|-----|-----|
+| Infra data | inventory, aws_costs, cluster_state, metrics | per-resource (`"inventory"`, `"aws_costs"`) | expensive, user-independent — **keep** |
+| LLM response | `query:{hash}` | per-query | conversational, depends on history/user — **remove** |
 
-### Decisão
-Remover o cache da resposta do `bedrock.invoke` nos agentes. O ganho de custo real está em não re-coletar inventory/costs a cada chamada (esses já têm cache próprio e continuam). A resposta do LLM por query causa bugs de contexto (C2) e economiza pouco.
+### Decision
+Remove the `bedrock.invoke` response cache from agents. The real cost savings comes from not re-collecting inventory/costs on every call (those already have their own cache and continue). LLM response-per-query cache causes context bugs (C2) and saves little.
 
-Se no futuro fizer sentido cachear resposta, a key deve ser:
+If in the future response caching makes sense, the key should be:
 ```python
 import hashlib
 raw = f"{user_id}:{session_id}:{input_text}:{history_digest}"
 key = f"query:{hashlib.sha256(raw.encode()).hexdigest()}"
 ```
 
-### Cache de dados (mantido) — key determinística
-Onde houver hash, trocar `hash()` por `hashlib.sha256(...).hexdigest()`.
+### Data cache (kept) — deterministic key
+Where hash is used, replace `hash()` with `hashlib.sha256(...).hexdigest()`.
 
-## Observabilidade (O1–O4)
+## Observability (O1–O4)
 
 ### logger.py — refactor
 
@@ -41,15 +41,15 @@ exporter = OTLPSpanExporter() if otlp_endpoint else ConsoleSpanExporter()
 trace.get_tracer_provider().add_span_processor(BatchSpanProcessor(exporter))
 ```
 
-### JSONFormatter — capturar extras
+### JSONFormatter — capture extras
 
-`logging` injeta as chaves de `extra=` como atributos do `record`. Capturar o que não é padrão:
+`logging` injects `extra=` keys as `record` attributes. Capture what's not standard:
 
 ```python
 _STD = set(logging.makeLogRecord({}).__dict__.keys()) | {"message", "asctime"}
 
 def format(self, record):
-    log_data = { ...campos base... }
+    log_data = { ...base fields... }
     for k, v in record.__dict__.items():
         if k not in _STD and not k.startswith("_"):
             log_data[k] = v
@@ -61,7 +61,7 @@ def format(self, record):
 `self.prometheus_url = os.getenv("PROMETHEUS_URL", "http://prometheus.monitoring.svc.cluster.local:9090")`.
 
 ### compose
-Adicionar por serviço:
+Add per service:
 ```yaml
 environment:
   - SERVICE_NAME=aws-agent          # (k8s-agent, finops-agent, ...)
@@ -69,19 +69,19 @@ environment:
 ```
 
 ## datetime (D5)
-`datetime.utcnow()` → `datetime.now(timezone.utc)`. Os `.isoformat()` continuam válidos (passa a incluir offset; aceitável).
+`datetime.utcnow()` → `datetime.now(timezone.utc)`. The `.isoformat()` calls remain valid (will now include offset; acceptable).
 
-## Invariantes
-- Cache de dados de infra preservado (TTLs inalterados).
-- Sem OTLP endpoint, comportamento de dev (console) preservado.
-- Formato de timestamp permanece ISO 8601.
+## Invariants
+- Infra data cache preserved (TTLs unchanged).
+- Without OTLP endpoint, dev behavior (console) preserved.
+- Timestamp format remains ISO 8601.
 
-## Dependências externas
-- OTLP Collector (opcional, via env). Já existe `opentelemetry-exporter-otlp` no `requirements.txt`.
+## External dependencies
+- OTLP Collector (optional, via env). `opentelemetry-exporter-otlp` already in `requirements.txt`.
 
-## Verificação
+## Verification
 ```bash
 docker run --rm -v $(pwd):/app -w /app python:3.11-slim \
   sh -c "pip install -q -r requirements.txt pytest && pytest tests/test_cache.py tests/test_logger.py -v"
 ```
-Alinha com `observability-principles.md` (App SDK → Collector) e `12-factor-app.md` (config via env).
+Aligns with `observability-principles.md` (App SDK → Collector) and `12-factor-app.md` (config via env).

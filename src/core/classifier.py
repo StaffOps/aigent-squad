@@ -1,5 +1,5 @@
 import json
-from typing import List, Optional
+from typing import Any, List, Optional
 from dataclasses import dataclass, field
 from src.core.bedrock import bedrock
 from src.core.guardrail import GuardrailBlockedError
@@ -12,6 +12,11 @@ from src.core.logger import logger
 class AgentMatch:
     agent: str
     confidence: float
+    # B-14: focused sub-question for this agent (≤1-2 sentences), emitted by
+    # the classifier in the same Haiku call. Includes time window when the
+    # original question is time-bound. Empty string = not available (fallback
+    # to the raw user question at dispatch).
+    sub_query: str = ""
 
 
 @dataclass
@@ -19,6 +24,7 @@ class ClassifierResult:
     """Result from intent classification — supports N agents."""
     agents: list[AgentMatch] = field(default_factory=list)
     reasoning: Optional[str] = None
+    complexity: str = "standard"  # spec 38: simple|standard|complex
 
     @property
     def selected_agent(self) -> str:
@@ -69,14 +75,27 @@ Analyze the user's input and select one or more agents from:
 **Response Format** (JSON only, no preamble):
 {{
   "agents": [
-    {{"agent": "agent-name", "confidence": 0.95}}
+    {{"agent": "agent-name", "confidence": 0.95, "sub_query": "Focused 1-2 sentence question for this agent"}}
   ],
-  "reasoning": "Brief explanation"
+  "reasoning": "Brief explanation",
+  "complexity": "simple|standard|complex"
 }}
+
+**complexity rules** (model-tier routing — answer BEFORE agents):
+- "simple": single-agent, factual lookup, expected ≤1 tool call, high confidence. Examples: "what's the CPU of pod X?", "list namespaces".
+- "complex": multi-agent fan-out (2+ agents), RCA/investigation, multi-signal correlation, troubleshooting ("why is X slow?", "what caused the outage?"). Root cause analysis and multi-signal investigation are NEVER simple.
+- "standard": everything else (single-agent but non-trivial, moderate confidence, 2+ tool calls likely).
+When in doubt, prefer "standard" over "simple" — under-tiering is safer than over-tiering.
+
+**sub_query rules**:
+- For EACH selected agent, write a focused, self-contained sub-question (1-2 sentences max) that tells the agent exactly what to investigate or answer.
+- If the user's question is time-bound (e.g. "last 1h", "since yesterday", "últimas 2h"), include the time window in the sub_query.
+- If the query is a simple follow-up ("yes", "ok", "more"), leave sub_query as an empty string.
+- The sub_query should be in the SAME language as the user's original question.
 
 If unable to classify, return an empty agents list."""
 
-    def __init__(self, registry):
+    def __init__(self, registry: Any) -> None:
         from src.core.registry import AgentRegistry
         self._registry: AgentRegistry = registry
         self._agent_names = registry.agent_names()
@@ -116,6 +135,11 @@ If unable to classify, return an empty agents list."""
                 role="classifier",  # spec 11: uses Haiku (fast/cheap routing)
                 user_id=user_id,
                 session_id=session_id,
+                # G-6 fix: ingress already guarded the genuine user question;
+                # skip the per-stage INPUT scan that false-positives on the
+                # assembled system_prompt (agent catalog with verbs like
+                # "manage/delete/execute" tripping PROMPT_ATTACK filter).
+                skip_input_guardrail=True,
             )
         except GuardrailBlockedError:
             # Fail-closed: a blocked input must NOT silently fall back to
@@ -129,13 +153,27 @@ If unable to classify, return an empty agents list."""
             result = json.loads(self._extract_json(response))
             agents_raw = result.get("agents", [])
             agents = [
-                AgentMatch(agent=a["agent"], confidence=a.get("confidence", 0.5))
+                AgentMatch(
+                    agent=a["agent"],
+                    confidence=a.get("confidence", 0.5),
+                    sub_query=a.get("sub_query", ""),
+                )
                 for a in agents_raw
                 if a.get("agent") in self._agent_names
             ]
+
+            # Spec 38: extract complexity from LLM response; heuristic fallback
+            # when the field is absent or invalid.
+            raw_complexity = result.get("complexity", "")
+            if raw_complexity in ("simple", "standard", "complex"):
+                complexity = raw_complexity
+            else:
+                complexity = self._heuristic_complexity(agents, user_input)
+
             return ClassifierResult(
                 agents=agents,
-                reasoning=result.get("reasoning")
+                reasoning=result.get("reasoning"),
+                complexity=complexity,
             )
         except (json.JSONDecodeError, KeyError, TypeError):
             # Fallback: try to find agent name in raw response
@@ -143,11 +181,13 @@ If unable to classify, return an empty agents list."""
                 if agent_name in response.lower():
                     return ClassifierResult(
                         agents=[AgentMatch(agent=agent_name, confidence=0.5)],
-                        reasoning="Fallback parsing"
+                        reasoning="Fallback parsing",
+                        complexity="standard",
                     )
             return ClassifierResult(
                 agents=[],
-                reasoning="Failed to parse classifier response"
+                reasoning="Failed to parse classifier response",
+                complexity="standard",
             )
 
     @staticmethod
@@ -218,6 +258,21 @@ If unable to classify, return an empty agents list."""
             agent_info = f" [{msg.agent_id}]" if msg.agent_id else ""
             lines.append(f"{msg.role}{agent_info}: {msg.content}")
         return "\n".join(lines)
+
+    @staticmethod
+    def _heuristic_complexity(agents: list[AgentMatch], user_input: str) -> str:
+        """Fallback complexity heuristic when the LLM omits the field.
+
+        Spec 38:
+          - fan-out ≥2 agents → complex
+          - short, single-agent, factual (≤ ~60 chars, 1 agent) → simple
+          - else → standard
+        """
+        if len(agents) >= 2:
+            return "complex"
+        if len(agents) == 1 and len(user_input) <= 60:
+            return "simple"
+        return "standard"
 
 
 # Will be initialized after registry discovery

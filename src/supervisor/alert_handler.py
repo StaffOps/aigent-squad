@@ -1,6 +1,6 @@
 """Alertmanager webhook handler: parse, dedup, dispatch investigation."""
 import os
-from typing import Optional
+from typing import Any, Optional
 from pydantic import BaseModel, Field
 from src.core.cache import cache
 from src.core.logger import logger
@@ -13,7 +13,7 @@ from src.core.metrics import (
 DEDUP_TTL_SECONDS = int(os.getenv("ALERT_DEDUP_TTL", "3600"))  # 1h default
 
 
-class AlertmanagerAlert(BaseModel):
+class AlertmanagerAlert(BaseModel):  # type: ignore[misc]
     status: str  # firing | resolved
     labels: dict[str, str] = Field(default_factory=dict)
     annotations: dict[str, str] = Field(default_factory=dict)
@@ -23,7 +23,7 @@ class AlertmanagerAlert(BaseModel):
     generatorURL: Optional[str] = None
 
 
-class AlertmanagerPayload(BaseModel):
+class AlertmanagerPayload(BaseModel):  # type: ignore[misc]
     """Alertmanager webhook v2 schema (https://prometheus.io/docs/alerting/latest/configuration/#webhook_config)."""
     version: str = "4"
     groupKey: Optional[str] = None
@@ -65,7 +65,7 @@ def is_duplicate(fingerprint: str) -> bool:
         return False
 
 
-async def handle_alert_payload(payload: AlertmanagerPayload, run_investigation_fn, slack_post_fn) -> dict:
+async def handle_alert_payload(payload: AlertmanagerPayload, run_investigation_fn: Any, slack_post_fn: Any) -> dict[str, Any]:
     """Process Alertmanager payload: dedup, trigger investigation per unique alert, post results.
 
     Returns a summary dict (counts) for the webhook response.

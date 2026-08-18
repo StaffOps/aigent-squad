@@ -1,9 +1,12 @@
 import boto3
-from typing import List, Optional
+from typing import List, Optional, TYPE_CHECKING
 from datetime import datetime, timedelta, timezone
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from src.core.config import settings
 from src.core.logger import logger
+
+if TYPE_CHECKING:
+    from src.core.response_quality import QualityAssessment
 
 
 @dataclass
@@ -13,12 +16,14 @@ class ConversationMessage:
     content: str
     timestamp: str
     agent_id: Optional[str] = None
+    # Spec 41: optional structured quality assessment (not persisted to DynamoDB)
+    quality_assessment: Optional["QualityAssessment"] = field(default=None, repr=False)
 
 
 class ChatStorage:
     """DynamoDB conversation storage with fail-open resilience"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.dynamodb = boto3.resource(
             'dynamodb',
             region_name=settings.aws_region,
@@ -33,7 +38,7 @@ class ChatStorage:
         agent_id: str,
         message: ConversationMessage,
         max_history: int = 20
-    ):
+    ) -> None:
         try:
             pk = f"{user_id}#{session_id}"
             sk = f"{agent_id}#{datetime.now(timezone.utc).isoformat()}"

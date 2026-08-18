@@ -48,8 +48,15 @@ def _fake_submit_factory():
 
 class TestLifespan:
     def test_lifespan_aclose(self):
-        with patch.object(gw, "supervisor_client") as mock_sc:
-            mock_sc.aclose = AsyncMock()
+        """Lifespan shutdown awaits supervisor_client.aclose().
+
+        The whole client is an AsyncMock, not a MagicMock with one async
+        attribute: startup ALSO awaits `list_agents()` when
+        GATEWAY_KEY_AGENT_MAP is configured (parsed fresh per-call since
+        b6094ba; no longer a module-level global). AsyncMock makes it
+        order-independent regardless of env state in the test process.
+        """
+        with patch.object(gw, "supervisor_client", new_callable=AsyncMock) as mock_sc:
             with TestClient(gw.app) as c:
                 resp = c.get("/healthz")
                 assert resp.status_code == 200

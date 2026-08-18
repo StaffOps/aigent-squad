@@ -1,3 +1,12 @@
+---
+spec: 34-release-runbook
+status: done-with-deferrals
+completed: 2026-07-15
+superseded_by: null
+depends_on: ["32-spec-lifecycle-ssot", "33-operational-review-loop"]
+deferred: ["RELEASE.md Phases 3-5 (chart bump / overlay / rollout) — gated on B-25"]
+---
+
 # Feature: Release Runbook (repeatable milestone → tag → chart → cluster path)
 
 **Spec**: `34-release-runbook`

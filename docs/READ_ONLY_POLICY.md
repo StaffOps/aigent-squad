@@ -41,6 +41,22 @@ IAM role attached via IRSA has explicit Deny on all write actions:
 ### 4. Kyverno policies (production)
 K8s RBAC restricts the ServiceAccount to `get`/`list`/`watch` verbs. Kyverno validates no privilege escalation.
 
+## Agentic tool-calling (spec 37)
+
+Agentic tool-calling keeps the 100% read-only invariant via three independent layers: the positive,
+fail-closed **tool allowlist** (only read-only tools are exposed), the MCP server's own **ServiceAccount
+RBAC** (read-only), and the **guardrail** on tool arguments and results. A new MCP server is onboarded
+by config only — its read-only status must be proven by a ServiceAccount audit (the MCP SA-RBAC audit
+gate). `converse()` adds guardContent input-tagging (see SECURITY.md).
+
+**Current wired MCPs + read-only status (2026-07-23):** `vm-mcp` (metrics, query-only) plus `kube-mcp`
+and `kubectl-mcp` (kubernetes) are read-only at BOTH layers — allowlist AND ServiceAccount RBAC
+(kubectl-mcp audited: 0 write perms across 35 resources × 5 verbs, no exec/impersonate/escalate,
+no `can-i * *`). `grafana-mcp` (observability logs/traces/profiles) is read-only at the **allowlist
+layer only** — its Grafana SA token is write-capable, so no mutating tool is exposed (the allowlist is
+the boundary; a Viewer token would add RBAC-level read-only but was declined 2026-07-23). Full
+per-MCP table in `docs/MCP_INTEGRATION.md`.
+
 ## Agent behavior
 
 Agents analyze and recommend. They never execute changes. Correct response pattern:

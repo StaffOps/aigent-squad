@@ -1,21 +1,21 @@
 # Tasks: Fix Cache & Observability
 
-- [x] T1: Trocar `hash()` por `hashlib.sha256` em todo cache de dados que use hash (C1) — done 2026-06-14
-- [x] T2: Remover cache da resposta do LLM nos 5 agentes; manter cache de inventory/costs/cluster_state/metrics (C2) — done 2026-06-14
-- [x] T3: `logger.py` — exporter OTLP condicional a `OTEL_EXPORTER_OTLP_ENDPOINT`, fallback console (O1) — done 2026-06-14 (previously done in otel-helper integration)
-- [x] T4: `logger.py` — `JSONFormatter` captura atributos extra do record (O2) — done 2026-06-14
-- [x] T5: `logger.py` — `service.name` de `SERVICE_NAME` env (O3) — done 2026-06-14 (previously done in otel-helper integration)
+- [x] T1: Replace `hash()` with `hashlib.sha256` in all data cache that uses hash (C1) — done 2026-06-14
+- [x] T2: Remove LLM response cache from all 5 agents; keep inventory/costs/cluster_state/metrics cache (C2) — done 2026-06-14
+- [x] T3: `logger.py` — conditional OTLP exporter based on `OTEL_EXPORTER_OTLP_ENDPOINT`, fallback console (O1) — done 2026-06-14 (previously done in otel-helper integration)
+- [x] T4: `logger.py` — `JSONFormatter` captures extra record attributes (O2) — done 2026-06-14
+- [x] T5: `logger.py` — `service.name` from `SERVICE_NAME` env (O3) — done 2026-06-14 (previously done in otel-helper integration)
 - [x] T6: observability agent — `PROMETHEUS_URL` via env (O4) — done 2026-06-14
-- [x] T7: Adicionar `SERVICE_NAME` + `OTEL_EXPORTER_OTLP_ENDPOINT` por serviço no `docker-compose.yaml` (O3) — done 2026-06-14
-- [x] T8: Substituir `datetime.utcnow()` por `datetime.now(timezone.utc)` (D5) — done 2026-06-14
-- [x] T9: Testes `tests/test_cache.py` (key determinística) e `tests/test_logger.py` (extras no JSON) (depends on: T1,T4) — done 2026-06-14
-- [x] T10: Build + testes via Docker (depends on: T9) — done 2026-06-14
+- [x] T7: Add `SERVICE_NAME` + `OTEL_EXPORTER_OTLP_ENDPOINT` per service in `docker-compose.yaml` (O3) — done 2026-06-14
+- [x] T8: Replace `datetime.utcnow()` with `datetime.now(timezone.utc)` (D5) — done 2026-06-14
+- [x] T9: Tests `tests/test_cache.py` (deterministic key) and `tests/test_logger.py` (extras in JSON) (depends on: T1,T4) — done 2026-06-14
+- [x] T10: Build + tests via Docker (depends on: T9) — done 2026-06-14
 
-## Ordem sugerida
-T1/T2 (cache), T3/T4/T5 (logger) em paralelo; T6/T7/T8; T9 → T10.
+## Suggested order
+T1/T2 (cache), T3/T4/T5 (logger) in parallel; T6/T7/T8; T9 → T10.
 
-## Notas
-- Depende de spec 02 estar feita (agentes unificados) para aplicar de forma consistente. Pode ser feita junto se 02 já estiver em andamento.
+## Notes
+- Depends on spec 02 being done (unified agents) to apply consistently. Can be done together if 02 is already in progress.
 
 ## Status (2026-06-14)
 

@@ -1,62 +1,62 @@
 # Design: Health Probes + Graceful Shutdown
 
-## Arquitetura
+## Architecture
 
-Dois endpoints com semânticas distintas + checagem de dependência cacheada.
+Two endpoints with distinct semantics + cached dependency checks.
 
 ```
-/healthz (liveness)  → 200 se o processo responde. K8s reinicia só em deadlock.
-/ready   (readiness) → checa deps (timeout 2s, cache 5s). 503 se crítica fora →
-                        K8s tira o pod do Service até recuperar.
+/healthz (liveness)  → 200 if the process responds. K8s restarts only on deadlock.
+/ready   (readiness) → checks deps (timeout 2s, cache 5s). 503 if critical dep is down →
+                        K8s removes pod from Service until recovery.
 ```
 
-## Componentes
+## Components
 
-| Componente | Responsabilidade | Onde |
-|-----------|------------------|------|
-| `/healthz`, `/ready` | endpoints por serviço | cada `server.py` |
-| `DependencyChecker` | ping de deps com timeout + cache TTL | `src/core/health.py` (novo) |
-| Lifespan | graceful shutdown (compartilhado c/ 06) | cada `server.py` |
+| Component | Responsibility | Where |
+|-----------|----------------|-------|
+| `/healthz`, `/ready` | endpoints per service | each `server.py` |
+| `DependencyChecker` | ping deps with timeout + cache TTL | `src/core/health.py` (new) |
+| Lifespan | graceful shutdown (shared with 06) | each `server.py` |
 
-Checagem por papel:
+Checks per role:
 
-| Serviço | `/ready` checa |
-|---------|----------------|
-| supervisor | Redis ping · DynamoDB describe-table · ≥1 agente `/healthz` |
-| agentes | Redis ping · credenciais Bedrock válidas (sts:GetCallerIdentity) |
-| mcp-server | supervisor alcançável |
-
-## Decisões e trade-offs
-
-### Decisão 1: Separar liveness de readiness (não um `/health` único)
-**Escolha**: `/healthz` nunca checa dependência; `/ready` checa.
-**Justificativa**: misturar causa reinício em loop — se Redis cai e o `/health` (usado como liveness) falha, o K8s **reinicia** o pod, que sobe e cai de novo (Redis continua fora). Liveness deve refletir só "processo vivo"; readiness reflete "consigo servir". Separar evita restart-storm e ainda tira o pod do LB corretamente.
-**Trade-off**: dois endpoints em vez de um — trivial.
-
-### Decisão 2: Cachear o resultado da checagem (~5s)
-**Escolha**: `/ready` não pinga as deps a cada request de probe; cacheia ~5s.
-**Justificativa**: probes rodam a cada poucos segundos × N réplicas → sem cache, marteladas desnecessárias em Redis/DynamoDB/STS. Cache curto mantém a informação fresca sem custo.
-**Trade-off**: até ~5s de defasagem na detecção — aceitável pro intervalo de probe.
-
-## Invariantes
-- `/healthz` **nunca** depende de serviço externo.
-- `/ready` 503 quando dependência **crítica** está fora (fail-closed para tráfego — o pod sai do LB), mas a app em si segue fail-open para requests (spec 06).
-- Checagem com timeout (2s) — nunca trava a probe.
-
-## Dependências externas
-| Serviço | Uso na checagem |
+| Service | `/ready` checks |
 |---------|-----------------|
+| supervisor | Redis ping · DynamoDB describe-table · ≥1 agent `/healthz` |
+| agents | Redis ping · valid Bedrock credentials (sts:GetCallerIdentity) |
+| mcp-server | supervisor reachable |
+
+## Decisions and trade-offs
+
+### Decision 1: Separate liveness from readiness (not a single `/health`)
+**Choice**: `/healthz` never checks dependencies; `/ready` does.
+**Justification**: mixing causes restart loops — if Redis goes down and `/health` (used as liveness) fails, K8s **restarts** the pod, which comes up and fails again (Redis still down). Liveness should only reflect "process alive"; readiness reflects "can serve". Separating avoids restart-storm and still correctly removes the pod from LB.
+**Trade-off**: two endpoints instead of one — trivial.
+
+### Decision 2: Cache the check result (~5s)
+**Choice**: `/ready` doesn't ping deps on every probe request; caches ~5s.
+**Justification**: probes run every few seconds × N replicas → without cache, unnecessary hammering of Redis/DynamoDB/STS. Short cache keeps the information fresh without cost.
+**Trade-off**: up to ~5s of lag in detecting a failure — acceptable for probe intervals.
+
+## Invariants
+- `/healthz` **never** depends on an external service.
+- `/ready` 503 when a **critical** dependency is down (fail-closed for traffic — the pod leaves the LB), but the app itself stays fail-open for requests (spec 06).
+- Check with timeout (2s) — never hangs the probe.
+
+## External dependencies
+| Service | Usage in check |
+|---------|----------------|
 | Redis | `PING` |
 | DynamoDB | `describe-table` (supervisor) |
-| STS/Bedrock | `GetCallerIdentity` (agentes) |
+| STS/Bedrock | `GetCallerIdentity` (agents) |
 
-## Verificação
+## Verification
 ```bash
 docker run --rm -v "$PWD:/app" -w /app python:3.11-slim sh -c \
   "pip install -q -r requirements.txt -r requirements-dev.txt && pytest tests/ -v --cov=src --cov-fail-under=90"
 ```
-Testes: `/ready` 503 com Redis mockado fora; `/healthz` 200 mesmo com dep fora; segunda chamada usa cache (não repinga).
+Tests: `/ready` 503 with mocked Redis down; `/healthz` 200 even with dep down; second call uses cache (doesn't re-ping).
 
-## Riscos
-- `/ready` lento (deps somadas) → timeout por dep (2s) + paralelizar checagens + cache.
-- Liveness acidentalmente checando dep → revisão garante `/healthz` puro.
+## Risks
+- `/ready` slow (deps summed) → timeout per dep (2s) + parallelize checks + cache.
+- Liveness accidentally checking dep → review ensures `/healthz` is pure.

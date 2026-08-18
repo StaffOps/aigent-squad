@@ -85,17 +85,32 @@ preserving conversation history stored in DynamoDB.
 ## Outbound — agents as MCP clients
 
 An agent can pull read-only context from an **external** MCP server by declaring a
-`type: mcp` datasource in its `agent.yaml`. This follows the adapter pattern from
-ADR-001: the collector calls the allowlisted tools and injects results into the
-prompt — the model never selects tools autonomously.
+`type: mcp` datasource in its `agent.yaml`. As of **spec 37 / ADR-0008 this is agentic**:
+the LLM selects the tool and its arguments via the Bedrock Converse tool-use loop
+(superseding ADR-001's adapter pattern, where fixed tools were pre-called and their results
+injected). Read-only holds via the allowlist + the MCP server's own ServiceAccount RBAC + the
+guardrail (tool args + results).
+
+### Currently wired MCPs (2026-07-23)
+
+| Agent | MCP | Read surface | Read-only enforcement |
+|-------|-----|--------------|-----------------------|
+| observability | `vm-mcp` | VictoriaMetrics (metrics) | query-only + allowlist |
+| observability | `grafana-mcp` | Loki / Tempo / Pyroscope / alerts / incidents / OnCall / Sift (44) | **allowlist only** (Grafana SA token write-capable; no mutating tool exposed) |
+| kubernetes | `k8s-mcp` (kube-mcp) | K8s core read | allowlist + **SA RBAC read-only** |
+| kubernetes | `kubectl-mcp` | helm / rollouts / cert-manager / Istio / Cilium / GitOps / KEDA / Velero / CAPI / KubeVirt / CRDs / cost (157) | allowlist + **SA RBAC read-only (audited: 0 write)** |
+
+`aws`/`devops`/`finops`/`security` have no MCP datasource. **Gotcha:** Bedrock Converse rejects
+duplicate tool names across merged datasources — dedupe the allowlist when binding a 2nd MCP.
 
 ```yaml
 # agents/kubernetes/agent.yaml
 datasources:
   - type: mcp
     name: k8s-mcp
-    url: ${K8S_MCP_URL}                            # e.g. http://k8s-mcp.aigent-squad:8080/sse
-    tools: [list_pods, get_pod_metrics, list_events]  # read-only allowlist
+    url: ${K8S_MCP_URL}                            # e.g. http://kube-mcp.mcp-servers.svc.cluster.local:8080/mcp
+    transport: streamable-http
+    tools: [pods_list, nodes_top, events_list]     # read-only allowlist
     tool_arguments:                                # static args merged into every call
       namespace: devops
 ```
@@ -111,11 +126,18 @@ datasources:
   exploited through this path.
 - **Fail-open at runtime** — a broken server or a failing tool call degrades to an
   `[mcp:tool-name] error: ...` string inserted into the prompt. The agent
-  continues with partial context; it never crashes.
+  continues with partial context; it never crashes. The string names the
+  **underlying** exception, e.g.
+  `[mcp:k8s-mcp] error: ConnectError: [Errno -2] Name or service not known`.
+  Because the MCP client connects inside an anyio TaskGroup, this previously
+  surfaced as the uninformative `unhandled errors in a TaskGroup (1 sub-exception)`;
+  the adapter now unwraps to the innermost cause. Log parsing or alerts matching
+  the old wrapper text need updating.
 
 ### Transport
 
-`McpAdapter` uses MCP **SSE** transport (`mcp==1.0.0`). The `url` field supports
+`McpAdapter` defaults to MCP **streamable-http** (`mcp>=1.2.0,<2.0.0`); SSE is the
+legacy, opt-in transport (`transport: sse`). The `url` field supports
 `${ENV_VAR}` interpolation so the same `agent.yaml` works across local and EKS
 environments without modification.
 

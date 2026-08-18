@@ -12,7 +12,7 @@ that proxies the SSE body line by line.
 """
 from __future__ import annotations
 
-from typing import Optional
+from typing import Any, Optional
 
 import httpx
 
@@ -50,7 +50,7 @@ class SupervisorClient:
         """Preflight: is the supervisor up and ready to serve?"""
         try:
             resp = await self._client.get("/ready", timeout=2.0)
-            return resp.status_code == 200
+            return bool(resp.status_code == 200)
         except httpx.HTTPError:
             return False
 
@@ -59,7 +59,8 @@ class SupervisorClient:
         try:
             resp = await self._client.get("/internal/agents", timeout=2.0)
             resp.raise_for_status()
-            return resp.json().get("agents", [])
+            data: list[str] = resp.json().get("agents", [])
+            return data
         except httpx.HTTPError:
             return []
 
@@ -70,7 +71,7 @@ class SupervisorClient:
         session_id: str,
         mode: str = "query",
         force_agent: Optional[str] = None,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Forward to the supervisor's `/internal/process`; return its result.
 
         Raises:
@@ -91,7 +92,43 @@ class SupervisorClient:
             logger.warning("supervisor transport error", extra={"error": str(exc)})
             raise SupervisorUnavailableError(str(exc)) from exc
         resp.raise_for_status()
-        return resp.json()
+        result: dict[str, Any] = resp.json()
+        return result
+
+    async def process_stream(
+        self,
+        user_input: str,
+        user_id: str,
+        session_id: str,
+        mode: str = "query",
+        force_agent: Optional[str] = None,
+    ) -> httpx.Response:
+        """Forward to the supervisor's `/internal/process/stream` (Phase 3.5).
+
+        Returns the raw httpx.Response for streaming iteration. The caller is
+        responsible for iterating the SSE body line by line.
+
+        Raises:
+            SupervisorUnavailableError — transport failure (→ gateway 503)
+            httpx.HTTPStatusError       — supervisor returned 4xx/5xx
+        """
+        payload = {
+            "user_input": user_input,
+            "user_id": user_id,
+            "session_id": session_id,
+            "mode": mode,
+            "force_agent": force_agent,
+        }
+        try:
+            req = self._client.build_request("POST", "/internal/process/stream", json=payload)
+            resp = await self._client.send(req, stream=True)
+        except httpx.HTTPError as exc:
+            logger.warning("supervisor transport error (stream)", extra={"error": str(exc)})
+            raise SupervisorUnavailableError(str(exc)) from exc
+        if resp.status_code >= 400:
+            await resp.aread()
+            resp.raise_for_status()
+        return resp
 
     async def aclose(self) -> None:
         await self._client.aclose()

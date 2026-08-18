@@ -12,6 +12,7 @@ model:
   tier: standard
   temperature: 0.1
 read_only: true
+capability_tier: 0
 evidence_types: [iam_policy, security_finding]
 delegates_to:
   - agent: aws
@@ -20,3 +21,17 @@ delegates_to:
     when: "finding involves RBAC, NetworkPolicy, or pod security"
 required_env: [AWS_REGION]
 port: 8010
+skills:
+  - aws-ftr-compliance
+  - container-image-apko
+  - container-package-melange
+  - cosign-image-signing
+  - defectdojo-metrics
+  - dependency-track-integration
+  - dependency-track-metrics
+  - golden-ami-creation
+  - harbor-metrics
+  - keycloak-metrics
+  - kubescape-metrics
+  - sbom-vulnerability-management
+  - security-hub-findings-mgmt

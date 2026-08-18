@@ -141,7 +141,7 @@ is justified (a future spec).
 worker polls every ~500ms, plus `asyncio.wait_for` timeout and `PoolFullError`.
 
 **Justification**:
-1. It's proven in a sibling BDC project with the same constraints (FastAPI + SSE +
+1. It's proven in a sibling <ORG> project with the same constraints (FastAPI + SSE +
    Redis), and the user authorized reuse.
 2. Redis-key cancellation works across replicas (the cancel can arrive at any
    gateway replica), which a pure in-process `Task.cancel()` cannot.
