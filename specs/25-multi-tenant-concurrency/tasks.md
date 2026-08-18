@@ -2,21 +2,21 @@
 
 ## Phase 1 — Distributed state (Redis-backed)
 
-- [ ] T1: Migrate `CircuitBreaker` to Redis backend with in-memory fallback
-- [ ] T2: Create `src/core/session_lock.py` (SETNX with TTL + Lua release)
-- [ ] T3: Wire `session_lock` into `supervisor.process_request`
+- [x] T1: Migrate `CircuitBreaker` to Redis backend with in-memory fallback
+- [x] T2: Create `src/core/session_lock.py` (SETNX with TTL + Lua release)
+- [x] T3: Wire `session_lock` into `supervisor.process_request`
 
 ## Phase 2 — Rate limit + budget
 
-- [ ] T4: Create `src/core/rate_limiter.py` (sliding window + budget counter)
-- [ ] T5: Add cost estimator (input + max output tokens × pricing per model)
-- [ ] T6: Wire rate check + budget check in supervisor before classify
-- [ ] T7: Return 429/503 with proper headers (`X-RateLimit-Remaining`, `X-Budget-Remaining-USD`)
+- [x] T4: Create `src/core/rate_limiter.py` (sliding window + budget counter)
+- [x] T5: Add cost estimator (input + max output tokens × pricing per model)
+- [x] T6: Wire rate check + budget check in supervisor before classify
+- [x] T7: Return 429/503 with proper headers (`X-RateLimit-Remaining`, `X-Budget-Remaining-USD`)
 
 ## Phase 3 — Bedrock semaphore
 
-- [ ] T8: Add `asyncio.Semaphore` to `BedrockClient.invoke` (configurable via env)
-- [ ] T9: Add metrics `aigent.bedrock.queue_depth` + `queue_wait`
+- [x] T8: Add `asyncio.Semaphore` to `BedrockClient.invoke` (configurable via env)
+- [x] T9: Add metrics `aigent.bedrock.queue_depth` + `queue_wait`
 
 ## Phase 4 — Load testing
 

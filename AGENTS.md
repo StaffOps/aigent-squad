@@ -15,6 +15,9 @@ read-only by default, defense-in-depth anti-prompt-injection (spec 14).
 > runs the same code via a separate path (Harbor `labs/aigent-squad:0.3.0-dev`, digest
 > `e94a901`, homologated live 2026-07-15) — the two publish paths were never reconciled,
 > tracked as `specs/BACKLOG.md` B-25. Work on branch `dev`. Never push to `main` — go
+> **dev branch (2026-08-17)**: mypy strict, spec 45 (supply-chain) closed, registry → GHCR,
+> spec 43 Phase 1 (capability gate), spec 25 Phases 1-3 (distributed concurrency).
+> 139 commits ahead of `main`. Next release: when user decides to cut.
 > through a PR (see `RELEASE.md` for the release flow specifically).
 > Real status per spec in `specs/ROADMAP.md`; session state in `HANDOFF.md`.
 > `specs/AUDIT.md` is the historical 2026-05-30 audit (findings fixed — kept as record).

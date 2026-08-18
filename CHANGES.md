@@ -2,6 +2,46 @@
 
 ## [Unreleased]
 
+### Added — spec 45 supply-chain hardening COMPLETE (2026-08-17)
+All 5 phases of spec 45 shipped in one session:
+- **Phase 1+2**: 38 action refs pinned by SHA, `pin-check` CI gate + `make pin-check`, explicit
+  `permissions:` in 6 workflows, `SECURITY.md`, CODEOWNERS, Scorecard workflow + badge, dead
+  credential deleted, Dockerfile base image pinned by manifest-list digest.
+- **Phase 3**: `release.yml` split into `publish` + `verify` jobs. cosign keyless signing (OIDC),
+  `actions/attest-build-provenance` + `actions/attest-sbom`, pushed manifest scanned (D9), negative
+  test (unsigned image fails), `make verify-release`.
+- **Phase 4**: `.trivyignore` → `.trivyignore.yaml` with mandatory `expired_at`, `renovate.json`
+  (pinDigests, weekly grouped PRs), `make scan`.
+- **Phase 5**: `docs/VERIFYING-RELEASES.md` (consumer verification, negative example, loose-regexp
+  warning, why `latest` is unsigned, SBOM retrieval).
+
+### Added — spec 43 Phase 0+1 capability tier model (2026-08-17)
+Per-agent capability tiers introduced (code-level, Tier 0 only — no behavioral change):
+- `capability_gate.py` (new): CapabilityGate with contextvars, denies all writes for Tier 0.
+- `agent_config.py`: `capability_tier`, `write_scope`, `HitlConfig` fields + validator.
+- All 6 agents explicitly `capability_tier: 0`.
+- Design decisions H-1→H-7 resolved (contextvars, transitive attenuation, pod isolation, nonce HITL,
+  audit-before-execution, Tier 3a/3b split).
+- `make capability-validate` target.
+
+### Added — spec 25 Phases 1-3 distributed concurrency (2026-08-17)
+- `circuit_breaker.py`: Redis backend with in-memory failover (atomic INCR, TTL keys).
+- `session_lock.py` (new): SETNX + TTL + Lua release; 409 on conflict, fail-open.
+- `bedrock.py`: asyncio.Semaphore on invoke/converse (`BEDROCK_MAX_CONCURRENT=20`).
+- `metrics.py`: `aigent_bedrock_queue_depth` + `aigent_bedrock_queue_wait_seconds`.
+
+### Changed — registry migrated from Docker Hub to GHCR (2026-08-17)
+- `build.yml` + `release.yml` → `ghcr.io/staffops/aigent-squad` via `GITHUB_TOKEN`.
+- `DOCKERHUB_USERNAME` + `DOCKERHUB_TOKEN` secrets deleted.
+- Helm chart `values.yaml` updated (StaffOps/helm-charts `2b681c8`).
+- BACKLOG B-25 and B-27 closed.
+
+### Changed — mypy strict enabled (2026-08-17)
+`strict = true` in `pyproject.toml`. 81 errors fixed across 21 files. Zero errors on 60 source files.
+
+### Changed — branch protection on `main` (2026-08-17)
+Require PR with 1 approval + `test` status check. No force push, no deletions.
+
 ### Fixed — module-level state leaked between tests; CI caught what 16 local runs did not (2026-08-10)
 Merged to `dev` as PR #20 (51 commits). **The first CI run failed**, and it failed on something
 16 local configurations had missed — which is the whole argument for having CI at all.

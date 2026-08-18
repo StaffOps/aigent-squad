@@ -58,7 +58,7 @@ See [HOW-TO-NEW-AGENT.md](HOW-TO-NEW-AGENT.md).
 ### Prerequisites
 - EKS cluster with IRSA configured
 - Helm 3.x
-- A container registry (Docker Hub is the CI target by default; ECR/Harbor
+- A container registry (GHCR is the CI target; ECR/Harbor
   also work — see `helm-charts/charts/aigent-squad/README.md`)
 
 ### Image
@@ -84,7 +84,7 @@ helm install aigent-squad staffops/aigent-squad \
   --set redis.host=my-elasticache.cache.amazonaws.com
 ```
 
-`global.image.registry` defaults to `""` (Docker Hub as-is) and
+`global.image.registry` defaults to `""` (GHCR path is in the repository field) and
 `services.{gateway,supervisor}.image.repository` already default to
 `ghcr.io/staffops/aigent-squad`, versioned by `Chart.appVersion` — no image
 override needed for a vanilla install. See
@@ -95,5 +95,5 @@ override needed for a vanilla install. See
 Pipeline runs on GitHub Actions (`.github/workflows/`):
 - **test.yml**: lint (ruff) + pytest `--cov-fail-under=90` (≥90% enforced)
 - **build.yml**: multi-arch Docker build → GHCR (`ghcr.io/staffops/aigent-squad`, `latest`+SHA tags) + Trivy scan + SBOM, on every merge to `main`
-- **release.yml**: same build, triggered by a `vX.Y.Z` tag — publishes the version tag + a GitHub Release (see `RELEASE.md`)
+- **release.yml**: same build, triggered by a `vX.Y.Z` tag — publishes version tag + cosign sign + build provenance + SBOM attestation + verify job + GitHub Release (see `RELEASE.md`, `docs/VERIFYING-RELEASES.md`)
 - **helm-charts repo**: `release.yaml` (chart-releaser) + `lint-test.yaml` (ct lint + kind install)

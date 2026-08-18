@@ -2,8 +2,8 @@
 
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/StaffOps/aigent-squad/badge)](https://scorecard.dev/viewer/?uri=github.com/StaffOps/aigent-squad)
 
-**Version**: 0.4.0
-**Status**: ✅ Cluster-validated (devops-core, 2026-07) — see `specs/ROADMAP.md`
+**Version**: 0.4.0 (dev: 0.5.0-rc)
+**Status**: ✅ Cluster-validated (devops-core) | dev: mypy strict, supply-chain signed, GHCR — see `specs/ROADMAP.md`
 **Architecture**: Two-tier (edge gateway → supervisor), in-process specialists, Bedrock-direct
 
 > **Real state**: stabilization (Phase 0) and hardening are done — the squad runs
@@ -563,5 +563,5 @@ Apache 2.0 — See [LICENSE](LICENSE) for details.
 ---
 
 **Last Updated**: 2026-07-16
-**Version**: 0.4.0
+**Version**: 0.4.0 (dev: 0.5.0-rc)
 **Status**: ✅ Cluster-validated (devops-core) — see `specs/ROADMAP.md` for what's next

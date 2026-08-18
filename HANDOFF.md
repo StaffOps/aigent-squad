@@ -6,101 +6,68 @@
 > in spec frontmatter + `specs/ROADMAP.md`.
 >
 > Prior sessions: `archive/handoffs/2026-07-16.md`, `archive/handoffs/2026-07-17.md`,
-> `archive/handoffs/2026-07-24.md`.
+> `archive/handoffs/2026-07-24.md`, `archive/handoffs/2026-08-10.md`.
 
 ---
 
-## Current state — 2026-08-10, post-merge
+## Current state — 2026-08-17
 
-**PR #20 is merged.** 51 commits went from `fix/openai-compat-drop-system-messages` into `dev`
-as merge commit `4a40959`. `dev` had been **red since 2026-07-23** and is green again.
+**9 commits to `dev` in a single session.** All green: 1926 tests, 92.11% coverage, mypy strict.
 
-**CI validated this code with real dependencies for the first time.** Every local run before
-today used the `otel_helper` stub, so the whole branch had never been through CI.
+| Commit | Delivery |
+|--------|----------|
+| `48de7a3` | Spec 45 Phase 1+2 (pin actions, scorecard, SECURITY.md, CODEOWNERS) |
+| `0d20d25` | Registry migrated: Docker Hub → GHCR (`ghcr.io/staffops/aigent-squad`) |
+| `519dc92` | Mypy strict enabled (81 errors → 0) |
+| `ffb93ae` | All specs translated to English |
+| `19bd125` | Spec 45 Phase 3 (cosign sign, attestations, verify job) |
+| `e69984a` | Spec 45 Phase 4+5 (Renovate config, trivyignore.yaml, VERIFYING-RELEASES.md) — **spec 45 CLOSED** |
+| `ce3e702` | Spec 43 Phase 0+1 (capability tier model + gate, Tier 0 only) |
+| `a416443` | Branch protection on `main` + DOCKERHUB secrets deleted |
+| `437ed7d` | Spec 25 Phases 1-3 (distributed circuit breaker, session lock, Bedrock semaphore) |
 
-| Gate | On `dev` (CI, real deps) |
-|---|---|
-| `test` | **1895 passed / 0 failed**, seed `183224343` |
-| coverage | **94.15%** |
-| `lint` · `typecheck` · `specs_status` · `harness_score` · `dep_scan` · SAST | all pass |
+Also: helm-charts updated to GHCR (`2b681c8`), 5 stale branches deleted.
 
-Three distinct collection orders have now passed: `1581913328` (PR), `183224343` (dev), plus
-the local unpinned runs.
+### Key changes from this session
 
-### What the merge delivered
+- **GHCR** is the image registry now. `DOCKERHUB_*` secrets deleted. `DOCS_DEPLOY_TOKEN` remains.
+- **Branch protection** on `main`: require PR (1 approval) + `test` status check, no force push.
+- **Mypy strict** — 60 source files, zero errors.
+- **Spec 45 (supply-chain)** — all 5 phases closed. Signed releases, attestations, Scorecard.
+- **Spec 43 Phase 1** — capability gate in code, all agents Tier 0, design decisions H-1→H-7 resolved.
+- **Spec 25 Phases 1-3** — distributed state (Redis circuit breaker, session lock, rate limiter, Bedrock semaphore).
 
-- **Suite recovered from red** — 13 stale failures, four independent causes, zero production
-  defects.
-- **spec 41 (calibrated honesty)** closed and homologated live; homologation caught a
-  production bug 56 passing tests had missed (`x_aigent` reached no client).
-- **Two new gates**: `make typecheck` (mypy, proven able to fail by injecting a type error)
-  and `pytest-randomly` with an unpinned seed.
-- **F-010, F-011, F-012, F-016, F-017, F-018 closed.** F-014/F-015 accepted as-is.
-- **Coverage 93.18% → 94.15%** on the branches that carried real risk — `server.py` 62% → 89%
-  (the alertmanager path, the only RCA flow with no human in the loop),
-  `supervisor_client.py` 76% → 98%.
+---
 
-### The lesson from this session, recorded because it repeated
+## `dev` ahead of `main`: ~139 commits
 
-CI failed on its very first run, on `_server_breakers` — a module-level global that **16 local
-configurations never exposed**. That failure also proved an earlier claim of mine wrong: F-016
-was committed saying it "removes the whole bug class", when it had removed exactly one global
-and no sweep had been done. The claim is marked as wrong in `specs/BACKLOG.md` rather than
-edited away, and F-018 carries the real class-level fix.
-
-Twice more in the same session, a stated fact turned out to be an inference: I concluded CI
-was not randomising because the seed line was absent (`-q` suppresses it), and I told the user
-`GATEWAY_KEY_AGENT_MAP` had become hot-reloadable (it had not — env is fixed at container
-start). Both were caught only by going and checking. **Check before asserting; the doc is not
-done when it sounds right.**
+Production still runs `0.4.0-homolog-agentic30` from Harbor (hand-built image). The new pipeline
+publishes to GHCR when `dev` merges to `main`. No rush — user explicitly said "quero adicionar mais
+coisas antes do próximo merge".
 
 ---
 
 ## TODOs — next session
 
-### 🔴 P0 — Get production onto a pipeline-built image (F-013)
+### 🟠 P1 — Finish in-progress specs
 
-1. Production runs `0.4.0-homolog-agentic30`, **built and pushed to Harbor by hand** from a
-   feature-branch commit. `ci-cd-conventions` names it: *"Manual `docker push` to registry
-   (must go through pipeline)"*. The code is now in `dev`, which is step one.
-2. **`build.yml` fires only on `main`**, so `dev` publishes nothing. The official image
-   requires a `dev` → `main` merge. `main` is production — get the `dev..main` diff reviewed
-   before proposing it, and note `helm-charts/release.yaml` also only fires on `main` +
-   `charts/**`.
-3. After the official image exists, point `k8s-setup/staffops/aigent-squad/values.yaml.gotmpl`
-   at it and `helmfile apply` (expect the F-015 secret rotation on that apply).
+1. **Spec 25 Phase 4-5** — k6 load test scenarios + docs (`MULTI-TENANCY.md`, `LOAD-TESTING.md`).
+2. **Spec 18** — RCA investigation workflow (7 tasks: signal-coverage audit, EVIDENCE-MODEL correlator,
+   LLM confidence ceiling, real-RCA existence proof).
 
-### 🟠 P1 — Small, cheap, recorded
+### 🟡 P2 — Deferred small items
 
-4. `release.yml` fires on any `v*` tag, so a release can be cut from a tagged commit that
-   never passed through `main`. Decide whether that is intended.
-5. Two non-blocking review leftovers: `test_gateway_main_paths.py:55` comment (verify it is
-   still stale), and `test_high_risk_coverage.py:183` asserting the agentic path is reached
-   but not the SSE body content.
-6. The merged branch `fix/openai-compat-drop-system-messages` still exists on the remote. Fully
-   merged, so deleting is safe and recoverable from `4a40959`.
+3. **T1.6** (spec 45) — Record baseline Scorecard score. Needs first run on `main`.
+4. **T4.5** (spec 45) — Renovate proof-of-life. Install the App (https://github.com/apps/renovate)
+   or add self-hosted workflow. Free for all repos.
+5. **Spec 43 Phase 2-3** — per-agent ServiceAccount + IRSA + Tier 1/2 enforcement (infra work,
+   blocked until write agents are actually needed).
+6. **Spec 44** — documentation-rag + incident-management agents (depends on 43 Phase 3).
 
-### 🟡 P2 — Accepted as-is (user decision, 2026-08-09)
+### ⚪ P3 — When ready
 
-7. **F-014** (helmfile points at a relative chart path with a stale "revert once published"
-   comment) and **F-015** (LibreChat chart rotates `JWT_SECRET`, `JWT_REFRESH_SECRET`,
-   `CREDS_KEY`, `CREDS_IV` on every apply). Both in other repos. Accepted because this is a
-   single-user internal product where dev/test/homolog/prd are one environment — the blast
-   radius is the operator. **Revisit before a second user or any environment split**: F-015
-   then orphans encrypted user credentials, which is not recoverable.
-
-### ⚪ P3 — Carried over
-
-8. **Cut `0.5.0`?** Per `version-management`, bump only with a measurable result in production.
-   The spec-41 homologation plus two new gates and +1pp coverage on the riskiest paths is
-   arguably that evidence. Owner: user.
-9. Decisions pending (owner: user): specs 05/19 (superseded), `skills/oomkill-investigation` →
-   merge into `root-cause-analysis`, and whether to keep functional Portuguese.
-10. **Toward strict mypy** — ~184 missing-annotation errors remain outside the enabled checks.
-    Cheap to tighten incrementally now that the gate exists and can fail.
-11. Untested and registered: `adapters.py`'s 65 lines (judged not worth pinning, which is not
-    judged correct), `kb/store.py` fail-open guards, `check_http`'s status threshold,
-    `AGENTS_DIR=""` empty-string edge.
-12. **B-03** (feedback → KbDelta) and **spec 28** (provider abstraction) — roadmap P3, not
-    started. First real feature work once P0 is done.
-13. **A2A** — dormant; do not reopen until the 3-part trigger in `specs/BACKLOG.md` fires.
+7. **F-013**: Merge `dev` → `main` + `helmfile apply`. Cut next version when ready.
+8. **Spec 42** — Distributed topology / A2A (design done, implementation not started).
+9. **Spec 33** — Operational review loop (not started).
+10. **Spec 28** — LLM provider abstraction (design-only).
+11. **B-03** — feedback → KbDelta.
