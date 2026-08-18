@@ -26,3 +26,11 @@ vulnerabilities:
   - id: CVE-2026-23949
     statement: "jaraco.context: transitive dep of setuptools>=79 which re-pins to 5.x; not used directly by app code — cannot override without breaking setuptools"
     expired_at: 2026-11-15
+
+  - id: CVE-2026-52869
+    statement: "mcp SDK HTTP transport auth bypass — aigent-squad uses mcp as CLIENT only (stdio transport), not as HTTP server"
+    expired_at: 2026-11-18
+
+  - id: CVE-2026-59950
+    statement: "mcp SDK WebSocket Host/Origin validation — aigent-squad uses mcp as CLIENT (stdio), no WebSocket server exposed"
+    expired_at: 2026-11-18
