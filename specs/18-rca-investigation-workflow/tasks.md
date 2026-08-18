@@ -43,7 +43,7 @@ T1→T2/T3; T4; T5→T6→T7; T8; T9→T10→T11.
       justification, never raise) — per EVIDENCE-MODEL §5/§8 (depends on: T12)
 - [ ] T14: Measure the gain — re-run the spec-35 RCA scenario baseline (T9) after T12/T13;
       record before/after in `evals/results/` (depends on: T12, spec 35 T9)
-- [x] T15: **Real-RCA existence proof** — wire Alertmanager (or manually replay a real
+- [ ] T15: **Real-RCA existence proof** — wire Alertmanager (or manually replay a real
       past incident's alert) in devops-core → `/alerts/incoming` → investigation →
       Slack post-back; write the result up as `docs/CASE-001.md` (symptom, evidence,
       RCA produced, human verdict on correctness). This is the product's first
