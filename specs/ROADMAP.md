@@ -269,7 +269,7 @@ ROADMAP is plan-only from here.
 | 22-agent-capability-manifest | done | — |  |
 | 23-test-harness-docker | done | 2026-06-18 |  |
 | 24-docs-portal-mkdocs | done | — |  |
-| 25-multi-tenant-concurrency | in-progress | — |  |
+| 25-multi-tenant-concurrency | done | — |  |
 | 26-agent-skills | done | — | depends_on: 02-unify-agent-architecture |
 | 27-bedrock-cost-attribution | done | — |  |
 | 28-llm-provider-abstraction | design-only | — |  |

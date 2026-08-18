@@ -1,7 +1,7 @@
 ---
 spec: 25-multi-tenant-concurrency
-status: in-progress
-completed: null
+status: done
+completed: 2026-08-18
 superseded_by: null
 depends_on: []
 deferred: []
