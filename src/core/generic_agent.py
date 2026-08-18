@@ -52,7 +52,7 @@ SHARED_INSTRUCTIONS = (
 tracer = get_tracer(__name__)
 
 
-def _extract_tool_result_text(messages: list[dict]) -> str:
+def _extract_tool_result_text(messages: list[dict[str, Any]]) -> str:
     """Extract all toolResult text content from agentic loop messages (spec 41 M1).
 
     The agentic loop stores tool results as user-role messages containing
@@ -111,7 +111,7 @@ class GenericAgent:
         user_id: str,
         session_id: str,
         chat_history: List[ConversationMessage],
-        additional_params: Optional[dict] = None,
+        additional_params: Optional[dict[str, Any]] = None,
         budget_session_id: Optional[str] = None,
         model_id_override: Optional[str] = None,
     ) -> ConversationMessage:
@@ -154,7 +154,7 @@ class GenericAgent:
                     if isinstance(a, McpAdapter) and a.tools
                 ]
 
-                agentic_messages: list[dict] = []
+                agentic_messages: list[dict[str, Any]] = []
                 if mcp_adapters:
                     response, agentic_messages = await self._agentic_path(
                         input_text, system_prompt, chat_history, mcp_adapters,
@@ -335,7 +335,7 @@ class GenericAgent:
         session_id: str,
         budget_session_id: Optional[str],
         model_id_override: Optional[str] = None,
-    ) -> tuple[str, list[dict]]:
+    ) -> tuple[str, list[dict[str, Any]]]:
         """Agentic execution: LLM-driven tool selection via Converse loop.
 
         Non-MCP adapters still collect context upfront (injected into system
@@ -367,7 +367,7 @@ class GenericAgent:
 
         # L5 Canary: inject into any pre-collected infra_data
         canary_guard = CanaryGuard()
-        canary_tokens: list = []
+        canary_tokens: list[Any] = []
         if infra_data:
             infra_data, canary_tokens = canary_guard.inject(infra_data)
 

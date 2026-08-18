@@ -115,7 +115,7 @@ app = FastAPI(title="AIgent-squad Gateway", version=__version__, lifespan=lifesp
 app.mount("/metrics", metrics_app())
 
 
-class QueryRequest(BaseModel):
+class QueryRequest(BaseModel):  # type: ignore[misc]
     user_input: str
     user_id: str
     session_id: str
@@ -171,7 +171,7 @@ async def _check_admission(user_id: str, max_tokens: int = 4096) -> Optional[JSO
     return None
 
 
-@app.post("/query", dependencies=[Depends(require_edge_auth)])
+@app.post("/query", dependencies=[Depends(require_edge_auth)])  # type: ignore[untyped-decorator]
 async def query(request: QueryRequest) -> Any:
     """Native entrypoint — admission control, then forward to the supervisor."""
     denied = await _check_admission(request.user_id)
@@ -208,13 +208,13 @@ async def query(request: QueryRequest) -> Any:
     return result
 
 
-@app.get("/v1/models", dependencies=[Depends(require_edge_auth)])
+@app.get("/v1/models", dependencies=[Depends(require_edge_auth)])  # type: ignore[untyped-decorator]
 async def openai_list_models() -> Any:
     names = _agent_names or await _refresh_agents()
     return list_models(names).model_dump()
 
 
-@app.post("/v1/chat/completions")
+@app.post("/v1/chat/completions")  # type: ignore[untyped-decorator]
 async def openai_chat_completions(
     request: ChatCompletionRequest,
     auth: AuthResult = Depends(require_edge_auth),
@@ -331,7 +331,7 @@ async def openai_chat_completions(
     return build_completion(result if isinstance(result, dict) else {}, request.model).model_dump()
 
 
-@app.post("/jobs/{job_id}/cancel", status_code=202, dependencies=[Depends(require_edge_auth)])
+@app.post("/jobs/{job_id}/cancel", status_code=202, dependencies=[Depends(require_edge_auth)])  # type: ignore[untyped-decorator]
 async def cancel_job(job_id: str) -> Any:
     """Signal cancellation; the worker stops within ~one poll interval."""
     cancelled = await worker_pool.cancel(job_id)
@@ -340,13 +340,13 @@ async def cancel_job(job_id: str) -> Any:
     return {"job_id": job_id, "status": "cancelling"}
 
 
-@app.get("/healthz")
+@app.get("/healthz")  # type: ignore[untyped-decorator]
 async def healthz() -> dict[str, str]:
     """Liveness — never checks external deps."""
     return {"status": "ok", "service": "gateway"}
 
 
-@app.get("/ready")
+@app.get("/ready")  # type: ignore[untyped-decorator]
 async def ready() -> Any:
     """Readiness — Redis reachable + pool functional.
 
@@ -369,7 +369,7 @@ async def ready() -> Any:
     return JSONResponse(status_code=200, content={"status": "ready", "checks": checks})
 
 
-@app.get("/health", include_in_schema=False)
+@app.get("/health", include_in_schema=False)  # type: ignore[untyped-decorator]
 async def health_legacy() -> dict[str, str]:
     return {"status": "ok", "service": "gateway"}
 

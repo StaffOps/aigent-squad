@@ -67,7 +67,7 @@ class WorkerPool:
         self._idle_timeout = idle_timeout
         self._cancel_poll = cancel_poll_interval
         self._redis = redis_client
-        self._active: dict[str, asyncio.Task] = {}
+        self._active: dict[str, asyncio.Task[None]] = {}
 
     @property
     def active_count(self) -> int:
@@ -118,7 +118,7 @@ class WorkerPool:
         gateway_pool_depth.add(1)
 
         self._active[job_id] = asyncio.current_task()  # type: ignore[assignment]
-        poll_task: Optional[asyncio.Task] = asyncio.create_task(self._poll_cancel(job_id))
+        poll_task: Optional[asyncio.Task[None]] = asyncio.create_task(self._poll_cancel(job_id))
         first_byte_seen = False
         try:
             while True:

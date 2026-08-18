@@ -138,7 +138,7 @@ _SECRET_KEYS_RE = re.compile(
 )
 
 
-def _sanitize_args_for_display(args: dict) -> str:
+def _sanitize_args_for_display(args: dict[str, Any]) -> str:
     """Build a concise, safe display string from tool args.
 
     Replaces values of keys that look like secrets with '***'.
@@ -233,7 +233,7 @@ async def run_agentic_loop_streaming(
 
         # --- Build tool_config from adapters' allowlisted tools ---
         tool_router = _ToolRouter()
-        all_tool_specs: list[dict] = []
+        all_tool_specs: list[dict[str, Any]] = []
 
         for adapter in mcp_adapters:
             try:
@@ -265,7 +265,7 @@ async def run_agentic_loop_streaming(
 
         # --- Session pool for MCP calls (B5) ---
         session_pool = _McpSessionPool(mcp_adapters)
-        content_blocks: list[dict] = []
+        content_blocks: list[dict[str, Any]] = []
 
         try:
             step = 0
@@ -392,7 +392,7 @@ async def run_agentic_loop_streaming(
                 })
 
                 # Execute each tool sequentially (B8: partial-failure assembly)
-                tool_results: list[dict] = []
+                tool_results: list[dict[str, Any]] = []
                 for tu_block in tool_use_blocks:
                     tool_use_id = tu_block["toolUseId"]
                     tool_name = tu_block["name"]

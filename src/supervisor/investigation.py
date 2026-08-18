@@ -1,4 +1,8 @@
 """RCA investigation orchestrator: fan-out evidence collection + synthesis."""
+from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from src.core.generic_agent import GenericAgent
 import asyncio
 import json
 import os
@@ -57,7 +61,7 @@ RULES:
 
 async def run_investigation(
     symptom: str,
-    agents: dict,  # {name: GenericAgent}
+    agents: dict[str, "GenericAgent"],  # {name: GenericAgent}
     user_id: str = "investigator",
     session_id: str = "",
     relevant_agent_names: list[str] | None = None,

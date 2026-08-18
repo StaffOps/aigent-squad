@@ -65,7 +65,7 @@ app = FastAPI(title="Supervisor Service", lifespan=lifespan)
 app.mount("/metrics", metrics_app())
 
 
-class QueryRequest(BaseModel):
+class QueryRequest(BaseModel):  # type: ignore[misc]
     user_input: str
     user_id: str
     session_id: str
@@ -73,7 +73,7 @@ class QueryRequest(BaseModel):
     force_agent: Optional[str] = None
 
 
-@app.post("/internal/process", dependencies=[Depends(require_internal_token)])
+@app.post("/internal/process", dependencies=[Depends(require_internal_token)])  # type: ignore[untyped-decorator]
 async def internal_process(request: QueryRequest) -> Any:
     """Gateway-only orchestration entrypoint (spec 31).
 
@@ -98,13 +98,13 @@ async def internal_process(request: QueryRequest) -> Any:
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@app.get("/internal/agents", dependencies=[Depends(require_internal_token)])
+@app.get("/internal/agents", dependencies=[Depends(require_internal_token)])  # type: ignore[untyped-decorator]
 async def internal_agents() -> Any:
     """Agent names for the gateway's OpenAI /v1/models listing (spec 31)."""
     return {"agents": supervisor.registry.agent_names()}
 
 
-@app.post("/internal/process/stream", dependencies=[Depends(require_internal_token)])
+@app.post("/internal/process/stream", dependencies=[Depends(require_internal_token)])  # type: ignore[untyped-decorator]
 async def internal_process_stream(request: QueryRequest) -> Any:
     """Streaming process endpoint (Phase 3.5, S1).
 
@@ -158,13 +158,13 @@ async def internal_process_stream(request: QueryRequest) -> Any:
     )
 
 
-@app.get("/healthz")
+@app.get("/healthz")  # type: ignore[untyped-decorator]
 async def healthz() -> dict[str, str]:
     """Liveness probe — process is alive. Never checks external deps."""
     return {"status": "ok", "service": "supervisor"}
 
 
-@app.get("/ready")
+@app.get("/ready")  # type: ignore[untyped-decorator]
 async def ready() -> Any:
     """Readiness probe — checks Redis, DynamoDB, and ≥1 in-process agent loaded."""
     results = {}
@@ -186,19 +186,19 @@ async def ready() -> Any:
     )
 
 
-@app.get("/health")
+@app.get("/health")  # type: ignore[untyped-decorator]
 async def health() -> dict[str, str]:
     """Legacy alias for /healthz — kept for backwards compatibility."""
     return {"status": "healthy", "service": "supervisor"}
 
 
-@app.get("/kb/pending", dependencies=[Depends(require_token)])
+@app.get("/kb/pending", dependencies=[Depends(require_token)])  # type: ignore[untyped-decorator]
 async def list_kb_pending() -> Any:
     items = await kb_store.list_pending_review()
     return {"items": [{"id": i.id, "type": i.type, "title": i.title, "content": i.content, "confidence": i.confidence_score} for i in items]}
 
 
-@app.post("/kb/{item_id}/approve", dependencies=[Depends(require_token)])
+@app.post("/kb/{item_id}/approve", dependencies=[Depends(require_token)])  # type: ignore[untyped-decorator]
 async def approve_kb_item(item_id: str) -> Any:
     ok = await kb_store.update_status(item_id, "active")
     if not ok:
@@ -206,7 +206,7 @@ async def approve_kb_item(item_id: str) -> Any:
     return {"ok": True, "id": item_id, "status": "active"}
 
 
-@app.post("/kb/{item_id}/reject", dependencies=[Depends(require_token)])
+@app.post("/kb/{item_id}/reject", dependencies=[Depends(require_token)])  # type: ignore[untyped-decorator]
 async def reject_kb_item(item_id: str) -> Any:
     ok = await kb_store.update_status(item_id, "rejected")
     if not ok:
@@ -214,7 +214,7 @@ async def reject_kb_item(item_id: str) -> Any:
     return {"ok": True, "id": item_id, "status": "rejected"}
 
 
-@app.post("/alerts/incoming", dependencies=[Depends(require_token)])
+@app.post("/alerts/incoming", dependencies=[Depends(require_token)])  # type: ignore[untyped-decorator]
 async def alerts_incoming(payload: AlertmanagerPayload) -> Any:
     """Receive Alertmanager webhook (v2). Triggers investigation per unique firing alert."""
     async def _run_inv(symptom: str, agents: Any = None, fingerprint: str = "") -> Any:

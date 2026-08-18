@@ -13,7 +13,7 @@ from src.core.metrics import (
 DEDUP_TTL_SECONDS = int(os.getenv("ALERT_DEDUP_TTL", "3600"))  # 1h default
 
 
-class AlertmanagerAlert(BaseModel):
+class AlertmanagerAlert(BaseModel):  # type: ignore[misc]
     status: str  # firing | resolved
     labels: dict[str, str] = Field(default_factory=dict)
     annotations: dict[str, str] = Field(default_factory=dict)
@@ -23,7 +23,7 @@ class AlertmanagerAlert(BaseModel):
     generatorURL: Optional[str] = None
 
 
-class AlertmanagerPayload(BaseModel):
+class AlertmanagerPayload(BaseModel):  # type: ignore[misc]
     """Alertmanager webhook v2 schema (https://prometheus.io/docs/alerting/latest/configuration/#webhook_config)."""
     version: str = "4"
     groupKey: Optional[str] = None

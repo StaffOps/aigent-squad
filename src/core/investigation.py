@@ -1,6 +1,7 @@
 """RCA investigation models: Evidence, RCAResult, InvestigationState."""
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from typing import Any
 import uuid
 
 SIGNAL_STRENGTHS = {"forte": 3, "media": 2, "fraca": 1}
@@ -26,7 +27,7 @@ class RCAResult:
     contradicting: list[Evidence] = field(default_factory=list)
     prevention: list[str] = field(default_factory=list)
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "hypothesis": self.hypothesis,
             "confidence": self.confidence,

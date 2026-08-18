@@ -98,7 +98,7 @@ class SupervisorAgent:
         session_id: str,
         mode: str = "query",
         force_agent: str | None = None,
-    ) -> Dict:
+    ) -> Dict[str, Any]:
         """Process user request with intelligent routing and optional fan-out.
 
         When ``force_agent`` is set (and known), the classifier is bypassed and
@@ -517,7 +517,7 @@ class SupervisorAgent:
         self, agent_name: str, classification: ClassifierResult,
         user_input: str, user_id: str, session_id: str, start_time: float,
         model_id_override: str | None = None,
-    ) -> Dict:
+    ) -> Dict[str, Any]:
         """Fast-path: route to a single agent."""
         agent_history = await storage.fetch_chat(user_id, session_id, agent_name)
         agent = self.agents[agent_name]
@@ -574,7 +574,7 @@ class SupervisorAgent:
         self, agents: Any, classification: ClassifierResult,
         user_input: str, user_id: str, session_id: str, start_time: float,
         model_id_override: str | None = None,
-    ) -> Dict:
+    ) -> Dict[str, Any]:
         """Fan-out: call multiple agents in parallel, then synthesize."""
         with tracer.start_as_current_span("supervisor.fan_out") as span:
             span.set_attribute("agent_count", len(agents))

@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Optional
+from typing import Any, Optional
 import uuid
 
 
@@ -34,7 +34,7 @@ class KbItem:
     tags: list[str] = field(default_factory=list)
     service_name: Optional[str] = None
     embedding: Optional[list[float]] = None
-    metadata: dict = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
     confidence_score: float = 0.0
     status: str = KbStatus.ACTIVE.value
     superseded_by: Optional[str] = None

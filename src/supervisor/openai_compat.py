@@ -53,12 +53,12 @@ class UnknownModelError(ValueError):
 
 # ─── OpenAI request/response models ─────────────────────────────────
 
-class ChatMessage(BaseModel):
+class ChatMessage(BaseModel):  # type: ignore[misc]
     role: str
     content: str = ""
 
 
-class ChatCompletionRequest(BaseModel):
+class ChatCompletionRequest(BaseModel):  # type: ignore[misc]
     model: str
     messages: list[ChatMessage]
     stream: bool = False
@@ -67,18 +67,18 @@ class ChatCompletionRequest(BaseModel):
     user: Optional[str] = None
 
 
-class DeltaContent(BaseModel):
+class DeltaContent(BaseModel):  # type: ignore[misc]
     role: Optional[str] = None
     content: Optional[str] = None
 
 
-class ChunkChoice(BaseModel):
+class ChunkChoice(BaseModel):  # type: ignore[misc]
     index: int = 0
     delta: DeltaContent
     finish_reason: Optional[str] = None
 
 
-class ChatCompletionChunk(BaseModel):
+class ChatCompletionChunk(BaseModel):  # type: ignore[misc]
     id: str
     object: str = "chat.completion.chunk"
     created: int
@@ -86,25 +86,25 @@ class ChatCompletionChunk(BaseModel):
     choices: list[ChunkChoice]
 
 
-class MessageContent(BaseModel):
+class MessageContent(BaseModel):  # type: ignore[misc]
     role: str = "assistant"
     content: str
 
 
-class CompletionChoice(BaseModel):
+class CompletionChoice(BaseModel):  # type: ignore[misc]
     index: int = 0
     message: MessageContent
     finish_reason: str = "stop"
 
 
-class UsageInfo(BaseModel):
+class UsageInfo(BaseModel):  # type: ignore[misc]
     # Real token accounting is deferred (spec 10/27); zeros for now.
     prompt_tokens: int = 0
     completion_tokens: int = 0
     total_tokens: int = 0
 
 
-class ChatCompletionResponse(BaseModel):
+class ChatCompletionResponse(BaseModel):  # type: ignore[misc]
     id: str
     object: str = "chat.completion"
     created: int
@@ -114,7 +114,7 @@ class ChatCompletionResponse(BaseModel):
     # Spec 41 (B-16 Phase-2): structured quality assessment — namespaced
     # extension, non-streaming only. Standard OpenAI clients ignore unknown
     # top-level fields. message.content is byte-identical to today.
-    x_aigent: Optional[dict] = Field(default=None, json_schema_extra={"description": "Structured quality assessment (spec 41)"})
+    x_aigent: Optional[dict[str, Any]] = Field(default=None, json_schema_extra={"description": "Structured quality assessment (spec 41)"})
 
     def model_dump(self, **kwargs: Any) -> dict[str, Any]:
         """Override to omit x_aigent when None (clean contract for clients)."""
@@ -124,14 +124,14 @@ class ChatCompletionResponse(BaseModel):
         return data
 
 
-class ModelObject(BaseModel):
+class ModelObject(BaseModel):  # type: ignore[misc]
     id: str
     object: str = "model"
     created: int = 0
     owned_by: str = OWNER
 
 
-class ModelsList(BaseModel):
+class ModelsList(BaseModel):  # type: ignore[misc]
     object: str = "list"
     data: list[ModelObject]
 
@@ -211,14 +211,14 @@ def _now() -> int:
     return int(time.time())
 
 
-def _extract_text(result: dict) -> str:
+def _extract_text(result: dict[str, Any]) -> str:
     """Pull the human-facing answer out of the supervisor result dict."""
     return result.get("response", "") or ""
 
 
 # ─── Encoders ───────────────────────────────────────────────────────
 
-def build_completion(result: dict, model: str) -> ChatCompletionResponse:
+def build_completion(result: dict[str, Any], model: str) -> ChatCompletionResponse:
     """Non-streaming: supervisor result dict → OpenAI chat.completion."""
     # Spec 41: surface structured quality assessment under namespaced extension.
     #
@@ -233,7 +233,7 @@ def build_completion(result: dict, model: str) -> ChatCompletionResponse:
     # attribute access raised AttributeError, the bare `except` swallowed it,
     # and x_aigent was silently omitted from every response while the metrics
     # kept showing the assessment was produced. Homologated 2026-08-08.
-    x_aigent: Optional[dict] = None
+    x_aigent: Optional[dict[str, Any]] = None
     assessment = result.get("quality_assessment")
     if assessment is not None:
         try:
@@ -283,7 +283,7 @@ def build_completion(result: dict, model: str) -> ChatCompletionResponse:
     )
 
 
-async def sse_stream(result: dict, model: str) -> AsyncGenerator[str, None]:
+async def sse_stream(result: dict[str, Any], model: str) -> AsyncGenerator[str, None]:
     """Streaming: emit OpenAI SSE frames for a completed supervisor result.
 
     Pseudo-streaming fallback: used when the agentic streaming path is not
@@ -317,7 +317,7 @@ async def sse_stream(result: dict, model: str) -> AsyncGenerator[str, None]:
 
 
 async def sse_stream_agentic(
-    step_events: AsyncGenerator,
+    step_events: AsyncGenerator[Any, None],
     model: str,
 ) -> AsyncGenerator[str, None]:
     """Real incremental streaming: convert agentic step events to SSE deltas.

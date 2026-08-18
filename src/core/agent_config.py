@@ -43,7 +43,7 @@ CONTEXT_TRIM_ENABLED: bool = os.environ.get("AIGENT_CONTEXT_TRIM_ENABLED", "true
 CONTEXT_KEEP_LAST_N: int = max(int(os.environ.get("AIGENT_CONTEXT_KEEP_LAST_N", "5")), 1)
 
 
-class DatasourceConfig(BaseModel):
+class DatasourceConfig(BaseModel):  # type: ignore[misc]
     type: str  # boto3, kubernetes, http, athena, mcp
     name: str = ""
     services: list[str] = []  # boto3 services
@@ -60,22 +60,22 @@ class DatasourceConfig(BaseModel):
     transport: Literal["sse", "streamable-http"] = "streamable-http"  # mcp transport: 'streamable-http' (default) or 'sse' (legacy, explicit opt-in)
 
 
-class CacheConfig(BaseModel):
+class CacheConfig(BaseModel):  # type: ignore[misc]
     ttl: int = 300
     namespace: str = ""
 
 
-class ModelConfig(BaseModel):
+class ModelConfig(BaseModel):  # type: ignore[misc]
     tier: str = "standard"  # fast | standard | premium
     temperature: float = 0.1
 
 
-class DelegateConfig(BaseModel):
+class DelegateConfig(BaseModel):  # type: ignore[misc]
     agent: str
     when: str
 
 
-class AgentConfig(BaseModel):
+class AgentConfig(BaseModel):  # type: ignore[misc]
     """Schema for agents/<name>/agent.yaml"""
     name: str
     description: str

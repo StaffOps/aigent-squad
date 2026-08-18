@@ -3,6 +3,8 @@
 Opt-in via SLACK_WEBHOOK_URL env. If unset, no-op (returns without posting).
 """
 import os
+from typing import Any
+
 import httpx
 from src.core.investigation import RCAResult
 from src.core.logger import logger
@@ -14,7 +16,7 @@ SLACK_WEBHOOK_URL = os.getenv("SLACK_WEBHOOK_URL", "").strip()
 _CONFIDENCE_EMOJI = {"alta": ":red_circle:", "media": ":large_orange_circle:", "baixa": ":large_yellow_circle:"}
 
 
-def _format_block(alert: AlertmanagerAlert, rca: RCAResult, payload: AlertmanagerPayload) -> dict:
+def _format_block(alert: AlertmanagerAlert, rca: RCAResult, payload: AlertmanagerPayload) -> dict[str, Any]:
     emoji = _CONFIDENCE_EMOJI.get(rca.confidence, ":question:")
     alert_name = alert.labels.get("alertname", "alert")
     service = alert.labels.get("service") or alert.labels.get("job") or alert.labels.get("app") or "-"

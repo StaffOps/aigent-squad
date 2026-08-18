@@ -71,7 +71,7 @@ class SupervisorClient:
         session_id: str,
         mode: str = "query",
         force_agent: Optional[str] = None,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Forward to the supervisor's `/internal/process`; return its result.
 
         Raises:

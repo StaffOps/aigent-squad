@@ -260,7 +260,7 @@ If unable to classify, return an empty agents list."""
         return "\n".join(lines)
 
     @staticmethod
-    def _heuristic_complexity(agents: list, user_input: str) -> str:
+    def _heuristic_complexity(agents: list[AgentMatch], user_input: str) -> str:
         """Fallback complexity heuristic when the LLM omits the field.
 
         Spec 38:

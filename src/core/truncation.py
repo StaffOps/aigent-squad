@@ -113,7 +113,7 @@ def _is_table_header(line: str) -> bool:
 # ---------------------------------------------------------------------------
 
 
-def _summarize_for_context(tool_name: str, tool_args: dict, result_text: str) -> str:
+def _summarize_for_context(tool_name: str, tool_args: dict[str, Any], result_text: str) -> str:
     """Build a deterministic enriched summary for a trimmed toolResult (DC1).
 
     Format: [context-trimmed] <tool> | args:<json ≤200> | shape:<n items/chars>
@@ -298,7 +298,7 @@ def trim_message_history(messages: list[dict[str, Any]], keep_last_n: int, agent
 
 def _find_paired_tool_use(
     messages: list[dict[str, Any]], tool_result_idx: int, tool_use_id: str
-) -> tuple[str, dict]:
+) -> tuple[str, dict[str, Any]]:
     """Find the tool_use block that matches a toolUseId (for summary context).
 
     Searches the preceding assistant message for the matching toolUse block.

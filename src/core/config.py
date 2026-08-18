@@ -1,7 +1,7 @@
 from pydantic_settings import BaseSettings
-from typing import Optional
+from typing import Any, Optional
 
-class Settings(BaseSettings):
+class Settings(BaseSettings):  # type: ignore[misc]
     # AWS
     aws_region: str = "us-east-1"
     bedrock_model_id: str = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"  # Claude Sonnet 4.5 (US inference profile; model requires INFERENCE_PROFILE, not on-demand)
@@ -164,7 +164,7 @@ class Settings(BaseSettings):
     gitlab_url: str = "https://gitlab.com"
     
     # MCP Servers
-    mcp_servers: dict = {
+    mcp_servers: dict[str, str] = {
         "aws-mcp": "http://aws-mcp-server.default.svc.cluster.local:8080",
         "k8s-mcp": "http://k8s-mcp-server.default.svc.cluster.local:8080",
     }

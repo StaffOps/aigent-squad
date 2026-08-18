@@ -300,7 +300,7 @@ class McpAdapter(DatasourceAdapter):
         self._allowlist_set: frozenset[str] = frozenset(self.tools)
         # Agentic: tool name map and cached specs (Phase 2)
         self._name_map: "ToolNameMap | None" = None
-        self._cached_tool_specs: list[dict] | None = None
+        self._cached_tool_specs: list[dict[str, Any]] | None = None
         self._specs_cached_at: float = 0.0
 
     def _cache_id(self) -> str:
@@ -310,7 +310,7 @@ class McpAdapter(DatasourceAdapter):
     # Agentic tool-spec builder (Phase 2, spec 37 Decision 2)
     # ------------------------------------------------------------------
 
-    async def list_tool_specs(self) -> list[dict]:
+    async def list_tool_specs(self) -> list[dict[str, Any]]:
         """Return Converse-format toolSpec[] for this datasource's allowlisted tools.
 
         Fetches the MCP server's tool catalog (session.list_tools()), intersects
@@ -326,7 +326,7 @@ class McpAdapter(DatasourceAdapter):
         from src.core.tool_schema import ToolNameMap
 
         name_map = ToolNameMap()
-        specs: list[dict] = []
+        specs: list[dict[str, Any]] = []
 
         if not self.tools:
             self._name_map = name_map
@@ -363,7 +363,7 @@ class McpAdapter(DatasourceAdapter):
         from src.core.tool_schema import build_tool_spec
 
         allowlist_set = self._allowlist_set
-        specs: list[dict] = []
+        specs: list[dict[str, Any]] = []
         for tool in tools_result.tools:
             if tool.name not in allowlist_set:
                 continue
@@ -388,7 +388,7 @@ class McpAdapter(DatasourceAdapter):
     # via _truncate_with_marker — this cap is strictly a memory guard.
     _ADAPTER_SAFETY_CAP: int = 1_000_000
 
-    async def call_tool(self, name: str, args: dict) -> str:
+    async def call_tool(self, name: str, args: dict[str, Any]) -> str:
         """Execute ONE tool by its Converse name. Fail-closed on allowlist.
 
         Args:

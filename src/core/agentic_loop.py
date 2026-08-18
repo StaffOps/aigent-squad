@@ -113,7 +113,7 @@ class _McpSessionPool:
         self._sessions: dict[str, Any] = {}
         self._context_managers: list[Any] = []
 
-    async def call_tool(self, adapter_name: str, tool_name: str, args: dict) -> str:
+    async def call_tool(self, adapter_name: str, tool_name: str, args: dict[str, Any]) -> str:
         """Execute a tool on the named adapter with pooled session + timeout + CB.
 
         Returns the text result. On failure returns an error string (fail-open).
@@ -178,7 +178,7 @@ class _ToolRouter:
 
 def _guardrail_tool_args(
     tool_name: str,
-    args: dict,
+    args: dict[str, Any],
     agent_id: str,
     user_id: str,
     session_id: str,
@@ -257,7 +257,7 @@ async def run_agentic_loop(
     temperature: float = 0.1,
     budget_session_id: str | None = None,
     model_id_override: str | None = None,
-) -> tuple[str, list[dict]]:
+) -> tuple[str, list[dict[str, Any]]]:
     """Execute the bounded agentic loop (non-streaming).
 
     Builds tool_config from the adapters' allowlisted tools, then iterates
@@ -293,7 +293,7 @@ async def run_agentic_loop(
 
         # --- Build tool_config from adapters' allowlisted tools ---
         tool_router = _ToolRouter()
-        all_tool_specs: list[dict] = []
+        all_tool_specs: list[dict[str, Any]] = []
 
         for adapter in mcp_adapters:
             try:
@@ -424,7 +424,7 @@ async def run_agentic_loop(
                 })
 
                 # Execute each tool sequentially (B8: partial-failure assembly)
-                tool_results: list[dict] = []
+                tool_results: list[dict[str, Any]] = []
                 for tu_block in tool_use_blocks:
                     tool_use_id = tu_block["toolUseId"]
                     tool_name = tu_block["name"]
@@ -580,7 +580,7 @@ def _truncate_with_marker(result_text: str, max_chars: int) -> str:
     return marker + result_text[:max_chars]
 
 
-def _to_converse_assistant_blocks(content_blocks: list[dict]) -> list[dict]:
+def _to_converse_assistant_blocks(content_blocks: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Convert normalized content blocks back to Converse assistant message format."""
     result = []
     for block in content_blocks:
@@ -597,7 +597,7 @@ def _to_converse_assistant_blocks(content_blocks: list[dict]) -> list[dict]:
     return result
 
 
-def _error_tool_result(tool_use_id: str, message: str) -> dict:
+def _error_tool_result(tool_use_id: str, message: str) -> dict[str, Any]:
     """Build an error toolResult block for partial-failure assembly (B8)."""
     return {
         "toolResult": {

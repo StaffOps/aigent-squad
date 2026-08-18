@@ -13,7 +13,7 @@ slack_client = WebClient(token=os.getenv("SLACK_BOT_TOKEN"))
 signature_verifier = SignatureVerifier(os.getenv("SLACK_SIGNING_SECRET", ""))
 
 
-@app.post("/slack/events")
+@app.post("/slack/events")  # type: ignore[untyped-decorator]
 async def slack_events(request: Request) -> dict[str, Any]:
     """Handle Slack events (app_mention)."""
     body = await request.body()
@@ -53,7 +53,7 @@ async def slack_events(request: Request) -> dict[str, Any]:
     return {"ok": True}
 
 
-@app.get("/health")
+@app.get("/health")  # type: ignore[untyped-decorator]
 async def health() -> dict[str, str]:
     return {"status": "healthy", "service": "slack-api"}
 
