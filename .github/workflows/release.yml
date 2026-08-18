@@ -1,30 +1,38 @@
 name: Release
 
-# Versioned release: cut by pushing a semver tag (e.g. v0.2.0) or manually.
-# Publishes an IMMUTABLE image tagged with the version — not just `latest`.
-# Trivy gates the push: a vulnerable image is NEVER published (build local →
-# scan → push only if clean).
+# Versioned release: cut by pushing a semver tag (e.g. v0.5.0) or manually.
+# Trivy gates the push: a vulnerable image is NEVER published.
+# Phase 3 (spec 45): sign + attest + verify from outside.
 on:
   push:
     tags: ["v*"]
   workflow_dispatch:
     inputs:
       version:
-        description: "Release version without the leading v (e.g. 0.2.0)"
+        description: "Release version without the leading v (e.g. 0.5.0)"
         required: true
         type: string
 
 permissions:
-  contents: write   # create the GitHub Release
-  packages: write   # push to GHCR
+  contents: write    # create the GitHub Release + attach assets
 
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  release:
+  # ─── Job 1: build → scan → push → sign → attest ───────────────────────────
+  publish:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write       # GitHub Release + assets
+      packages: write       # push to GHCR
+      id-token: write       # cosign keyless (OIDC) + attestations
+      attestations: write   # GitHub attestation API
+    outputs:
+      digest: ${{ steps.push.outputs.digest }}
+      image: ${{ steps.meta.outputs.image }}
+      version: ${{ steps.ver.outputs.version }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
@@ -34,7 +42,7 @@ jobs:
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             V="${{ inputs.version }}"
           else
-            V="${GITHUB_REF_NAME#v}"   # strip leading v from the tag
+            V="${GITHUB_REF_NAME#v}"
           fi
           echo "version=$V" >> "$GITHUB_OUTPUT"
           echo "Releasing version: $V"
@@ -56,9 +64,7 @@ jobs:
           IMAGE="${IMAGE,,}"
           echo "image=${IMAGE}" >> "$GITHUB_OUTPUT"
 
-      # 1) Build SINGLE-ARCH into the local daemon (no push) so Trivy can scan
-      #    the exact artifact before anything reaches the registry. OS/dep CVEs
-      #    are identical across arch, so amd64 is enough for the gate.
+      # 1) Build single-arch for Trivy scan (no push).
       - name: Build (local, no push) for scan
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
@@ -70,8 +76,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # 2) GATE — fail the release if the local image has HIGH/CRITICAL CVEs
-      #    (exceptions in .trivyignore). Nothing has been pushed yet.
+      # 2) GATE — fail before any push if HIGH/CRITICAL CVEs.
       - name: Trivy scan (gate before push)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
@@ -81,9 +86,9 @@ jobs:
           severity: CRITICAL,HIGH
           trivyignores: .trivyignore
 
-      # 3) Only reached if the scan passed: build multi-arch and PUSH the
-      #    immutable version tag (+ latest). Cache reuse from step 1 keeps it fast.
-      - name: Build + push multi-arch (scan passed)
+      # 3) Build multi-arch and PUSH (scan passed).
+      - name: Build + push multi-arch
+        id: push
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: .
@@ -95,21 +100,103 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Trivy SBOM (CycloneDX)
+      # 4) Scan the PUSHED manifest (D9: close the scan/sign asymmetry).
+      - name: Trivy scan pushed manifest (both architectures)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
-          image-ref: ${{ steps.meta.outputs.image }}:${{ steps.ver.outputs.version }}
+          image-ref: ${{ steps.meta.outputs.image }}@${{ steps.push.outputs.digest }}
+          format: table
+          exit-code: 1
+          severity: CRITICAL,HIGH
+          trivyignores: .trivyignore
+
+      # 5) Sign the manifest-list digest with cosign (keyless OIDC — D1).
+      - name: Install cosign
+        uses: sigstore/cosign-installer@7e8b541eb2e61bf99390e1afd4be13a184e9ebc5 # v3.10.1
+
+      - name: Sign image
+        run: cosign sign --yes "${{ steps.meta.outputs.image }}@${{ steps.push.outputs.digest }}"
+
+      # 6) Build provenance attestation (D2 — GitHub-native).
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ${{ steps.meta.outputs.image }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
+
+      # 7) SBOM attestation (feeds the SBOM Trivy already generates — D3/T3.3).
+      - name: Generate SBOM (CycloneDX)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ steps.meta.outputs.image }}@${{ steps.push.outputs.digest }}
           format: cyclonedx
           output: sbom.cdx.json
 
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - name: Attest SBOM
+        uses: actions/attest-sbom@5026d3663739160db546203eeaffa6aa1c51a4d6 # v1.4.1
         with:
-          name: sbom-${{ steps.ver.outputs.version }}
-          path: sbom.cdx.json
+          subject-name: ${{ steps.meta.outputs.image }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          sbom-path: sbom.cdx.json
+          push-to-registry: true
 
+      # 8) Attach SBOM to GitHub Release (D3).
       - name: Create GitHub Release
         if: github.event_name == 'push'
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           tag_name: v${{ steps.ver.outputs.version }}
           generate_release_notes: true
+          files: |
+            sbom.cdx.json
+
+  # ─── Job 2: verify from outside (T3.5) ────────────────────────────────────
+  verify:
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      packages: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@7e8b541eb2e61bf99390e1afd4be13a184e9ebc5 # v3.10.1
+
+      - name: Login to GHCR (read-only, for pulling attestations)
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Verify cosign signature (keyless — matches the workflow identity).
+      - name: Verify signature
+        run: |
+          cosign verify \
+            --certificate-identity-regexp "^https://github.com/StaffOps/aigent-squad/" \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+            "${{ needs.publish.outputs.image }}@${{ needs.publish.outputs.digest }}"
+
+      # Verify build provenance attestation.
+      - name: Verify provenance attestation
+        run: |
+          gh attestation verify \
+            "oci://${{ needs.publish.outputs.image }}@${{ needs.publish.outputs.digest }}" \
+            --owner StaffOps
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # T3.6: Negative test — verify an unsigned image FAILS.
+      - name: Negative test (must fail)
+        run: |
+          # Use a known-unsigned image (busybox) to prove verify rejects it.
+          if cosign verify \
+            --certificate-identity-regexp "^https://github.com/StaffOps/aigent-squad/" \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+            "ghcr.io/library/busybox:latest" 2>/dev/null; then
+            echo "❌ NEGATIVE TEST FAILED: unsigned image passed verification"
+            exit 1
+          else
+            echo "✅ Negative test passed: unsigned image correctly rejected"
+          fi

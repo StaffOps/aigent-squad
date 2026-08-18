@@ -1,7 +1,7 @@
 # Canonical command surface (spec 36). Every golden path is a target here;
 # AGENTS.md/QUICKSTART reference these instead of raw commands. CI calls the
 # same targets (same-harness principle — spec 23 extended to the entrypoint).
-.PHONY: up down smoke test test-one test-ci lint typecheck eval specs-status pin-check mcp-rbac-audit harness-score install-hooks help
+.PHONY: up down smoke test test-one test-ci lint typecheck eval specs-status pin-check mcp-rbac-audit harness-score install-hooks verify-release help
 
 # AI-agent harness maturity floor (harness-score L0-L4). Raise this ONLY after
 # the score genuinely clears the next level — never to make a red CI go green.
@@ -86,3 +86,15 @@ install-hooks: ## One-time opt-in: enforce "docs ship with code" via a pre-commi
 	git config core.hooksPath .githooks
 	chmod +x .githooks/pre-commit
 	@echo "✅ pre-commit hook installed (core.hooksPath=.githooks). Bypass per-commit: git commit --no-verify"
+
+verify-release: ## Verify a released image signature + attestation: make verify-release DIGEST=sha256:abc...
+	@if [ -z "$(DIGEST)" ]; then echo "Usage: make verify-release DIGEST=sha256:..."; exit 1; fi
+	@echo "Verifying ghcr.io/staffops/aigent-squad@$(DIGEST)..."
+	cosign verify \
+	  --certificate-identity-regexp "^https://github.com/StaffOps/aigent-squad/" \
+	  --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+	  "ghcr.io/staffops/aigent-squad@$(DIGEST)"
+	gh attestation verify \
+	  "oci://ghcr.io/staffops/aigent-squad@$(DIGEST)" \
+	  --owner StaffOps
+	@echo "✅ Signature + provenance verified"

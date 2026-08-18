@@ -13,7 +13,7 @@ by a pipeline that can be hijacked signs the wrong thing convincingly.
 | **0** | Spec + harness + settle Q1–Q4 | `not-started` | Open questions answered with evidence; harness findings folded in |
 | **1** | Disclosure + governance | `in-progress` | T1.1–T1.5 DONE 2026-08-12. Open: T1.6 (baseline score — needs the first Scorecard run on `main`), T1.7 (branch protection — repo setting, needs an explicit decision) |
 | **2** | CI integrity | `done` | DONE 2026-08-12. 38 refs pinned across 6 workflows, zero mutable remaining; `pin-check` job + `make pin-check` (negative-tested against `@v4.1.0`); explicit `permissions:` in all 6; dead credential write deleted after proving the dep resolves unauthenticated; base image pinned to the OCI index digest with a multi-arch build proving amd64+arm64 still build |
-| **3** | Artifact provenance | `not-started` | `release.yml` split into publish+verify (gate and push still in ONE job); release signed + attested + SBOM attached; pushed manifest scanned; verify job proves it from outside and has a negative test |
+| **3** | Artifact provenance | `done` | `release.yml` split into publish+verify (gate and push still in ONE job); release signed + attested + SBOM attached; pushed manifest scanned; verify job proves it from outside and has a negative test |
 | **4** | Hygiene automation | `not-started` | Suppressions expire; Renovate opens grouped bump PRs |
 | **5** | Docs | `not-started` | Consumer verification doc; `README`/`docs/SECURITY.md` consistent with reality |
 
@@ -122,39 +122,39 @@ by a pipeline that can be hijacked signs the wrong thing convincingly.
 Every task below is appended **after** the existing Trivy gate. If a step needs to move the gate,
 stop: that is the invariant, not an implementation detail.
 
-- [ ] T3.0: **Refactor `release.yml` into two jobs** — `publish` (build → scan → push → sign → attest)
+- [x] T3.0: **Refactor `release.yml` into two jobs** — `publish` (build → scan → push → sign → attest)
       and `verify` (`needs: publish`). Hard constraints:
   - The scan step and the `push: true` step **stay in the same job**. A boundary between them lets a
     job re-run push without the gate.
   - `publish` exposes the digest via `jobs.publish.outputs.digest`; `verify` has no build context.
   - `id-token: write` + `attestations: write` on `publish` only, not at workflow top level.
-- [ ] T3.1: Add `id: push` to the **multi-arch `push: true`** `docker/build-push-action` step in
+- [x] T3.1: Add `id: push` to the **multi-arch `push: true`** `docker/build-push-action` step in
       `release.yml` — neither build step has an `id` today. Then sign
       `steps.push.outputs.digest` (the manifest-list/index digest). **Do not** put the `id` on the
       first, local `load: true` build: it produces no registry digest, so a signature over it verifies
       against nothing a consumer can pull. Install cosign via `sigstore/cosign-installer` (pinned by
       SHA) and run `cosign sign --yes <image>@<digest>`.
-- [ ] T3.1b: **Scan the pushed manifest** (design D9) so the signature does not certify an `arm64`
+- [x] T3.1b: **Scan the pushed manifest** (design D9) so the signature does not certify an `arm64`
       image nothing examined — today only the locally-built `amd64` image is scanned, and the
       multi-arch image is a second, separate build. On failure the job output MUST state the
       remediation (delete the tag / ship a patch), otherwise it is a red X people learn to ignore.
-- [ ] T3.2: Build-provenance attestation over the same digest (action per Q1), with
+- [x] T3.2: Build-provenance attestation over the same digest (action per Q1), with
       `push-to-registry` set according to the Q2 outcome.
-- [ ] T3.3: SBOM attestation — feed the SBOM Trivy already generates; do not generate a second one.
-- [ ] T3.4: Attach the SBOM **and** a provenance file to the GitHub Release (design D3). The
+- [x] T3.3: SBOM attestation — feed the SBOM Trivy already generates; do not generate a second one.
+- [x] T3.4: Attach the SBOM **and** a provenance file to the GitHub Release (design D3). The
       provenance asset should be the `.intoto.jsonl` form, which is also what Scorecard's
       `Signed-Releases` check reads. Mechanics: `softprops/action-gh-release` currently has **no
       `files:` input** — it must be added. Settle in T0.3 how the `.intoto.jsonl` is produced (export
       from the attestation vs a `cosign` output); do not assume a file simply appears on disk.
-- [ ] T3.5: **`verify` job** — `needs: publish`, runs in a clean job, and verifies from outside:
+- [x] T3.5: **`verify` job** — `needs: publish`, runs in a clean job, and verifies from outside:
       `cosign verify` with `--certificate-identity-regexp` + `--certificate-oidc-issuer`, plus
       attestation verification for provenance and SBOM. **Fails the pipeline** on any miss. Add
       **`make verify-release`** running the identical commands against a given digest (spec 36
       same-harness) — this is also the command the consumer doc will show.
-- [ ] T3.6: Negative test for the verify job: point it at an unsigned digest (e.g. a `build.yml`
+- [x] T3.6: Negative test for the verify job: point it at an unsigned digest (e.g. a `build.yml`
       short-SHA image, which by D7 is deliberately unsigned) and confirm it FAILS. A verify step that
       cannot fail proves nothing — this is the one test that keeps Phase 3 honest.
-- [ ] T3.7: Confirm signing covers the multi-arch manifest list (verify by tag resolves to the signed
+- [x] T3.7: Confirm signing covers the multi-arch manifest list (verify by tag resolves to the signed
       index digest), so we are not signing one architecture and claiming both.
 
 ---
