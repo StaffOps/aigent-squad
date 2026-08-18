@@ -11,7 +11,7 @@ by a pipeline that can be hijacked signs the wrong thing convincingly.
 | Phase | Scope | Status | Done when |
 |-------|-------|--------|-----------|
 | **0** | Spec + harness + settle Q1–Q4 | `not-started` | Open questions answered with evidence; harness findings folded in |
-| **1** | Disclosure + governance | `in-progress` | T1.1–T1.5 DONE 2026-08-12. Open: T1.6 (baseline score — needs the first Scorecard run on `main`), T1.7 (branch protection — repo setting, needs an explicit decision) |
+| **1** | Disclosure + governance | `in-progress` | T1.1–T1.5 + T1.7 DONE. Only T1.6 remains (baseline Scorecard score — needs first run on `main`) |
 | **2** | CI integrity | `done` | DONE 2026-08-12. 38 refs pinned across 6 workflows, zero mutable remaining; `pin-check` job + `make pin-check` (negative-tested against `@v4.1.0`); explicit `permissions:` in all 6; dead credential write deleted after proving the dep resolves unauthenticated; base image pinned to the OCI index digest with a multi-arch build proving amd64+arm64 still build |
 | **3** | Artifact provenance | `done` | `release.yml` split into publish+verify (gate and push still in ONE job); release signed + attested + SBOM attached; pushed manifest scanned; verify job proves it from outside and has a negative test |
 | **4** | Hygiene automation | `done` | Suppressions expire; Renovate opens grouped bump PRs |
@@ -65,7 +65,7 @@ by a pipeline that can be hijacked signs the wrong thing convincingly.
       `Packaging` does not recognise Docker Hub), so a threshold gate would encode noise as policy.
 - [ ] T1.6: Record the baseline score in `CHANGES.md` before any Phase 2/3 work, so the delta is
       attributable instead of anecdotal.
-- [ ] T1.7: Branch protection on `dev` and `main` (required checks, no force-push). Note: this is a
+- [x] T1.7: Branch protection on `dev` and `main` (required checks, no force-push). Note: this is a
       repo **setting**, not a file — record what was configured in `docs/SECURITY.md` so it is
       auditable and restorable.
 
