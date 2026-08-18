@@ -263,7 +263,7 @@ ROADMAP is plan-only from here.
 | 11-bedrock-resilience-cost | done | 2026-07-02 |  |
 | 14-security-hardening | done | 2026-07-03 | depends_on: 04-harden-security |
 | 17-multi-agent-collaboration | done-with-deferrals | — | deferred: T11 formal smoke |
-| 18-rca-investigation-workflow | in-progress | — |  |
+| 18-rca-investigation-workflow | done-with-deferrals | — |  |
 | 19-config-driven-platform | superseded | — | → 22-agent-capability-manifest |
 | 21-incident-memory-learning | done-with-deferrals | — | deferred: Opus enricher (Sonnet-only for now), Slack approval flow |
 | 22-agent-capability-manifest | done | — |  |

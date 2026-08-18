@@ -12,7 +12,7 @@ Legend: `[ ]` pending · `[~]` partial · `[x]` done. Each code task follows the
 | Phase | Scope | Status | Promotion trigger to next phase |
 |-------|-------|--------|-------------------------------|
 | **0** | Spec + round-table | `done` | Round-table (security + sre + dev) refutations incorporated; no unresolved blocking objection |
-| **1** | Schema + capability gate (Tier 0 only) | `in-progress` | All existing agents validated as Tier 0; CI gate passes; zero behavioral regression in eval suite |
+| **1** | Schema + capability gate (Tier 0 only) | `done` | All existing agents validated as Tier 0; CI gate passes; zero behavioral regression in eval suite |
 | **2** | Per-agent ServiceAccount + IRSA | `not-started` | Tier 0 blanket Deny confirmed unchanged in prod; Tier 1/2 SA created + RBAC-audited |
 | **3** | Tier 1 + 2 enforcement (gate + audit) | `not-started` | Capability gate blocks undeclared writes; audit events emit; silence TTL enforced; homologated with documentation-rag + incident-management (spec 44) |
 | **4** | Tier 3 HITL gate | `not-started` | Slack approval loop functional; timeout = deny; E2E test with mock approval channel |
@@ -22,7 +22,7 @@ Legend: `[ ]` pending · `[~]` partial · `[x]` done. Each code task follows the
 
 ## Phase 0 — Spec & validation (spec-first)
 
-- [ ] T0.1: Write requirements/design/tasks (this spec) — DONE on merge of this dir.
+- [x] T0.1: Write requirements/design/tasks (this spec) — DONE on merge of this dir.
 - [x] T0.2: **Round-table** — EXECUTED 2026-08-12 with four independent reviewers
       (`code-review`, `security`, `sre`, `observability`), each instructed to refute rather than
       confirm. Verdicts: COMMIT AFTER FIXES / COMMIT WITH RECORDED BLOCKERS / DO NOT COMMIT AS-IS /
@@ -41,22 +41,22 @@ Goal: introduce the tier model in code with Tier 0 as the ONLY active tier. All 
 gain `capability_tier: 0` (explicit or default). The capability gate exists but only enforces
 "Tier 0 = deny all writes" — identical to today's behavior, just via a new code path.
 
-- [ ] T1.1: `agent_config.py` — add `capability_tier: int = Field(default=0, ge=0, le=3)`,
+- [x] T1.1: `agent_config.py` — add `capability_tier: int = Field(default=0, ge=0, le=3)`,
       `write_scope: list[str] = []`, and `refuses: list[str] = []` (declarative, informational —
       actions the agent must refuse even when asked; owned by THIS spec, consumed by spec 44).
       Validation: tier 0 ↔ empty scope; tier 3 ↔ hitl present; **and `capability_tier == 0` ⟺
       `read_only is True`** (the field already exists on `AgentConfig` and defaults to `True` —
       it is not replaced, it is constrained, so the two can never disagree silently).
-- [ ] T1.2: `agent_config.py` — add `hitl: Optional[HitlConfig] = None` model
+- [x] T1.2: `agent_config.py` — add `hitl: Optional[HitlConfig] = None` model
       (`channel: str`, `timeout_seconds: int = 300`, `approvers: list[str]`).
-- [ ] T1.3: Add `capability_tier: 0` explicitly to all 6 existing `agent.yaml` files
+- [x] T1.3: Add `capability_tier: 0` explicitly to all 6 existing `agent.yaml` files
       (documentation, not behavior change — makes the invariant visible).
-- [ ] T1.4: `capability_gate.py` (new) — `CapabilityGate.authorize(agent_id, tool_name, action_type)`
+- [x] T1.4: `capability_gate.py` (new) — `CapabilityGate.authorize(agent_id, tool_name, action_type)`
       → raises `CapabilityDeniedError` if action not in declared scope. For Tier 0, ALL write
       actions are denied (same as today but via gate).
-- [ ] T1.5: Wire `CapabilityGate.authorize()` into `adapters.py` `call_tool()` — the gate runs
+- [x] T1.5: Wire `CapabilityGate.authorize()` into `adapters.py` `call_tool()` — the gate runs
       BEFORE every tool execution, regardless of transport.
-- [ ] T1.6: Tests (independent author, ≥90%):
+- [x] T1.6: Tests (independent author, ≥90%):
   - Tier 0 agent attempting a write tool → `CapabilityDeniedError`.
   - Tier 0 agent calling a read tool → pass-through.
   - Unknown tier (missing config) → defaults to 0 (deny writes).
@@ -65,7 +65,7 @@ gain `capability_tier: 0` (explicit or default). The capability gate exists but 
   - `capability_tier: 0` + `read_only: false` → config validation error.
   - `capability_tier: 2` + `read_only: true` → config validation error.
   - All 6 existing `agent.yaml` files load with `capability_tier == 0` and `read_only is True`.
-- [ ] T1.7: CI gate: `make capability-validate` checks all `agent.yaml` pass schema.
+- [x] T1.7: CI gate: `make capability-validate` checks all `agent.yaml` pass schema.
 - [ ] T1.8: Eval regression: run existing eval suite → all 6 agents produce same results.
 
 ---

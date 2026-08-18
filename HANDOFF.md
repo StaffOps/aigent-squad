@@ -10,64 +10,61 @@
 
 ---
 
-## Current state — 2026-08-17
+## Current state — 2026-08-18
 
-**9 commits to `dev` in a single session.** All green: 1926 tests, 92.11% coverage, mypy strict.
+**Two-day session. 20+ commits to `dev`. All specs in-progress closed or advanced.**
 
-| Commit | Delivery |
-|--------|----------|
-| `48de7a3` | Spec 45 Phase 1+2 (pin actions, scorecard, SECURITY.md, CODEOWNERS) |
-| `0d20d25` | Registry migrated: Docker Hub → GHCR (`ghcr.io/staffops/aigent-squad`) |
-| `519dc92` | Mypy strict enabled (81 errors → 0) |
-| `ffb93ae` | All specs translated to English |
-| `19bd125` | Spec 45 Phase 3 (cosign sign, attestations, verify job) |
-| `e69984a` | Spec 45 Phase 4+5 (Renovate config, trivyignore.yaml, VERIFYING-RELEASES.md) — **spec 45 CLOSED** |
-| `ce3e702` | Spec 43 Phase 0+1 (capability tier model + gate, Tier 0 only) |
-| `a416443` | Branch protection on `main` + DOCKERHUB secrets deleted |
-| `437ed7d` | Spec 25 Phases 1-3 (distributed circuit breaker, session lock, Bedrock semaphore) |
+### Cluster
+- Image: `harbor.bigdatacorp.com.br/labs/aigent-squad:0.5.0-dev-205fb21`
+- 4 pods healthy (2 gateway + 2 supervisor), smoke test passed
+- Grafana dashboard: `DevOps-Testing/StaffOps` — AIgent Squad Concurrency (uid: `a4j5w8`)
 
-Also: helm-charts updated to GHCR (`2b681c8`), 5 stale branches deleted.
+### Specs closed this session
+| Spec | Completed |
+|------|-----------|
+| 45 (supply-chain hardening) | 2026-08-17 — all 5 phases |
+| 25 (multi-tenant concurrency) | 2026-08-18 — all tasks |
+| 18 (RCA investigation) | 2026-08-18 — done-with-deferrals (T11 Docker smoke, T14 eval deferred) |
 
-### Key changes from this session
-
-- **GHCR** is the image registry now. `DOCKERHUB_*` secrets deleted. `DOCS_DEPLOY_TOKEN` remains.
-- **Branch protection** on `main`: require PR (1 approval) + `test` status check, no force push.
-- **Mypy strict** — 60 source files, zero errors.
-- **Spec 45 (supply-chain)** — all 5 phases closed. Signed releases, attestations, Scorecard.
-- **Spec 43 Phase 1** — capability gate in code, all agents Tier 0, design decisions H-1→H-7 resolved.
-- **Spec 25 Phases 1-3** — distributed state (Redis circuit breaker, session lock, rate limiter, Bedrock semaphore).
-
----
-
-## `dev` ahead of `main`: ~139 commits
-
-Production still runs `0.4.0-homolog-agentic30` from Harbor (hand-built image). The new pipeline
-publishes to GHCR when `dev` merges to `main`. No rush — user explicitly said "quero adicionar mais
-coisas antes do próximo merge".
+### Key deliverables
+- **GHCR** migration (Docker Hub → `ghcr.io/staffops/aigent-squad`)
+- **Mypy strict** (0 errors, 60 source files)
+- **Capability gate** (spec 43 Phase 0+1 — code done, Tier 0 only)
+- **EVIDENCE-MODEL correlator** (spec 18 T12+T13 — real incident validated)
+- **Supply-chain** (cosign signing, attestations, Renovate, Scorecard, pin-check)
+- **Distributed concurrency** (Redis circuit breaker, session lock, Bedrock semaphore)
+- **k6 load test** validated live (0% errors, 3 VUs)
+- **Harness findings** fixed (contextvar leak, Redis TLS, queue metric drift)
+- **56 new dedicated tests** (B2), total 1982 passing, 92.96% coverage
+- **Branch protection** on `main` (require PR + approval + test check)
+- **DOCKERHUB secrets deleted**, **F-008 fixed**, **F-014/F-015 closed (accepted)**
 
 ---
 
 ## TODOs — next session
 
-### 🟠 P1 — Finish in-progress specs
+### 🔴 P0 — Cut the release
 
-1. **Spec 25 Phase 4-5** — k6 load test scenarios + docs (`MULTI-TENANCY.md`, `LOAD-TESTING.md`).
-2. **Spec 18** — RCA investigation workflow (7 tasks: signal-coverage audit, EVIDENCE-MODEL correlator,
-   LLM confidence ceiling, real-RCA existence proof).
+1. **Merge `dev` → `main`** — ~150 commits. Creates the first pipeline-built GHCR image.
+   Scorecard runs. Renovate activates. This is the last blocker for everything "official".
 
-### 🟡 P2 — Deferred small items
+### 🟠 P1 — Post-merge
 
-3. **T1.6** (spec 45) — Record baseline Scorecard score. Needs first run on `main`.
-4. **T4.5** (spec 45) — Renovate proof-of-life. Install the App (https://github.com/apps/renovate)
-   or add self-hosted workflow. Free for all repos.
-5. **Spec 43 Phase 2-3** — per-agent ServiceAccount + IRSA + Tier 1/2 enforcement (infra work,
-   blocked until write agents are actually needed).
-6. **Spec 44** — documentation-rag + incident-management agents (depends on 43 Phase 3).
+2. **T1.6** (spec 45) — Record baseline Scorecard score after first run.
+3. **T4.5** (spec 45) — Trigger Renovate manually, confirm it opens a PR.
+4. **Version decision** — tag `v0.5.0`? Per `version-management`, bump only with measurable result.
+   Evidence: 4 specs closed, cluster-validated, mypy strict, supply-chain signed. Strong case.
 
-### ⚪ P3 — When ready
+### 🟡 P2 — Next features (user decides priority)
 
-7. **F-013**: Merge `dev` → `main` + `helmfile apply`. Cut next version when ready.
-8. **Spec 42** — Distributed topology / A2A (design done, implementation not started).
-9. **Spec 33** — Operational review loop (not started).
+5. **Spec 43 Phase 2-3** — per-agent ServiceAccount + IRSA + Tier 1/2 enforcement.
+   Enables write agents. Infra work (Terraform, Helm, Kyverno).
+6. **Spec 44** — `documentation-rag` + `incident-management` agents (depends on 43 Phase 3).
+7. **Spec 33** — Operational review loop (not started, no dependencies).
+8. **T15 real RCA** — complete with org data in `evals/results/rca-private/` (gitignorado).
+
+### ⚪ P3 — Future
+
+9. **Spec 42** — Distributed topology / A2A (design done, implementation large).
 10. **Spec 28** — LLM provider abstraction (design-only).
 11. **B-03** — feedback → KbDelta.

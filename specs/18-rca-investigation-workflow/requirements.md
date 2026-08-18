@@ -1,7 +1,7 @@
 ---
 spec: 18-rca-investigation-workflow
-status: in-progress
-completed: null
+status: done-with-deferrals
+completed: 2026-08-18
 superseded_by: null
 depends_on: []
 deferred: ["T11 formal smoke"]

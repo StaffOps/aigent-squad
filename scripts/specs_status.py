@@ -74,6 +74,13 @@ def validate(
     errors: list[str] = []
     backlog_path = specs_dir / "BACKLOG.md"
     backlog = backlog_path.read_text(encoding="utf-8") if backlog_path.exists() else None
+    # F-008 fix: scope deferred cross-check to the "## Deferred register" section only,
+    # not the entire BACKLOG.md (avoids false matches against unrelated prose).
+    backlog_deferred_section = ""
+    if backlog and "## Deferred register" in backlog:
+        backlog_deferred_section = backlog.split("## Deferred register", 1)[1]
+    elif backlog:
+        backlog_deferred_section = backlog  # fallback if section doesn't exist
 
     for name, fm in specs.items():
         d = specs_dir / name
@@ -111,10 +118,10 @@ def validate(
             )
 
         # deferred <-> BACKLOG cross-check (only once BACKLOG.md exists — T7/Phase 2).
-        if deferred and backlog is not None:
+        if deferred and backlog_deferred_section:
             for item in deferred:
                 key = str(item).split("(")[0].strip()
-                if key and key not in backlog:
+                if key and key not in backlog_deferred_section:
                     errors.append(
                         f"{name}: deferred item {item!r} not referenced in specs/BACKLOG.md"
                     )
