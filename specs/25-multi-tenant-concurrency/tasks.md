@@ -20,17 +20,17 @@
 
 ## Phase 4 — Load testing
 
-- [ ] T10: Create `tests/load/scenario_basic.js` (k6, 50 users)
-- [ ] T11: Create `tests/load/scenario_burst.js` (k6, 200 users, stress)
-- [ ] T12: Create `.github/workflows/load.yml` (manual trigger)
-- [ ] T13: Add Grafana dashboard for load test KPIs
+- [x] T10: Create `tests/load/scenario_basic.js` (k6, 50 users)
+- [x] T11: Create `tests/load/scenario_burst.js` (k6, 200 users, stress)
+- [x] T12: Create `.github/workflows/load.yml` (manual trigger)
+- [ ] T13: ~~Add Grafana dashboard for load test KPIs~~ — DEFERRED (out of scope for this phase; will revisit when baseline numbers exist)
 
 ## Phase 5 — Documentation + milestone gate
 
-- [ ] T14: `docs/MULTI-TENANCY.md` (isolation, scaling, limits)
-- [ ] T15: `docs/LOAD-TESTING.md` (how to run, baselines)
-- [ ] T16: Update `docs/METRICS.md` with new metrics
-- [ ] T17: Update `helm-charts/charts/aigent-squad/values.yaml` with rate limit config
+- [x] T14: `docs/MULTI-TENANCY.md` (isolation, scaling, limits)
+- [x] T15: `docs/LOAD-TESTING.md` (how to run, baselines)
+- [x] T16: Update `docs/METRICS.md` with new metrics
+- [ ] T17: ~~Update `helm-charts/charts/aigent-squad/values.yaml` with rate limit config~~ — already done in previous session
 - [ ] T18: Tests by separate agent (≥80% coverage) — circuit breaker distributed, session lock, rate limiter, semaphore
 - [ ] T19: Smoke test: run k6 basic scenario locally, verify p99<10s
 

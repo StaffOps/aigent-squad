@@ -50,6 +50,18 @@ model tiering). `aigent.prompt.size_tokens` is a **histogram** of the same input
 tokens `aigent.tokens.total` sums, but exposes the *distribution* to catch
 context bloat (efficiency-cost steering).
 
+## Concurrency — Bedrock Semaphore (spec 25)
+
+| Metric | Type | Labels | Description |
+|--------|------|--------|-------------|
+| `aigent_bedrock_queue_depth` | Gauge | — | Current number of requests waiting for the Bedrock semaphore (0 = no contention) |
+| `aigent_bedrock_queue_wait_seconds` | Histogram | — | Time spent waiting in the semaphore queue before acquiring a slot (seconds) |
+
+These metrics drive KEDA autoscaling: when `aigent_bedrock_queue_depth` stays
+above the threshold (default 5), KEDA provisions additional pods to drain the
+queue. `queue_wait_seconds` p95 > 5s signals the semaphore limit
+(`BEDROCK_MAX_CONCURRENT`) is too low for current traffic.
+
 ## Resilience (spec 06)
 
 | Metric | Type | Labels | Description |

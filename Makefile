@@ -1,7 +1,7 @@
 # Canonical command surface (spec 36). Every golden path is a target here;
 # AGENTS.md/QUICKSTART reference these instead of raw commands. CI calls the
 # same targets (same-harness principle — spec 23 extended to the entrypoint).
-.PHONY: up down smoke test test-one test-ci lint typecheck eval specs-status pin-check mcp-rbac-audit harness-score install-hooks verify-release scan capability-validate help
+.PHONY: up down smoke test test-one test-ci lint typecheck eval specs-status pin-check mcp-rbac-audit harness-score install-hooks verify-release scan capability-validate load-test help
 
 # AI-agent harness maturity floor (harness-score L0-L4). Raise this ONLY after
 # the score genuinely clears the next level — never to make a red CI go green.
@@ -9,6 +9,9 @@ MIN_LEVEL ?= 1
 # Pinned for determinism: an unpinned scanner can change what the repo scores
 # between runs, which defeats the point of gating on it.
 HARNESS_SCORE_VERSION ?= 1.5.2
+
+load-test: ## Run k6 basic load test against local stack
+	k6 run tests/load/scenario_basic.js
 
 help: ## List targets
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-14s %s\n", $$1, $$2}'
