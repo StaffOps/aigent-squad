@@ -27,14 +27,14 @@ T1→T2/T3; T4; T5→T6→T7; T8; T9→T10→T11.
 > naive correlator. The differentiator's best design is on paper only. Additionally,
 > no real investigation has ever run end-to-end on a real incident.
 
-- [ ] T12a: **Signal-coverage audit** (PR-02) — map all 33 EVIDENCE-MODEL signals
+- [x] T12a: **Signal-coverage audit** (PR-02) — map all 33 EVIDENCE-MODEL signals
       (C1–C8, M1–M13, I1–I8, T1–T4, E1–E4) to what today's adapters can ACTUALLY
       collect. Known already: observability's only datasource is a static
       `query=up` (no PromQL-by-symptom, no Loki, no Tempo); devops has no
       deploy-history query (no ArgoCD). Output: coverage table → scopes the
       `37-evidence-adapters` candidate (BACKLOG B-01). Do BEFORE T12 — the
       correlator's value is bounded by collectable evidence
-- [ ] T12: Implement the EVIDENCE-MODEL correlator in `src/core/investigation.py` —
+- [x] T12: Implement the EVIDENCE-MODEL correlator in `src/core/investigation.py` —
       `Evidence` dataclass extended (causal_layer, fault_domain, timestamp_precision,
       derivation_source), `count_independent()` with DERIVATION_PAIRS,
       `validate_temporal_order()` with per-source tolerances, layer-based
