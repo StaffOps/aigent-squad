@@ -15,7 +15,8 @@ from src.core.guardrail import GuardrailBlockedError
 from src.core.input_scanner import InputScanner
 from src.core.investigation import (
     Evidence, RCAResult, InvestigationState,
-    build_timeline, correlate,
+    build_timeline, correlate, score_confidence,
+    count_independent, validate_temporal_order,
 )
 from src.core.kb.rag import inject_similar_cases
 from src.core.logger import logger, log_request, log_response
@@ -265,7 +266,41 @@ Produce the RCA JSON."""
         prevention = []
 
     contradicting = [evidence[i] for i in contradicting_indices if 0 <= i < len(evidence)]
+
+    # T13: LLM confidence as ceiling — the evidence model computes the maximum
+    # achievable confidence; the LLM (via its contradicting_indices) can only lower.
+    confidence_level, confidence_track = score_confidence(evidence)
+    independent_count = count_independent(evidence)
+    temporal_violations = validate_temporal_order(evidence)
+
+    # Legacy correlate for backward-compat metrics (alta/media/baixa)
     confidence = correlate(evidence, contradicting)
+
+    # Ceiling enforcement: if the LLM identified contradictions that lower
+    # confidence below the model's ceiling, the lower value wins.
+    # Map: alta=HIGH, media=MEDIUM, baixa=LOW
+    _LEVEL_RANK = {"baixa": 0, "media": 1, "alta": 2}
+    _MODEL_RANK = {"LOW": 0, "MEDIUM": 1, "HIGH": 2}
+    _RANK_TO_LEGACY = {0: "baixa", 1: "media", 2: "alta"}
+
+    model_rank = _MODEL_RANK.get(confidence_level, 0)
+    llm_rank = _LEVEL_RANK.get(confidence, 0)
+
+    # Ceiling: cap LLM at model level (LLM can lower, never raise)
+    effective_rank = min(model_rank, llm_rank)
+    confidence = _RANK_TO_LEGACY[effective_rank]
+
+    if effective_rank < llm_rank:
+        logger.info(
+            "confidence_ceiling_applied",
+            extra={
+                "event": "confidence_ceiling",
+                "model_level": confidence_level,
+                "llm_level": _RANK_TO_LEGACY[llm_rank],
+                "effective": confidence,
+                "track": confidence_track,
+            },
+        )
 
     return RCAResult(
         hypothesis=hypothesis,
@@ -274,4 +309,8 @@ Produce the RCA JSON."""
         timeline=timeline,
         contradicting=contradicting,
         prevention=prevention,
+        confidence_level=confidence_level,
+        confidence_track=confidence_track,
+        independent_signal_count=independent_count,
+        temporal_violations=temporal_violations,
     )

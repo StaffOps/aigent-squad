@@ -39,7 +39,7 @@ T1→T2/T3; T4; T5→T6→T7; T8; T9→T10→T11.
       derivation_source), `count_independent()` with DERIVATION_PAIRS,
       `validate_temporal_order()` with per-source tolerances, layer-based
       `score_confidence()` (Track A/B, contra-evidence blockers)
-- [ ] T13: LLM confidence as ceiling + soft floor (synthesizer can lower with logged
+- [x] T13: LLM confidence as ceiling + soft floor (synthesizer can lower with logged
       justification, never raise) — per EVIDENCE-MODEL §5/§8 (depends on: T12)
 - [ ] T14: Measure the gain — re-run the spec-35 RCA scenario baseline (T9) after T12/T13;
       record before/after in `evals/results/` (depends on: T12, spec 35 T9)
