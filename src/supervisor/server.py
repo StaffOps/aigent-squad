@@ -47,8 +47,9 @@ _health_dynamodb_table = boto3.resource(
 # Async Redis for distributed session lock (spec 25 T3). Fail-open: if
 # construction fails, _session_redis stays None and SessionLock allows all.
 try:
-    _session_redis: Optional[aioredis.Redis] = aioredis.from_url(  # type: ignore[misc]
-        f"{rediss if settings.redis_ssl else redis}://{settings.redis_host}:{settings.redis_port}",
+    _redis_scheme = "rediss" if settings.redis_ssl else "redis"
+    _session_redis: Optional[aioredis.Redis] = aioredis.from_url(
+        f"{_redis_scheme}://{settings.redis_host}:{settings.redis_port}",
         password=settings.redis_password,
         decode_responses=True,
     )
