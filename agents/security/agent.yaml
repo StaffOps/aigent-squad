@@ -12,6 +12,7 @@ model:
   tier: standard
   temperature: 0.1
 read_only: true
+capability_tier: 0
 evidence_types: [iam_policy, security_finding]
 delegates_to:
   - agent: aws

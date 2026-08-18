@@ -2,9 +2,9 @@
 from __future__ import annotations
 
 import os
-from typing import Literal
+from typing import Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 # ---------------------------------------------------------------------------
@@ -41,6 +41,13 @@ MAX_TOOL_RESULT_CHARS: int = int(os.environ.get("AIGENT_MAX_TOOL_RESULT_CHARS", 
 
 CONTEXT_TRIM_ENABLED: bool = os.environ.get("AIGENT_CONTEXT_TRIM_ENABLED", "true").lower() in ("true", "1", "yes")
 CONTEXT_KEEP_LAST_N: int = max(int(os.environ.get("AIGENT_CONTEXT_KEEP_LAST_N", "5")), 1)
+
+
+class HitlConfig(BaseModel):  # type: ignore[misc]
+    """Human-in-the-loop configuration for Tier 3 agents."""
+    channel: str  # notification channel (e.g. Slack channel ID)
+    timeout_seconds: int = 300
+    approvers: list[str] = []
 
 
 class DatasourceConfig(BaseModel):  # type: ignore[misc]
@@ -92,3 +99,37 @@ class AgentConfig(BaseModel):  # type: ignore[misc]
     required_env: list[str] = []
     enabled: bool = True
     port: int = 8001
+    # --- Capability tiering (spec 43 Phase 1) ---
+    capability_tier: int = Field(default=0, ge=0, le=3)
+    write_scope: list[str] = []
+    hitl: Optional[HitlConfig] = None
+
+    @model_validator(mode="after")  # type: ignore[untyped-decorator]
+    def _validate_capability_tier(self) -> "AgentConfig":
+        """Enforce capability tier invariants.
+
+        - Tier 0 ⟺ read_only is True AND write_scope is empty.
+        - Tier 3 requires hitl to be configured.
+        """
+        if self.capability_tier == 0:
+            if not self.read_only:
+                raise ValueError(
+                    "capability_tier=0 requires read_only=True"
+                )
+            if self.write_scope:
+                raise ValueError(
+                    "capability_tier=0 requires write_scope to be empty"
+                )
+        if self.read_only and self.capability_tier != 0:
+            raise ValueError(
+                "read_only=True is only valid with capability_tier=0"
+            )
+        if self.capability_tier == 3 and self.hitl is None:
+            raise ValueError(
+                "capability_tier=3 requires hitl configuration"
+            )
+        if self.capability_tier > 0 and not self.write_scope:
+            raise ValueError(
+                f"capability_tier={self.capability_tier} requires non-empty write_scope"
+            )
+        return self

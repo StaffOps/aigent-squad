@@ -1,7 +1,7 @@
 # Canonical command surface (spec 36). Every golden path is a target here;
 # AGENTS.md/QUICKSTART reference these instead of raw commands. CI calls the
 # same targets (same-harness principle — spec 23 extended to the entrypoint).
-.PHONY: up down smoke test test-one test-ci lint typecheck eval specs-status pin-check mcp-rbac-audit harness-score install-hooks verify-release scan help
+.PHONY: up down smoke test test-one test-ci lint typecheck eval specs-status pin-check mcp-rbac-audit harness-score install-hooks verify-release scan capability-validate help
 
 # AI-agent harness maturity floor (harness-score L0-L4). Raise this ONLY after
 # the score genuinely clears the next level — never to make a red CI go green.
@@ -87,6 +87,11 @@ install-hooks: ## One-time opt-in: enforce "docs ship with code" via a pre-commi
 	chmod +x .githooks/pre-commit
 	@echo "✅ pre-commit hook installed (core.hooksPath=.githooks). Bypass per-commit: git commit --no-verify"
 
+
+capability-validate: ## Validate all agent configs for capability tier consistency (spec 43)
+	@python3 -c "import yaml" >/dev/null 2>&1 && python3 scripts/capability_validate.py || \
+	docker run --rm -v "$$(pwd):/app" -w /app python:3.11-slim \
+	  sh -c "pip install -q pyyaml==6.0.2 pydantic==2.11.7 && python3 scripts/capability_validate.py"
 
 scan: ## Run Trivy vulnerability scan locally (mirrors CI dep_scan + build gate)
 	@docker build -t aigent-squad:scan-local . 2>/dev/null

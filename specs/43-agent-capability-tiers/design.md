@@ -272,3 +272,81 @@ increments a metric. A VMAlert rule fires on threshold violation.
 | VictoriaMetrics / VMAlert | Audit metrics + alerting on TTL violations |
 | Kubernetes | Per-agent ServiceAccount + RBAC |
 | AWS IAM (IRSA) | Per-agent scoped roles |
+
+
+---
+
+## Open design decisions — RESOLVED 2026-08-17
+
+### H-1: How `agent_id` reaches the capability gate
+
+**Resolution**: `contextvars`. A `ContextVar[str]` named `current_agent_id` is set at the entry point
+of the agentic loop (`GenericAgent.run()`) and read by `CapabilityGate.authorize()`. This is the
+same pattern used for `trace_id` propagation in async Python — no threading of explicit params through
+10+ call frames, and it works across `await` boundaries.
+
+Why not per-agent adapter instances: adapters are shared across agents for connection pooling (MCP
+sessions). A `contextvars` carrier keeps the pool while discriminating the caller.
+
+### H-2: Single-layer enforcement for non-K8s targets
+
+**Resolution**: Accept and document the residual risk. The gate is the enforcement layer; defense-in-
+depth for non-K8s targets (incident.io, GitLab, Grafana) relies on:
+1. Scoped API tokens (not wildcard) per write agent
+2. Token mounted only in the write agent's pod (Phase 2 hard requirement: separate pod)
+3. Audit-before-execution (H-6 resolution) so a bypass is detectable
+
+Adding a per-target egress proxy is deferred — cost/complexity exceeds benefit for 2 write agents.
+Promotion trigger: if a 3rd write-capable external target is added, re-evaluate proxy.
+
+### H-3: Transitive capability attenuation
+
+**Resolution**: `effective_tier = min(caller_tier, callee_tier)`. A Tier 0 agent delegating to a
+Tier 2 agent CANNOT trigger writes — the effective tier is capped at the caller's.
+
+Implementation: the supervisor's fan-out sets `current_agent_id` to the ORCHESTRATING agent's ID when
+dispatching, and the capability gate checks the orchestrator's tier, not the target agent's. This
+means a Tier 2 agent called by the supervisor (Tier 0) on behalf of an investigation gets capped to 0.
+
+A Tier 2 agent acting autonomously (its own trigger, e.g. Alertmanager webhook routed directly) uses
+its own tier — this is the intended design for incident-management.
+
+### H-4: In-process isolation is cosmetic
+
+**Resolution**: Hard requirement — **Tier 1+ agents MUST run in a dedicated pod.** This is a
+deployment-time constraint, not a code-time constraint. Phase 1 (code) introduces the gate for
+all agents in-process (where they all remain Tier 0 — no actual write capability). Phase 2 (infra)
+deploys write agents as separate pods before enabling any Tier 1+ behavior. The gate is necessary
+but not sufficient; pod isolation is the second leg.
+
+### H-5: HITL approval is not an authentication boundary
+
+**Resolution**: Nonce-based state machine in Redis.
+- `request_approval()` → generate UUID nonce → store `{nonce: PENDING, action_hash, expires_at}` in
+  Redis → embed nonce in Slack payload.
+- Callback → check nonce exists AND state == PENDING AND not expired → atomically transition to
+  APPROVED/DENIED. Expired or missing nonce → reject.
+- After timeout: scheduler transitions PENDING → TIMEOUT (or TTL expiry does it).
+- Channel membership IS the authorization boundary (documented). Acceptable because the channel is
+  `#ops-approvals` with restricted membership — same trust boundary as PagerDuty acknowledge.
+
+### H-6: Audit trail writable by the actor
+
+**Resolution**: Emit **intent before** execution, **outcome after**.
+- Before: `{event: "write_intent", agent, action, target, correlation_id, timestamp}`
+- After: `{event: "write_outcome", correlation_id, result: success|failure|crash}`
+- A missing outcome (crash between steps) is itself a signal — the intent record exists without a
+  matching outcome. Alertable via `AigentOrphanedWriteIntent` (no outcome within 60s).
+- Audit sink: OTel structured log → Loki (outside the agent's write scope by construction — the
+  agent has no Loki push token, only the Collector's SA does).
+
+### H-7: Tier 3 mixes reversible and irreversible actions
+
+**Resolution**: Split Tier 3 into 3a/3b:
+- **Tier 3a** (reversible): pod restart, rollout restart, scale up/down. HITL shows `Rollback: <cmd>`.
+- **Tier 3b** (irreversible): PVC grow, Helm delete with reclaimPolicy Delete. HITL shows
+  `⚠️ NO ROLLBACK EXISTS — this action is irreversible` and requires a **second confirmation**
+  (two approvers, or the same approver typing the action name to confirm).
+
+For Phase 1–3 of this spec, Tier 3 is NOT implemented (deferred). The split is recorded here for when
+Phase 4 activates. The scope of this implementation is Tiers 0, 1, 2 only.

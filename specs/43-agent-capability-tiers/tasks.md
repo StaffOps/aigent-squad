@@ -11,8 +11,8 @@ Legend: `[ ]` pending · `[~]` partial · `[x]` done. Each code task follows the
 
 | Phase | Scope | Status | Promotion trigger to next phase |
 |-------|-------|--------|-------------------------------|
-| **0** | Spec + round-table | `not-started` | Round-table (security + sre + dev) refutations incorporated; no unresolved blocking objection |
-| **1** | Schema + capability gate (Tier 0 only) | `not-started` | All existing agents validated as Tier 0; CI gate passes; zero behavioral regression in eval suite |
+| **0** | Spec + round-table | `done` | Round-table (security + sre + dev) refutations incorporated; no unresolved blocking objection |
+| **1** | Schema + capability gate (Tier 0 only) | `in-progress` | All existing agents validated as Tier 0; CI gate passes; zero behavioral regression in eval suite |
 | **2** | Per-agent ServiceAccount + IRSA | `not-started` | Tier 0 blanket Deny confirmed unchanged in prod; Tier 1/2 SA created + RBAC-audited |
 | **3** | Tier 1 + 2 enforcement (gate + audit) | `not-started` | Capability gate blocks undeclared writes; audit events emit; silence TTL enforced; homologated with documentation-rag + incident-management (spec 44) |
 | **4** | Tier 3 HITL gate | `not-started` | Slack approval loop functional; timeout = deny; E2E test with mock approval channel |
@@ -28,7 +28,7 @@ Legend: `[ ]` pending · `[~]` partial · `[x]` done. Each code task follows the
       confirm. Verdicts: COMMIT AFTER FIXES / COMMIT WITH RECORDED BLOCKERS / DO NOT COMMIT AS-IS /
       DO NOT COMMIT AS-IS. Findings recorded in `requirements.md` → "Open issues — harness
       2026-08-12". Mechanical corrections already applied to this spec.
-- [ ] T0.3: **BLOCKS ALL OF PHASE 1.** Resolve the 7 open design decisions H-1…H-7 in
+- [x] T0.3: **BLOCKS ALL OF PHASE 1.** Resolve the 7 open design decisions H-1…H-7 in
       `requirements.md` and fold the resolutions into `design.md`. H-1 (how `agent_id` reaches the
       capability gate) and H-3 (transitive attenuation) are prerequisites for T1.4/T1.5 — the gate
       cannot be built without them.

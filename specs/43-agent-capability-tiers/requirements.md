@@ -1,6 +1,6 @@
 ---
 spec: 43-agent-capability-tiers
-status: not-started
+status: in-progress
 completed: null
 superseded_by: null
 depends_on: ["37-agentic-tool-calling", "14-security-hardening"]

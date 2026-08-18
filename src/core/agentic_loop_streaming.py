@@ -47,6 +47,7 @@ from src.core.agentic_loop import (
     COUNT_FRAMING_INSTRUCTION,
 )
 from src.core.bedrock import bedrock
+from src.core.capability_gate import current_agent_id
 from src.core.config import settings
 from src.core.logger import logger
 from src.core.metrics import tool_call_duration
@@ -226,6 +227,9 @@ async def run_agentic_loop_streaming(
     total_tool_calls = 0
     total_tokens_used = 0
     unfulfilled_tools: list[str] = []
+
+    # Set the capability gate contextvar so call_tool knows which agent is active.
+    _agent_id_token = current_agent_id.set(agent_id)
 
     with tracer.start_as_current_span(f"{agent_id}_agent.agentic_loop_stream") as loop_span:
         loop_span.set_attribute("agent_id", agent_id)

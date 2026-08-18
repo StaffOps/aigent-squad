@@ -36,6 +36,11 @@ from src.core.agent_config import (
     CONTEXT_KEEP_LAST_N,
 )
 from src.core.bedrock import bedrock
+from src.core.capability_gate import (
+    CapabilityDeniedError,
+    current_agent_id,
+    get_capability_gate,
+)
 from src.core.circuit_breaker import CircuitBreaker
 from src.core.guardrail import guardrail, GuardrailBlockedError
 from src.core.logger import logger
@@ -118,6 +123,19 @@ class _McpSessionPool:
 
         Returns the text result. On failure returns an error string (fail-open).
         """
+        # --- Capability gate (spec 43): deny writes for Tier 0 agents ---
+        gate = get_capability_gate()
+        if gate is not None:
+            agent_id = current_agent_id.get()
+            # Classify action: MCP tools in this system are read-only by design,
+            # so action_type defaults to "read". Future tiers will receive
+            # action_type from tool metadata.
+            action_type = "read"
+            try:
+                gate.authorize(agent_id, tool_name, action_type)
+            except CapabilityDeniedError as e:
+                return str(e)
+
         adapter = self._adapters_by_name.get(adapter_name)
         if adapter is None:
             return f"[mcp:{adapter_name}] error: adapter not found"
@@ -287,6 +305,9 @@ async def run_agentic_loop(
     total_tool_calls = 0
     total_tokens_used = 0
     unfulfilled_tools: list[str] = []
+
+    # Set the capability gate contextvar so call_tool knows which agent is active.
+    _agent_id_token = current_agent_id.set(agent_id)
 
     with tracer.start_as_current_span(f"{agent_id}_agent.agentic_loop") as loop_span:
         loop_span.set_attribute("agent_id", agent_id)
