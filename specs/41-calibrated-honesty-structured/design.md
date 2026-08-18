@@ -95,7 +95,7 @@ tuple. Reasonable evolution — explicit return beats a hidden out-param or call
 - Bounded cardinality: `confidence.level ∈ {high, medium, low}` (3); `unverified_claims` capped at N (e.g. 20) items.
 - `content` unchanged (regression-locked by a byte-equality test).
 
-## Dependências externas
+## External dependencies
 | Serviço | Propósito |
 |---------|-----------|
 | (none new) | reuses the in-process groundedness scan + OTel meter |

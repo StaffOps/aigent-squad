@@ -191,7 +191,7 @@ Raising the cap further trades cost/latency for marginal sample size — prefer 
 | Guardrail blocks a turn | return the guardrail refusal (unchanged) |
 | MCP `list_tools` fails at connect | datasource contributes no tools (degraded, logged), other datasources still work |
 
-## Dependências externas
+## External dependencies
 
 | Serviço | Propósito |
 |---------|-----------|
