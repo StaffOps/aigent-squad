@@ -1,0 +1,23 @@
+name: Renovate
+
+# Self-hosted Renovate (spec 45 T4.3). Runs weekly + on demand.
+# Free, no external App install needed — uses GITHUB_TOKEN.
+on:
+  schedule:
+    - cron: "0 6 * * 1"   # Monday 6am UTC (3am BRT)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  renovate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - uses: renovatebot/github-action@8ac70de2fe55752c573155866e30735411e3b61c # v41.0.22
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          configurationFile: renovate.json
