@@ -9,6 +9,7 @@ from contextlib import asynccontextmanager
 from typing import Any, Optional
 import boto3
 import redis as redis_lib
+import redis.asyncio as aioredis
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
@@ -19,6 +20,7 @@ from src.core.health import DependencyChecker
 from src.core.internal_auth import require_internal_token
 from src.core.logger import logger
 from src.core.kb.store import kb_store
+from src.core.session_lock import SessionLock, SessionLockConflict
 
 from src.supervisor.agent import supervisor
 from src.supervisor.alert_handler import AlertmanagerPayload, handle_alert_payload
@@ -41,6 +43,17 @@ _health_dynamodb_table = boto3.resource(
     region_name=settings.aws_region,
     endpoint_url=settings.dynamodb_endpoint,
 ).Table(settings.dynamodb_sessions_table)
+
+# Async Redis for distributed session lock (spec 25 T3). Fail-open: if
+# construction fails, _session_redis stays None and SessionLock allows all.
+try:
+    _session_redis: Optional[aioredis.Redis] = aioredis.from_url(  # type: ignore[misc]
+        f"redis://{settings.redis_host}:{settings.redis_port}",
+        password=settings.redis_password,
+        decode_responses=True,
+    )
+except Exception:
+    _session_redis = None
 
 
 @asynccontextmanager
@@ -82,14 +95,23 @@ async def internal_process(request: QueryRequest) -> Any:
     the supervisor's orchestration is unchanged. The guardrail (spec 14) runs
     inside ``process_request`` on every call, regardless of caller, so the
     injection-defense trust boundary stays here, not at the gateway.
+
+    Session lock (spec 25 T3): prevents duplicate concurrent processing of the
+    same session_id across replicas. Fail-open if Redis is down.
     """
     try:
-        return await supervisor.process_request(
-            user_input=request.user_input,
-            user_id=request.user_id,
-            session_id=request.session_id,
-            mode=request.mode or "query",
-            force_agent=request.force_agent,
+        async with SessionLock(request.session_id, _session_redis, ttl=120):
+            return await supervisor.process_request(
+                user_input=request.user_input,
+                user_id=request.user_id,
+                session_id=request.session_id,
+                mode=request.mode or "query",
+                force_agent=request.force_agent,
+            )
+    except SessionLockConflict:
+        raise HTTPException(
+            status_code=409,
+            detail="Session is already being processed by another worker",
         )
     except GuardrailBlockedError as e:
         raise HTTPException(status_code=403, detail="Request blocked by security guardrail") from e

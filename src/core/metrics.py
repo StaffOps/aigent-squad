@@ -146,6 +146,19 @@ rate_limit_blocks = meter.create_counter(
     unit="1",
 )
 
+# === Spec 25: Bedrock concurrency semaphore ===
+bedrock_queue_depth = meter.create_up_down_counter(
+    name="aigent.bedrock.queue_depth",
+    description="Current number of requests waiting for a Bedrock semaphore slot",
+    unit="1",
+)
+
+bedrock_queue_wait = meter.create_histogram(
+    name="aigent.bedrock.queue_wait_seconds",
+    description="Time spent waiting for a Bedrock semaphore slot",
+    unit="s",
+)
+
 # === Spec 17: Multi-agent fan-out ===
 fanout_calls = meter.create_counter(
     name="aigent.fanout.calls",

@@ -151,6 +151,9 @@ class Settings(BaseSettings):  # type: ignore[misc]
     bedrock_read_timeout_seconds: int = 120
     bedrock_connect_timeout_seconds: int = 10
     gateway_cancel_poll_seconds: float = 0.5
+    # Bedrock concurrency semaphore (spec 25 T8): max in-flight Bedrock calls.
+    # Prevents overwhelming the Bedrock endpoint (ThrottlingException cascade).
+    bedrock_max_concurrent: int = 20
 
     # Admission guards (spec 31 L3 / spec 25 logic) — global, Redis-coordinated.
     # Account-wide limits (distinct from the per-replica worker-pool semaphore).

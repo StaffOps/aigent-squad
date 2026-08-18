@@ -10,7 +10,7 @@ from src.core.config import settings
 from src.core.logger import logger
 from src.core.metrics import (
     token_counter, estimated_cost, llm_duration, prompt_size_tokens,
-    bedrock_throttles,
+    bedrock_throttles, bedrock_queue_depth, bedrock_queue_wait,
 )
 from src.core.model_tier import resolve_model, compute_cost
 from src.core.token_budget import budget_tracker
@@ -47,6 +47,18 @@ class BedrockClient:
         self.base_delay = 1.0
         self.circuit_breaker = CircuitBreaker("bedrock", failure_threshold=5, recovery_timeout=30.0)
         self._cache_supported: Optional[bool] = None  # lazy-probed on first cached call
+        # Concurrency semaphore (spec 25 T8): prevents overwhelming Bedrock.
+        self._semaphore: Optional[asyncio.Semaphore] = None
+        self._semaphore_limit: int = getattr(settings, "bedrock_max_concurrent", 20) if isinstance(getattr(settings, "bedrock_max_concurrent", 20), int) else 20
+
+    def _get_semaphore(self) -> asyncio.Semaphore:
+        """Lazy-init semaphore (works even when __init__ is bypassed in tests)."""
+        sem = getattr(self, "_semaphore", None)
+        if sem is None:
+            limit = getattr(self, "_semaphore_limit", 20)
+            sem = asyncio.Semaphore(limit)
+            self._semaphore = sem
+        return sem
 
     @staticmethod
     def _user_text(messages: List[Dict[str, Any]]) -> str:
@@ -311,6 +323,17 @@ class BedrockClient:
         if not self.circuit_breaker.can_execute():
             raise Exception("Bedrock circuit breaker is OPEN")
 
+        # Spec 25 T8+T9: acquire semaphore with queue metrics
+        sem = self._get_semaphore()
+        bedrock_queue_depth.add(1)
+        wait_start = time.time()
+        try:
+            await sem.acquire()
+        finally:
+            wait_elapsed = time.time() - wait_start
+            bedrock_queue_depth.add(-1)
+            bedrock_queue_wait.record(wait_elapsed)
+
         try:
             result = await asyncio.to_thread(
                 self._invoke_sync, messages, system_prompt, max_tokens, temperature,
@@ -325,6 +348,8 @@ class BedrockClient:
         except Exception:
             self.circuit_breaker.record_failure()
             raise
+        finally:
+            sem.release()
 
 
     # ── Converse API engine (spec 37, Phase 1) ─────────────────────────────
@@ -728,6 +753,17 @@ class BedrockClient:
         if not self.circuit_breaker.can_execute():
             raise Exception("Bedrock circuit breaker is OPEN")
 
+        # Spec 25 T8+T9: acquire semaphore with queue metrics
+        sem = self._get_semaphore()
+        bedrock_queue_depth.add(1)
+        wait_start = time.time()
+        try:
+            await sem.acquire()
+        finally:
+            wait_elapsed = time.time() - wait_start
+            bedrock_queue_depth.add(-1)
+            bedrock_queue_wait.record(wait_elapsed)
+
         try:
             result = await asyncio.to_thread(
                 self._converse_sync, messages, system_prompt, max_tokens,
@@ -743,6 +779,8 @@ class BedrockClient:
         except Exception:
             self.circuit_breaker.record_failure()
             raise
+        finally:
+            sem.release()
 
 
 bedrock = BedrockClient()
