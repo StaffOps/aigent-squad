@@ -178,7 +178,7 @@ def _are_derived(a: Evidence, b: Evidence) -> bool:
     pair_ba = (b.signal_subtype, a.signal_subtype)
     if pair_ab in DERIVATION_PAIRS or pair_ba in DERIVATION_PAIRS:
         # Additional check: same fault_domain makes them non-independent
-        if a.fault_domain and b.fault_domain and a.fault_domain == b.fault_domain:
+        if not a.fault_domain or not b.fault_domain or a.fault_domain == b.fault_domain:
             return True
 
     return False
@@ -332,27 +332,28 @@ def score_confidence(evidences: list[Evidence]) -> tuple[str, str]:
     if temporal_violations:
         return ("LOW", "INSUFFICIENT")
 
-    # Blocker: unexplained contradiction caps at MEDIUM
-    capped_at_medium = unexplained_contradictions > 0
+    # Blocker: unexplained contradiction → LOW per EVIDENCE-MODEL §5 line 1
+    if unexplained_contradictions > 0:
+        return ("LOW", "INSUFFICIENT")
 
     # Independence count
     independent = count_independent(evidences)
 
-    # Less than 3 independent signals → LOW
-    if independent < 3:
-        return ("LOW", "INSUFFICIENT")
-
     # Track A: CHANGE + MECHANISM + IMPACT
     if has_change and mechanism_count >= 1 and has_impact:
-        if capped_at_medium:
-            return ("MEDIUM", "A")
-        return ("HIGH", "A")
+        if independent >= 3:
+            return ("HIGH", "A")
+        return ("MEDIUM", "A")
 
     # Track B: >=2 MECHANISM (continuous + confirming) + IMPACT + no CHANGE
+    # Note: Track B has NO independence count requirement per spec §5
     if not has_change and mechanism_count >= 2 and has_impact:
-        if capped_at_medium:
-            return ("MEDIUM", "B")
         return ("HIGH", "B")
+
+    # CHANGE + IMPACT + TEMPORAL(rollback) → HIGH per spec §5
+    has_temporal = "temporal" in layers_present
+    if has_change and has_impact and has_temporal:
+        return ("HIGH", "A")
 
     # Partial coverage: 2 of 3 layers → MEDIUM
     ordered_layers = {"change", "mechanism", "impact"}
