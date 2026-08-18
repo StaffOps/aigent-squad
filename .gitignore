@@ -61,3 +61,7 @@ infra/terraform/guardrail/tfplan
 
 # Generated local otel-helper stub (scripts/stub-otel.sh) — CI uses the real pip dep
 /otel_helper/
+
+# Org-specific RCA evidence (private data, never committed)
+evals/results/*-org-*
+evals/results/rca-private/
