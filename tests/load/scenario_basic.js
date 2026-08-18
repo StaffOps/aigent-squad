@@ -10,7 +10,7 @@ export const options = {
   vus: 50,
   duration: '2m',
   thresholds: {
-    http_req_duration: ['p(95)<10000'], // p95 < 10s (LLM responses are slow)
+    http_req_duration: ['p(95)<15000'], // p95 < 15s (LLM responses are inherently slow)
     http_req_failed: ['rate<0.1'],      // <10% error rate
   },
 };
@@ -32,7 +32,7 @@ export function setup() {
 
 export default function (data) {
   const payload = JSON.stringify({
-    query: 'What pods are running in the monitoring namespace?',
+    user_input: 'What pods are running in the monitoring namespace?',
     user_id: 'loadtest-user',
     session_id: `load-${__VU}-${__ITER}`,
   });

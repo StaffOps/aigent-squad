@@ -35,7 +35,7 @@ export function setup() {
 
 export default function (data) {
   const payload = JSON.stringify({
-    query: 'What pods are running in the monitoring namespace?',
+    user_input: 'What pods are running in the monitoring namespace?',
     user_id: 'loadtest-user',
     session_id: `load-${__VU}-${__ITER}`,
   });

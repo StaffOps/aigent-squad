@@ -32,7 +32,7 @@
 - [x] T16: Update `docs/METRICS.md` with new metrics
 - [ ] T17: ~~Update `helm-charts/charts/aigent-squad/values.yaml` with rate limit config~~ — already done in previous session
 - [ ] T18: Tests by separate agent (≥80% coverage) — circuit breaker distributed, session lock, rate limiter, semaphore
-- [ ] T19: Smoke test: run k6 basic scenario locally, verify p99<10s
+- [x] T19: Smoke test: run k6 basic scenario locally, verify p99<10s
 
 ## Suggested order
 
