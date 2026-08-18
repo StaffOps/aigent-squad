@@ -9,7 +9,7 @@ Tests against the CONTRACT:
 from __future__ import annotations
 
 import pytest
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
 
 from src.core.session_lock import SessionLock, SessionLockConflict
 

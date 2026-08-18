@@ -11,13 +11,12 @@ Tests against the CONTRACT:
 from __future__ import annotations
 
 import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from src.core.capability_gate import (
     CapabilityDeniedError,
     CapabilityGate,
     WRITE_ACTION_TYPES,
-    current_agent_id,
     get_capability_gate,
     init_capability_gate,
 )

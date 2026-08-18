@@ -263,13 +263,13 @@ ROADMAP is plan-only from here.
 | 11-bedrock-resilience-cost | done | 2026-07-02 |  |
 | 14-security-hardening | done | 2026-07-03 | depends_on: 04-harden-security |
 | 17-multi-agent-collaboration | done-with-deferrals | — | deferred: T11 formal smoke |
-| 18-rca-investigation-workflow | done-with-deferrals | — |  |
+| 18-rca-investigation-workflow | done-with-deferrals | 2026-08-18 | deferred: T11 formal smoke |
 | 19-config-driven-platform | superseded | — | → 22-agent-capability-manifest |
 | 21-incident-memory-learning | done-with-deferrals | — | deferred: Opus enricher (Sonnet-only for now), Slack approval flow |
 | 22-agent-capability-manifest | done | — |  |
 | 23-test-harness-docker | done | 2026-06-18 |  |
 | 24-docs-portal-mkdocs | done | — |  |
-| 25-multi-tenant-concurrency | done | — |  |
+| 25-multi-tenant-concurrency | done | 2026-08-18 |  |
 | 26-agent-skills | done | — | depends_on: 02-unify-agent-architecture |
 | 27-bedrock-cost-attribution | done | — |  |
 | 28-llm-provider-abstraction | design-only | — |  |
@@ -287,7 +287,8 @@ ROADMAP is plan-only from here.
 | 40-agentic-context-management | done | 2026-07-22 | depends_on: 37-agentic-tool-calling |
 | 41-calibrated-honesty-structured | done-with-deferrals | 2026-08-08 | deferred: T3 histogram bucket boundaries (default SDK buckets — explicit boundaries need a View in the otel_helper MeterProvider; not settable via opentelemetry-api 1.29.0 create_histogram) |
 | 42-distributed-topology-internal-a2a | not-started | — | depends_on: 37-agentic-tool-calling, 14-security-hardening |
-| 43-agent-capability-tiers | in-progress (Phase 1 done) | — | depends_on: 37-agentic-tool-calling, 14-security-hardening |
-| 44-write-capable-agents | not-started (blocked by 43 Phase 3) | — | depends_on: 43-agent-capability-tiers, 21-incident-memory-learning, 37-agentic-tool-calling |
+| 43-agent-capability-tiers | in-progress | — | depends_on: 37-agentic-tool-calling, 14-security-hardening |
+| 44-write-capable-agents | not-started | — | depends_on: 43-agent-capability-tiers, 21-incident-memory-learning, 37-agentic-tool-calling |
 | 45-supply-chain-hardening | done | 2026-08-17 | depends_on: 08-ci-cd-pipeline, 36-agent-native-dev-loop |
+
 <!-- specs-status:end -->

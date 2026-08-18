@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import contextvars
 import logging
-from typing import Any
 
 from src.core.agent_config import AgentConfig
 

@@ -13,7 +13,7 @@ from __future__ import annotations
 import time
 
 import pytest
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, patch
 
 from src.core.circuit_breaker import CircuitBreaker, CircuitState
 

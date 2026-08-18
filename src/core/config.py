@@ -1,5 +1,5 @@
 from pydantic_settings import BaseSettings
-from typing import Any, Optional
+from typing import Optional
 
 class Settings(BaseSettings):  # type: ignore[misc]
     # AWS
