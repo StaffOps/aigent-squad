@@ -32,11 +32,22 @@ class TestRCAResultToDict:
             prevention=["add alert"],
         )
         d = rca.to_dict()
-        assert set(d.keys()) == {"hypothesis", "confidence", "evidence", "timeline", "contradicting", "prevention"}
+        # Core fields always present
+        assert "hypothesis" in d
+        assert "confidence" in d
+        assert "evidence" in d
+        assert "timeline" in d
+        assert "contradicting" in d
+        assert "prevention" in d
         assert d["hypothesis"] == "disk full"
         assert d["confidence"] == "alta"
         assert len(d["evidence"]) == 1
         assert d["prevention"] == ["add alert"]
+        # Extended fields (T12) present with defaults
+        assert d["confidence_level"] == ""
+        assert d["confidence_track"] == ""
+        assert d["independent_signal_count"] == 0
+        assert d["temporal_violations"] == []
 
 
 class TestBuildTimeline:
