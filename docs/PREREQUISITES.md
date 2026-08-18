@@ -46,5 +46,5 @@ credential is needed to see real agent answers.
 |-------------|---------|
 | EKS cluster with IRSA | Pod-level AWS auth (no access keys) |
 | Helm 3.x | Chart deployment |
-| A container registry (Docker Hub, ECR, Harbor, …) | Image storage |
+| A container registry (GHCR is the default; Harbor for dev) | Image storage |
 | AWS Secrets Manager + ESO | Secret injection |

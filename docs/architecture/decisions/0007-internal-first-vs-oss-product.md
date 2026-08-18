@@ -51,7 +51,7 @@ Option B's own consequence list, same day:
   `docs/OBSERVABILITY.md`, and the mkdocs installation guide. A
   fixture-driven fake-Bedrock mode (the alternative, heavier option) stays
   unbuilt — left open if real demand shows up.
-- Still open: org-owned Docker Hub namespace (B-27 — staying on the personal
+- CLOSED: migrated to GHCR org namespace `ghcr.io/staffops/aigent-squad` (B-27 closed 2026-08-17
   account for now, no org account exists yet).
 
 Two candidate resolutions were considered, with a recommendation (kept for

@@ -96,7 +96,7 @@
 > --versions`) before assuming a bump is required.
 >
 > **Standing gap, not yet fixed (see BACKLOG)**: `charts/aigent-squad/
-> values.yaml`'s `image.repository` still points at a personal Docker Hub
+> values.yaml`'s `image.repository` was migrated to GHCR (2026-08-17). Historical note: previously Docker Hub
 > GHCR (`ghcr.io/staffops/aigent-squad`) — migrated from Docker Hub —
 > the "neutralize this" TODO from the 0.3.0 cycle was never actually done.
 > Not blocking a release (the value still works), but check whether THIS
@@ -169,10 +169,10 @@
    ```
    Every pod's digest must match the digest pushed in Phase 2 (or Phase 2's
    Harbor-mirror equivalent, if `[k8s-setup]` still points at Harbor rather
-   than the now-public Docker Hub tag — reconcile this discrepancy the first
+   than the GHCR tag — reconcile this discrepancy the first
    time Phase 3/4 actually get executed for real; as of 2026-07-15 the
    cluster still pulls from Harbor `labs/aigent-squad`, a separate,
-   private, manually-pushed image, NOT the Docker Hub tag Phase 2 publishes.
+   private, manually-pushed image, NOT the GHCR tag Phase 2 publishes.
    Until Phase 3/4 are executed for real, Phase 5 in practice means: rebuild
    + push the SAME image content to Harbor's `0.3.0-dev` tag, then
    `kubectl rollout restart` to force a re-pull — no helmfile/chart
@@ -304,7 +304,7 @@ mapped onto a phase above — zero orphans found:
 | Real homologation queries (EC2/S3/IAM counts, cost trend) | Phase 6.2 |
 | Gateway timeout bump (15→30s) found live | Phase 6 finding → Phase 0 pre-flight next cycle (config gaps found during homologation feed back into the NEXT release's pre-flight, not silently forgotten) |
 | "Commit-time TODO" list: publish chart, revert local-path override, revert pullPolicy, **revoke 2 PATs** | Phase 3 (publish+revert), Phase 4 (pullPolicy), Phase 7.1 (PAT revocation) |
-| "neutralize `gateway.image.repository`" (same TODO list) | **Corrected 2026-07-15 (T6 review finding F1)**: this is `[helm-charts]`'s `charts/aigent-squad/values.yaml` `image.repository: karlipegomes/aigent-squad` (Phase 3, NOT Phase 4/`[k8s-setup]` — the overlay has its own separate `repository`/`pullPolicy` fields, a different concern). Still unedited as of 2026-07-15 (confirmed live on `helm-charts` `main`) — **never actually done**, and wasn't tracked anywhere until this dry-run surfaced it; added to `specs/BACKLOG.md` same day rather than left as a RELEASE.md-only mention |
+| "neutralize `gateway.image.repository`" (same TODO list) | **Corrected 2026-07-15 (T6 review finding F1)**: this is `[helm-charts]`'s `charts/aigent-squad/values.yaml` `image.repository: ghcr.io/staffops/aigent-squad (migrated 2026-08-17)` (Phase 3, NOT Phase 4/`[k8s-setup]` — the overlay has its own separate `repository`/`pullPolicy` fields, a different concern). Still unedited as of 2026-07-15 (confirmed live on `helm-charts` `main`) — **never actually done**, and wasn't tracked anywhere until this dry-run surfaced it; added to `specs/BACKLOG.md` same day rather than left as a RELEASE.md-only mention |
 | Tag mismatch (chart appVersion=0.3.0 vs real image 0.3.0-dev) found + fixed via overlay pin | Invariants (coherence rule) + Phase 4.2 |
 | 4 security findings (A/B/C/D) found during homologation, deferred | Phase 6.3 (negative-probe homologation is exactly what surfaces this class) + tracked in the spec, not lost |
 | Two local commits "NOT pushed yet, awaiting approval" | Phase 0/1 (pre-flight literally starts with "is `dev` even pushed" — this runbook assumes yes; if not, that's a step before Phase 0, added implicitly by "CI green on dev" requiring a push to have happened) |

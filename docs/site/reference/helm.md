@@ -55,7 +55,7 @@ helm install aigent-squad staffops/aigent-squad \
 | Key | Default | Description |
 |-----|---------|-------------|
 | `topology` | `inProcess` | Deployment topology: `inProcess` or `distributed` |
-| `global.image.registry` | `""` | Registry prefix; empty = Docker Hub direct |
+| `global.image.registry` | `""` | Registry prefix; empty = GHCR path is in repository field |
 | `services.supervisor.image.repository` | `ghcr.io/staffops/aigent-squad` | Image repository |
 | `services.supervisor.image.tag` | `latest` | Image tag — use `sha-<commit>` to pin in production |
 

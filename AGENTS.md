@@ -12,9 +12,8 @@ read-only by default, defense-in-depth anti-prompt-injection (spec 14).
 > `ghcr.io/staffops/aigent-squad:0.4.0` on GHCR — spec 34's `RELEASE.md` executed for
 > real, Phases 0-2). Specs 11 (model tiering), 14 (security L1–L6, all findings closed),
 > 35 (quality eval harness, complete), and 36 (dev loop) shipped. The devops-core cluster
-> runs the same code via a separate path (Harbor `labs/aigent-squad:0.3.0-dev`, digest
-> `e94a901`, homologated live 2026-07-15) — the two publish paths were never reconciled,
-> tracked as `specs/BACKLOG.md` B-25. Work on branch `dev`. Never push to `main` — go
+> runs `0.5.0-dev-205fb21` from Harbor (cluster deploy 2026-08-18). Registry migrated to GHCR;
+> B-25 closed. CI publishes to `ghcr.io/staffops/aigent-squad` on merge to `main`.
 > **dev branch (2026-08-17)**: mypy strict, spec 45 (supply-chain) closed, registry → GHCR,
 > spec 43 Phase 1 (capability gate), spec 25 Phases 1-3 (distributed concurrency).
 > 139 commits ahead of `main`. Next release: when user decides to cut.
