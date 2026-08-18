@@ -1,0 +1,45 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:best-practices"],
+  "dependencyDashboard": true,
+  "schedule": ["before 6am on monday"],
+  "timezone": "America/Sao_Paulo",
+  "pinDigests": true,
+  "labels": ["dependencies"],
+  "prConcurrentLimit": 3,
+  "packageRules": [
+    {
+      "description": "Group all GitHub Actions updates",
+      "matchManagers": ["github-actions"],
+      "groupName": "github-actions",
+      "commitMessageTopic": "GitHub Actions",
+      "pinDigests": true,
+      "postUpdateOptions": ["pinDigestsDisabled"]
+    },
+    {
+      "description": "Group all pip updates (non-major)",
+      "matchManagers": ["pip_requirements"],
+      "groupName": "python-deps",
+      "matchUpdateTypes": ["minor", "patch"],
+      "commitMessageTopic": "Python dependencies"
+    },
+    {
+      "description": "Group Docker base image updates",
+      "matchManagers": ["dockerfile"],
+      "groupName": "docker-base",
+      "commitMessageTopic": "Docker base images"
+    }
+  ],
+  "customManagers": [
+    {
+      "description": "GitHub Actions pinned by SHA with # vX.Y.Z comment",
+      "customType": "regex",
+      "fileMatch": ["^\\.github/workflows/.*\\.yml$"],
+      "matchStrings": [
+        "uses:\\s+(?<depName>[\\w-]+/[\\w-]+)@(?<currentDigest>[a-f0-9]{40})\\s+#\\s*v(?<currentValue>[\\d.]+)"
+      ],
+      "datasourceTemplate": "github-releases",
+      "versioningTemplate": "semver"
+    }
+  ]
+}

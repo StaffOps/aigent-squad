@@ -14,8 +14,8 @@ by a pipeline that can be hijacked signs the wrong thing convincingly.
 | **1** | Disclosure + governance | `in-progress` | T1.1–T1.5 DONE 2026-08-12. Open: T1.6 (baseline score — needs the first Scorecard run on `main`), T1.7 (branch protection — repo setting, needs an explicit decision) |
 | **2** | CI integrity | `done` | DONE 2026-08-12. 38 refs pinned across 6 workflows, zero mutable remaining; `pin-check` job + `make pin-check` (negative-tested against `@v4.1.0`); explicit `permissions:` in all 6; dead credential write deleted after proving the dep resolves unauthenticated; base image pinned to the OCI index digest with a multi-arch build proving amd64+arm64 still build |
 | **3** | Artifact provenance | `done` | `release.yml` split into publish+verify (gate and push still in ONE job); release signed + attested + SBOM attached; pushed manifest scanned; verify job proves it from outside and has a negative test |
-| **4** | Hygiene automation | `not-started` | Suppressions expire; Renovate opens grouped bump PRs |
-| **5** | Docs | `not-started` | Consumer verification doc; `README`/`docs/SECURITY.md` consistent with reality |
+| **4** | Hygiene automation | `done` | Suppressions expire; Renovate opens grouped bump PRs |
+| **5** | Docs | `done` | Consumer verification doc; `README`/`docs/SECURITY.md` consistent with reality |
 
 ---
 
@@ -161,30 +161,30 @@ stop: that is the invariant, not an implementation detail.
 
 ## Phase 4 — Hygiene automation
 
-- [ ] T4.1: Convert `.trivyignore` → `.trivyignore.yaml`: the 6 existing CVEs as YAML entries with
+- [x] T4.1: Convert `.trivyignore` → `.trivyignore.yaml`: the 6 existing CVEs as YAML entries with
       `id`, `statement` (reuse the existing reasons — they are good), and a mandatory `expired_at`
       90 days out. Keep the existing per-CVE justifications verbatim; they are the valuable part.
-- [ ] T4.2: Point all three Trivy call sites (`dep_scan`, `build.yml`, `release.yml`) at the new file.
+- [x] T4.2: Point all three Trivy call sites (`dep_scan`, `build.yml`, `release.yml`) at the new file.
       **Note the interface**: `aquasecurity/trivy-action` takes the input key `trivyignores:` (it
       passes `--ignorefile` internally) — the three call sites already use `trivyignores: .trivyignore`,
       so this is a value change, not a new flag. **Prove it is being read**: temporarily expire one
       entry and show the CVE re-appearing. A silently-ignored ignore file is worse than none, because
       the suppression is then invisible AND ineffective.
-- [ ] T4.2b: There is **no `make` target that runs Trivy locally today** (`make help` lists none), so
+- [x] T4.2b: There is **no `make` target that runs Trivy locally today** (`make help` lists none), so
       the scan is CI-only — a standing spec 36 gap this spec touches. Either add `make scan` mirroring
       the CI invocation (including `trivyignores`), or record explicitly why the scan stays CI-only.
-- [ ] T4.3: `renovate.json` — `pinDigests: true`, managers for `pip`, `github-actions`, `docker`,
+- [x] T4.3: `renovate.json` — `pinDigests: true`, managers for `pip`, `github-actions`, `docker`,
       weekly schedule, grouped PRs, `dependencyDashboard`.
-- [ ] T4.4: Confirm Renovate keeps the `# vX.Y.Z` comment next to each pinned SHA (otherwise the
+- [x] T4.4: Confirm Renovate keeps the `# vX.Y.Z` comment next to each pinned SHA (otherwise the
       workflows become unreadable and someone will "fix" it by unpinning).
-- [ ] T4.5: One deliberate stale pin, to prove Renovate actually opens the PR. The automation is not
+- [x] T4.5: One deliberate stale pin, to prove Renovate actually opens the PR. The automation is not
       done because the config exists; it is done when a PR appears.
 
 ---
 
 ## Phase 5 — Documentation
 
-- [ ] T5.1: `docs/VERIFYING-RELEASES.md` — copy-pasteable verification for a consumer. It MUST contain:
+- [x] T5.1: `docs/VERIFYING-RELEASES.md` — copy-pasteable verification for a consumer. It MUST contain:
   - The **exact expected identity string**, not only a regexp.
   - An explicit warning that a loose `--certificate-identity-regexp` (e.g. `.*`) silently accepts a
     signature from **any** workflow in **any** repo. This is the most common keyless misconfiguration

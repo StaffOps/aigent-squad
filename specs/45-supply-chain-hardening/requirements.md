@@ -1,7 +1,7 @@
 ---
 spec: 45-supply-chain-hardening
-status: in-progress
-completed: null
+status: done
+completed: 2026-08-17
 superseded_by: null
 depends_on: ["08-ci-cd-pipeline", "36-agent-native-dev-loop"]
 deferred: []

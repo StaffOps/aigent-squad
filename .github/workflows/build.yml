@@ -63,7 +63,7 @@ jobs:
           format: table
           exit-code: 1
           severity: CRITICAL,HIGH
-          trivyignores: .trivyignore
+          trivyignores: .trivyignore.yaml
 
       # 3) Only if the scan passed: build multi-arch and push latest + sha.
       - name: Build + push multi-arch (scan passed)
