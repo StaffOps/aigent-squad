@@ -1,7 +1,7 @@
 ---
 spec: 33-operational-review-loop
-status: not-started
-completed: null
+status: done-with-deferrals
+completed: 2026-08-19
 superseded_by: null
 depends_on: ["32-spec-lifecycle-ssot"]
 deferred: []
