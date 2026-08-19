@@ -1,6 +1,46 @@
 # Changelog
 
-## [Unreleased]
+## [0.5.0] - 2026-08-18
+
+### Added — spec 33 operational review loop (2026-08-19)
+- `specs/TRIGGERS.md`: 12 promotion/demotion triggers cataloged, 7 gaps identified
+- `specs/reviews/TEMPLATE.md`: fixed 6-section template for monthly reviews
+- `specs/reviews/2026-08.md`: first real review (1/12 measurable, 11 gaps documented)
+- Cadence documented in specs/README.md (monthly + per-release)
+
+### Added — Renovate self-hosted workflow (2026-08-18)
+- `.github/workflows/renovate.yml`: weekly Monday schedule, `GITHUB_TOKEN` auth
+- `renovate.json` config already in place (pinDigests, grouped PRs)
+
+### Added — Grafana dashboard (2026-08-18)
+- "AIgent Squad - Concurrency & Rate Limiting" in DevOps-Testing/StaffOps (uid: `a4j5w8`)
+- 7 panels: queue depth, wait percentiles, HTTP codes, 429s, 409s, latency, active requests
+
+### Added — k6 load test validated live (2026-08-18)
+- `scenario_basic.js` ran against live EKS cluster: 0% errors, p95 14s
+- Threshold adjusted to 15s (realistic for LLM workloads)
+
+### Fixed — spec 18 T16 correlator review (2026-08-18)
+3 blockers found by independent review, all fixed:
+- `independent < 3` no longer early-returns LOW (Track B has no count requirement)
+- Unexplained contradiction → LOW (was incorrectly capping at MEDIUM)
+- Derivation pair check applies even when fault_domain is empty
+- Added CHANGE+IMPACT+TEMPORAL(rollback) → HIGH path
+
+### Fixed — harness findings (2026-08-18)
+- Contextvar `current_agent_id` reset in finally (prevented stale agent_id in fan-out)
+- Session-lock Redis uses `rediss://` when `redis_ssl=True` (password was plaintext)
+- Bedrock queue_depth metric no longer drifts negative on cancellation
+- Semaphore limit floored at `max(1, limit)` (prevents BEDROCK_MAX_CONCURRENT=0 deadlock)
+
+### Added — 56 dedicated tests (2026-08-18)
+- `test_session_lock.py` (15 tests): acquire/release/fail-open/Lua/context manager
+- `test_capability_gate.py` (22 tests): tier enforcement/deny/pass/singleton
+- `test_circuit_breaker_redis.py` (19 tests): state transitions/pipeline/fallback
+
+### Added — spec 18 T15 real-RCA existence proof (2026-08-18)
+- Real production incident (anonymized) validated through the EVIDENCE-MODEL correlator
+- Track A, HIGH confidence confirmed against manual RCA
 
 ### Added — spec 45 supply-chain hardening COMPLETE (2026-08-17)
 All 5 phases of spec 45 shipped in one session:
