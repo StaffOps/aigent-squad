@@ -4,7 +4,7 @@ status: done-with-deferrals
 completed: 2026-08-19
 superseded_by: null
 depends_on: ["32-spec-lifecycle-ssot"]
-deferred: []
+deferred: ["T8 independent review of template completeness"]
 ---
 
 # Feature: Operational Review Loop (measure triggers · reconcile cost · triage findings)

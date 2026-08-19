@@ -389,3 +389,4 @@ on its ServiceAccount + **per-consumer scope (G-5)** for sensitive agents + **NO
   merge performed.
 - **2026-08-09 — F-014 and F-015: ACCEPTED AS IS.** Single-user internal product, one environment;
   blast radius is the operator. Revisit before a second user or an environment split.
+| spec 33 | T8 independent review of template completeness | Run by code-review agent; low priority — template is mechanically simple |
