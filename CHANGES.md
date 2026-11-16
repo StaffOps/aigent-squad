@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Fixed — local compose healthchecks (2026-11-16)
+- `docker-compose.yaml`: the `supervisor` and `gateway` healthchecks called `curl`,
+  which the runtime image does not ship, so both containers stayed `unhealthy` and
+  `make up` / dependent services (`gateway` → `supervisor`, `mcp-server` → `gateway`)
+  never started. They now use `python -c "urllib.request.urlopen(...)"` (exit 1 on
+  connection error or non-2xx), verified inside `ghcr.io/staffops/aigent-squad:0.5.0`.
+
 ### Added — spec 28 LLM provider abstraction + OpenAI-compatible provider (2026-11-15)
 - `src/core/llm/`: `LLMProvider` Protocol + `LLMResult`, `LLMService` common layer
   (circuit breaker, semaphore, retry/jitter, guardrail calls, token/cost/budget

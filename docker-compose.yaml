@@ -101,7 +101,9 @@ services:
       postgres:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://127.0.0.1:8001/ready"]
+      # The runtime image ships no curl; python is guaranteed (it runs the app).
+      # urlopen raises on connection errors and non-2xx, so the exit code is non-zero.
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/ready', timeout=4)"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -145,7 +147,9 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://127.0.0.1:8000/ready"]
+      # The runtime image ships no curl; python is guaranteed (it runs the app).
+      # urlopen raises on connection errors and non-2xx, so the exit code is non-zero.
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=4)"]
       interval: 10s
       timeout: 5s
       retries: 5
