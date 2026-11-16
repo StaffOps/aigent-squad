@@ -65,3 +65,6 @@ infra/terraform/guardrail/tfplan
 # Org-specific RCA evidence (private data, never committed)
 evals/results/*-org-*
 evals/results/rca-private/
+
+# MkDocs build output (make docs)
+/site/

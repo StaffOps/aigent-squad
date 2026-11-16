@@ -1,7 +1,7 @@
 # Canonical command surface (spec 36). Every golden path is a target here;
 # AGENTS.md/QUICKSTART reference these instead of raw commands. CI calls the
 # same targets (same-harness principle — spec 23 extended to the entrypoint).
-.PHONY: up down smoke test test-one test-ci lint typecheck eval specs-status pin-check mcp-rbac-audit harness-score install-hooks verify-release scan capability-validate load-test help
+.PHONY: up down smoke test test-one test-ci lint typecheck bandit docs eval specs-status pin-check mcp-rbac-audit harness-score install-hooks verify-release scan scan-fs capability-validate load-test help
 
 # AI-agent harness maturity floor (harness-score L0-L4). Raise this ONLY after
 # the score genuinely clears the next level — never to make a red CI go green.
@@ -42,6 +42,15 @@ test-ci: ## CI-identical pytest gate (assumes deps installed — used by CI)
 # Tool versions pinned in requirements-lint.txt (same file CI installs from).
 RUFF_VERSION := $(shell sed -n 's/^ruff==//p' requirements-lint.txt)
 MYPY_VERSION := $(shell sed -n 's/^mypy==//p' requirements-lint.txt)
+BANDIT_VERSION := $(shell sed -n 's/^bandit==//p' requirements-lint.txt)
+# Docs builder pinned in requirements-docs.txt (same file docs.yml installs from).
+MKDOCS_MATERIAL_VERSION := $(shell sed -n 's/^mkdocs-material==//p' requirements-docs.txt)
+# Trivy CLI = the version trivy-action v0.36.0 (SHA-pinned in test/build/release.yml)
+# installs by default (its `version` input). Bump together with that action pin.
+TRIVY_VERSION ?= 0.70.0
+# Named volume keeps the ~130 MiB vuln DB between runs (CI downloads it fresh each job;
+# the DB content, not the cache, decides findings).
+TRIVY_CACHE := -v aigent-trivy-cache:/root/.cache/trivy
 
 # A local binary is used ONLY when its version equals the pin; otherwise Docker with
 # the pinned version. No `local || docker` fallback: a failing local run must fail,
@@ -60,6 +69,23 @@ typecheck: ## Mypy gate (pinned version; local binary only if it matches the pin
 	else \
 	  docker run --rm -v "$$(pwd):/app" -w /app python:3.11-slim \
 	    sh -c "pip install -q -r requirements-lint.txt && mypy src/"; \
+	fi
+
+bandit: ## Bandit SAST, CI-verbatim (sast.yml); pinned version, local binary only if it matches the pin
+	@if command -v bandit >/dev/null 2>&1 && [ "$$(bandit --version | head -1 | cut -d' ' -f2)" = "$(BANDIT_VERSION)" ]; then \
+	  bandit -r src/ mcp-server/ --severity-level medium --confidence-level medium; \
+	else \
+	  docker run --rm -v "$$(pwd):/app" -w /app python:3.11-slim \
+	    sh -c "pip install -q -r requirements-lint.txt && bandit -r src/ mcp-server/ --severity-level medium --confidence-level medium"; \
+	fi
+
+# Python 3.12 on purpose: docs.yml builds the site on 3.12 (docs-only, not the app runtime).
+docs: ## Strict MkDocs build, CI-verbatim (docs.yml build_check); pinned mkdocs-material, output in site/
+	@if command -v mkdocs >/dev/null 2>&1 && pip show mkdocs-material 2>/dev/null | grep -qx "Version: $(MKDOCS_MATERIAL_VERSION)"; then \
+	  mkdocs build --strict --site-dir site; \
+	else \
+	  docker run --rm -v "$$(pwd):/app" -w /app python:3.12-slim \
+	    sh -c "pip install -q -r requirements-docs.txt && mkdocs build --strict --site-dir site"; \
 	fi
 
 eval: ## Quality eval T2 (spec 35) — golden sets + LLM judge, real Bedrock cost (~$1-3)
@@ -116,14 +142,21 @@ capability-validate: ## Validate all agent configs for capability tier consisten
 	docker run --rm -v "$$(pwd):/app" -w /app python:3.11-slim \
 	  sh -c "pip install -q pyyaml==6.0.2 pydantic==2.11.7 && python3 scripts/capability_validate.py"
 
-scan: ## Run Trivy vulnerability scan locally (mirrors CI dep_scan + build gate)
-	@docker build -t aigent-squad:scan-local . 2>/dev/null
-	@docker run --rm -v "$$(pwd)/.trivyignore.yaml:/root/.trivyignore.yaml" \
+scan: ## Trivy image scan (mirrors the build.yml/release.yml gate); build errors are shown and fail
+	docker build -t aigent-squad:scan-local .
+	docker run --rm $(TRIVY_CACHE) -v "$$(pwd)/.trivyignore.yaml:/root/.trivyignore.yaml:ro" \
 	  -v /var/run/docker.sock:/var/run/docker.sock \
-	  aquasec/trivy:latest image \
+	  aquasec/trivy:$(TRIVY_VERSION) image \
 	  --severity CRITICAL,HIGH --exit-code 1 \
 	  --ignorefile /root/.trivyignore.yaml \
 	  aigent-squad:scan-local
+
+scan-fs: ## Trivy filesystem/dependency scan (mirrors test.yml dep_scan); no image build
+	docker run --rm $(TRIVY_CACHE) -v "$$(pwd):/src:ro" -w /src \
+	  aquasec/trivy:$(TRIVY_VERSION) fs \
+	  --severity CRITICAL,HIGH --exit-code 1 \
+	  --ignorefile .trivyignore.yaml \
+	  .
 
 verify-release: ## Verify a released image signature + attestation: make verify-release DIGEST=sha256:abc...
 	@if [ -z "$(DIGEST)" ]; then echo "Usage: make verify-release DIGEST=sha256:..."; exit 1; fi
