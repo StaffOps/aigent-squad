@@ -123,7 +123,7 @@ async def test_record_usage_charged_to_budget_session_id_when_provided(mock_boto
     client = BedrockClient()
     client.client = mock_boto3_client
 
-    with patch("src.core.bedrock.budget_tracker") as mock_tracker:
+    with patch("src.core.llm.service.budget_tracker") as mock_tracker:
         await client.invoke(
             messages=[{"role": "user", "content": "test"}],
             system_prompt="sys",
@@ -144,7 +144,7 @@ async def test_record_usage_falls_back_to_session_id_when_budget_session_id_abse
     client = BedrockClient()
     client.client = mock_boto3_client
 
-    with patch("src.core.bedrock.budget_tracker") as mock_tracker:
+    with patch("src.core.llm.service.budget_tracker") as mock_tracker:
         await client.invoke(
             messages=[{"role": "user", "content": "test"}],
             system_prompt="sys",

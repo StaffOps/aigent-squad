@@ -18,7 +18,7 @@ from otel_helper import get_tracer
 from src.core.adapters import DatasourceAdapter, McpAdapter
 from src.core.agentic_loop import run_agentic_loop
 from src.core.agent_config import AgentConfig
-from src.core.bedrock import bedrock
+from src.core.llm import llm as bedrock  # provider-selected (spec 28); local name kept for patch-compat
 from src.core.canary import CanaryGuard
 from src.core.guardrail import GuardrailBlockedError
 from src.core.input_scanner import InputScanner

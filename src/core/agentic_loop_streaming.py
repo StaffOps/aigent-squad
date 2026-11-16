@@ -46,7 +46,7 @@ from src.core.agentic_loop import (
     steps_exhausted_total,
     COUNT_FRAMING_INSTRUCTION,
 )
-from src.core.bedrock import bedrock
+from src.core.llm import llm as bedrock  # provider-selected (spec 28); local name kept for patch-compat
 from src.core.capability_gate import current_agent_id
 from src.core.config import settings
 from src.core.logger import logger

@@ -5,7 +5,8 @@
 > Detailed rules live in [`steering/`](steering/); plans in [`specs/`](specs/).
 
 Multi-agent AI platform for AWS/Kubernetes operations: **edge gateway + supervisor
-(1 process, 6 in-process specialists) + MCP server**. Config-driven, Bedrock-direct,
+(1 process, 6 in-process specialists) + MCP server**. Config-driven, framework-free,
+LLM = Bedrock (default) or any OpenAI-compatible API (`LLM_PROVIDER`, spec 28),
 read-only by default, defense-in-depth anti-prompt-injection (spec 14).
 
 > **Status**: `0.4.0` released 2026-07-15 (tag `v0.4.0`, GitHub Release, image
@@ -51,7 +52,8 @@ User (LibreChat /v1 · HTTP /query · Alertmanager · MCP :8006)
   └─────────────────────────────────────┘
          │
   Redis (datasource cache 1–60min TTL · rate/budget · jobs)
-  Bedrock (tiered: Haiku classifier / Sonnet agents+synthesis, prompt caching)
+  LLM via LLMService (spec 28): Bedrock (default; tiered Haiku/Sonnet, prompt caching)
+       or any OpenAI-compatible /chat/completions (LLM_PROVIDER=openai)
   PostgreSQL + pgvector (knowledge base, optional)
 ```
 
@@ -62,7 +64,10 @@ User (LibreChat /v1 · HTTP /query · Alertmanager · MCP :8006)
 3. **GenericAgent pattern** — all 6 specialists inherit `Agent`, implement `async process_request(...)`
 4. **Model tiering from config, never hardcoded** (spec 11) — `src/core/model_tier.py`
    resolves role→model: `BEDROCK_CLASSIFIER_MODEL_ID` (Haiku) / `BEDROCK_MODEL_ID`
-   (agents) / `BEDROCK_SYNTHESIS_MODEL_ID`; misconfig fails loudly at startup
+   (agents) / `BEDROCK_SYNTHESIS_MODEL_ID`; provider-neutral `LLM_*_MODEL_ID` win when
+   set (required under `LLM_PROVIDER=openai`, spec 28); misconfig fails loudly at startup.
+   All LLM calls go through `LLMService` (`src/core/llm/`) — never call a provider SDK
+   directly; resilience, guardrail and token/cost metrics live there once
 5. **Read-only posture** — system prompt + IAM deny + K8s RBAC + response templates; for
    **agentic tool-calling (spec 37)** it holds via a positive fail-closed tool **allowlist** +
    the MCP server's own ServiceAccount RBAC + guardrail on tool args+results (proven by the MCP
@@ -77,7 +82,14 @@ User (LibreChat /v1 · HTTP /query · Alertmanager · MCP :8006)
    testing found a real false-positive rate on ordinary benign answers (models
    echo the canary as a self-invented "session ID" footer, no injection
    involved), and the token is single-use/worthless once redacted, so denying
-   an otherwise-legitimate answer cost more than it protected
+   an otherwise-legitimate answer cost more than it protected.
+   **Exception 2: Bedrock Guardrail (L1) is OFF when `LLM_PROVIDER != bedrock`**
+   (spec 28 Decision 10, ADR-0009, 2026-11-15, deliberate decision) — the guardrail
+   is an AWS Bedrock API; every L1 point (ingress, per-stage INPUT/OUTPUT, tool
+   args/results, Converse `guardrailConfig`/guardContent) becomes a no-op. Never
+   silent: startup WARNING `llm_guardrail_l1_inactive`,
+   `aigent.llm.guardrail_l1_active{provider}=0`, `/ready` `checks.llm.guardrail_l1`.
+   L2–L6 run unchanged. Need L1 → stay on Bedrock
 7. **Deterministic cache keys** — `hashlib.sha256()`, never native `hash()`
 8. **No business logic in `server.py`/gateway** — transport + auth only; the gateway
    holds NO orchestration and NEVER evaluates the guardrail (supervisor does)
@@ -166,7 +178,10 @@ src/
     auth.py             ← Edge auth (INTERNAL_API_TOKEN / GATEWAY_API_KEYS, fail-closed)
   core/
     generic_agent.py    ← Config-driven agent (all 6 specialists use this)
-    bedrock.py          ← Bedrock chokepoint: guardrail, retry, tokens, prompt caching
+    llm/                ← LLM chokepoint (spec 28): service.py = LLMService common layer
+                          (breaker, retry, guardrail, tokens/cost, budget); types.py =
+                          LLMProvider Protocol; openai_provider.py; factory.py (LLM_PROVIDER)
+    bedrock.py          ← Bedrock transport (BedrockClient(LLMService)): bodies, prompt caching
     model_tier.py       ← Role→model resolver + per-model pricing (spec 11)
     token_budget.py     ← Per-session token budget (hard cap, spec 11)
     classifier.py       ← LLM-based routing (Haiku) + keyword fallback
@@ -254,12 +269,18 @@ No code changes needed — `AgentRegistry` auto-discovers at startup.
 
 | Variable | Required | Default | Purpose |
 |----------|----------|---------|---------|
-| `BEDROCK_MODEL_ID` | ✅ | `us.anthropic.claude-sonnet-4-5-20250929-v1:0` | Agent/synthesis model (inference profile) |
+| `LLM_PROVIDER` | | `bedrock` | Global LLM provider: `bedrock` \| `openai` (OpenAI-compatible; **disables Bedrock Guardrail L1**, spec 28) |
+| `LLM_MODEL_ID` / `LLM_CLASSIFIER_MODEL_ID` / `LLM_SYNTHESIS_MODEL_ID` | openai: `LLM_MODEL_ID` ✅ | — | Provider-neutral role models; bedrock falls back to `BEDROCK_*`, openai classifier/synthesis fall back to `LLM_MODEL_ID` |
+| `OPENAI_BASE_URL` | openai ✅ | — | e.g. `https://api.openai.com/v1`, `http://ollama:11434/v1` |
+| `OPENAI_API_KEY_FILE` / `OPENAI_API_KEY` | openai ✅ | — | Secret (file preferred, wins); never logged |
+| `OPENAI_API_KEY_HEADER` / `OPENAI_MAX_TOKENS_FIELD` | | `Authorization` / `max_tokens` | `api-key` for Azure; `max_completion_tokens` for reasoning models |
+| `LLM_PRICE_INPUT_PER_1M` / `LLM_PRICE_OUTPUT_PER_1M` | | — | Non-Bedrock pricing (USD); unset → cost metrics 0 + startup WARNING |
+| `BEDROCK_MODEL_ID` | ✅ (bedrock) | `us.anthropic.claude-sonnet-4-5-20250929-v1:0` | Agent/synthesis model (inference profile) |
 | `BEDROCK_CLASSIFIER_MODEL_ID` | | `us.anthropic.claude-haiku-4-5-20251001-v1:0` | Classifier model (Haiku tiering, spec 11) |
 | `AWS_REGION` | ✅ | `us-east-1` | Bedrock, DynamoDB, AWS APIs |
 | `INTERNAL_API_TOKEN` | ✅ | — | Edge auth for /query + /v1 (gateway) |
 | `SUPERVISOR_INTERNAL_TOKEN` | ✅ | — | Gateway→supervisor `/internal/*` link (distinct secret, fail-closed) |
-| `GUARDRAIL_ENABLED` | | `true` | Spec-14 Bedrock Guardrail (fail-closed; needs `GUARDRAIL_ID`) |
+| `GUARDRAIL_ENABLED` | | `true` | Spec-14 Bedrock Guardrail (fail-closed; needs `GUARDRAIL_ID`); forced OFF when `LLM_PROVIDER != bedrock` |
 | `GUARDRAIL_ID` / `GUARDRAIL_VERSION` | when enabled | — / `DRAFT` | From `infra/terraform/guardrail/` outputs |
 | `AIGENT_TRACE_STYLE` | | `think` | Streaming tool-trace wrapper: `think` (collapsible in LibreChat/Open WebUI) / `details` / `plain` / `off` |
 | `SESSION_TOKEN_BUDGET` | | `2000000` | Per-session cumulative token cap (spec 11); raised from 200K for agentic loop cost (~30-60K/query) |
@@ -322,6 +343,8 @@ All metrics named `aigent.<domain>.<name>`. Key ones:
 | `aigent.fanout.calls` | — | Multi-agent dispatch count |
 | `aigent.investigation.duration` | — | RCA latency |
 | `aigent.circuit_breaker.transitions` | — | Bedrock resilience events |
+| `aigent.llm.provider_errors` | provider, error_class | LLM transport errors (spec 28) |
+| `aigent.llm.guardrail_l1_active` | provider | 0 = Bedrock Guardrail L1 inactive (spec 28) |
 
 **No high-cardinality labels** — never add `user_id`, `trace_id`, or raw error text as labels.
 Every new feature must emit ≥1 custom metric, defined in `src/core/metrics.py` and documented
@@ -419,5 +442,6 @@ Live session state + next steps: `HANDOFF.md`. Live items (findings/backlog/defe
 | Product why / personas / success metrics | `docs/prd/aigent-squad.md` |
 | Architecture decisions (ADR index) | `docs/architecture/decisions/README.md` |
 | Bedrock design decision | `specs/ADR-001-bedrock-direct-vs-strands.md` (= ADR-0001) |
+| Pluggable LLM transport / OpenAI-compatible provider | `docs/architecture/decisions/0009-llm-provider-abstraction.md`, `specs/28-llm-provider-abstraction/` |
 | Deploy to K8s | `helm-charts/charts/aigent-squad` (sibling repo) |
 | Cut a release | `RELEASE.md` (spec 34) — 8-phase runbook, cross-repo |

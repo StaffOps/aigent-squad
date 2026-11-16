@@ -54,8 +54,8 @@ async def test_invoke_records_metrics(mock_boto3_client):
     client = BedrockClient()
     client.client = mock_boto3_client
 
-    with patch("src.core.bedrock.token_counter") as mock_counter, \
-         patch("src.core.bedrock.estimated_cost"):
+    with patch("src.core.llm.service.token_counter") as mock_counter, \
+         patch("src.core.llm.service.estimated_cost"):
         result = await client.invoke(
             messages=[{"role": "user", "content": "test"}],
             system_prompt="sys",
@@ -74,8 +74,8 @@ async def test_invoke_labels_metrics_with_agent_id(mock_boto3_client):
     client = BedrockClient()
     client.client = mock_boto3_client
 
-    with patch("src.core.bedrock.token_counter") as mock_counter, \
-         patch("src.core.bedrock.estimated_cost") as mock_cost:
+    with patch("src.core.llm.service.token_counter") as mock_counter, \
+         patch("src.core.llm.service.estimated_cost") as mock_cost:
         await client.invoke(
             messages=[{"role": "user", "content": "test"}],
             system_prompt="sys",
@@ -101,8 +101,8 @@ async def test_invoke_defaults_agent_id_to_unknown(mock_boto3_client):
     client = BedrockClient()
     client.client = mock_boto3_client
 
-    with patch("src.core.bedrock.token_counter") as mock_counter, \
-         patch("src.core.bedrock.estimated_cost"):
+    with patch("src.core.llm.service.token_counter") as mock_counter, \
+         patch("src.core.llm.service.estimated_cost"):
         await client.invoke(messages=[{"role": "user", "content": "t"}], system_prompt="s")
 
     assert mock_counter.add.call_args_list[0].args[1]["agent_id"] == "unknown"
@@ -118,10 +118,10 @@ async def test_invoke_records_llm_duration_and_prompt_size(mock_boto3_client):
     client = BedrockClient()
     client.client = mock_boto3_client
 
-    with patch("src.core.bedrock.token_counter"), \
-         patch("src.core.bedrock.estimated_cost"), \
-         patch("src.core.bedrock.llm_duration") as mock_llm_dur, \
-         patch("src.core.bedrock.prompt_size_tokens") as mock_prompt_size:
+    with patch("src.core.llm.service.token_counter"), \
+         patch("src.core.llm.service.estimated_cost"), \
+         patch("src.core.llm.service.llm_duration") as mock_llm_dur, \
+         patch("src.core.llm.service.prompt_size_tokens") as mock_prompt_size:
         await client.invoke(
             messages=[{"role": "user", "content": "test"}],
             system_prompt="sys",
@@ -156,10 +156,10 @@ async def test_prompt_size_reads_snake_case_usage_key(mock_boto3_client):
     client = BedrockClient()
     client.client = mock_boto3_client
 
-    with patch("src.core.bedrock.token_counter"), \
-         patch("src.core.bedrock.estimated_cost"), \
-         patch("src.core.bedrock.llm_duration"), \
-         patch("src.core.bedrock.prompt_size_tokens") as mock_prompt_size:
+    with patch("src.core.llm.service.token_counter"), \
+         patch("src.core.llm.service.estimated_cost"), \
+         patch("src.core.llm.service.llm_duration"), \
+         patch("src.core.llm.service.prompt_size_tokens") as mock_prompt_size:
         await client.invoke(
             messages=[{"role": "user", "content": "x"}],
             system_prompt="s",
@@ -182,10 +182,10 @@ async def test_prompt_size_records_zero_when_usage_absent(mock_boto3_client):
     client = BedrockClient()
     client.client = mock_boto3_client
 
-    with patch("src.core.bedrock.token_counter"), \
-         patch("src.core.bedrock.estimated_cost"), \
-         patch("src.core.bedrock.llm_duration") as mock_llm_dur, \
-         patch("src.core.bedrock.prompt_size_tokens") as mock_prompt_size:
+    with patch("src.core.llm.service.token_counter"), \
+         patch("src.core.llm.service.estimated_cost"), \
+         patch("src.core.llm.service.llm_duration") as mock_llm_dur, \
+         patch("src.core.llm.service.prompt_size_tokens") as mock_prompt_size:
         result = await client.invoke(
             messages=[{"role": "user", "content": "x"}],
             system_prompt="s",
@@ -223,11 +223,11 @@ async def test_llm_duration_excludes_retry_backoff(mock_boto3_client):
 
     # Patch time.sleep so the test doesn't actually wait, but still let the
     # impl's elapsed-time math run against the real clock around invoke_model.
-    with patch("src.core.bedrock.time.sleep"), \
-         patch("src.core.bedrock.token_counter"), \
-         patch("src.core.bedrock.estimated_cost"), \
-         patch("src.core.bedrock.prompt_size_tokens"), \
-         patch("src.core.bedrock.llm_duration") as mock_llm_dur:
+    with patch("src.core.llm.service.time.sleep"), \
+         patch("src.core.llm.service.token_counter"), \
+         patch("src.core.llm.service.estimated_cost"), \
+         patch("src.core.llm.service.prompt_size_tokens"), \
+         patch("src.core.llm.service.llm_duration") as mock_llm_dur:
         result = await client.invoke(
             messages=[{"role": "user", "content": "x"}],
             system_prompt="s",
@@ -253,8 +253,8 @@ async def test_invoke_does_not_record_efficiency_metrics_on_failure(mock_boto3_c
     client.client = mock_boto3_client
     client.max_retries = 1
 
-    with patch("src.core.bedrock.llm_duration") as mock_llm_dur, \
-         patch("src.core.bedrock.prompt_size_tokens") as mock_prompt_size:
+    with patch("src.core.llm.service.llm_duration") as mock_llm_dur, \
+         patch("src.core.llm.service.prompt_size_tokens") as mock_prompt_size:
         with pytest.raises(Exception, match="boom"):
             await client.invoke(messages=[{"role": "user", "content": "x"}], system_prompt="s")
 
@@ -366,7 +366,7 @@ async def test_input_guardrail_block_skips_invoke(mock_boto3_client):
     client = BedrockClient()
     client.client = mock_boto3_client
 
-    with patch("src.core.bedrock.guardrail") as mock_gr:
+    with patch("src.core.llm.service.guardrail") as mock_gr:
         mock_gr.apply.side_effect = GuardrailBlockedError(
             reason="blocked", source="INPUT", categories=["topic:Attack"]
         )
@@ -400,7 +400,7 @@ async def test_output_guardrail_block_raises(mock_boto3_client):
         if source == "OUTPUT":
             raise GuardrailBlockedError(reason="blocked", source="OUTPUT", categories=["pii:SSN"])
 
-    with patch("src.core.bedrock.guardrail") as mock_gr:
+    with patch("src.core.llm.service.guardrail") as mock_gr:
         mock_gr.apply.side_effect = _side_effect
         with pytest.raises(GuardrailBlockedError) as exc_info:
             await client.invoke(
@@ -421,7 +421,7 @@ async def test_guardrail_blocked_does_not_trip_circuit_breaker(mock_boto3_client
     client = BedrockClient()
     client.client = mock_boto3_client
 
-    with patch("src.core.bedrock.guardrail") as mock_gr:
+    with patch("src.core.llm.service.guardrail") as mock_gr:
         mock_gr.apply.side_effect = GuardrailBlockedError(
             reason="blocked", source="INPUT"
         )

@@ -18,6 +18,7 @@ supersedes the old one. New ADRs land here as `NNNN-slug.md`.
 | [0006](0006-standalone-product-reuse-by-copy.md) | AIgent-squad stays a standalone product; chaitops ecosystem patterns are reused by copy, never by dependency | accepted | 2026-06-02 (recorded 2026-07-03) |
 | [0007](0007-internal-first-vs-oss-product.md) | Internal-first tool vs OSS product — pick a lane (A recommended) | **accepted** | 2026-07-04 |
 | [0008](0008-agentic-tool-calling.md) | Agentic tool-calling (LLM-driven) — supersedes ADR-001 "Caminho A" (Path A) | accepted | 2026-07-19 |
+| [0009](0009-llm-provider-abstraction.md) | Pluggable LLM transport (Bedrock or any OpenAI-compatible API); Bedrock Guardrail L1 auto-off for non-Bedrock — amends ADR-001 for transport only | accepted | 2026-11-15 |
 
 Backfilled 2026-07-03 from decisions already recorded in spec designs
 (sources cited in each ADR). Product-level "why" lives in

@@ -1,7 +1,7 @@
 import json
 from typing import Any, List, Optional
 from dataclasses import dataclass, field
-from src.core.bedrock import bedrock
+from src.core.llm import llm as bedrock  # provider-selected (spec 28); local name kept for patch-compat
 from src.core.guardrail import GuardrailBlockedError
 from src.core.state_store import ConversationMessage
 from src.core.token_budget import truncate_history_by_tokens

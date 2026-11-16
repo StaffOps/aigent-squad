@@ -242,7 +242,7 @@ class TestPerModelCostMetric:
             input_tokens=200, output_tokens=80
         )
 
-        with patch("src.core.bedrock.token_counter") as mock_tc:
+        with patch("src.core.llm.service.token_counter") as mock_tc:
             await client.invoke(
                 messages=[{"role": "user", "content": "test"}],
                 system_prompt="sys",
@@ -274,8 +274,8 @@ class TestPerModelCostMetric:
             input_tokens=1000, output_tokens=200, cache_read=300
         )
 
-        with patch("src.core.bedrock.estimated_cost") as mock_cost, \
-             patch("src.core.bedrock.compute_cost", wraps=__import__("src.core.model_tier", fromlist=["compute_cost"]).compute_cost):
+        with patch("src.core.llm.service.estimated_cost") as mock_cost, \
+             patch("src.core.llm.service.compute_cost", wraps=__import__("src.core.model_tier", fromlist=["compute_cost"]).compute_cost):
             await client.invoke(
                 messages=[{"role": "user", "content": "test"}],
                 system_prompt="sys",
@@ -299,7 +299,7 @@ class TestPerModelCostMetric:
         client = _make_client()
         client.client.invoke_model.return_value = _mock_bedrock_response()
 
-        with patch("src.core.bedrock.estimated_cost") as mock_cost:
+        with patch("src.core.llm.service.estimated_cost") as mock_cost:
             await client.invoke(
                 messages=[{"role": "user", "content": "test"}],
                 system_prompt="sys",
@@ -324,7 +324,7 @@ class TestPerModelCostMetric:
             "body": MagicMock(read=MagicMock(return_value=body))
         }
 
-        with patch("src.core.bedrock.estimated_cost") as mock_cost:
+        with patch("src.core.llm.service.estimated_cost") as mock_cost:
             await client.invoke(
                 messages=[{"role": "user", "content": "test"}],
                 system_prompt="sys",
@@ -351,7 +351,7 @@ class TestBedrockRetryAndCircuitBreaker:
     @pytest.mark.asyncio
     async def test_throttling_retries_and_succeeds(self, monkeypatch):
         """ThrottlingException triggers retry; success on 2nd attempt."""
-        monkeypatch.setattr("src.core.bedrock.time.sleep", lambda _: None)
+        monkeypatch.setattr("src.core.llm.service.time.sleep", lambda _: None)
         client = _make_client()
 
         throttle_err = ClientError(
@@ -373,7 +373,7 @@ class TestBedrockRetryAndCircuitBreaker:
     @pytest.mark.asyncio
     async def test_max_retries_exhausted_raises(self, monkeypatch):
         """All retries fail with ThrottlingException → raises ClientError."""
-        monkeypatch.setattr("src.core.bedrock.time.sleep", lambda _: None)
+        monkeypatch.setattr("src.core.llm.service.time.sleep", lambda _: None)
         client = _make_client()
 
         throttle_err = ClientError(
@@ -410,7 +410,7 @@ class TestBedrockRetryAndCircuitBreaker:
 
         # Make guardrail.apply raise on INPUT
         monkeypatch.setattr(
-            "src.core.bedrock.guardrail.apply",
+            "src.core.llm.service.guardrail.apply",
             MagicMock(side_effect=GuardrailBlockedError("blocked", "INPUT", "test")),
         )
 

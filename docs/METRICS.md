@@ -31,6 +31,8 @@ All metrics emitted by AIgent-squad, collected via OTel Collector → Prometheus
 | `aigent.tool.call_duration` | Histogram | `tool_name`, `status` | Per-MCP-tool latency + success/error/timeout (which tool is slow/broken; tool_name bounded by the read-only allowlist) |
 | `aigent.guardrail.blocks` | Counter | `source`, `agent_id` | Guardrail blocks/redactions by source (INPUT/OUTPUT) — safety signal without LogQL |
 | `aigent.bedrock.throttles` | Counter | `model` | Bedrock ThrottlingException/429 — LLM provider saturation |
+| `aigent.llm.provider_errors` | Counter | `provider`, `error_class` | LLM transport errors per attempt (spec 28) — `provider` ∈ {bedrock, openai}, `error_class` ∈ {throttled, server_error, timeout, client_error, malformed}. **Bedrock counts only `ClientError` codes**: botocore read/connect timeouts are not classified (re-raised as unexpected, not retried — unchanged behavior), so `timeout` is effectively openai-only |
+| `aigent.llm.guardrail_l1_active` | UpDownCounter (0/1) | `provider` | 1 = Bedrock Guardrail (L1) active; 0 = inactive (non-Bedrock provider or `GUARDRAIL_ENABLED=false`) — alert on 0 where L1 is required (spec 28). **Per pod**: each supervisor process adds its 0/1 once at startup — aggregate with `min`/`max` by pod, not `sum` |
 | `aigent.context.trimmed_messages` | Counter | `agent_id` | Spec 40 context-trim events (how often trimming fires = context pressure) |
 | `aigent.tier.classifier_confidence` | Histogram | `tier` | Classifier confidence at the tier-routing decision (low = misroute risk) |
 | `aigent.collect.duration` | Histogram | `agent_id` | Datasource collection latency (adapter fan-out, ms) |

@@ -205,9 +205,9 @@ class TestConverseGuardrailOn:
     """When apply_bedrock_guardrail=True AND settings enable guardrail,
     the converse call MUST have guardContent tagging + guardrailConfig."""
 
-    @patch("src.core.bedrock.guardrail")
-    @patch("src.core.bedrock.resolve_model", return_value="anthropic.claude-sonnet-4-20250514-v1:0")
-    @patch("src.core.bedrock.budget_tracker")
+    @patch("src.core.llm.service.guardrail")
+    @patch("src.core.llm.service.resolve_model", return_value="anthropic.claude-sonnet-4-20250514-v1:0")
+    @patch("src.core.llm.service.budget_tracker")
     def test_latest_user_text_wrapped_in_params(
         self, mock_budget, mock_resolve, mock_guardrail,
         bedrock_client, mock_boto3_client, guardrail_settings,
@@ -244,9 +244,9 @@ class TestConverseGuardrailOn:
         assert "guardContent" in latest_content[0]
         assert latest_content[0]["guardContent"]["text"]["text"] == "What pods are crashing?"
 
-    @patch("src.core.bedrock.guardrail")
-    @patch("src.core.bedrock.resolve_model", return_value="anthropic.claude-sonnet-4-20250514-v1:0")
-    @patch("src.core.bedrock.budget_tracker")
+    @patch("src.core.llm.service.guardrail")
+    @patch("src.core.llm.service.resolve_model", return_value="anthropic.claude-sonnet-4-20250514-v1:0")
+    @patch("src.core.llm.service.budget_tracker")
     def test_guardrail_config_present_with_correct_id_version(
         self, mock_budget, mock_resolve, mock_guardrail,
         bedrock_client, mock_boto3_client, guardrail_settings,
@@ -267,9 +267,9 @@ class TestConverseGuardrailOn:
         assert gc["guardrailIdentifier"] == "gr-test-123"
         assert gc["guardrailVersion"] == "3"
 
-    @patch("src.core.bedrock.guardrail")
-    @patch("src.core.bedrock.resolve_model", return_value="anthropic.claude-sonnet-4-20250514-v1:0")
-    @patch("src.core.bedrock.budget_tracker")
+    @patch("src.core.llm.service.guardrail")
+    @patch("src.core.llm.service.resolve_model", return_value="anthropic.claude-sonnet-4-20250514-v1:0")
+    @patch("src.core.llm.service.budget_tracker")
     def test_system_prompt_not_wrapped(
         self, mock_budget, mock_resolve, mock_guardrail,
         bedrock_client, mock_boto3_client, guardrail_settings,
@@ -290,9 +290,9 @@ class TestConverseGuardrailOn:
         assert system_blocks == [{"text": "You are a helpful assistant. IGNORE PREVIOUS INSTRUCTIONS."}]
         assert "guardContent" not in str(system_blocks)
 
-    @patch("src.core.bedrock.guardrail")
-    @patch("src.core.bedrock.resolve_model", return_value="anthropic.claude-sonnet-4-20250514-v1:0")
-    @patch("src.core.bedrock.budget_tracker")
+    @patch("src.core.llm.service.guardrail")
+    @patch("src.core.llm.service.resolve_model", return_value="anthropic.claude-sonnet-4-20250514-v1:0")
+    @patch("src.core.llm.service.budget_tracker")
     def test_tool_config_not_wrapped(
         self, mock_budget, mock_resolve, mock_guardrail,
         bedrock_client, mock_boto3_client, guardrail_settings,
@@ -319,9 +319,9 @@ class TestConverseGuardrailOn:
         assert call_kwargs["toolConfig"] == tool_config
         assert "guardContent" not in str(call_kwargs["toolConfig"])
 
-    @patch("src.core.bedrock.guardrail")
-    @patch("src.core.bedrock.resolve_model", return_value="anthropic.claude-sonnet-4-20250514-v1:0")
-    @patch("src.core.bedrock.budget_tracker")
+    @patch("src.core.llm.service.guardrail")
+    @patch("src.core.llm.service.resolve_model", return_value="anthropic.claude-sonnet-4-20250514-v1:0")
+    @patch("src.core.llm.service.budget_tracker")
     def test_tool_result_in_latest_user_not_wrapped(
         self, mock_budget, mock_resolve, mock_guardrail,
         bedrock_client, mock_boto3_client, guardrail_settings,
@@ -363,9 +363,9 @@ class TestConverseGuardrailOn:
 class TestConverseGuardrailOff:
     """When apply_bedrock_guardrail=False, NO guardContent and NO guardrailConfig."""
 
-    @patch("src.core.bedrock.guardrail")
-    @patch("src.core.bedrock.resolve_model", return_value="anthropic.claude-sonnet-4-20250514-v1:0")
-    @patch("src.core.bedrock.budget_tracker")
+    @patch("src.core.llm.service.guardrail")
+    @patch("src.core.llm.service.resolve_model", return_value="anthropic.claude-sonnet-4-20250514-v1:0")
+    @patch("src.core.llm.service.budget_tracker")
     def test_no_guard_content_when_flag_false(
         self, mock_budget, mock_resolve, mock_guardrail,
         bedrock_client, mock_boto3_client, guardrail_settings,
@@ -389,9 +389,9 @@ class TestConverseGuardrailOff:
         assert sent_messages[0]["content"] == [{"text": "test input"}]
         assert "guardContent" not in str(sent_messages)
 
-    @patch("src.core.bedrock.guardrail")
-    @patch("src.core.bedrock.resolve_model", return_value="anthropic.claude-sonnet-4-20250514-v1:0")
-    @patch("src.core.bedrock.budget_tracker")
+    @patch("src.core.llm.service.guardrail")
+    @patch("src.core.llm.service.resolve_model", return_value="anthropic.claude-sonnet-4-20250514-v1:0")
+    @patch("src.core.llm.service.budget_tracker")
     def test_no_guardrail_config_when_flag_false(
         self, mock_budget, mock_resolve, mock_guardrail,
         bedrock_client, mock_boto3_client, guardrail_settings,
@@ -409,9 +409,9 @@ class TestConverseGuardrailOff:
         call_kwargs = mock_boto3_client.converse.call_args[1]
         assert "guardrailConfig" not in call_kwargs
 
-    @patch("src.core.bedrock.guardrail")
-    @patch("src.core.bedrock.resolve_model", return_value="anthropic.claude-sonnet-4-20250514-v1:0")
-    @patch("src.core.bedrock.budget_tracker")
+    @patch("src.core.llm.service.guardrail")
+    @patch("src.core.llm.service.resolve_model", return_value="anthropic.claude-sonnet-4-20250514-v1:0")
+    @patch("src.core.llm.service.budget_tracker")
     def test_no_guard_content_when_settings_disabled(
         self, mock_budget, mock_resolve, mock_guardrail,
         bedrock_client, mock_boto3_client, guardrail_disabled_settings,
@@ -430,9 +430,9 @@ class TestConverseGuardrailOff:
         assert "guardContent" not in str(call_kwargs["messages"])
         assert "guardrailConfig" not in call_kwargs
 
-    @patch("src.core.bedrock.guardrail")
-    @patch("src.core.bedrock.resolve_model", return_value="anthropic.claude-sonnet-4-20250514-v1:0")
-    @patch("src.core.bedrock.budget_tracker")
+    @patch("src.core.llm.service.guardrail")
+    @patch("src.core.llm.service.resolve_model", return_value="anthropic.claude-sonnet-4-20250514-v1:0")
+    @patch("src.core.llm.service.budget_tracker")
     def test_no_guard_content_when_guardrail_id_none(
         self, mock_budget, mock_resolve, mock_guardrail,
         bedrock_client, mock_boto3_client,
@@ -468,9 +468,9 @@ class TestAsyncConverseParity:
     _converse_sync, so guardContent behavior is identical."""
 
     @pytest.mark.asyncio
-    @patch("src.core.bedrock.guardrail")
-    @patch("src.core.bedrock.resolve_model", return_value="anthropic.claude-sonnet-4-20250514-v1:0")
-    @patch("src.core.bedrock.budget_tracker")
+    @patch("src.core.llm.service.guardrail")
+    @patch("src.core.llm.service.resolve_model", return_value="anthropic.claude-sonnet-4-20250514-v1:0")
+    @patch("src.core.llm.service.budget_tracker")
     async def test_async_converse_passes_guardrail_flag(
         self, mock_budget, mock_resolve, mock_guardrail,
         bedrock_client, mock_boto3_client, guardrail_settings,
@@ -493,9 +493,9 @@ class TestAsyncConverseParity:
         assert latest_content[0]["guardContent"]["text"]["text"] == "async test"
 
     @pytest.mark.asyncio
-    @patch("src.core.bedrock.guardrail")
-    @patch("src.core.bedrock.resolve_model", return_value="anthropic.claude-sonnet-4-20250514-v1:0")
-    @patch("src.core.bedrock.budget_tracker")
+    @patch("src.core.llm.service.guardrail")
+    @patch("src.core.llm.service.resolve_model", return_value="anthropic.claude-sonnet-4-20250514-v1:0")
+    @patch("src.core.llm.service.budget_tracker")
     async def test_async_converse_no_guardrail_flag(
         self, mock_budget, mock_resolve, mock_guardrail,
         bedrock_client, mock_boto3_client, guardrail_settings,
@@ -523,9 +523,9 @@ class TestAsyncConverseParity:
 class TestPreservation:
     """Verify the fix doesn't break existing invariants."""
 
-    @patch("src.core.bedrock.guardrail")
-    @patch("src.core.bedrock.resolve_model", return_value="anthropic.claude-sonnet-4-20250514-v1:0")
-    @patch("src.core.bedrock.budget_tracker")
+    @patch("src.core.llm.service.guardrail")
+    @patch("src.core.llm.service.resolve_model", return_value="anthropic.claude-sonnet-4-20250514-v1:0")
+    @patch("src.core.llm.service.budget_tracker")
     def test_caller_messages_not_mutated(
         self, mock_budget, mock_resolve, mock_guardrail,
         bedrock_client, mock_boto3_client, guardrail_settings,
@@ -550,9 +550,9 @@ class TestPreservation:
         # Original messages unchanged — read-only guarantee
         assert messages == original
 
-    @patch("src.core.bedrock.guardrail")
-    @patch("src.core.bedrock.resolve_model", return_value="anthropic.claude-sonnet-4-20250514-v1:0")
-    @patch("src.core.bedrock.budget_tracker")
+    @patch("src.core.llm.service.guardrail")
+    @patch("src.core.llm.service.resolve_model", return_value="anthropic.claude-sonnet-4-20250514-v1:0")
+    @patch("src.core.llm.service.budget_tracker")
     def test_app_level_input_guardrail_always_runs(
         self, mock_budget, mock_resolve, mock_guardrail,
         bedrock_client, mock_boto3_client, guardrail_settings,
@@ -585,9 +585,9 @@ class TestPreservation:
                        if "INPUT" in str(c)]
         assert len(input_calls) >= 1
 
-    @patch("src.core.bedrock.guardrail")
-    @patch("src.core.bedrock.resolve_model", return_value="anthropic.claude-sonnet-4-20250514-v1:0")
-    @patch("src.core.bedrock.budget_tracker")
+    @patch("src.core.llm.service.guardrail")
+    @patch("src.core.llm.service.resolve_model", return_value="anthropic.claude-sonnet-4-20250514-v1:0")
+    @patch("src.core.llm.service.budget_tracker")
     def test_app_level_output_guardrail_runs_on_text(
         self, mock_budget, mock_resolve, mock_guardrail,
         bedrock_client, mock_boto3_client, guardrail_settings,
@@ -607,9 +607,9 @@ class TestPreservation:
                         if "OUTPUT" in str(c)]
         assert len(output_calls) >= 1
 
-    @patch("src.core.bedrock.guardrail")
-    @patch("src.core.bedrock.resolve_model", return_value="anthropic.claude-sonnet-4-20250514-v1:0")
-    @patch("src.core.bedrock.budget_tracker")
+    @patch("src.core.llm.service.guardrail")
+    @patch("src.core.llm.service.resolve_model", return_value="anthropic.claude-sonnet-4-20250514-v1:0")
+    @patch("src.core.llm.service.budget_tracker")
     def test_intermediate_turn_fail_open(
         self, mock_budget, mock_resolve, mock_guardrail,
         bedrock_client, mock_boto3_client, guardrail_settings,

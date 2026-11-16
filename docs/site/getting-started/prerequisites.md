@@ -15,10 +15,30 @@ credential is needed either.
 
 | Requirement | Purpose |
 |-------------|---------|
-| AWS credentials with Bedrock access (`~/.aws/` or env vars) | Every real agent answer is a live Bedrock call — no offline/fixture mode yet |
+| An LLM: AWS credentials with Bedrock access (default) **or** any OpenAI-compatible API (`LLM_PROVIDER=openai`, below) | Every real agent answer is a live LLM call — no offline/fixture mode yet |
 | Bedrock model access, `us-east-1` | Console → Model access → enable the models below |
 
-### Enable Bedrock models
+### Or: any OpenAI-compatible API instead of Bedrock (spec 28)
+
+Set `LLM_PROVIDER=openai` and point it at any `POST /chat/completions` endpoint
+(OpenAI, an OpenAI-compatible Azure endpoint, vLLM, Ollama, OpenRouter, a LiteLLM
+proxy):
+
+```bash
+LLM_PROVIDER=openai
+OPENAI_BASE_URL=http://ollama:11434/v1      # no trailing /chat/completions
+OPENAI_API_KEY_FILE=/etc/secrets/openai-key # or OPENAI_API_KEY; any non-empty value for keyless servers
+LLM_MODEL_ID=llama3.1:70b                   # required; classifier/synthesis fall back to it
+# optional: LLM_CLASSIFIER_MODEL_ID, LLM_SYNTHESIS_MODEL_ID, LLM_PRICE_INPUT_PER_1M/OUTPUT_PER_1M
+```
+
+The supervisor refuses to start if the base URL, key or model is missing.
+**The Bedrock Guardrail (L1) is switched off automatically** under this provider
+(startup WARNING, `aigent.llm.guardrail_l1_active=0`, `/ready` detail) — see
+`docs/SECURITY.md`. No Bedrock model access is needed; DynamoDB (history) is
+still used (`dynamodb-local` in compose).
+
+### Enable Bedrock models (default provider)
 
 1. Open the [Bedrock Model Access console](https://console.aws.amazon.com/bedrock/home?region=us-east-1#/modelaccess)
 2. Enable the models `src/core/config.py` defaults to (or your own, via
