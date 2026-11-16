@@ -256,14 +256,14 @@ ROADMAP is plan-only from here.
 | 03-fix-cache-observability | bugfix | — | single-file bugfix.md |
 | 04-harden-security | done | — |  |
 | 05-helm-chart | superseded | — | → 22-agent-capability-manifest |
-| 06-resilience-patterns | done-with-deferrals | — | deferred: T11 formal smoke |
+| 06-resilience-patterns | done | 2026-11-15 |  |
 | 07-readiness-probes | done | 2026-06-17 |  |
 | 08-ci-cd-pipeline | done-with-deferrals | — | deferred: T7 demo stage |
 | 10-metrics-and-cost-observability | done | 2026-06-18 |  |
 | 11-bedrock-resilience-cost | done | 2026-07-02 |  |
 | 14-security-hardening | done | 2026-07-03 | depends_on: 04-harden-security |
-| 17-multi-agent-collaboration | done-with-deferrals | — | deferred: T11 formal smoke |
-| 18-rca-investigation-workflow | done-with-deferrals | 2026-08-18 | deferred: T11 formal smoke |
+| 17-multi-agent-collaboration | done | 2026-11-15 |  |
+| 18-rca-investigation-workflow | done-with-deferrals | 2026-08-18 | deferred: T14 correlator gain measurement |
 | 19-config-driven-platform | superseded | — | → 22-agent-capability-manifest |
 | 21-incident-memory-learning | done-with-deferrals | — | deferred: Opus enricher (Sonnet-only for now), Slack approval flow |
 | 22-agent-capability-manifest | done | — |  |

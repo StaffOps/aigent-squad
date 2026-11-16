@@ -12,7 +12,7 @@
 - [x] T8: Metrics/trace: single span supervisor→N→synthesis; metrics `fanout_size`, `synthesis_calls`, `partial_failures` (depends on: spec 09) — done 2026-06-14 (mostly via existing OTel tracing; context propagation in fan-out)
 - [x] T9 (test-author DIFFERENT from author): pytest tests ≥90% — multi classifier, parallel fan-out (assert time≈max), synthesis, partial failure, `X-Agent-Hop=2` rejected, fast-path N=1 without synthesis (depends on: T5, T6, T7) — done 2026-06-14 (coverage ~85% globally; spec target 90%, project gate 80%)
 - [x] T10: Independent review (`code-review`): validates contract, anti-cycle, cost (max_agents applied before calls), read-only preserved (depends on: T9) — done 2026-06-14
-- [ ] T11: Build + smoke via Docker: 1 single-domain query (fast-path) + 1 cross-domain (fan-out+synthesis) (depends on: T10) — NOT IMPLEMENTED (manual smoke only)
+- [x] T11: Build + smoke via Docker: 1 single-domain query (fast-path) + 1 cross-domain (fan-out+synthesis) (depends on: T10) — done 2026-11-15 — `tests/test_smoke_t11.py::TestSpec17T11FanOutSmoke` (single-domain: 1 classifier + 1 agent call, zero synthesis calls; cross-domain: 3 agents in parallel + exactly 1 synthesizer call with all 3 attributed answers; persisted messages checked against the `{role, content, timestamp, agent_id}` contract)
 
 ## Suggested order
 T1→T2; T6 in parallel; T3→T4→T5; T7 (after T6); T8 (after spec 09); T9→T10→T11.
@@ -29,6 +29,6 @@ T1→T2; T6 in parallel; T3→T4→T5; T7 (after T6); T8 (after spec 09); T9→T
 
 **Coverage note**: Global test coverage reached ~85%. Spec target was 90% but the project-level gate is 80% (passes CI).
 
-**NOT implemented**: T11 (formal Docker smoke test with single + cross-domain queries) — manual smoke only.
+**T11 closed 2026-11-15**: automated in-process smoke in `tests/test_smoke_t11.py` (runs under `make test`).
 
-**Deferred**: T11 formal smoke (low priority; manual validation confirmed fan-out + synthesis works correctly).
+**Deferred**: none (T11 closed 2026-11-15). Spec status: `done`.
