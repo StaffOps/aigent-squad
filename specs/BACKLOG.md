@@ -272,12 +272,14 @@ Note: if the Grafana LLM app COULD send `model=aigent-squad-observability`, that
 ### Delete/merge candidates (await user approval — NOT acted on)
 - `specs/05-helm-chart/` + `specs/19-config-driven-platform/` — `superseded_by: 22` (frontmatter correct); delete or archive.
 - ~~`skills/oomkill-investigation/`~~ — KEEP (user decision 2026-07-24): it's the canonical example skill in `docs/HOW-TO-NEW-AGENT.md`; the RCA overlap is acceptable for a focused how-to that doubles as the tutorial example. Merging would require rewriting the tutorial. Not a merge candidate.
-- `src/agents/{aws,devops,finops,kubernetes,observability}/__init__.py` — empty packages, 0 imports; delete.
-- `otel_helper/` (repo root) — duplicate of the generated `.local-stubs/otel_helper/` stub; delete.
+- ~~`src/agents/{aws,devops,finops,kubernetes,observability}/__init__.py` — empty packages, 0 imports; delete.~~ ✅ GONE (verified 2026-11-16).
+- ~~`otel_helper/` (repo root) — duplicate of the generated `.local-stubs/otel_helper/` stub; delete.~~ ✅ GONE + gitignored (verified 2026-11-16).
 - ~~`infra/terraform/guardrail/terraform.tfstate` + `.tfstate.backup`~~ — ✅ **VERIFIED FALSE POSITIVE (2026-07-24, P0 check):** already gitignored (`.gitignore` L49 `*.tfstate` + L50 `*.tfstate.*`), **never committed** (`git log --all` empty), **not tracked** (`git ls-files` empty), and no secrets in content (only `aws_bedrock_guardrail` config + IDs). NO exposure, no action needed. (The Wave-4 audit subagent mis-flagged it as "tracked".)
-- `evals/results/*-superseded.json` (2) — explicitly superseded; archive/delete after next release.
+- ~~`evals/results/*-superseded.json` (2) — explicitly superseded; archive/delete after next release.~~ ✅ GONE (verified 2026-11-16).
 
 ### Fix-needed — pre-existing test drift (breaks CI; NOT translation-caused)
+> ✅ **RESOLVED (verified 2026-11-16):** all three are fixed on `dev` — the full suite is green
+> (2232 passed, 93.5% coverage, CI `test` job green on PR #31). Kept below as record.
 - `tests/test_b16_calibrated_honesty.py` — `ImportError`: imports `CALIBRATED_HONESTY` from `generic_agent`, but it moved to `config.py`.
 - `tests/test_spec37_adapter_truncation_integration.py` — fixture 24k chars vs `MAX_TOOL_RESULT_CHARS` now 40k → assertion fails.
 - ~38 tests across 11 files — assert the removed `~` tilde ("~N items" → impl now "N items").
@@ -290,8 +292,8 @@ Note: if the Grafana LLM app COULD send `model=aigent-squad-observability`, that
 
 ### Session status — ready but not deployed/pushed (2026-07-24)
 - **Observability metrics (5 new + 3 fixes)** — ✅ DEPLOYED live (agentic29, helm rev 63) + **homologated in VictoriaMetrics** 2026-07-24. Metrics→VM gap RESOLVED: `serviceMonitor.enabled=true` in the overlay (k8s-setup a197015) — vmagent now scrapes the app's /metrics; all 5 new + fixed aigent_* confirmed queryable in VM. Full harness GO earlier.
-- **Branch reconcile + push** — all local work (i18n 72 files, metrics, docs, tier-fix code) is on `fix/openai-compat-drop-system-messages`, NOT merged to `dev` (needs PR). GitLab prompts + k8s-setup overlay from agentic28 ARE pushed/live.
-- **0.5.0 cut** — milestone candidate (agentic28 live-validated); release action pending user go.
+- ✅ **RESOLVED (verified 2026-11-16):** `fix/openai-compat-drop-system-messages` has 0 commits not in `dev`. ~~**Branch reconcile + push** — all local work (i18n 72 files, metrics, docs, tier-fix code) is on `fix/openai-compat-drop-system-messages`, NOT merged to `dev` (needs PR). GitLab prompts + k8s-setup overlay from agentic28 ARE pushed/live.~~
+- ✅ **DONE:** tag `v0.5.0` exists (PR #28 dev→main). ~~**0.5.0 cut** — milestone candidate (agentic28 live-validated); release action pending user go.~~
 > **Full pending inventory: see `HANDOFF.md`.**
 
 ---
