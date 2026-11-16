@@ -277,7 +277,7 @@ ROADMAP is plan-only from here.
 | 30-datasource-cache-layer | done | 2026-06-21 |  |
 | 31-edge-gateway-worker-pool | done-with-deferrals | 2026-07-01 | deferred: T21 k6 load test |
 | 32-spec-lifecycle-ssot | done | 2026-07-17 |  |
-| 33-operational-review-loop | done-with-deferrals | 2026-08-19 | deferred: T8 independent review of template completeness |
+| 33-operational-review-loop | done | 2026-11-16 | depends_on: 32-spec-lifecycle-ssot |
 | 34-release-runbook | done-with-deferrals | 2026-07-15 | deferred: RELEASE.md Phases 3-5 (chart bump / overlay / rollout) — gated on B-25 |
 | 35-quality-eval-harness | done-with-deferrals | 2026-07-15 | deferred: TRIGGERS.md rows (deferred to spec 33 T1) |
 | 36-agent-native-dev-loop | done-with-deferrals | 2026-07-04 | deferred: T11 independent review (fresh-clone dry run + .claude contract) |

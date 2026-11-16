@@ -1,10 +1,10 @@
 ---
 spec: 33-operational-review-loop
-status: done-with-deferrals
-completed: 2026-08-19
+status: done
+completed: 2026-11-16
 superseded_by: null
 depends_on: ["32-spec-lifecycle-ssot"]
-deferred: ["T8 independent review of template completeness"]
+deferred: []
 ---
 
 # Feature: Operational Review Loop (measure triggers · reconcile cost · triage findings)
