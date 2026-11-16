@@ -117,7 +117,7 @@ The **Makefile is the canonical command surface** — CI runs the same targets.
 ```bash
 make up          # local two-tier stack + wait for gateway /ready
 make smoke       # health + 1 real query + /v1/models
-make test        # full suite + 90% gate via Docker (auto-stubs the private otel dep)
+make test        # full suite + 90% gate via Docker (auto-stubs the otel-helper dep)
 make test-one FILE=tests/test_x.py
 make lint        # ruff, CI-verbatim scope
 make typecheck   # mypy gate; CI blocks the test job on it (needs: [lint, typecheck])
@@ -139,9 +139,10 @@ curl -X POST http://localhost:8000/query \
   -d '{"user_input": "How many EC2 instances are running?", "user_id": "u1", "session_id": "s1"}'
 ```
 
-> Tests require the private `staffops-otel-libs` dep. In CI a deploy key is used.
-> Locally, `make test` handles it automatically (`scripts/test-local.sh` generates a
-> no-op stub when the repo is unreachable and prints a loud warning).
+> Tests depend on `otel-helper` (git+https, public `StaffOps/otel-libs` repo since
+> 2026-07-14; CI installs it with a plain `pip install`, no credentials). Locally,
+> `make test` always replaces it with a no-op stub (the `python:3.11-slim` test
+> container has no git) and prints a loud warning.
 >
 > **Pre-push gate (mandatory).** CI runs `lint` → `test` and STOPS at the first
 > failure, so a lint error hides test results. Before every push, run the CI
@@ -163,6 +164,7 @@ curl -X POST http://localhost:8000/query \
 | `503 service_overloaded` | WorkerPool full (backpressure) | Self-healing; persistent → raise `GATEWAY_MAX_CONCURRENT` |
 | Empty history / no context | DynamoDB fail-open (by design) | Check `dynamodb-local` health; the query still answers |
 | Passes locally, fails CI | Local run used the otel stub (masks deps/telemetry) | The `make test` warning says so; verdict = `gh run list -L 3` |
+| `make up` fails: `dependency failed to start: container …supervisor… is unhealthy` | Supervisor `/ready` failing — the detail names the failing check (redis / dynamodb / agents) | `docker compose logs supervisor`; readiness detail: `docker compose exec supervisor python -c "import http.client as h;c=h.HTTPConnection('127.0.0.1',8001);c.request('GET','/ready');print(c.getresponse().read().decode())"`. Invalid `agent.yaml` → fix it; DynamoDB → `dynamodb-init` logs |
 | Bedrock `on-demand throughput isn't supported` | Raw model id used | `BEDROCK_MODEL_ID` must be an inference profile (`us.` prefix) |
 
 ---
@@ -239,6 +241,8 @@ Each agent in `agents/<name>/`:
 ```yaml
 name: aws
 description: "AWS infrastructure specialist. Read-only."
+domain: cloud-infrastructure                       # required
+capabilities: [ec2_inventory, s3_management, iam_audit]  # required, list of strings
 routing_keywords: [ec2, instance, s3, bucket, rds, iam, vpc]
 datasources:
   - type: boto3
@@ -417,7 +421,12 @@ Live session state + next steps: `HANDOFF.md`. Live items (findings/backlog/defe
   **Never satisfy a check with a file no tool actually reads** (nested `CLAUDE.md`,
   an unused `.mcp.json`, a `[tool.ruff]` block shadowed by `ruff.toml`, a
   `.pre-commit-config.yaml` that conflicts with `.githooks/`): a scanner point bought
-  that way is a lie about the harness. Recipe: `.claude/skills/harness-score/`.
+  that way is a lie about the harness. Ground truth the scanner does not know:
+  `ruff.toml` is the lint SSOT (a `[tool.ruff]` block in `pyproject.toml` is dead
+  config); pre-commit is `.githooks/` + `core.hooksPath` (`make install-hooks`), which
+  excludes a `.pre-commit-config.yaml`; rule prose lives in `AGENTS.md`, never in tool
+  rule dirs; `make` targets + `.claude/skills/` replace `.claude/commands/`. Checks that
+  stay red for those reasons stay red. Recipe: `.claude/skills/harness-score/`.
 - **Conventional commits**: `feat/fix/docs/test/refactor/chore(scope): description`
 - **Stage explicitly**: `git add <specific files>` — never `git add .`
 - **Cost discipline**: truncate adapter output before prompt, lazy-inject skills, cap history to N messages

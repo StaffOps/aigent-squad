@@ -11,14 +11,12 @@ description: Bring the local aigent-squad stack up and prove it works end-to-end
 
 ## When it fails
 
-Every smoke failure prints a playbook pointer. Quick map (full table:
-AGENTS.md → Playbook):
+Every smoke failure prints a playbook pointer. Diagnose with the symptom →
+cause → fix table in **AGENTS.md → Playbook**. Steps:
 
-- **gateway not ready** → `docker compose logs gateway supervisor`; port busy? `lsof -i :8000`
-- **401** → edge token (`X-Internal-Token` vs `INTERNAL_API_TOKEN`) — NOT the supervisor token
-- **403** → fail-closed security (guardrail/scanner). Local compose defaults `GUARDRAIL_ENABLED=false`; a 403 locally means an env override or a scanner block
-- **503** → supervisor down or pool full — logs first
-- **Bedrock errors** → AWS creds (`aws sts get-caller-identity`) + model id must be an inference profile (`us.` prefix)
+1. Read the failing step's output and find the matching Playbook row.
+2. `docker compose logs gateway supervisor` for the server-side error.
+3. Apply the row's fix, then re-run from step 1 of this skill.
 
 ## Definition of verified
 
