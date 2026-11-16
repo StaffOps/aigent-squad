@@ -59,8 +59,11 @@ live endpoint check.
       MCP servers reachable from the test ns; covered by mocked tests only). Findings:
       llama.cpp puts the error type in `error.type` (`exceed_context_size_error`) but
       the log showed `error_code: None` → minor diagnosability follow-up (Task 16).
-- [ ] Task 16: Surface llama.cpp/OpenAI `error.type` as the sanitized `error_code` when
-      `error.code` is numeric (diagnosability only; found in Task 12)
+- [x] Task 16: Surface llama.cpp/OpenAI `error.type` as the sanitized `error_code` when
+      `error.code` is numeric (diagnosability only; found in Task 12) — done 2026-11-16
+      (`_error_code` prefers `type` when `code` is absent or numeric; symbolic codes still win).
+      Root cause of the `None`: `OpenAICompatClient` never overrode the `LLMService._error_code`
+      log hook, so the extracted code stayed on the exception and never reached the logs.
 
 ## Follow-ups (tracked)
 - [x] Task 13: Helm chart support — `helm-charts` chart 0.9.6 (2026-11-15):

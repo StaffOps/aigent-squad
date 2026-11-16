@@ -161,7 +161,14 @@ def _error_code(response: httpx.Response) -> Optional[str]:
     err = data.get("error") if isinstance(data, dict) else None
     if not isinstance(err, dict):
         return None
-    return safe_error_code(err.get("code") or err.get("type"))
+    code = err.get("code")
+    err_type = err.get("type")
+    # llama.cpp (and some proxies) put the HTTP status in ``code`` (e.g. 400) and the
+    # meaningful reason in ``type`` (e.g. "exceed_context_size_error"). A numeric code
+    # only repeats the status, so prefer ``type`` then (spec 28 Task 16).
+    if err_type and (code is None or isinstance(code, int) or str(code).strip().isdigit()):
+        return safe_error_code(err_type)
+    return safe_error_code(code or err_type)
 
 
 def _join_text(content: Any) -> str:
@@ -492,6 +499,12 @@ class OpenAICompatClient(LLMService):
         body = self._body(model_id, chat, max_tokens, temperature)
         body.update(converse_to_chat_tools(tool_config))
         return parse_chat_completion(self._post(body), model_id, chat)
+
+    def _error_code(self, exc: BaseException) -> Optional[str]:
+        """Sanitized server error code for LOGS (spec 28 Task 16). The code was
+        extracted onto ``LLMProviderError.code`` but the base hook returned None,
+        so retry/error logs always showed ``error_code: None``."""
+        return exc.code if isinstance(exc, LLMProviderError) else None
 
     def _classify_error(self, exc: BaseException, model_id: str) -> Optional[ErrorClass]:
         if isinstance(exc, LLMProviderError):
