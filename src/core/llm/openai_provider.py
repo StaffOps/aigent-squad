@@ -166,7 +166,7 @@ def _error_code(response: httpx.Response) -> Optional[str]:
     # llama.cpp (and some proxies) put the HTTP status in ``code`` (e.g. 400) and the
     # meaningful reason in ``type`` (e.g. "exceed_context_size_error"). A numeric code
     # only repeats the status, so prefer ``type`` then (spec 28 Task 16).
-    if err_type and (code is None or isinstance(code, int) or str(code).strip().isdigit()):
+    if err_type and (code is None or (isinstance(code, int) and not isinstance(code, bool)) or str(code).strip().isdigit()):
         return safe_error_code(err_type)
     return safe_error_code(code or err_type)
 

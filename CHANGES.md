@@ -8,6 +8,7 @@
   `SLACK_SIGNING_SECRET`, `GITLAB_TOKEN`, `DOCS_PORTAL_TOKEN`. `repr(settings)` and
   model dumps show `**********`; plaintext only at the use site via `config.reveal()`.
   An empty `REDIS_PASSWORD` still means "no AUTH" (`reveal(...) or None`).
+  `POSTGRES_*` (KB store) moved from `os.getenv` into `Settings` with the same defaults.
 - **Alias rename `bedrock` → `llm` (B-31, Task 14):** the 8 callers and
   `evals/runner.py` now `from src.core.llm import llm`; test patch targets are
   `"<caller>.llm"`. No behavior change.

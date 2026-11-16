@@ -12,7 +12,9 @@ def reveal(value: Union[SecretStr, str, None]) -> str:
         return ""
     if isinstance(value, SecretStr):
         return str(value.get_secret_value())
-    return value
+    # Coerce anything else (e.g. a MagicMock in tests) so callers always get a str:
+    # a comparison then fails closed instead of raising TypeError.
+    return str(value)
 
 
 class Settings(BaseSettings):  # type: ignore[misc]
@@ -227,6 +229,15 @@ class Settings(BaseSettings):  # type: ignore[misc]
     docs_portal_url_new: str = "https://docs.company.com/"
     docs_portal_token: Optional[SecretStr] = None
     
+    # Incident-memory KB store (spec 21, PostgreSQL + pgvector; optional). Same
+    # defaults the store used via os.getenv before B-32 — the password default
+    # matches docker-compose's local-only "changeme".
+    postgres_host: str = "postgres"
+    postgres_port: int = 5432
+    postgres_user: str = "aigent"
+    postgres_password: Optional[SecretStr] = SecretStr("changeme")
+    postgres_db: str = "aigent_kb"
+
     # RAG / Knowledge Base (FinOps)
     finops_knowledge_base_id: Optional[str] = None  # Bedrock Knowledge Base ID
     rag_enabled: bool = False  # Enable RAG retrieval

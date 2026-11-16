@@ -234,8 +234,10 @@ metadata:
 See `.env.example` for all configurable secrets.
 
 Secret settings (`OPENAI_API_KEY`, `REDIS_PASSWORD`, `SUPERVISOR_INTERNAL_TOKEN`,
-`SLACK_BOT_TOKEN`, `SLACK_SIGNING_SECRET`, `GITLAB_TOKEN`, `DOCS_PORTAL_TOKEN`) are
+`SLACK_BOT_TOKEN`, `SLACK_SIGNING_SECRET`, `GITLAB_TOKEN`, `DOCS_PORTAL_TOKEN`,
+`POSTGRES_PASSWORD`) are
 typed `pydantic.SecretStr` in `src/core/config.py`, so `repr(settings)`, a model dump
 or a debug log of the settings object shows `**********`, never the value. Code reads
 the plaintext only at the use site via `config.reveal(...)` (B-32). `POSTGRES_PASSWORD`
-is read directly from the environment by the KB store and is not a `Settings` field.
+keeps its local-only default `changeme` (matches docker-compose) — set a real value
+wherever the KB is enabled.

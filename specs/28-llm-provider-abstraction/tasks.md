@@ -77,8 +77,13 @@ live endpoint check.
       (37 test files); no behavior change, full suite green
 - [x] Task 15: `SecretStr` for secret settings repo-wide (`OPENAI_API_KEY`, tokens,
       Redis password) — BACKLOG B-32 — done 2026-11-16:
-      7 fields → `SecretStr`; plaintext only via `config.reveal()` at the 7 use sites;
-      `tests/test_b32_secret_settings.py` proves repr/dump masking
+      7 fields → `SecretStr`; plaintext only via `config.reveal()` at the use sites;
+      `tests/test_b32_secret_settings.py` proves repr/dump masking.
+      Security review (mandatory, specs/README.md) 2026-11-16: APPROVE-WITH-FIXES, no
+      fail-open or leak found; applied F1 (redaction tests on the `error.type` branch),
+      F2 (`reveal()` coerces unexpected types → auth denies instead of TypeError), F4
+      (bool is not a numeric code); F3 (Slack signature never verified) → BACKLOG F-021.
+      `POSTGRES_PASSWORD` also moved into `Settings` (8th field)
 
 ## Explicitly out of scope
 - KB embeddings (Titan, Bedrock-only; KB disabled by default)

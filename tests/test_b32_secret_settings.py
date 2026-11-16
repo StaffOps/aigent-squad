@@ -12,6 +12,7 @@ SECRET_FIELDS = {
     "SUPERVISOR_INTERNAL_TOKEN": "supervisor_internal_token",
     "GITLAB_TOKEN": "gitlab_token",
     "DOCS_PORTAL_TOKEN": "docs_portal_token",
+    "POSTGRES_PASSWORD": "postgres_password",
 }
 
 
@@ -44,7 +45,7 @@ def test_reveal_returns_plaintext_at_use_site(loaded):
         assert reveal(getattr(s, field)) == values[env]
 
 
-@pytest.mark.parametrize("raw, expected", [(None, ""), ("plain", "plain"), (SecretStr("x"), "x"), (SecretStr(""), "")])
+@pytest.mark.parametrize("raw, expected", [(None, ""), ("plain", "plain"), (SecretStr("x"), "x"), (SecretStr(""), ""), (123, "123")])
 def test_reveal_accepts_none_str_and_secretstr(raw, expected):
     assert reveal(raw) == expected
 
@@ -53,9 +54,14 @@ def test_unset_secrets_default_to_none(monkeypatch):
     for env in SECRET_FIELDS:
         monkeypatch.delenv(env, raising=False)
     monkeypatch.setenv("REDIS_HOST", "localhost")
+    monkeypatch.delenv("POSTGRES_PASSWORD", raising=False)
     s = Settings()
     for field in SECRET_FIELDS.values():
-        assert getattr(s, field) is None
+        if field == "postgres_password":
+            # Keeps the pre-B-32 local default (docker-compose "changeme").
+            assert reveal(s.postgres_password) == "changeme"
+        else:
+            assert getattr(s, field) is None
 
 
 @pytest.mark.parametrize("presented, ok", [("tok-123456", True), ("wrong", False), ("", False)])
@@ -93,3 +99,39 @@ def test_openai_key_loader_reveals_secretstr(monkeypatch):
     monkeypatch.setattr(settings, "openai_api_key_file", None)
     monkeypatch.setattr(settings, "openai_api_key", SecretStr("Bearer sk-test-abc"))
     assert load_api_key() == "sk-test-abc"
+
+
+def test_internal_auth_with_mock_settings_fails_closed_not_typeerror(monkeypatch):
+    """Security review F2: an unexpected type (MagicMock) must deny, not raise TypeError."""
+    from unittest.mock import MagicMock
+
+    from fastapi import HTTPException
+
+    from src.core import internal_auth
+
+    monkeypatch.setattr(internal_auth, "settings", MagicMock())
+    with pytest.raises(HTTPException) as ei:
+        internal_auth.require_internal_token("anything")
+    assert ei.value.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_kb_store_connects_with_settings_values(monkeypatch):
+    """POSTGRES_* now come from Settings; the password is revealed only for asyncpg."""
+    from src.core.config import settings
+    from src.core.kb import store as store_mod
+
+    seen = {}
+
+    async def fake_pool(**kw):
+        seen.update(kw)
+        return object()
+
+    monkeypatch.setattr(store_mod.asyncpg, "create_pool", fake_pool)
+    monkeypatch.setattr(settings, "postgres_host", "pg.example")
+    monkeypatch.setattr(settings, "postgres_password", SecretStr("pg-s3cret"))
+    st = store_mod.KbStore()
+    await st.connect()
+    assert seen["host"] == "pg.example"
+    assert seen["password"] == "pg-s3cret"
+    assert seen["database"] == settings.postgres_db

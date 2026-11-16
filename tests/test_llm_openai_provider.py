@@ -259,6 +259,12 @@ def test_error_code_absent_or_non_json():
         ({"code": "context_length_exceeded", "type": "invalid_request_error"}, "context_length_exceeded"),
         # Numeric code with no type is still surfaced.
         ({"code": 400}, "400"),
+        # A bool is not an HTTP status: the code is kept (sanitized) as before.
+        ({"code": True, "type": "t"}, "True"),
+        # Key echoed through the type branch is still redacted (security review F1).
+        ({"code": 400, "type": SECRET}, "redacted"),
+        ({"code": 400, "type": f"bad key {SECRET} given"}, "redacted"),
+        ({"type": SECRET}, "redacted"),
     ],
 )
 def test_error_code_prefers_type_over_numeric_code(error_body, expected):
