@@ -1,0 +1,6 @@
+# Lint/typecheck tool versions — the ONE place they are pinned (BACKLOG F-022a).
+# Read by `make lint` / `make typecheck` (local and Docker paths) and by CI
+# (.github/workflows/test.yml), so a dev and CI always run the same versions.
+# Bump deliberately: change here, run `make lint typecheck`, fix, commit together.
+ruff==0.17.5
+mypy==2.4.1

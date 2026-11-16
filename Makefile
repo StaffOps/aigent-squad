@@ -39,15 +39,28 @@ test-one: ## Single file/pattern: make test-one FILE=tests/test_gateway_main.py
 test-ci: ## CI-identical pytest gate (assumes deps installed — used by CI)
 	pytest tests/ --cov --cov-fail-under=90 --tb=short -q $(PYTEST_FLAGS)
 
-lint: ## Ruff, CI-verbatim scope (run via Docker if no local ruff)
-	@command -v ruff >/dev/null 2>&1 && ruff check src/ tests/ || \
-	docker run --rm -v "$$(pwd):/app" -w /app python:3.11-slim \
-	  sh -c "pip install -q ruff && ruff check src/ tests/"
+# Tool versions pinned in requirements-lint.txt (same file CI installs from).
+RUFF_VERSION := $(shell sed -n 's/^ruff==//p' requirements-lint.txt)
+MYPY_VERSION := $(shell sed -n 's/^mypy==//p' requirements-lint.txt)
 
-typecheck: ## Mypy strict-ish gate (run via Docker if no local mypy)
-	@command -v mypy >/dev/null 2>&1 && mypy src/ || \
-	docker run --rm -v "$$(pwd):/app" -w /app python:3.11-slim \
-	  sh -c "pip install -q mypy && mypy src/"
+# A local binary is used ONLY when its version equals the pin; otherwise Docker with
+# the pinned version. No `local || docker` fallback: a failing local run must fail,
+# not be silently re-run under a different version.
+lint: ## Ruff, CI-verbatim scope (pinned version; local binary only if it matches the pin)
+	@if command -v ruff >/dev/null 2>&1 && [ "$$(ruff --version | cut -d' ' -f2)" = "$(RUFF_VERSION)" ]; then \
+	  ruff check src/ tests/; \
+	else \
+	  docker run --rm -v "$$(pwd):/app" -w /app python:3.11-slim \
+	    sh -c "pip install -q -r requirements-lint.txt && ruff check src/ tests/"; \
+	fi
+
+typecheck: ## Mypy gate (pinned version; local binary only if it matches the pin)
+	@if command -v mypy >/dev/null 2>&1 && [ "$$(mypy --version | cut -d' ' -f2)" = "$(MYPY_VERSION)" ]; then \
+	  mypy src/; \
+	else \
+	  docker run --rm -v "$$(pwd):/app" -w /app python:3.11-slim \
+	    sh -c "pip install -q -r requirements-lint.txt && mypy src/"; \
+	fi
 
 eval: ## Quality eval T2 (spec 35) — golden sets + LLM judge, real Bedrock cost (~$1-3)
 	./scripts/eval-local.sh

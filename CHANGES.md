@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Changed — pinned lint/typecheck tools (BACKLOG F-022a, 2026-11-16)
+- `requirements-lint.txt` pins `ruff==0.17.5` and `mypy==2.4.1`; `make lint` /
+  `make typecheck` and the CI `lint` / `typecheck` jobs all install from it.
+- A local `ruff`/`mypy` is used only when its version equals the pin; otherwise the
+  Docker path runs the pinned version. The old `local || docker` fallback re-ran a
+  FAILING local check under a possibly different version — a failure now fails.
+
 ### Fixed — local dev loop (spec 36 T11 fresh-clone review, 2026-11-16)
 - **`make up` now reaches a healthy stack on a fresh clone.** Nothing created the
   `agent-sessions` table in the in-memory DynamoDB Local, so the supervisor's `/ready`
