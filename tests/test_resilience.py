@@ -221,7 +221,7 @@ async def test_classifier_keyword_fallback():
 
     clf = Classifier(mock_registry)
 
-    with patch("src.core.classifier.bedrock") as mock_bedrock:
+    with patch("src.core.classifier.llm") as mock_bedrock:
         mock_bedrock.invoke = AsyncMock(side_effect=Exception("Bedrock circuit breaker is OPEN"))
 
         result = await clf.classify("list ec2 instances", [])
@@ -244,7 +244,7 @@ async def test_classifier_keyword_fallback_no_match():
 
     clf = Classifier(mock_registry)
 
-    with patch("src.core.classifier.bedrock") as mock_bedrock:
+    with patch("src.core.classifier.llm") as mock_bedrock:
         mock_bedrock.invoke = AsyncMock(side_effect=Exception("Bedrock circuit breaker is OPEN"))
 
         result = await clf.classify("hello", [])

@@ -211,9 +211,10 @@ async def harness(monkeypatch):
     # these modules, so patch every live BedrockClient instance the request path
     # can reach (normally they are one and the same object).
     fake = _FakeBedrock()
-    clients = {id(m.bedrock): m.bedrock for m in (
-        bedrock_mod, classifier_mod, generic_agent_mod, synthesizer_mod, investigation_mod,
-    )}
+    live = [bedrock_mod.bedrock] + [m.llm for m in (
+        classifier_mod, generic_agent_mod, synthesizer_mod, investigation_mod,
+    )]
+    clients = {id(c): c for c in live}
     for client in clients.values():
         monkeypatch.setattr(client, "_invoke_sync", fake)
         monkeypatch.setattr(client, "circuit_breaker", CircuitBreaker("bedrock-t11"))

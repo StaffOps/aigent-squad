@@ -223,7 +223,7 @@ class TestAgenticLoop:
                           "inputSchema": {"json": {"type": "object", "properties": {}}}}}
         ])
 
-        with patch("src.core.agentic_loop.bedrock") as mock_bedrock:
+        with patch("src.core.agentic_loop.llm") as mock_bedrock:
             mock_bedrock.converse = AsyncMock(
                 return_value=_final_answer_response("There are 5 pods running.")
             )
@@ -251,7 +251,7 @@ class TestAgenticLoop:
         ])
         adapter.call_tool = AsyncMock(return_value="pod-1 Running\npod-2 Running")
 
-        with patch("src.core.agentic_loop.bedrock") as mock_bedrock:
+        with patch("src.core.agentic_loop.llm") as mock_bedrock:
             # First call: model requests tool_use; Second call: final answer
             mock_bedrock.converse = AsyncMock(side_effect=[
                 _tool_use_response([{"id": "tu-001", "name": "get_pods", "input": {}}]),
@@ -282,7 +282,7 @@ class TestAgenticLoop:
         ])
         adapter.call_tool = AsyncMock(return_value="data here")
 
-        with patch("src.core.agentic_loop.bedrock") as mock_bedrock, \
+        with patch("src.core.agentic_loop.llm") as mock_bedrock, \
              patch("src.core.agentic_loop.MAX_TOOL_STEPS", 2):
             # Model keeps requesting tools — loop should break at step 2
             mock_bedrock.converse = AsyncMock(
@@ -313,7 +313,7 @@ class TestAgenticLoop:
         ])
         adapter.call_tool = AsyncMock(return_value="data")
 
-        with patch("src.core.agentic_loop.bedrock") as mock_bedrock, \
+        with patch("src.core.agentic_loop.llm") as mock_bedrock, \
              patch("src.core.agentic_loop.MAX_LOOP_TOKENS", 100):
             # First call uses 100+50=150 tokens → exceeds budget of 100 before 2nd call
             mock_bedrock.converse = AsyncMock(side_effect=[
@@ -349,7 +349,7 @@ class TestAgenticLoop:
             return f"result-{name}"
         adapter.call_tool = mock_call
 
-        with patch("src.core.agentic_loop.bedrock") as mock_bedrock:
+        with patch("src.core.agentic_loop.llm") as mock_bedrock:
             mock_bedrock.converse = AsyncMock(side_effect=[
                 _tool_use_response([
                     {"id": "tu-001", "name": "get_pods", "input": {}},
@@ -388,7 +388,7 @@ class TestAgenticLoop:
             raise Exception("connection refused")
         adapter.call_tool = mock_call
 
-        with patch("src.core.agentic_loop.bedrock") as mock_bedrock:
+        with patch("src.core.agentic_loop.llm") as mock_bedrock:
             mock_bedrock.converse = AsyncMock(side_effect=[
                 _tool_use_response([
                     {"id": "tu-001", "name": "get_pods", "input": {}},
@@ -425,7 +425,7 @@ class TestAgenticLoop:
                           "inputSchema": {"json": {"type": "object", "properties": {}}}}}
         ])
 
-        with patch("src.core.agentic_loop.bedrock") as mock_bedrock:
+        with patch("src.core.agentic_loop.llm") as mock_bedrock:
             mock_bedrock.converse = AsyncMock(side_effect=[
                 # Model asks for unknown tool
                 _tool_use_response([{"id": "tu-001", "name": "delete_pods", "input": {}}]),
@@ -451,7 +451,7 @@ class TestAgenticLoop:
         adapter = _make_mcp_adapter()
         adapter.list_tool_specs = AsyncMock(side_effect=Exception("connection failed"))
 
-        with patch("src.core.agentic_loop.bedrock") as mock_bedrock:
+        with patch("src.core.agentic_loop.llm") as mock_bedrock:
             mock_bedrock.converse = AsyncMock(
                 return_value=_final_answer_response("No tools available.")
             )
@@ -481,7 +481,7 @@ class TestAgenticLoop:
         ])
         adapter.call_tool = AsyncMock(return_value="pod-1 Running")
 
-        with patch("src.core.agentic_loop.bedrock") as mock_bedrock:
+        with patch("src.core.agentic_loop.llm") as mock_bedrock:
             mock_bedrock.converse = AsyncMock(side_effect=[
                 _tool_use_response([{"id": "tu-001", "name": "get_pods", "input": {}}]),
                 _final_answer_response("done"),
@@ -560,7 +560,7 @@ class TestGenericAgentRouting:
         adapter = HttpAdapter(name="vm", url="http://vm:8080/query", headers={})
         agent = GenericAgent(config=config, prompt="You are a test.", adapters=[adapter])
 
-        with patch("src.core.generic_agent.bedrock") as mock_bedrock, \
+        with patch("src.core.generic_agent.llm") as mock_bedrock, \
              patch("src.core.generic_agent.InputScanner") as mock_scanner:
             mock_scanner.return_value.scan.return_value = "test query"
             mock_bedrock.invoke = AsyncMock(return_value="legacy response")
@@ -590,7 +590,7 @@ class TestGenericAgentRouting:
         adapter = McpAdapter(name="mcp", url="http://mcp:8080", tools=[])
         agent = GenericAgent(config=config, prompt="You are a test.", adapters=[adapter])
 
-        with patch("src.core.generic_agent.bedrock") as mock_bedrock, \
+        with patch("src.core.generic_agent.llm") as mock_bedrock, \
              patch("src.core.generic_agent.InputScanner") as mock_scanner:
             mock_scanner.return_value.scan.return_value = "test query"
             mock_bedrock.invoke = AsyncMock(return_value="legacy response")

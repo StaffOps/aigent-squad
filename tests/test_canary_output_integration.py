@@ -53,7 +53,7 @@ class FakeAdapter(DatasourceAdapter):
 
 @pytest.mark.asyncio
 class TestIntegrationNormalFlow:
-    @patch("src.core.generic_agent.bedrock")
+    @patch("src.core.generic_agent.llm")
     async def test_clean_response_returns_conversation_message(self, mock_bedrock):
         """Model returns clean text → canary passes, output filter passes, user gets response."""
         mock_bedrock.invoke = AsyncMock(return_value="Here is your answer about pods.")
@@ -83,7 +83,7 @@ class TestIntegrationNormalFlow:
 
 @pytest.mark.asyncio
 class TestIntegrationCanaryLeak:
-    @patch("src.core.generic_agent.bedrock")
+    @patch("src.core.generic_agent.llm")
     async def test_model_echoes_canary_gets_redacted_not_blocked(self, mock_bedrock):
         """If model response contains the injected canary token, it's redacted
         from the response and the (otherwise legitimate) answer still reaches
@@ -129,7 +129,7 @@ class TestIntegrationCanaryLeak:
 
 @pytest.mark.asyncio
 class TestIntegrationOutputFilterBlock:
-    @patch("src.core.generic_agent.bedrock")
+    @patch("src.core.generic_agent.llm")
     async def test_aws_key_in_response_raises_blocked(self, mock_bedrock):
         """Output filter catches AWS access key in model response."""
         mock_bedrock.invoke = AsyncMock(
@@ -155,7 +155,7 @@ class TestIntegrationOutputFilterBlock:
         assert err.source == "OUTPUT"
         assert "leak:aws_access_key" in err.categories
 
-    @patch("src.core.generic_agent.bedrock")
+    @patch("src.core.generic_agent.llm")
     async def test_private_key_in_response_raises_blocked(self, mock_bedrock):
         """Output filter catches private key PEM block in model response."""
         mock_bedrock.invoke = AsyncMock(
@@ -186,7 +186,7 @@ class TestIntegrationOutputFilterBlock:
 
 @pytest.mark.asyncio
 class TestIntegrationBothDisabled:
-    @patch("src.core.generic_agent.bedrock")
+    @patch("src.core.generic_agent.llm")
     async def test_disabled_canary_and_filter_pass_through(self, mock_bedrock, monkeypatch):
         """With both feature flags off, even leaky responses pass."""
         # Disable both via settings (the guards read from settings in __init__)
@@ -222,7 +222,7 @@ class TestIntegrationBothDisabled:
 
 @pytest.mark.asyncio
 class TestIntegrationL1GuardrailPropagates:
-    @patch("src.core.generic_agent.bedrock")
+    @patch("src.core.generic_agent.llm")
     async def test_bedrock_guardrail_error_propagates(self, mock_bedrock):
         """GuardrailBlockedError from bedrock.invoke (L1 input guardrail) still raises."""
         mock_bedrock.invoke = AsyncMock(

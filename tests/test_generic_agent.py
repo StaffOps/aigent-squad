@@ -45,7 +45,7 @@ class FailingAdapter(DatasourceAdapter):
 
 @pytest.mark.asyncio
 class TestProcessRequestReturnsConversationMessage:
-    @patch("src.core.generic_agent.bedrock")
+    @patch("src.core.generic_agent.llm")
     async def test_process_request_returns_conversation_message(self, mock_bedrock):
         """Invoke returns a ConversationMessage with role, content, timestamp, agent_id."""
         mock_bedrock.invoke = AsyncMock(return_value="Hello from LLM")
@@ -72,7 +72,7 @@ class TestProcessRequestReturnsConversationMessage:
 
 @pytest.mark.asyncio
 class TestEmptyInputRaisesValueError:
-    @patch("src.core.generic_agent.bedrock")
+    @patch("src.core.generic_agent.llm")
     async def test_empty_input_raises_value_error(self, mock_bedrock):
         """Empty string input → ValueError."""
         agent = GenericAgent(config=_make_config(), prompt="p", adapters=[])
@@ -90,7 +90,7 @@ class TestEmptyInputRaisesValueError:
 
 @pytest.mark.asyncio
 class TestTooLongInputBlockedByScanner:
-    @patch("src.core.generic_agent.bedrock")
+    @patch("src.core.generic_agent.llm")
     async def test_too_long_input_raises_guardrail_blocked(self, mock_bedrock):
         """10001 chars → scanner:oversized, fail-closed 403 (spec 14 finding D).
 
@@ -113,7 +113,7 @@ class TestTooLongInputBlockedByScanner:
 
 @pytest.mark.asyncio
 class TestAdaptersCalledWithQuery:
-    @patch("src.core.generic_agent.bedrock")
+    @patch("src.core.generic_agent.llm")
     async def test_adapters_called_with_query(self, mock_bedrock):
         """Mock adapters verify collect() was called."""
         mock_bedrock.invoke = AsyncMock(return_value="response")
@@ -139,7 +139,7 @@ class TestAdaptersCalledWithQuery:
 
 @pytest.mark.asyncio
 class TestAdapterFailureDoesNotCrash:
-    @patch("src.core.generic_agent.bedrock")
+    @patch("src.core.generic_agent.llm")
     async def test_adapter_failure_does_not_crash(self, mock_bedrock):
         """One adapter raises, agent still returns (graceful degradation)."""
         mock_bedrock.invoke = AsyncMock(return_value="still works")
@@ -166,7 +166,7 @@ class TestCollectDurationMetric:
     """spec 10: data-collection latency is recorded per agent."""
 
     @patch("src.core.generic_agent.collect_duration")
-    @patch("src.core.generic_agent.bedrock")
+    @patch("src.core.generic_agent.llm")
     async def test_collect_duration_recorded_with_agent_id(self, mock_bedrock, mock_collect_dur):
         mock_bedrock.invoke = AsyncMock(return_value="ok")
 
@@ -186,7 +186,7 @@ class TestCollectDurationMetric:
         assert labels == {"agent_id": "aws"}
 
     @patch("src.core.generic_agent.collect_duration")
-    @patch("src.core.generic_agent.bedrock")
+    @patch("src.core.generic_agent.llm")
     async def test_collect_duration_recorded_even_with_no_adapters(self, mock_bedrock, mock_collect_dur):
         """Baseline: emitted once even when the agent has zero datasources."""
         mock_bedrock.invoke = AsyncMock(return_value="ok")
@@ -203,7 +203,7 @@ class TestCollectDurationMetric:
 
 @pytest.mark.asyncio
 class TestHistoryFormattedInContext:
-    @patch("src.core.generic_agent.bedrock")
+    @patch("src.core.generic_agent.llm")
     async def test_history_formatted_in_context(self, mock_bedrock):
         """History messages are included in the context sent to bedrock."""
         mock_bedrock.invoke = AsyncMock(return_value="answer")
@@ -238,7 +238,7 @@ class TestCollectionErrorHonestyInstruction:
     kubernetes agent narrated a full fake troubleshooting report around a raw
     MCP connection error instead of stating the data was unavailable)."""
 
-    @patch("src.core.generic_agent.bedrock")
+    @patch("src.core.generic_agent.llm")
     async def test_context_instructs_against_fabricating_on_collection_error(self, mock_bedrock):
         mock_bedrock.invoke = AsyncMock(return_value="answer")
 
@@ -270,7 +270,7 @@ class TestCanaryMarkerNonRepetitionInstruction:
     """generic_agent.py context template must tell the model never to surface
     a canary's internal-telemetry-id annotation (F-005, 2026-07-13)."""
 
-    @patch("src.core.generic_agent.bedrock")
+    @patch("src.core.generic_agent.llm")
     async def test_context_instructs_against_echoing_internal_telemetry_id(self, mock_bedrock):
         mock_bedrock.invoke = AsyncMock(return_value="answer")
 
@@ -295,7 +295,7 @@ class TestCanaryMarkerNonRepetitionInstruction:
 class TestSkillInjection:
     """Lazy skill injection into the system prompt (spec 26)."""
 
-    @patch("src.core.generic_agent.bedrock")
+    @patch("src.core.generic_agent.llm")
     async def test_matching_skill_injected_into_system_prompt(self, mock_bedrock):
         mock_bedrock.invoke = AsyncMock(return_value="ok")
 
@@ -323,7 +323,7 @@ class TestSkillInjection:
         assert "<skills>" in system_prompt
         assert "Check memory limits." in system_prompt
 
-    @patch("src.core.generic_agent.bedrock")
+    @patch("src.core.generic_agent.llm")
     async def test_no_matching_skill_keeps_plain_prompt(self, mock_bedrock):
         mock_bedrock.invoke = AsyncMock(return_value="ok")
 
@@ -348,7 +348,7 @@ class TestSkillInjection:
         # B-16: CALIBRATED_HONESTY is always appended
         assert "<calibrated_honesty>" in system_prompt
 
-    @patch("src.core.generic_agent.bedrock")
+    @patch("src.core.generic_agent.llm")
     async def test_no_registry_keeps_plain_prompt(self, mock_bedrock):
         mock_bedrock.invoke = AsyncMock(return_value="ok")
 

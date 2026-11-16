@@ -98,7 +98,7 @@ class TestBenignToolResultNotBlocked:
             "redis-0    10.0.2.30     ip-10-0-2-200.ec2.internal\n"
         ))
 
-        with patch("src.core.agentic_loop.bedrock") as mock_bedrock:
+        with patch("src.core.agentic_loop.llm") as mock_bedrock:
             mock_bedrock.converse = AsyncMock(side_effect=[
                 _tool_use_response([{"id": "tu-001", "name": "get_pods", "input": {}}]),
                 _final_answer_response("There are 2 pods running."),
@@ -129,7 +129,7 @@ class TestBenignToolResultNotBlocked:
         adapter = _make_adapter()
         adapter.call_tool = AsyncMock(return_value="data with 10.0.0.1 IPs")
 
-        with patch("src.core.agentic_loop.bedrock") as mock_bedrock:
+        with patch("src.core.agentic_loop.llm") as mock_bedrock:
             mock_bedrock.converse = AsyncMock(side_effect=[
                 _tool_use_response([{"id": "tu-1", "name": "get_pods", "input": {"ns": "a"}}]),
                 _tool_use_response([{"id": "tu-2", "name": "get_pods", "input": {"ns": "b"}}]),
@@ -280,7 +280,7 @@ class TestB3GuardrailsStillRun:
         """_guardrail_tool_args is called before each tool invocation."""
         adapter = _make_adapter()
 
-        with patch("src.core.agentic_loop.bedrock") as mock_bedrock, \
+        with patch("src.core.agentic_loop.llm") as mock_bedrock, \
              patch("src.core.agentic_loop._guardrail_tool_args") as mock_args_gr, \
              patch("src.core.agentic_loop._guardrail_tool_result") as mock_result_gr:
 
@@ -419,7 +419,7 @@ class TestBudgetsAndFailOpenUnchanged:
         adapter = _make_adapter()
         adapter.call_tool = AsyncMock(return_value="data")
 
-        with patch("src.core.agentic_loop.bedrock") as mock_bedrock, \
+        with patch("src.core.agentic_loop.llm") as mock_bedrock, \
              patch("src.core.agentic_loop.MAX_TOOL_STEPS", 2):
             mock_bedrock.converse = AsyncMock(
                 return_value=_tool_use_response([{"id": "tu-x", "name": "get_pods", "input": {}}])
@@ -442,7 +442,7 @@ class TestBudgetsAndFailOpenUnchanged:
         adapter = _make_adapter()
         adapter.call_tool = AsyncMock(side_effect=RuntimeError("MCP timeout"))
 
-        with patch("src.core.agentic_loop.bedrock") as mock_bedrock:
+        with patch("src.core.agentic_loop.llm") as mock_bedrock:
             mock_bedrock.converse = AsyncMock(side_effect=[
                 _tool_use_response([{"id": "tu-err", "name": "get_pods", "input": {}}]),
                 _final_answer_response("I couldn't fetch pods due to an error."),
@@ -476,7 +476,7 @@ class TestStreamingLoopSameBehavior:
         adapter = _make_adapter()
         adapter.call_tool = AsyncMock(return_value="pod-data-here")
 
-        with patch("src.core.agentic_loop_streaming.bedrock") as mock_bedrock:
+        with patch("src.core.agentic_loop_streaming.llm") as mock_bedrock:
             mock_bedrock.converse = AsyncMock(side_effect=[
                 _tool_use_response([{"id": "tu-s1", "name": "get_pods", "input": {}}]),
                 _final_answer_response("Streaming answer: 3 pods."),
@@ -506,7 +506,7 @@ class TestStreamingLoopSameBehavior:
         adapter = _make_adapter()
         adapter.call_tool = AsyncMock(return_value="data")
 
-        with patch("src.core.agentic_loop_streaming.bedrock") as mock_bedrock:
+        with patch("src.core.agentic_loop_streaming.llm") as mock_bedrock:
             mock_bedrock.converse = AsyncMock(side_effect=[
                 _tool_use_response([{"id": "tu-1", "name": "get_pods", "input": {}}]),
                 _tool_use_response([{"id": "tu-2", "name": "get_pods", "input": {}}]),

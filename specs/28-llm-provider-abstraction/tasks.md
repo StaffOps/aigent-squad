@@ -71,8 +71,10 @@ live endpoint check.
       documented under `global.env`. Remaining: optional key-as-file mount
       (`OPENAI_API_KEY_FILE`) + egress NetworkPolicy to the endpoint (not needed for
       the live test; left for when networkPolicy is enabled with openai)
-- [ ] Task 14: Rename the caller-local alias `bedrock` → `llm` (+ ~190 test patch
-      targets) — mechanical, separate change (BACKLOG B-31)
+- [x] Task 14: Rename the caller-local alias `bedrock` → `llm` (+ ~190 test patch
+      targets) — mechanical, separate change (BACKLOG B-31) — done 2026-11-16: 8 callers
+      + `evals/runner.py` import `from src.core.llm import llm`; tests patch `"<caller>.llm"`
+      (37 test files); no behavior change, full suite green
 - [ ] Task 15: `SecretStr` for secret settings repo-wide (`OPENAI_API_KEY`, tokens,
       Redis password) — BACKLOG B-32
 

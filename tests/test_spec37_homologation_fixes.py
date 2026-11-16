@@ -273,7 +273,7 @@ class TestContract1_StreamingToolCalling:
     content chunks (not 1)."""
 
     @pytest.mark.asyncio
-    @patch("src.core.agentic_loop_streaming.bedrock")
+    @patch("src.core.agentic_loop_streaming.llm")
     @patch("src.core.agentic_loop_streaming._guardrail_tool_args", return_value=True)
     @patch("src.core.agentic_loop_streaming._guardrail_tool_result",
            side_effect=lambda r, *a, **kw: r)
@@ -295,7 +295,7 @@ class TestContract1_StreamingToolCalling:
         )
 
     @pytest.mark.asyncio
-    @patch("src.core.agentic_loop_streaming.bedrock")
+    @patch("src.core.agentic_loop_streaming.llm")
     @patch("src.core.agentic_loop_streaming._guardrail_tool_args", return_value=True)
     @patch("src.core.agentic_loop_streaming._guardrail_tool_result",
            side_effect=lambda r, *a, **kw: r)
@@ -316,7 +316,7 @@ class TestContract1_StreamingToolCalling:
         assert "StepToolResult" in types, f"No StepToolResult in {types}"
 
     @pytest.mark.asyncio
-    @patch("src.core.agentic_loop_streaming.bedrock")
+    @patch("src.core.agentic_loop_streaming.llm")
     @patch("src.core.agentic_loop_streaming._guardrail_tool_args", return_value=True)
     @patch("src.core.agentic_loop_streaming._guardrail_tool_result",
            side_effect=lambda r, *a, **kw: r)
@@ -341,7 +341,7 @@ class TestContract1_StreamingToolCalling:
         )
 
     @pytest.mark.asyncio
-    @patch("src.core.agentic_loop_streaming.bedrock")
+    @patch("src.core.agentic_loop_streaming.llm")
     @patch("src.core.agentic_loop_streaming._guardrail_tool_args", return_value=True)
     @patch("src.core.agentic_loop_streaming._guardrail_tool_result",
            side_effect=lambda r, *a, **kw: r)
@@ -365,7 +365,7 @@ class TestContract1_StreamingToolCalling:
         assert tc_idx < tr_idx < fc_idx < done_idx
 
     @pytest.mark.asyncio
-    @patch("src.core.agentic_loop_streaming.bedrock")
+    @patch("src.core.agentic_loop_streaming.llm")
     @patch("src.core.agentic_loop_streaming._guardrail_tool_args", return_value=True)
     @patch("src.core.agentic_loop_streaming._guardrail_tool_result",
            side_effect=lambda r, *a, **kw: r)
@@ -409,7 +409,7 @@ class TestContract2_StreamingNonStreamingParity:
     identically — no divergence in tool-calling logic."""
 
     @pytest.mark.asyncio
-    @patch("src.core.agentic_loop.bedrock")
+    @patch("src.core.agentic_loop.llm")
     @patch("src.core.agentic_loop._guardrail_tool_args", return_value=True)
     @patch("src.core.agentic_loop._guardrail_tool_result",
            side_effect=lambda r, *a, **kw: r)
@@ -429,11 +429,11 @@ class TestContract2_StreamingNonStreamingParity:
         assert "263 pods" in result
 
     @pytest.mark.asyncio
-    @patch("src.core.agentic_loop_streaming.bedrock")
+    @patch("src.core.agentic_loop_streaming.llm")
     @patch("src.core.agentic_loop_streaming._guardrail_tool_args", return_value=True)
     @patch("src.core.agentic_loop_streaming._guardrail_tool_result",
            side_effect=lambda r, *a, **kw: r)
-    @patch("src.core.agentic_loop.bedrock")
+    @patch("src.core.agentic_loop.llm")
     @patch("src.core.agentic_loop._guardrail_tool_args", return_value=True)
     @patch("src.core.agentic_loop._guardrail_tool_result",
            side_effect=lambda r, *a, **kw: r)
@@ -463,7 +463,7 @@ class TestContract2_StreamingNonStreamingParity:
         )
 
     @pytest.mark.asyncio
-    @patch("src.core.agentic_loop_streaming.bedrock")
+    @patch("src.core.agentic_loop_streaming.llm")
     @patch("src.core.agentic_loop_streaming._guardrail_tool_args", return_value=True)
     @patch("src.core.agentic_loop_streaming._guardrail_tool_result",
            side_effect=lambda r, *a, **kw: r)
@@ -488,7 +488,7 @@ class TestContract4_MarkerAfterRedaction:
     the marker counts items in the redacted text (not the original)."""
 
     @pytest.mark.asyncio
-    @patch("src.core.agentic_loop_streaming.bedrock")
+    @patch("src.core.agentic_loop_streaming.llm")
     @patch("src.core.agentic_loop_streaming._guardrail_tool_args", return_value=True)
     async def test_redacted_result_then_truncated(self, _ga, mock_bedrock):
         """When B3 redacts (replaces entire result), truncation sees the
@@ -532,7 +532,7 @@ class TestContract4_MarkerAfterRedaction:
                 assert "redacted by guardrail" in text_in_result
 
     @pytest.mark.asyncio
-    @patch("src.core.agentic_loop.bedrock")
+    @patch("src.core.agentic_loop.llm")
     @patch("src.core.agentic_loop._guardrail_tool_args", return_value=True)
     async def test_non_streaming_also_truncates_after_redaction(self, _ga, mock_bedrock):
         """Non-streaming loop also applies truncation AFTER B3 redaction."""
@@ -570,7 +570,7 @@ class TestContract6_UnchangedBehavior:
     """Existing budgets, fail-open, and read-only semantics preserved."""
 
     @pytest.mark.asyncio
-    @patch("src.core.agentic_loop_streaming.bedrock")
+    @patch("src.core.agentic_loop_streaming.llm")
     @patch("src.core.agentic_loop_streaming._guardrail_tool_args", return_value=True)
     @patch("src.core.agentic_loop_streaming._guardrail_tool_result",
            side_effect=lambda r, *a, **kw: r)
@@ -594,7 +594,7 @@ class TestContract6_UnchangedBehavior:
         assert adapter.call_tool.await_count <= 2
 
     @pytest.mark.asyncio
-    @patch("src.core.agentic_loop_streaming.bedrock")
+    @patch("src.core.agentic_loop_streaming.llm")
     @patch("src.core.agentic_loop_streaming._guardrail_tool_args", return_value=True)
     @patch("src.core.agentic_loop_streaming._guardrail_tool_result",
            side_effect=lambda r, *a, **kw: r)
@@ -618,7 +618,7 @@ class TestContract6_UnchangedBehavior:
         assert "StepToolResult" in types
 
     @pytest.mark.asyncio
-    @patch("src.core.agentic_loop_streaming.bedrock")
+    @patch("src.core.agentic_loop_streaming.llm")
     @patch("src.core.agentic_loop_streaming._guardrail_tool_args", return_value=True)
     @patch("src.core.agentic_loop_streaming._guardrail_tool_result",
            side_effect=lambda r, *a, **kw: r)
@@ -638,7 +638,7 @@ class TestContract6_UnchangedBehavior:
         adapter.call_tool.assert_not_awaited()
 
     @pytest.mark.asyncio
-    @patch("src.core.agentic_loop.bedrock")
+    @patch("src.core.agentic_loop.llm")
     @patch("src.core.agentic_loop._guardrail_tool_args", return_value=True)
     @patch("src.core.agentic_loop._guardrail_tool_result",
            side_effect=lambda r, *a, **kw: r)
@@ -754,7 +754,7 @@ class TestTruncationInLoopIntegration:
     (integration with real call flow, not just unit-testing the helper)."""
 
     @pytest.mark.asyncio
-    @patch("src.core.agentic_loop.bedrock")
+    @patch("src.core.agentic_loop.llm")
     @patch("src.core.agentic_loop._guardrail_tool_args", return_value=True)
     @patch("src.core.agentic_loop._guardrail_tool_result",
            side_effect=lambda r, *a, **kw: r)
@@ -780,7 +780,7 @@ class TestTruncationInLoopIntegration:
         assert "263 items total" in text
 
     @pytest.mark.asyncio
-    @patch("src.core.agentic_loop_streaming.bedrock")
+    @patch("src.core.agentic_loop_streaming.llm")
     @patch("src.core.agentic_loop_streaming._guardrail_tool_args", return_value=True)
     @patch("src.core.agentic_loop_streaming._guardrail_tool_result",
            side_effect=lambda r, *a, **kw: r)
@@ -808,7 +808,7 @@ class TestTruncationInLoopIntegration:
         assert "263 items total" in text
 
     @pytest.mark.asyncio
-    @patch("src.core.agentic_loop_streaming.bedrock")
+    @patch("src.core.agentic_loop_streaming.llm")
     @patch("src.core.agentic_loop_streaming._guardrail_tool_args", return_value=True)
     @patch("src.core.agentic_loop_streaming._guardrail_tool_result",
            side_effect=lambda r, *a, **kw: r)

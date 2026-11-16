@@ -10,7 +10,7 @@ async def test_synthesize_two_agents():
     """Two agent responses → bedrock called once with both in the message."""
     synth = Synthesizer()
 
-    with patch("src.supervisor.synthesizer.bedrock") as mock_bedrock:
+    with patch("src.supervisor.synthesizer.llm") as mock_bedrock:
         mock_bedrock.invoke = AsyncMock(return_value="combined answer")
 
         result = await synth.synthesize(
@@ -35,7 +35,7 @@ async def test_synthesize_with_failures():
     """Failed agents listed → user message mentions FAILED agents."""
     synth = Synthesizer()
 
-    with patch("src.supervisor.synthesizer.bedrock") as mock_bedrock:
+    with patch("src.supervisor.synthesizer.llm") as mock_bedrock:
         mock_bedrock.invoke = AsyncMock(return_value="partial answer")
 
         result = await synth.synthesize(
@@ -55,7 +55,7 @@ async def test_synthesize_all_failed():
     """Empty responses → returns failure message without calling bedrock."""
     synth = Synthesizer()
 
-    with patch("src.supervisor.synthesizer.bedrock") as mock_bedrock:
+    with patch("src.supervisor.synthesizer.llm") as mock_bedrock:
         result = await synth.synthesize("query", [], ["aws", "k8s"])
 
     mock_bedrock.invoke.assert_not_called()

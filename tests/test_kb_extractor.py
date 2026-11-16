@@ -8,7 +8,7 @@ from src.core.kb.extractor import extract_deltas
 
 
 @pytest.mark.asyncio
-@patch("src.core.kb.extractor.bedrock")
+@patch("src.core.kb.extractor.llm")
 async def test_extract_deltas_returns_parsed_drafts(mock_bedrock):
     mock_bedrock.invoke = AsyncMock(return_value=json.dumps({
         "deltas": [{"action": "create", "type": "troubleshooting",
@@ -21,7 +21,7 @@ async def test_extract_deltas_returns_parsed_drafts(mock_bedrock):
 
 
 @pytest.mark.asyncio
-@patch("src.core.kb.extractor.bedrock")
+@patch("src.core.kb.extractor.llm")
 async def test_extract_deltas_empty_on_invalid_json(mock_bedrock):
     mock_bedrock.invoke = AsyncMock(return_value="invalid response no json")
     rca = RCAResult(hypothesis="test", confidence="alta")
@@ -30,7 +30,7 @@ async def test_extract_deltas_empty_on_invalid_json(mock_bedrock):
 
 
 @pytest.mark.asyncio
-@patch("src.core.kb.extractor.bedrock")
+@patch("src.core.kb.extractor.llm")
 async def test_extract_deltas_redacts_pii_before_llm(mock_bedrock):
     mock_bedrock.invoke = AsyncMock(return_value='{"deltas":[]}')
     rca = RCAResult(hypothesis="contact user@example.com for details", confidence="alta")
@@ -41,7 +41,7 @@ async def test_extract_deltas_redacts_pii_before_llm(mock_bedrock):
 
 
 @pytest.mark.asyncio
-@patch("src.core.kb.extractor.bedrock")
+@patch("src.core.kb.extractor.llm")
 async def test_extract_deltas_skips_malformed_items(mock_bedrock):
     """Deltas with invalid fields are skipped; valid ones are returned."""
     mock_bedrock.invoke = AsyncMock(return_value=json.dumps({
@@ -63,7 +63,7 @@ async def test_extract_deltas_skips_malformed_items(mock_bedrock):
 
 
 @pytest.mark.asyncio
-@patch("src.core.kb.extractor.bedrock")
+@patch("src.core.kb.extractor.llm")
 async def test_extract_deltas_handles_bedrock_exception(mock_bedrock):
     """When bedrock.invoke raises, returns empty list."""
     mock_bedrock.invoke = AsyncMock(side_effect=Exception("Bedrock down"))

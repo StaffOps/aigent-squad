@@ -38,7 +38,7 @@ async def test_enrich_deltas_parses_refined_response():
         ]
     })
 
-    with patch("src.core.kb.enricher.bedrock") as mock_bedrock:
+    with patch("src.core.kb.enricher.llm") as mock_bedrock:
         mock_bedrock.invoke = AsyncMock(return_value=refined_response)
         result = await enrich_deltas(_make_drafts(), _make_rca())
 
@@ -51,7 +51,7 @@ async def test_enrich_deltas_parses_refined_response():
 async def test_enrich_deltas_falls_back_on_invalid_json():
     """Invalid JSON from Bedrock → returns original drafts (graceful)."""
     drafts = _make_drafts()
-    with patch("src.core.kb.enricher.bedrock") as mock_bedrock:
+    with patch("src.core.kb.enricher.llm") as mock_bedrock:
         mock_bedrock.invoke = AsyncMock(return_value="not json at all")
         result = await enrich_deltas(drafts, _make_rca())
 
@@ -62,7 +62,7 @@ async def test_enrich_deltas_falls_back_on_invalid_json():
 async def test_enrich_deltas_falls_back_on_bedrock_failure():
     """Bedrock raises → returns original drafts (best-effort)."""
     drafts = _make_drafts()
-    with patch("src.core.kb.enricher.bedrock") as mock_bedrock:
+    with patch("src.core.kb.enricher.llm") as mock_bedrock:
         mock_bedrock.invoke = AsyncMock(side_effect=Exception("rate limit"))
         result = await enrich_deltas(drafts, _make_rca())
 
