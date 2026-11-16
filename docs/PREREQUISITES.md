@@ -15,10 +15,30 @@ credential needed either). See `CONTRIBUTING.md`.
 
 | Requirement | Purpose |
 |-------------|---------|
-| AWS credentials with Bedrock access (`~/.aws/` or env vars) | Every agent answer is a real Bedrock call — there's no offline/fixture mode today (scoped, not built — `specs/BACKLOG.md` B-29) |
+| An LLM: AWS credentials with Bedrock access (`~/.aws/` or env vars, default) **or** any OpenAI-compatible API (`LLM_PROVIDER=openai`, below) | Every agent answer is a real LLM call — there's no offline/fixture mode today (scoped, not built — `specs/BACKLOG.md` B-29) |
 | Bedrock model access enabled, `us-east-1` | Console → **Model access** → enable the Anthropic models below |
 
-### Enable Bedrock models
+### Or: any OpenAI-compatible API instead of Bedrock (spec 28)
+
+Set `LLM_PROVIDER=openai` and point it at any `POST /chat/completions` endpoint
+(OpenAI, an OpenAI-compatible Azure endpoint, vLLM, Ollama, OpenRouter, a LiteLLM
+proxy):
+
+```bash
+LLM_PROVIDER=openai
+OPENAI_BASE_URL=http://ollama:11434/v1      # no trailing /chat/completions
+OPENAI_API_KEY_FILE=/etc/secrets/openai-key # or OPENAI_API_KEY; any non-empty value for keyless servers
+LLM_MODEL_ID=llama3.1:70b                   # required; classifier/synthesis fall back to it
+# optional: LLM_CLASSIFIER_MODEL_ID, LLM_SYNTHESIS_MODEL_ID, LLM_PRICE_INPUT_PER_1M/OUTPUT_PER_1M
+```
+
+The supervisor refuses to start if the base URL, key or model is missing.
+**The Bedrock Guardrail (L1) is switched off automatically** under this provider
+(startup WARNING, `aigent.llm.guardrail_l1_active=0`, `/ready` detail) — see
+`docs/SECURITY.md`. No Bedrock model access is needed; DynamoDB (history) is
+still used (`dynamodb-local` in compose).
+
+### Enable Bedrock models (default provider)
 
 1. Go to https://console.aws.amazon.com/bedrock/home?region=us-east-1#/modelaccess
 2. Enable the models `src/core/config.py` defaults to (override via

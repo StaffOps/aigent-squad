@@ -1,5 +1,27 @@
 # Changelog
 
+## [Unreleased]
+
+### Added — spec 28 LLM provider abstraction + OpenAI-compatible provider (2026-11-15)
+- `src/core/llm/`: `LLMProvider` Protocol + `LLMResult`, `LLMService` common layer
+  (circuit breaker, semaphore, retry/jitter, guardrail calls, token/cost/budget
+  metrics), `OpenAICompatClient` (hand-written httpx client for
+  `POST {OPENAI_BASE_URL}/chat/completions` — plain completions AND the agentic
+  Converse tool loop: `toolSpec`/`toolUse`/`toolResult` ↔ `tools`/`tool_calls`/`role=tool`),
+  provider factory + startup validation.
+- `LLM_PROVIDER=bedrock|openai` (global, default `bedrock` — behavior unchanged),
+  provider-neutral `LLM_MODEL_ID` / `LLM_CLASSIFIER_MODEL_ID` / `LLM_SYNTHESIS_MODEL_ID`,
+  `LLM_PRICE_*`, `OPENAI_*` settings (see `.env.example`).
+- Metrics: `aigent.llm.provider_errors{provider,error_class}`,
+  `aigent.llm.guardrail_l1_active{provider}`. `/ready` gains an informational `llm` check.
+- ADR-0009 (amends ADR-001 for LLM transport only).
+
+### Changed
+- `BedrockClient` is now `LLMService` + Bedrock transport (same behavior, same tests;
+  patch targets for the moved policy names moved to `src.core.llm.service`).
+- **Security exception**: with `LLM_PROVIDER=openai` the Bedrock Guardrail (spec 14 L1)
+  is switched off automatically (startup WARNING, metric = 0, `/ready` detail). L2–L6 unchanged.
+
 ## [0.5.0] - 2026-08-18
 
 ### Added — spec 33 operational review loop (2026-08-19)

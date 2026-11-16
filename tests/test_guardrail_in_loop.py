@@ -176,7 +176,7 @@ class TestInputGuardrailStillBlocks:
             bc = BedrockClient()
             bc.client = client_mock
 
-            with patch("src.core.bedrock.guardrail") as mock_gr:
+            with patch("src.core.llm.service.guardrail") as mock_gr:
                 mock_gr.apply.side_effect = GuardrailBlockedError(
                     reason="blocked", source="INPUT", categories=["topic:attack"]
                 )
@@ -203,7 +203,7 @@ class TestInputGuardrailStillBlocks:
             bc = BedrockClient()
             bc.client = client_mock
 
-            with patch("src.core.bedrock.guardrail") as mock_gr:
+            with patch("src.core.llm.service.guardrail") as mock_gr:
                 mock_gr.apply.side_effect = GuardrailBlockedError(
                     reason="blocked", source="INPUT", categories=["topic:injection"]
                 )
@@ -253,7 +253,7 @@ class TestFinalOutputGuardrailed:
                         reason="blocked", source="OUTPUT", categories=["pii:CREDENTIALS"]
                     )
 
-            with patch("src.core.bedrock.guardrail") as mock_gr:
+            with patch("src.core.llm.service.guardrail") as mock_gr:
                 mock_gr.apply.side_effect = guardrail_side_effect
 
                 with pytest.raises(GuardrailBlockedError) as exc_info:
@@ -337,9 +337,9 @@ class TestNonLoopCallersGetGuardrail:
 
         with patch("src.core.bedrock.boto3.client") as mock_boto, \
              patch("src.core.bedrock.settings") as mock_settings, \
-             patch("src.core.bedrock.guardrail") as mock_gr, \
-             patch("src.core.bedrock.resolve_model", return_value="claude-3"), \
-             patch("src.core.bedrock.budget_tracker") as mock_bt:
+             patch("src.core.llm.service.guardrail") as mock_gr, \
+             patch("src.core.llm.service.resolve_model", return_value="claude-3"), \
+             patch("src.core.llm.service.budget_tracker") as mock_bt:
 
             client_mock = MagicMock()
             mock_boto.return_value = client_mock
@@ -375,9 +375,9 @@ class TestNonLoopCallersGetGuardrail:
 
         with patch("src.core.bedrock.boto3.client") as mock_boto, \
              patch("src.core.bedrock.settings") as mock_settings, \
-             patch("src.core.bedrock.guardrail") as mock_gr, \
-             patch("src.core.bedrock.resolve_model", return_value="claude-3"), \
-             patch("src.core.bedrock.budget_tracker") as mock_bt:
+             patch("src.core.llm.service.guardrail") as mock_gr, \
+             patch("src.core.llm.service.resolve_model", return_value="claude-3"), \
+             patch("src.core.llm.service.budget_tracker") as mock_bt:
 
             client_mock = MagicMock()
             mock_boto.return_value = client_mock

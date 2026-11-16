@@ -1,7 +1,7 @@
 """Extract KbDelta drafts from RCA results using Sonnet."""
 import json
 
-from src.core.bedrock import bedrock
+from src.core.llm import llm as bedrock  # provider-selected (spec 28); local name kept for patch-compat
 from src.core.kb.models import KbDelta
 from src.core.kb.redactor import redact
 from src.core.investigation import RCAResult

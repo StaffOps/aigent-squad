@@ -99,6 +99,11 @@ def _extract_categories(assessments: List[Dict[str, Any]]) -> List[str]:
     return categories
 
 
+def active_for_provider(guardrail_enabled: bool, llm_provider: str) -> bool:
+    """Whether L1 evaluates requests: enabled by config AND provider is Bedrock."""
+    return bool(guardrail_enabled) and llm_provider == "bedrock"
+
+
 class GuardrailClient:
     """Applies a Bedrock guardrail to untrusted text (input) and model output.
 
@@ -108,7 +113,12 @@ class GuardrailClient:
 
     def __init__(self, client: Any = None):
         self._client = client
-        self.enabled = settings.guardrail_enabled
+        # Spec 28 Decision 10: the guardrail is an AWS Bedrock API, so it is
+        # switched OFF automatically when the LLM provider is not Bedrock. This
+        # is a documented exception to fail-closed security (AGENTS.md
+        # invariant 6, ADR-0009) — announced at startup by
+        # src.core.llm.factory.validate_llm_provider (WARNING + metric + /ready).
+        self.enabled = active_for_provider(settings.guardrail_enabled, settings.llm_provider)
         self.guardrail_id = settings.guardrail_id
         self.guardrail_version = settings.guardrail_version
 

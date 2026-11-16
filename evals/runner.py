@@ -32,7 +32,7 @@ import yaml
 
 sys.path.insert(0, "/app")
 
-from src.core.bedrock import bedrock  # noqa: E402
+from src.core.llm import llm as bedrock  # noqa: E402  — provider-selected judge (spec 28)
 from src.core.metrics import eval_score  # noqa: E402
 
 EVALS_DIR = Path(__file__).parent

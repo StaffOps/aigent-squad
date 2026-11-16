@@ -67,6 +67,9 @@ async def lifespan(app: Any) -> Any:
     yield
     await kb_store.close()
     await supervisor.close()
+    # Spec 28: release the LLM transport's pooled connections (no-op for Bedrock).
+    from src.core.llm import get_llm
+    get_llm().close()
 
 
 app = FastAPI(title="Supervisor Service", lifespan=lifespan)
@@ -200,6 +203,11 @@ async def ready() -> Any:
 
     agents_ok = len(supervisor.agents) > 0
     results["agents"] = {"ok": agents_ok, "detail": f"{len(supervisor.agents)} agent(s) loaded"}
+
+    # Spec 28 Decision 10: informational — exposes the LLM provider and whether
+    # the Bedrock Guardrail (L1) is active. Never fails readiness.
+    from src.core.llm.factory import provider_status
+    results["llm"] = provider_status()
 
     all_ok = redis_result.ok and dynamo_result.ok and agents_ok
     status_code = 200 if all_ok else 503

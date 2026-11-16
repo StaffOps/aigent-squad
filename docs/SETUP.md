@@ -4,7 +4,9 @@
 
 ### Prerequisites
 - Docker + Docker Compose
-- AWS credentials with Bedrock access (`~/.aws/`) — needed for real agent
+- An LLM — AWS credentials with Bedrock access (`~/.aws/`, default) **or** any
+  OpenAI-compatible API via `LLM_PROVIDER=openai` (see `docs/PREREQUISITES.md`;
+  the Bedrock Guardrail L1 is then off — `docs/SECURITY.md`) — needed for real agent
   answers (every query is a live Bedrock call, no offline/fixture mode
   today). NOT needed for `make lint` / `make test`, which run entirely in
   Docker with no AWS involved. See `docs/PREREQUISITES.md` for exactly what

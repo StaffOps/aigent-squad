@@ -72,6 +72,8 @@ and by model.
 | `aigent.tool.call_duration` | Histogram | `tool_name`, `status` | Per-MCP-tool latency + success/error/timeout (tool_name bounded by read-only allowlist) |
 | `aigent.guardrail.blocks` | Counter | `source`, `agent_id` | Guardrail blocks/redactions by source — safety signal |
 | `aigent.bedrock.throttles` | Counter | `model` | Bedrock throttling (429) — provider saturation |
+| `aigent.llm.provider_errors` | Counter | `provider`, `error_class` | LLM transport errors per attempt, any provider (spec 28) |
+| `aigent.llm.guardrail_l1_active` | UpDownCounter (0/1) | `provider` | 0 = Bedrock Guardrail L1 inactive (non-Bedrock provider) — alert on 0 where L1 is required |
 | `aigent.context.trimmed_messages` | Counter | `agent_id` | Spec 40 context-trim events (context pressure) |
 | `aigent.tier.classifier_confidence` | Histogram | `tier` | Classifier confidence at tier routing (low = misroute risk) |
 

@@ -10,7 +10,7 @@ import time as time_mod
 
 from otel_helper import get_tracer
 
-from src.core.bedrock import bedrock
+from src.core.llm import llm as bedrock  # provider-selected (spec 28); local name kept for patch-compat
 from src.core.guardrail import GuardrailBlockedError
 from src.core.input_scanner import InputScanner
 from src.core.investigation import (

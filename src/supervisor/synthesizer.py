@@ -1,6 +1,6 @@
 """Synthesizer: fuses N agent responses into a single coherent answer."""
 from otel_helper import get_tracer
-from src.core.bedrock import bedrock
+from src.core.llm import llm as bedrock  # provider-selected (spec 28); local name kept for patch-compat
 from src.core.metrics import synthesizer_calls
 
 tracer = get_tracer(__name__)

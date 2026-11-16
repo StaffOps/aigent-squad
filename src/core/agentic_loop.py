@@ -35,7 +35,7 @@ from src.core.agent_config import (
     MAX_TOOL_STEPS,
     CONTEXT_KEEP_LAST_N,
 )
-from src.core.bedrock import bedrock
+from src.core.llm import llm as bedrock  # provider-selected (spec 28); local name kept for patch-compat
 from src.core.capability_gate import (
     CapabilityDeniedError,
     current_agent_id,

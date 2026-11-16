@@ -1,7 +1,35 @@
 from pydantic_settings import BaseSettings
-from typing import Optional
+from typing import Literal, Optional
 
 class Settings(BaseSettings):  # type: ignore[misc]
+    # LLM provider (spec 28) — GLOBAL selection. "bedrock" (default) keeps the
+    # historical behavior byte-identical; "openai" routes every LLM call to an
+    # OpenAI-compatible POST {OPENAI_BASE_URL}/chat/completions. Under "openai"
+    # the Bedrock Guardrail (L1) is switched off automatically — a documented
+    # exception to fail-closed security (AGENTS.md invariant 6, ADR-0009).
+    llm_provider: Literal["bedrock", "openai"] = "bedrock"
+    # Provider-neutral model ids per role. Unset → fall back to the BEDROCK_*
+    # role vars (bedrock) or to LLM_MODEL_ID (openai; LLM_MODEL_ID is required).
+    llm_model_id: Optional[str] = None
+    llm_classifier_model_id: Optional[str] = None
+    llm_synthesis_model_id: Optional[str] = None
+    # Per-1M-token USD pricing for non-Bedrock models (spec 28 Decision 9).
+    # Both unset → cost metrics read 0 (startup WARNING); never invented.
+    llm_price_input_per_1m: Optional[float] = None
+    llm_price_output_per_1m: Optional[float] = None
+
+    # OpenAI-compatible endpoint (LLM_PROVIDER=openai). The key is a secret:
+    # prefer OPENAI_API_KEY_FILE (file-mounted); it wins over OPENAI_API_KEY.
+    openai_base_url: Optional[str] = None
+    openai_api_key: Optional[str] = None
+    openai_api_key_file: Optional[str] = None
+    # "Authorization" sends "Bearer <key>"; any other header sends the raw key
+    # (e.g. "api-key" for Azure OpenAI-compatible endpoints).
+    openai_api_key_header: str = "Authorization"
+    # Request field carrying the output-token cap ("max_completion_tokens" for
+    # OpenAI reasoning models; most compatible servers accept "max_tokens").
+    openai_max_tokens_field: str = "max_tokens"
+
     # AWS
     aws_region: str = "us-east-1"
     bedrock_model_id: str = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"  # Claude Sonnet 4.5 (US inference profile; model requires INFERENCE_PROFILE, not on-demand)
