@@ -24,7 +24,7 @@ from urllib.parse import urlsplit, urlunsplit
 
 import httpx
 
-from src.core.config import settings
+from src.core.config import reveal, settings
 from src.core.llm.service import LLMService
 from src.core.llm.types import ErrorClass, LLMProviderError, LLMResult
 from src.core.logger import logger
@@ -74,7 +74,7 @@ def load_api_key() -> str:
             return _strip_bearer(Path(key_file).read_text(encoding="utf-8"))
         except OSError as e:
             raise RuntimeError(f"OPENAI_API_KEY_FILE is not readable: {key_file}") from e
-    return _strip_bearer(settings.openai_api_key or "")
+    return _strip_bearer(reveal(settings.openai_api_key))
 
 
 def plaintext_host_allowed(base_url: str) -> bool:

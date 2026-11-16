@@ -75,8 +75,10 @@ live endpoint check.
       targets) — mechanical, separate change (BACKLOG B-31) — done 2026-11-16: 8 callers
       + `evals/runner.py` import `from src.core.llm import llm`; tests patch `"<caller>.llm"`
       (37 test files); no behavior change, full suite green
-- [ ] Task 15: `SecretStr` for secret settings repo-wide (`OPENAI_API_KEY`, tokens,
-      Redis password) — BACKLOG B-32
+- [x] Task 15: `SecretStr` for secret settings repo-wide (`OPENAI_API_KEY`, tokens,
+      Redis password) — BACKLOG B-32 — done 2026-11-16:
+      7 fields → `SecretStr`; plaintext only via `config.reveal()` at the 7 use sites;
+      `tests/test_b32_secret_settings.py` proves repr/dump masking
 
 ## Explicitly out of scope
 - KB embeddings (Titan, Bedrock-only; KB disabled by default)

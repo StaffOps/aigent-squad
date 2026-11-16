@@ -1,7 +1,7 @@
 ---
 spec: 28-llm-provider-abstraction
-status: in-progress
-completed: null
+status: done
+completed: 2026-11-16
 superseded_by: null
 depends_on: []
 deferred: []

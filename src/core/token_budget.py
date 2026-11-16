@@ -29,7 +29,7 @@ from typing import List, Optional, Tuple
 
 import redis as redis_lib
 
-from src.core.config import settings
+from src.core.config import reveal, settings
 from src.core.logger import logger
 from src.core.metrics import token_budget_exceeded_blocks
 from src.core.model_tier import estimate_tokens
@@ -231,7 +231,7 @@ def _create_budget_redis_client() -> Optional[redis_lib.Redis]:
         client = redis_lib.Redis(
             host=host,
             port=settings.redis_port,
-            password=settings.redis_password,
+            password=reveal(settings.redis_password) or None,
             ssl=settings.redis_ssl,
             decode_responses=True,
             socket_connect_timeout=2,

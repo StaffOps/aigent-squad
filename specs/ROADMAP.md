@@ -272,7 +272,7 @@ ROADMAP is plan-only from here.
 | 25-multi-tenant-concurrency | done | 2026-08-18 |  |
 | 26-agent-skills | done | — | depends_on: 02-unify-agent-architecture |
 | 27-bedrock-cost-attribution | done | — |  |
-| 28-llm-provider-abstraction | in-progress | — |  |
+| 28-llm-provider-abstraction | done | 2026-11-16 |  |
 | 29-openai-compat-bridge | done | 2026-07-01 |  |
 | 30-datasource-cache-layer | done | 2026-06-21 |  |
 | 31-edge-gateway-worker-pool | done-with-deferrals | 2026-07-01 | deferred: T21 k6 load test |

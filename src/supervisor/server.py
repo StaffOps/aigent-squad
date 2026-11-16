@@ -14,7 +14,7 @@ from fastapi import FastAPI, HTTPException, Depends
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 from src.core.auth import require_token
-from src.core.config import settings
+from src.core.config import reveal, settings
 from src.core.guardrail import GuardrailBlockedError
 from src.core.health import DependencyChecker
 from src.core.internal_auth import require_internal_token
@@ -35,7 +35,7 @@ _health_redis = redis_lib.Redis(
     host=settings.redis_host,
     port=settings.redis_port,
     ssl=settings.redis_ssl,
-    password=settings.redis_password,
+    password=reveal(settings.redis_password) or None,
     socket_connect_timeout=2,
 )
 _health_dynamodb_table = boto3.resource(
@@ -50,7 +50,7 @@ try:
     _redis_scheme = "rediss" if settings.redis_ssl else "redis"
     _session_redis: Optional[aioredis.Redis] = aioredis.from_url(
         f"{_redis_scheme}://{settings.redis_host}:{settings.redis_port}",
-        password=settings.redis_password,
+        password=reveal(settings.redis_password) or None,
         decode_responses=True,
     )
 except Exception:
