@@ -12,7 +12,7 @@
 - [x] T8: Graceful shutdown via FastAPI `lifespan` (drain, flush OTel, close pools) in all 6 services — done 2026-06-14
 - [x] T9 (test-author DIFFERENT from author): pytest ≥90% — **parallelism (time≈max)**, fail-open Redis/DynamoDB, classifier fallback, circuit breaker, retry+jitter (depends on: T1–T8) — done 2026-06-14
 - [x] T10: Independent review (`code-review`): zero blocking in async path, correct fail-open, no stacked retry (depends on: T9) — done 2026-06-14
-- [ ] T11: Smoke via Docker — mocked RCA with 5 agents completes in ~1× (parallel), not 5× (depends on: T10) — deferred (manual smoke only, no formal RCA mock test)
+- [x] T11: Smoke via Docker — mocked RCA with 5 agents completes in ~1× (parallel), not 5× (depends on: T10) — done 2026-11-15 — `tests/test_smoke_t11.py::TestSpec06T11ParallelRcaSmoke` (real `/internal/process` → SupervisorAgent → GenericAgent → `BedrockClient.invoke`, only `_invoke_sync` stubbed with a blocking 0.4s delay per agent; asserts all 5 calls overlap + wall time < 2.5× one delay; verified to FAIL when Bedrock is serialized)
 
 ## Suggested order
 T1/T2/T3/T4 in parallel; T5 (after T1); T6→T7; T8; T9→T10→T11.
@@ -29,6 +29,6 @@ T1/T2/T3/T4 in parallel; T5 (after T1); T6→T7; T8; T9→T10→T11.
 
 **Notes**:
 - T4 marked done/N/A: `gitlab_client.py` and `docs_portal.py` were deleted in spec 22 Phase A — their functionality is now handled by the generic Adapter pattern (HttpAdapter).
-- T11 (formal smoke RCA mock test) deferred — manual smoke testing was performed but no formalized Docker-based RCA mock harness.
+- T11 closed 2026-11-15 with an automated in-process smoke (`tests/test_smoke_t11.py`), run by `make test` in Docker — no compose stack needed.
 
-**Deferred**: T11 formal smoke test (low priority; manual validation confirmed parallelism works).
+**Deferred**: none (T11 closed 2026-11-15). Spec status: `done`.

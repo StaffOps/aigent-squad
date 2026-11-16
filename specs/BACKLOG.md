@@ -249,7 +249,8 @@ Note: if the Grafana LLM app COULD send `model=aigent-squad-observability`, that
 
 ## Deferred register (tails of "done" specs — completed by spec 32 T7)
 
-- specs 06/17/18: T11 formal smoke (superseded in practice by B-09 + spec 36 smoke)
+- ~~specs 06/17/18: T11 formal smoke~~ — ✅ CLOSED 2026-11-15 (`tests/test_smoke_t11.py`, automated in-process smoke under `make test`)
+- spec 18: T14 correlator gain measurement (re-run the spec-35 RCA baseline after T12/T13, record before/after in `evals/results/`)
 - spec 08: T7 demo stage
 - spec 21: Opus enricher activation; Slack approval flow
 - spec 31: T21 k6 load test (T23 final independent review done 2026-07-18 → F-009)
