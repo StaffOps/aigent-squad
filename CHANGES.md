@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Added — CI brings the compose stack up (BACKLOG F-022a / B-09, 2026-11-16)
+- `.github/workflows/stack.yml`: on every PR/push to dev/main (code changes), build and
+  start the two-tier stack with `docker compose up --wait`, then assert gateway `/ready`
+  is 200 with every check ok and that edge auth is enforced (401 without a token, 200
+  with the dev token). No AWS credentials needed. Catches compose regressions the unit
+  suite cannot (missing binary in a healthcheck, missing DynamoDB Local table).
+
 ### Changed — pinned lint/typecheck tools (BACKLOG F-022a, 2026-11-16)
 - `requirements-lint.txt` pins `ruff==0.17.5` and `mypy==2.4.1`; `make lint` /
   `make typecheck` and the CI `lint` / `typecheck` jobs all install from it.
