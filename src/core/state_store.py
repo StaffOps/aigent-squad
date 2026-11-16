@@ -1,5 +1,5 @@
 import boto3
-from typing import List, Optional, TYPE_CHECKING
+from typing import Any, List, Optional, TYPE_CHECKING
 from datetime import datetime, timedelta, timezone
 from dataclasses import dataclass, field
 from src.core.config import settings
@@ -20,15 +20,29 @@ class ConversationMessage:
     quality_assessment: Optional["QualityAssessment"] = field(default=None, repr=False)
 
 
+def dynamodb_resource() -> Any:
+    """The one place a DynamoDB resource is built (history store + /ready probe).
+
+    With ``DYNAMODB_ENDPOINT`` set and ``DYNAMODB_LOCAL_STATIC_CREDENTIALS=true``
+    (docker-compose only) requests are signed with fixed dummy credentials, so an
+    expired AWS SSO token — needed only for Bedrock — does not break local history.
+    """
+    kwargs: dict[str, Any] = {
+        "region_name": settings.aws_region,
+        "endpoint_url": settings.dynamodb_endpoint,
+    }
+    if settings.dynamodb_endpoint and settings.dynamodb_local_static_credentials:
+        # DynamoDB Local accepts any key; these are not secrets (local dev only).
+        kwargs["aws_access_key_id"] = "local"
+        kwargs["aws_secret_access_key"] = "local"  # nosec B106 — DynamoDB Local dummy
+    return boto3.resource("dynamodb", **kwargs)
+
+
 class ChatStorage:
     """DynamoDB conversation storage with fail-open resilience"""
 
     def __init__(self) -> None:
-        self.dynamodb = boto3.resource(
-            'dynamodb',
-            region_name=settings.aws_region,
-            endpoint_url=settings.dynamodb_endpoint
-        )
+        self.dynamodb = dynamodb_resource()
         self.table = self.dynamodb.Table(settings.dynamodb_sessions_table)
 
     async def save_chat_message(

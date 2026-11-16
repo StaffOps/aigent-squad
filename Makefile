@@ -17,7 +17,7 @@ help: ## List targets
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-14s %s\n", $$1, $$2}'
 
 up: ## Start the local two-tier stack (gateway :8000 → supervisor :8001)
-	docker compose up -d
+	docker compose up -d --build   # rebuild from the working tree (cached) — never run a stale image
 	@echo "waiting for gateway /ready…"
 	@for i in $$(seq 1 30); do \
 	  curl -sf http://localhost:8000/ready >/dev/null 2>&1 && { echo "✅ up — try: make smoke"; exit 0; }; \
@@ -63,15 +63,22 @@ specs-status: ## Spec status SSOT lint (spec 32) — frontmatter consistency + R
 pin-check: ## Fail if any GitHub Action is not pinned to a 40-hex commit SHA (spec 45 T2.2)
 	@# INVERSE match on purpose: fail on anything after `@` that is not 40 hex chars. A denylist
 	@# of tag shapes misses semver like @v4.1.0. Local (./…) and docker:// refs have no @ref.
-	@if grep -rPn 'uses:\s+[^#\s]+@(?![0-9a-f]{40}\b)' .github/workflows/; then \
+	@# perl, not `grep -P`: macOS grep has no -P, exits 2, and the old `if` read that as
+	@# "no match" -> a false OK. Any scanner error now FAILS the gate (rc 2).
+	@files=$$(find .github/workflows -type f \( -name '*.yml' -o -name '*.yaml' \)); \
+	[ -n "$$files" ] || { echo "pin-check: no workflow files found"; exit 2; }; \
+	perl -ne 'if (/uses:\s+[^#\s]+@(?![0-9a-f]{40}\b)/) { print "$$ARGV:$$.: $$_"; $$bad = 1 } close ARGV if eof; END { exit($$bad ? 3 : 0) }' $$files; rc=$$?; \
+	if [ $$rc -eq 3 ]; then \
 	  echo ""; \
 	  echo "ERROR: unpinned action ref(s) above. Pin to a full 40-char commit SHA:"; \
 	  echo "  uses: owner/repo@<40-hex-sha> # vX.Y.Z"; \
 	  echo "Resolve with: curl -s https://api.github.com/repos/<owner>/<repo>/git/ref/tags/<tag>"; \
 	  echo "(if .object.type is 'tag', deref via /git/tags/<sha> to get the commit)"; \
 	  exit 1; \
+	elif [ $$rc -ne 0 ]; then \
+	  echo "pin-check: scanner failed (rc=$$rc) - gate NOT passed"; exit 2; \
 	else \
-	  echo "pin-check OK — every action ref is a 40-hex commit SHA"; \
+	  echo "pin-check OK - every action ref is a 40-hex commit SHA"; \
 	fi
 
 mcp-rbac-audit: ## Prove MCP ServiceAccount is read-only (spec 37 gate). SA=<name> NS=<ns> [CTX=<ctx>]
@@ -98,7 +105,7 @@ capability-validate: ## Validate all agent configs for capability tier consisten
 
 scan: ## Run Trivy vulnerability scan locally (mirrors CI dep_scan + build gate)
 	@docker build -t aigent-squad:scan-local . 2>/dev/null
-	@docker run --rm -v "$(pwd)/.trivyignore.yaml:/root/.trivyignore.yaml" \
+	@docker run --rm -v "$$(pwd)/.trivyignore.yaml:/root/.trivyignore.yaml" \
 	  -v /var/run/docker.sock:/var/run/docker.sock \
 	  aquasec/trivy:latest image \
 	  --severity CRITICAL,HIGH --exit-code 1 \

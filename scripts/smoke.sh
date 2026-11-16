@@ -19,7 +19,14 @@ HTTP=$(curl -s -o /tmp/smoke-query.json -w "%{http_code}" -X POST "${GATEWAY}/qu
   -H 'Content-Type: application/json' -H "X-Internal-Token: ${TOKEN}" \
   -d '{"user_input":"How many EC2 instances are running?","user_id":"smoke","session_id":"smoke-1"}')
 case "${HTTP}" in
-  200) echo "   ✅ 200 — agent: $(grep -o '"agent"[^,}]*' /tmp/smoke-query.json | head -1)";;
+  200)
+    # A 200 can still carry a fail-open agent error ({"error": "..."}) — e.g. expired
+    # AWS credentials. That is NOT a Bedrock round-trip, so fail loudly.
+    if grep -q '"error"' /tmp/smoke-query.json; then
+      fail "200 but the agent returned an error: $(grep -o '"error":"[^"]*' /tmp/smoke-query.json | head -1 | cut -c10-200)" \
+        "usually AWS credentials for Bedrock: 'aws sts get-caller-identity' (expired SSO → 'aws sso login'); model id must be an inference profile (us. prefix)"
+    fi
+    echo "   ✅ 200 — agent: $(grep -o '"agent"[^,}]*' /tmp/smoke-query.json | head -1)";;
   401) fail "401 unauthorized" "token mismatch — X-Internal-Token vs INTERNAL_API_TOKEN (edge) — NOT the supervisor token";;
   403) fail "403 blocked" "fail-closed security: guardrail/scanner. Local: GUARDRAIL_ENABLED=false (compose default) — did you override it without a provisioned GUARDRAIL_ID?";;
   503) fail "503 unavailable" "supervisor unreachable or pool full — docker compose logs supervisor";;

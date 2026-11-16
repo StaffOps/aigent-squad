@@ -1,10 +1,10 @@
 ---
 spec: 36-agent-native-dev-loop
-status: done-with-deferrals
-completed: 2026-07-04
+status: done
+completed: 2026-11-16
 superseded_by: null
 depends_on: []
-deferred: ["T11 independent review (fresh-clone dry run + .claude contract)"]
+deferred: []
 ---
 
 # Feature: Agent-Native Dev Loop (Claude-ready repo — zero-friction execution)

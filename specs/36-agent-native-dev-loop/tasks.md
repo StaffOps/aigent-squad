@@ -37,9 +37,14 @@
 - [x] T10: AGENTS.md playbook section — failure modes ≤3 lines each (403 fail-closed,
       401 which-token, empty history, works-locally-fails-CI) pointing at make targets;
       commands in AGENTS.md/QUICKSTART/README switched to make targets
-- [ ] T11: Independent review — fresh-clone dry run from nothing; verify same-command
+- [x] T11: Independent review — fresh-clone dry run from nothing; verify same-command
       guarantee local↔CI; `.claude/` contract respected (no rule prose)
       (depends on: T1–T10)
+      — done 2026-11-16: independent fresh-clone review, all 3 checks PASS-WITH-FINDINGS
+      (10 findings). Fixed: `make up` (missing DynamoDB table + SSO coupling), stale image,
+      smoke false pass (found while verifying), `pin-check` false OK on macOS, vestigial
+      SSH build config, newcomer docs + `.claude/` rule prose (separate docs PR).
+      Remaining items → BACKLOG F-022
 
 ## Order
 T1→T3→T4→T5; T2 parallel; T6→T7/T8; T9/T10; T11 closes.
@@ -69,5 +74,4 @@ the loud warning; project skills picked up by the Claude Code harness
   otel-helper; `logger.py` imports it directly).
 - T9: CI `lint` job → `make lint`; `test` job → `make test-ci` (same pytest line).
 
-**Pending**: T11 independent review (fresh-clone dry run + `.claude/` contract
-check) — next session or reviewer agent.
+**T11 done 2026-11-16** (see task list); follow-ups in BACKLOG F-022.

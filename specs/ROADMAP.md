@@ -280,7 +280,7 @@ ROADMAP is plan-only from here.
 | 33-operational-review-loop | done | 2026-11-16 | depends_on: 32-spec-lifecycle-ssot |
 | 34-release-runbook | done-with-deferrals | 2026-07-15 | deferred: RELEASE.md Phases 3-5 (chart bump / overlay / rollout) — gated on B-25 |
 | 35-quality-eval-harness | done-with-deferrals | 2026-07-15 | deferred: TRIGGERS.md rows (deferred to spec 33 T1) |
-| 36-agent-native-dev-loop | done-with-deferrals | 2026-07-04 | deferred: T11 independent review (fresh-clone dry run + .claude contract) |
+| 36-agent-native-dev-loop | done | 2026-11-16 |  |
 | 37-agentic-tool-calling | done | 2026-07-20 |  |
 | 38-model-tier-escalation | done | 2026-07-22 | depends_on: 37-agentic-tool-calling |
 | 39-observability-rca-uplift | done-with-deferrals | 2026-07-23 | deferred: T3.4 deterministic investigation.py path (Phase 2 — prompt-RCA validated live, trigger not met) |

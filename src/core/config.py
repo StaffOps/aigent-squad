@@ -161,6 +161,11 @@ class Settings(BaseSettings):  # type: ignore[misc]
     # DynamoDB
     dynamodb_sessions_table: str = "agent-sessions"
     dynamodb_endpoint: Optional[str] = None
+    # Local dev only (docker-compose): sign DynamoDB-local requests with fixed dummy
+    # credentials instead of the AWS chain, so an expired SSO token (needed only for
+    # Bedrock) does not take conversation history — and the supervisor's /ready —
+    # down with it. Ignored unless DYNAMODB_ENDPOINT is set. Never enable in a cluster.
+    dynamodb_local_static_credentials: bool = False
     
     # ElastiCache
     redis_host: str
