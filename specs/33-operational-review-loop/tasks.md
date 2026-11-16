@@ -24,8 +24,11 @@
       spec or BACKLOG id (depends on: T5)
 - [x] T7: Record metric gaps found in T5 back into TRIGGERS.md with a ~1-metric fix
       suggestion each (implementation out of scope) (depends on: T5)
-- [ ] T8: Independent review — template completeness, queries reproducible verbatim,
+- [x] T8: Independent review — template completeness, queries reproducible verbatim,
       no unmeasurable trigger left unflagged (depends on: T6, T7)
+      — done 2026-11-16: independent SRE review (Check 1 PASS-WITH-FINDINGS, Checks 2–3 FAIL
+      → 16 findings). Fixes applied to `TRIGGERS.md` + `reviews/TEMPLATE.md`; record in
+      BACKLOG F-020 (exported names still to confirm live at the next review)
 
 ## Order
 T1 → T2/T3 → T4; T5 → T6/T7 → T8.
