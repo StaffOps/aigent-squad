@@ -7,7 +7,6 @@ setup_telemetry()
 
 from contextlib import asynccontextmanager
 from typing import Any, Optional
-import boto3
 import redis as redis_lib
 import redis.asyncio as aioredis
 from fastapi import FastAPI, HTTPException, Depends
@@ -21,6 +20,7 @@ from src.core.internal_auth import require_internal_token
 from src.core.logger import logger
 from src.core.kb.store import kb_store
 from src.core.session_lock import SessionLock, SessionLockConflict
+from src.core.state_store import dynamodb_resource
 
 from src.supervisor.agent import supervisor
 from src.supervisor.alert_handler import AlertmanagerPayload, handle_alert_payload
@@ -38,11 +38,7 @@ _health_redis = redis_lib.Redis(
     password=reveal(settings.redis_password) or None,
     socket_connect_timeout=2,
 )
-_health_dynamodb_table = boto3.resource(
-    "dynamodb",
-    region_name=settings.aws_region,
-    endpoint_url=settings.dynamodb_endpoint,
-).Table(settings.dynamodb_sessions_table)
+_health_dynamodb_table = dynamodb_resource().Table(settings.dynamodb_sessions_table)
 
 # Async Redis for distributed session lock (spec 25 T3). Fail-open: if
 # construction fails, _session_redis stays None and SessionLock allows all.

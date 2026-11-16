@@ -89,3 +89,27 @@ async def test_fetch_all_chats_returns_empty_on_error(chat_storage):
 
     result = await store.fetch_all_chats("u1", "s1")
     assert result == []
+
+
+@pytest.mark.parametrize(
+    "endpoint, flag, expect_static",
+    [
+        ("http://dynamodb-local:8000", True, True),    # local compose: dummy creds
+        ("http://dynamodb-local:8000", False, False),  # endpoint alone: AWS chain
+        (None, True, False),                           # flag without endpoint: ignored
+        (None, False, False),                          # cluster default: AWS chain
+    ],
+)
+def test_dynamodb_local_static_credentials_only_with_endpoint(monkeypatch, endpoint, flag, expect_static):
+    """Spec 36 T11 finding: an expired SSO token (needed only for Bedrock) must not
+    break local DynamoDB history; the dummy creds never apply without an endpoint."""
+    from src.core.config import settings
+
+    monkeypatch.setattr(settings, "dynamodb_endpoint", endpoint)
+    monkeypatch.setattr(settings, "dynamodb_local_static_credentials", flag)
+    with patch("src.core.state_store.boto3") as mock_boto3:
+        ChatStorage()
+    kwargs = mock_boto3.resource.call_args.kwargs
+    assert kwargs["endpoint_url"] == endpoint
+    assert ("aws_access_key_id" in kwargs) is expect_static
+    assert ("aws_secret_access_key" in kwargs) is expect_static

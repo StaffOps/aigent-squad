@@ -2,6 +2,24 @@
 
 ## [Unreleased]
 
+### Fixed — local dev loop (spec 36 T11 fresh-clone review, 2026-11-16)
+- **`make up` now reaches a healthy stack on a fresh clone.** Nothing created the
+  `agent-sessions` table in the in-memory DynamoDB Local, so the supervisor's `/ready`
+  failed on every machine. A one-shot `dynamodb-init` compose service creates it.
+- **History no longer depends on AWS SSO locally.** `DYNAMODB_LOCAL_STATIC_CREDENTIALS=true`
+  (compose only; ignored without `DYNAMODB_ENDPOINT`) signs DynamoDB Local requests with
+  dummy keys, so an expired SSO token (needed only for Bedrock) does not take the stack
+  down. One `state_store.dynamodb_resource()` now builds the client for both the history
+  store and the `/ready` probe.
+- **`make up` rebuilds from the working tree** (`--build`, cached) — it used to run a stale image.
+- **`make smoke` no longer passes on a fail-open agent error** (a 200 carrying `"error"`,
+  e.g. expired AWS credentials); it fails with a playbook pointer.
+- **`make pin-check` can fail on macOS again.** It used `grep -P`, which macOS grep lacks
+  (exit 2 was read as "no match" → false OK). Now perl; a scanner error fails the gate.
+- Removed the vestigial `ssh: default` build blocks and the mcp-server SSH mount (all
+  dependencies are public `git+https`); builds no longer need an SSH agent.
+- `make scan`: `$(pwd)` → `$$(pwd)` (make expanded it to empty).
+
 ### Changed — spec 28 close-out (2026-11-16) — spec 28 is now `done`
 - **Secret settings are `pydantic.SecretStr` (B-32, Task 15):** `OPENAI_API_KEY`,
   `REDIS_PASSWORD`, `SUPERVISOR_INTERNAL_TOKEN`, `SLACK_BOT_TOKEN`,
