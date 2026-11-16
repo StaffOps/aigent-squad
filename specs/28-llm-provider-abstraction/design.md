@@ -210,9 +210,9 @@ singleton `llm` IS `src.core.bedrock.bedrock` (one breaker, one semaphore) and
 behavior is byte-identical to before. No per-role provider override. An unknown
 value fails at import (Pydantic `Literal` validation).
 
-Callers import `from src.core.llm import llm as bedrock`: the module-local name
-`bedrock` is kept deliberately so the ~190 existing `patch("<caller>.bedrock")`
-test targets keep working; the import source is the provider-neutral package.
+Callers import `from src.core.llm import llm`. (The first cut kept the alias
+`llm as bedrock` so the ~190 `patch("<caller>.bedrock")` test targets kept working;
+Task 14 / B-31 renamed it to `llm` on 2026-11-16 — tests patch `"<caller>.llm"`.)
 
 ### Decision 8: model ids per role — neutral vars with backward-compatible fallback
 

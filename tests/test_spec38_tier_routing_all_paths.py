@@ -294,7 +294,7 @@ class TestInvestigationTierRouting:
         mock_agent = _make_investigation_agent(evidence_json)
         agents = {"observability": mock_agent, "kubernetes": _make_investigation_agent(evidence_json)}
 
-        with patch("src.supervisor.investigation.bedrock") as mock_bedrock:
+        with patch("src.supervisor.investigation.llm") as mock_bedrock:
             mock_bedrock.invoke = AsyncMock(return_value=rca_json)
             await run_investigation(
                 symptom="OOMKill on tempo-distributor",
@@ -329,7 +329,7 @@ class TestInvestigationTierRouting:
         mock_agent = _make_investigation_agent(evidence_json)
         agents = {"observability": mock_agent}
 
-        with patch("src.supervisor.investigation.bedrock") as mock_bedrock:
+        with patch("src.supervisor.investigation.llm") as mock_bedrock:
             mock_bedrock.invoke = AsyncMock(return_value=rca_json)
             await run_investigation(
                 symptom="test",

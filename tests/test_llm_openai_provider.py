@@ -248,6 +248,65 @@ def test_error_code_absent_or_non_json():
     assert ei.value.code is None
 
 
+@pytest.mark.parametrize(
+    "error_body, expected",
+    [
+        # llama.cpp shape: numeric code repeats the HTTP status → type wins (Task 16).
+        ({"code": 400, "type": "exceed_context_size_error", "message": "m"}, "exceed_context_size_error"),
+        ({"code": "400", "type": "invalid_request_error"}, "invalid_request_error"),
+        ({"type": "server_error"}, "server_error"),
+        # OpenAI shape: a symbolic code is more specific than the type → code wins.
+        ({"code": "context_length_exceeded", "type": "invalid_request_error"}, "context_length_exceeded"),
+        # Numeric code with no type is still surfaced.
+        ({"code": 400}, "400"),
+        # A bool is not an HTTP status: the code is kept (sanitized) as before.
+        ({"code": True, "type": "t"}, "True"),
+        # Key echoed through the type branch is still redacted (security review F1).
+        ({"code": 400, "type": SECRET}, "redacted"),
+        ({"code": 400, "type": f"bad key {SECRET} given"}, "redacted"),
+        ({"type": SECRET}, "redacted"),
+    ],
+)
+def test_error_code_prefers_type_over_numeric_code(error_body, expected):
+    c = _client()
+    with respx.mock:
+        respx.post(URL).mock(return_value=httpx.Response(400, json={"error": error_body}))
+        with pytest.raises(LLMProviderError) as ei:
+            c._post({})
+    assert ei.value.code == expected
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_error_logs_carry_the_provider_error_code():
+    """Task 16 root cause: the code reached LLMProviderError but logs said None."""
+    import logging
+
+    from src.core.logger import logger as app_logger
+
+    records: list = []
+
+    class _Grab(logging.Handler):
+        def emit(self, record):
+            records.append(record)
+
+    handler = _Grab(level=logging.DEBUG)
+    app_logger.addHandler(handler)
+    try:
+        respx.post(URL).mock(return_value=httpx.Response(
+            400, json={"error": {"code": 400, "type": "exceed_context_size_error"}}))
+        with pytest.raises(LLMProviderError):
+            await _client().invoke(messages=[{"role": "user", "content": "x"}], system_prompt="s")
+    finally:
+        app_logger.removeHandler(handler)
+    codes = [getattr(r, "error_code", "absent") for r in records if hasattr(r, "error_class")]
+    assert codes and all(c == "exceed_context_size_error" for c in codes)
+
+
+def test_error_code_hook_ignores_foreign_exceptions():
+    assert _client()._error_code(ValueError("x")) is None
+
+
 def test_missing_base_url_is_unexpected_error():
     c = OpenAICompatClient(base_url="", http_client=httpx.Client())
     with pytest.raises(RuntimeError, match="OPENAI_BASE_URL"):

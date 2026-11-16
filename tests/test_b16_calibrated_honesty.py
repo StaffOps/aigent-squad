@@ -143,7 +143,7 @@ class TestCalibratedHonestyConstant:
 class TestLegacyPathContainsCalibratedHonesty:
     """Legacy path: no MCP tools → single bedrock.invoke() — verify system_prompt."""
 
-    @patch("src.core.generic_agent.bedrock")
+    @patch("src.core.generic_agent.llm")
     async def test_legacy_path_system_prompt_has_calibrated_honesty(self, mock_bedrock):
         mock_bedrock.invoke = AsyncMock(return_value="response text")
 
@@ -164,7 +164,7 @@ class TestLegacyPathContainsCalibratedHonesty:
         for marker in HONESTY_MARKERS:
             assert marker in system_prompt, f"Missing '{marker}' in legacy system_prompt"
 
-    @patch("src.core.generic_agent.bedrock")
+    @patch("src.core.generic_agent.llm")
     async def test_legacy_no_adapters_still_has_calibrated_honesty(self, mock_bedrock):
         """Agent with zero adapters (no infra_data) still gets the instruction."""
         mock_bedrock.invoke = AsyncMock(return_value="answer")
@@ -278,7 +278,7 @@ class TestStreamingPathContainsCalibratedHonesty:
 class TestCalibratedHonestyCoexistsWithSkills:
     """When skills are injected, BOTH <skills> AND <calibrated_honesty> are present."""
 
-    @patch("src.core.generic_agent.bedrock")
+    @patch("src.core.generic_agent.llm")
     async def test_legacy_path_skills_and_honesty_coexist(self, mock_bedrock):
         mock_bedrock.invoke = AsyncMock(return_value="ok")
 
@@ -371,7 +371,7 @@ class TestCalibratedHonestyCoexistsWithSkills:
 class TestNoRegressionAgentsWithoutSkills:
     """Agents with no skill_registry and no skills still get calibrated honesty."""
 
-    @patch("src.core.generic_agent.bedrock")
+    @patch("src.core.generic_agent.llm")
     async def test_legacy_no_skills_still_has_honesty(self, mock_bedrock):
         mock_bedrock.invoke = AsyncMock(return_value="ok")
 
@@ -390,7 +390,7 @@ class TestNoRegressionAgentsWithoutSkills:
         assert "<calibrated_honesty>" in system_prompt
         assert "<skills>" not in system_prompt  # no skills block
 
-    @patch("src.core.generic_agent.bedrock")
+    @patch("src.core.generic_agent.llm")
     async def test_legacy_empty_registry_result_still_has_honesty(self, mock_bedrock):
         """Registry exists but returns no skills — honesty still appended."""
         mock_bedrock.invoke = AsyncMock(return_value="ok")
@@ -462,7 +462,7 @@ class TestNoRegressionAgentsWithoutSkills:
 class TestCalibratedHonestyAppearsExactlyOnce:
     """Avoid double-injection: the tag should appear exactly once."""
 
-    @patch("src.core.generic_agent.bedrock")
+    @patch("src.core.generic_agent.llm")
     async def test_legacy_path_honesty_not_duplicated(self, mock_bedrock):
         mock_bedrock.invoke = AsyncMock(return_value="ok")
 

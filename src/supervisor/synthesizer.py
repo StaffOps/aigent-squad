@@ -1,6 +1,6 @@
 """Synthesizer: fuses N agent responses into a single coherent answer."""
 from otel_helper import get_tracer
-from src.core.llm import llm as bedrock  # provider-selected (spec 28); local name kept for patch-compat
+from src.core.llm import llm  # provider-selected client (spec 28)
 from src.core.metrics import synthesizer_calls
 
 tracer = get_tracer(__name__)
@@ -58,7 +58,7 @@ Agent responses:
 
 Synthesize a single answer for the user."""
 
-            response = await bedrock.invoke(
+            response = await llm.invoke(
                 messages=[{"role": "user", "content": user_msg}],
                 system_prompt=SYNTHESIZER_PROMPT,
                 temperature=0.3,

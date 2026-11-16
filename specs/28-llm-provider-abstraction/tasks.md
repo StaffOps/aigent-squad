@@ -59,8 +59,11 @@ live endpoint check.
       MCP servers reachable from the test ns; covered by mocked tests only). Findings:
       llama.cpp puts the error type in `error.type` (`exceed_context_size_error`) but
       the log showed `error_code: None` → minor diagnosability follow-up (Task 16).
-- [ ] Task 16: Surface llama.cpp/OpenAI `error.type` as the sanitized `error_code` when
-      `error.code` is numeric (diagnosability only; found in Task 12)
+- [x] Task 16: Surface llama.cpp/OpenAI `error.type` as the sanitized `error_code` when
+      `error.code` is numeric (diagnosability only; found in Task 12) — done 2026-11-16
+      (`_error_code` prefers `type` when `code` is absent or numeric; symbolic codes still win).
+      Root cause of the `None`: `OpenAICompatClient` never overrode the `LLMService._error_code`
+      log hook, so the extracted code stayed on the exception and never reached the logs.
 
 ## Follow-ups (tracked)
 - [x] Task 13: Helm chart support — `helm-charts` chart 0.9.6 (2026-11-15):
@@ -68,10 +71,19 @@ live endpoint check.
       documented under `global.env`. Remaining: optional key-as-file mount
       (`OPENAI_API_KEY_FILE`) + egress NetworkPolicy to the endpoint (not needed for
       the live test; left for when networkPolicy is enabled with openai)
-- [ ] Task 14: Rename the caller-local alias `bedrock` → `llm` (+ ~190 test patch
-      targets) — mechanical, separate change (BACKLOG B-31)
-- [ ] Task 15: `SecretStr` for secret settings repo-wide (`OPENAI_API_KEY`, tokens,
-      Redis password) — BACKLOG B-32
+- [x] Task 14: Rename the caller-local alias `bedrock` → `llm` (+ ~190 test patch
+      targets) — mechanical, separate change (BACKLOG B-31) — done 2026-11-16: 8 callers
+      + `evals/runner.py` import `from src.core.llm import llm`; tests patch `"<caller>.llm"`
+      (37 test files); no behavior change, full suite green
+- [x] Task 15: `SecretStr` for secret settings repo-wide (`OPENAI_API_KEY`, tokens,
+      Redis password) — BACKLOG B-32 — done 2026-11-16:
+      7 fields → `SecretStr`; plaintext only via `config.reveal()` at the use sites;
+      `tests/test_b32_secret_settings.py` proves repr/dump masking.
+      Security review (mandatory, specs/README.md) 2026-11-16: APPROVE-WITH-FIXES, no
+      fail-open or leak found; applied F1 (redaction tests on the `error.type` branch),
+      F2 (`reveal()` coerces unexpected types → auth denies instead of TypeError), F4
+      (bool is not a numeric code); F3 (Slack signature never verified) → BACKLOG F-021.
+      `POSTGRES_PASSWORD` also moved into `Settings` (8th field)
 
 ## Explicitly out of scope
 - KB embeddings (Titan, Bedrock-only; KB disabled by default)

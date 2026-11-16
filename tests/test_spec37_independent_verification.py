@@ -103,7 +103,7 @@ class TestLoopYieldsToolEvents:
     Tests the LOOP directly — no SSE encoder in between."""
 
     @pytest.mark.asyncio
-    @patch("src.core.agentic_loop_streaming.bedrock")
+    @patch("src.core.agentic_loop_streaming.llm")
     @patch("src.core.agentic_loop_streaming._guardrail_tool_args", return_value=True)
     @patch("src.core.agentic_loop_streaming._guardrail_tool_result",
            side_effect=lambda r, *a, **kw: r)
@@ -118,7 +118,7 @@ class TestLoopYieldsToolEvents:
         assert tool_calls[0].tool_name == "get_pods"
 
     @pytest.mark.asyncio
-    @patch("src.core.agentic_loop_streaming.bedrock")
+    @patch("src.core.agentic_loop_streaming.llm")
     @patch("src.core.agentic_loop_streaming._guardrail_tool_args", return_value=True)
     @patch("src.core.agentic_loop_streaming._guardrail_tool_result",
            side_effect=lambda r, *a, **kw: r)
@@ -137,7 +137,7 @@ class TestLoopYieldsToolEvents:
         assert "***" in tc.args_display
 
     @pytest.mark.asyncio
-    @patch("src.core.agentic_loop_streaming.bedrock")
+    @patch("src.core.agentic_loop_streaming.llm")
     @patch("src.core.agentic_loop_streaming._guardrail_tool_args", return_value=True)
     @patch("src.core.agentic_loop_streaming._guardrail_tool_result",
            side_effect=lambda r, *a, **kw: r)
@@ -154,7 +154,7 @@ class TestLoopYieldsToolEvents:
         assert "📦" in results[0].summary
 
     @pytest.mark.asyncio
-    @patch("src.core.agentic_loop_streaming.bedrock")
+    @patch("src.core.agentic_loop_streaming.llm")
     @patch("src.core.agentic_loop_streaming._guardrail_tool_args", return_value=True)
     @patch("src.core.agentic_loop_streaming._guardrail_tool_result",
            side_effect=lambda r, *a, **kw: r)
@@ -171,7 +171,7 @@ class TestLoopYieldsToolEvents:
         assert tc_i < tr_i < fc_i, f"Order wrong: TC@{tc_i} TR@{tr_i} FC@{fc_i}"
 
     @pytest.mark.asyncio
-    @patch("src.core.agentic_loop_streaming.bedrock")
+    @patch("src.core.agentic_loop_streaming.llm")
     @patch("src.core.agentic_loop_streaming._guardrail_tool_args", return_value=True)
     @patch("src.core.agentic_loop_streaming._guardrail_tool_result",
            side_effect=lambda r, *a, **kw: r)
@@ -195,7 +195,7 @@ class TestSseStreamAgenticOutput:
     and a 📦 result delta, then the answer, then [DONE]."""
 
     @pytest.mark.asyncio
-    @patch("src.core.agentic_loop_streaming.bedrock")
+    @patch("src.core.agentic_loop_streaming.llm")
     @patch("src.core.agentic_loop_streaming._guardrail_tool_args", return_value=True)
     @patch("src.core.agentic_loop_streaming._guardrail_tool_result",
            side_effect=lambda r, *a, **kw: r)
@@ -212,7 +212,7 @@ class TestSseStreamAgenticOutput:
         assert "get_pods" in joined
 
     @pytest.mark.asyncio
-    @patch("src.core.agentic_loop_streaming.bedrock")
+    @patch("src.core.agentic_loop_streaming.llm")
     @patch("src.core.agentic_loop_streaming._guardrail_tool_args", return_value=True)
     @patch("src.core.agentic_loop_streaming._guardrail_tool_result",
            side_effect=lambda r, *a, **kw: r)
@@ -228,7 +228,7 @@ class TestSseStreamAgenticOutput:
         assert "📦" in joined
 
     @pytest.mark.asyncio
-    @patch("src.core.agentic_loop_streaming.bedrock")
+    @patch("src.core.agentic_loop_streaming.llm")
     @patch("src.core.agentic_loop_streaming._guardrail_tool_args", return_value=True)
     @patch("src.core.agentic_loop_streaming._guardrail_tool_result",
            side_effect=lambda r, *a, **kw: r)
@@ -243,7 +243,7 @@ class TestSseStreamAgenticOutput:
         assert frames[-1] == "data: [DONE]\n\n"
 
     @pytest.mark.asyncio
-    @patch("src.core.agentic_loop_streaming.bedrock")
+    @patch("src.core.agentic_loop_streaming.llm")
     @patch("src.core.agentic_loop_streaming._guardrail_tool_args", return_value=True)
     @patch("src.core.agentic_loop_streaming._guardrail_tool_result",
            side_effect=lambda r, *a, **kw: r)
@@ -263,7 +263,7 @@ class TestSseStreamAgenticOutput:
         assert tool_pos < answer_pos
 
     @pytest.mark.asyncio
-    @patch("src.core.agentic_loop_streaming.bedrock")
+    @patch("src.core.agentic_loop_streaming.llm")
     @patch("src.core.agentic_loop_streaming._guardrail_tool_args", return_value=True)
     @patch("src.core.agentic_loop_streaming._guardrail_tool_result",
            side_effect=lambda r, *a, **kw: r)
@@ -409,7 +409,7 @@ class TestBudgetsAndFailOpen:
     """Verify fixes did not regress budgets or fail-open behavior."""
 
     @pytest.mark.asyncio
-    @patch("src.core.agentic_loop_streaming.bedrock")
+    @patch("src.core.agentic_loop_streaming.llm")
     @patch("src.core.agentic_loop_streaming._guardrail_tool_args", return_value=True)
     @patch("src.core.agentic_loop_streaming._guardrail_tool_result",
            side_effect=lambda r, *a, **kw: r)
@@ -426,7 +426,7 @@ class TestBudgetsAndFailOpen:
         assert adapter.call_tool.await_count <= 3
 
     @pytest.mark.asyncio
-    @patch("src.core.agentic_loop_streaming.bedrock")
+    @patch("src.core.agentic_loop_streaming.llm")
     @patch("src.core.agentic_loop_streaming._guardrail_tool_args", return_value=True)
     @patch("src.core.agentic_loop_streaming._guardrail_tool_result",
            side_effect=lambda r, *a, **kw: r)
@@ -444,7 +444,7 @@ class TestBudgetsAndFailOpen:
         assert "StepToolResult" in types  # error was reported as step
 
     @pytest.mark.asyncio
-    @patch("src.core.agentic_loop_streaming.bedrock")
+    @patch("src.core.agentic_loop_streaming.llm")
     @patch("src.core.agentic_loop_streaming._guardrail_tool_args", return_value=True)
     @patch("src.core.agentic_loop_streaming._guardrail_tool_result",
            side_effect=lambda r, *a, **kw: r)

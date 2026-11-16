@@ -54,7 +54,7 @@ async def test_run_investigation_blocks_oversized_symptom_before_fanout():
     from src.supervisor.investigation import run_investigation
 
     agent = _make_agent(_EVIDENCE_JSON)
-    with patch("src.supervisor.investigation.bedrock") as mock_bedrock:
+    with patch("src.supervisor.investigation.llm") as mock_bedrock:
         mock_bedrock.invoke = AsyncMock(return_value=_RCA_JSON)
         with pytest.raises(GuardrailBlockedError):
             await run_investigation(
@@ -77,7 +77,7 @@ async def test_run_investigation_normalizes_homoglyph_symptom():
     # "cpu spike" with Cyrillic 'і' (U+0456) and 'е' (U+0435)
     homoglyph_symptom = "cpu spіkе on svc"
     agent = _make_agent(_EVIDENCE_JSON)
-    with patch("src.supervisor.investigation.bedrock") as mock_bedrock:
+    with patch("src.supervisor.investigation.llm") as mock_bedrock:
         mock_bedrock.invoke = AsyncMock(return_value=_RCA_JSON)
         await run_investigation(
             symptom=homoglyph_symptom,
@@ -99,7 +99,7 @@ async def test_run_investigation_passthrough_when_scanner_disabled():
 
     agent = _make_agent(_EVIDENCE_JSON)
     with patch("src.supervisor.investigation._scanner.enabled", False), \
-         patch("src.supervisor.investigation.bedrock") as mock_bedrock:
+         patch("src.supervisor.investigation.llm") as mock_bedrock:
         mock_bedrock.invoke = AsyncMock(return_value=_RCA_JSON)
         result = await run_investigation(
             symptom="x" * 10_001,   # would block if scanner were enabled
@@ -119,7 +119,7 @@ async def test_run_investigation_passthrough_when_scanner_disabled():
 async def test_synthesizer_forwards_attribution_ids():
     from src.supervisor.synthesizer import Synthesizer
 
-    with patch("src.supervisor.synthesizer.bedrock") as mock_bedrock:
+    with patch("src.supervisor.synthesizer.llm") as mock_bedrock:
         mock_bedrock.invoke = AsyncMock(return_value="merged")
         await Synthesizer().synthesize(
             "q", [("aws", "r1"), ("k8s", "r2")], [],
@@ -140,7 +140,7 @@ async def test_synthesize_rca_forwards_attribution_ids():
                          timestamp="", strength="forte", summary="CPU 95%")]
     with patch("src.supervisor.investigation.inject_similar_cases",
                new_callable=AsyncMock, return_value=""), \
-         patch("src.supervisor.investigation.bedrock") as mock_bedrock:
+         patch("src.supervisor.investigation.llm") as mock_bedrock:
         mock_bedrock.invoke = AsyncMock(return_value=_RCA_JSON)
         await _synthesize_rca("high cpu", evidence, evidence,
                               user_id="u-9", session_id="s-9")
@@ -160,7 +160,7 @@ async def test_run_investigation_threads_session_into_synthesis():
     agent = _make_agent(_EVIDENCE_JSON)
     with patch("src.supervisor.investigation.inject_similar_cases",
                new_callable=AsyncMock, return_value=""), \
-         patch("src.supervisor.investigation.bedrock") as mock_bedrock:
+         patch("src.supervisor.investigation.llm") as mock_bedrock:
         mock_bedrock.invoke = AsyncMock(return_value=_RCA_JSON)
         await run_investigation(
             symptom="latency spike",

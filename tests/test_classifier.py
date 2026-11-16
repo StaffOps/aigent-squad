@@ -32,7 +32,7 @@ async def test_classify_returns_agent_name():
         "reasoning": "User asks about EC2"
     })
 
-    with patch("src.core.classifier.bedrock") as mock_bedrock:
+    with patch("src.core.classifier.llm") as mock_bedrock:
         mock_bedrock.invoke = AsyncMock(return_value=bedrock_response)
         result = await classifier.classify("list my EC2 instances", [])
 
@@ -50,7 +50,7 @@ async def test_classify_fallback_on_invalid_json():
 
     bedrock_response = "I think this should go to the kubernetes agent for pods."
 
-    with patch("src.core.classifier.bedrock") as mock_bedrock:
+    with patch("src.core.classifier.llm") as mock_bedrock:
         mock_bedrock.invoke = AsyncMock(return_value=bedrock_response)
         result = await classifier.classify("list pods", [])
 
@@ -67,7 +67,7 @@ async def test_classify_unknown_on_garbage():
 
     bedrock_response = "~~~random garbage that matches nothing~~~"
 
-    with patch("src.core.classifier.bedrock") as mock_bedrock:
+    with patch("src.core.classifier.llm") as mock_bedrock:
         mock_bedrock.invoke = AsyncMock(return_value=bedrock_response)
         result = await classifier.classify("asdfghjkl", [])
 
@@ -89,7 +89,7 @@ async def test_classify_json_in_code_fence():
         + "\n```"
     )
 
-    with patch("src.core.classifier.bedrock") as mock_bedrock:
+    with patch("src.core.classifier.llm") as mock_bedrock:
         mock_bedrock.invoke = AsyncMock(return_value=bedrock_response)
         result = await classifier.classify("list EC2", [])
 
@@ -109,7 +109,7 @@ async def test_classify_json_with_preamble():
         + json.dumps({"agents": [{"agent": "kubernetes", "confidence": 0.88}], "reasoning": "pods"})
     )
 
-    with patch("src.core.classifier.bedrock") as mock_bedrock:
+    with patch("src.core.classifier.llm") as mock_bedrock:
         mock_bedrock.invoke = AsyncMock(return_value=bedrock_response)
         result = await classifier.classify("list pods", [])
 

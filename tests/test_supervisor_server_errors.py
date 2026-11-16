@@ -49,7 +49,7 @@ def _make_client_with_failing_supervisor(side_effect: Exception):
         patch("src.core.bedrock.boto3"),
         patch("src.core.state_store.boto3"),
         patch("src.core.cache.redis.Redis"),
-        patch("src.core.classifier.bedrock"),
+        patch("src.core.classifier.llm"),
         patch("otel_helper.setup_telemetry"),
         patch("otel_helper.get_tracer", return_value=MagicMock()),
         patch("src.supervisor.server.kb_store") as mock_kb,

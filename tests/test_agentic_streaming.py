@@ -181,7 +181,7 @@ class TestSummarizeToolResult:
 class TestAgenticLoopStreaming:
 
     @pytest.mark.asyncio
-    @patch("src.core.agentic_loop_streaming.bedrock")
+    @patch("src.core.agentic_loop_streaming.llm")
     @patch("src.core.agentic_loop_streaming._guardrail_tool_args", return_value=True)
     @patch("src.core.agentic_loop_streaming._guardrail_tool_result", side_effect=lambda r, *a, **k: r)
     async def test_single_tool_call_yields_expected_events(
@@ -220,7 +220,7 @@ class TestAgenticLoopStreaming:
         assert "monitoring" in tool_call.args_display
 
     @pytest.mark.asyncio
-    @patch("src.core.agentic_loop_streaming.bedrock")
+    @patch("src.core.agentic_loop_streaming.llm")
     async def test_no_tools_yields_final_directly(self, mock_bedrock):
         """When the model answers without tools, yield final chunks directly."""
         mock_bedrock.converse = AsyncMock(return_value=_converse_final_response("Direct answer."))
@@ -247,7 +247,7 @@ class TestAgenticLoopStreaming:
         assert "Direct answer" in final_text
 
     @pytest.mark.asyncio
-    @patch("src.core.agentic_loop_streaming.bedrock")
+    @patch("src.core.agentic_loop_streaming.llm")
     @patch("src.core.agentic_loop_streaming._guardrail_tool_args", return_value=False)
     async def test_guardrail_blocked_args_yields_blocked_result(
         self, mock_args_guard, mock_bedrock
@@ -277,7 +277,7 @@ class TestAgenticLoopStreaming:
         assert any("blocked" in e.summary or "🚫" in e.summary for e in result_events)
 
     @pytest.mark.asyncio
-    @patch("src.core.agentic_loop_streaming.bedrock")
+    @patch("src.core.agentic_loop_streaming.llm")
     @patch("src.core.agentic_loop_streaming._guardrail_tool_args", return_value=True)
     @patch("src.core.agentic_loop_streaming._guardrail_tool_result", side_effect=lambda r, *a, **k: r)
     @patch("src.core.agentic_loop_streaming.MAX_TOOL_STEPS", 1)
@@ -307,7 +307,7 @@ class TestAgenticLoopStreaming:
         assert events[-1].finish_reason == "length"
 
     @pytest.mark.asyncio
-    @patch("src.core.agentic_loop_streaming.bedrock")
+    @patch("src.core.agentic_loop_streaming.llm")
     @patch("src.core.agentic_loop_streaming._guardrail_tool_args", return_value=True)
     @patch("src.core.agentic_loop_streaming._guardrail_tool_result")
     async def test_result_redaction_passes_through(
@@ -521,7 +521,7 @@ class TestStreamingEdgeCases:
 class TestStreamingBudgetPaths:
 
     @pytest.mark.asyncio
-    @patch("src.core.agentic_loop_streaming.bedrock")
+    @patch("src.core.agentic_loop_streaming.llm")
     @patch("src.core.agentic_loop_streaming._guardrail_tool_args", return_value=True)
     @patch("src.core.agentic_loop_streaming._guardrail_tool_result", side_effect=lambda r, *a, **k: r)
     @patch("src.core.agentic_loop_streaming.MAX_LOOP_DURATION_MS", 0)
@@ -548,7 +548,7 @@ class TestStreamingBudgetPaths:
         assert events[-1].finish_reason == "length"
 
     @pytest.mark.asyncio
-    @patch("src.core.agentic_loop_streaming.bedrock")
+    @patch("src.core.agentic_loop_streaming.llm")
     @patch("src.core.agentic_loop_streaming._guardrail_tool_args", return_value=True)
     @patch("src.core.agentic_loop_streaming._guardrail_tool_result", side_effect=lambda r, *a, **k: r)
     @patch("src.core.agentic_loop_streaming.MAX_LOOP_TOKENS", 1)
@@ -581,7 +581,7 @@ class TestStreamingBudgetPaths:
 class TestStreamingAdapterErrors:
 
     @pytest.mark.asyncio
-    @patch("src.core.agentic_loop_streaming.bedrock")
+    @patch("src.core.agentic_loop_streaming.llm")
     async def test_adapter_list_tools_failure_degraded(self, mock_bedrock):
         """If an adapter's list_tool_specs fails, the loop continues without it."""
         mock_bedrock.converse = AsyncMock(return_value=_converse_final_response("no tools available"))
@@ -606,7 +606,7 @@ class TestStreamingAdapterErrors:
         assert isinstance(events[-1], StepDone)
 
     @pytest.mark.asyncio
-    @patch("src.core.agentic_loop_streaming.bedrock")
+    @patch("src.core.agentic_loop_streaming.llm")
     @patch("src.core.agentic_loop_streaming._guardrail_tool_args", return_value=True)
     @patch("src.core.agentic_loop_streaming._guardrail_tool_result", side_effect=lambda r, *a, **k: r)
     async def test_tool_not_in_router_yields_error_result(
@@ -648,7 +648,7 @@ class TestStreamingAdapterErrors:
 class TestExtendedThinkingFlag:
 
     @pytest.mark.asyncio
-    @patch("src.core.agentic_loop_streaming.bedrock")
+    @patch("src.core.agentic_loop_streaming.llm")
     @patch("src.core.agentic_loop_streaming.ENABLE_EXTENDED_THINKING", True)
     async def test_thinking_blocks_emitted_when_flag_on(self, mock_bedrock):
         """S3: when extended-thinking flag is ON and model returns reasoning blocks."""

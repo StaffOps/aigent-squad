@@ -235,7 +235,7 @@ async def build(monkeypatch):
             ]
         llm.circuit_breaker = CircuitBreaker(f"s28-{provider}")
         for mod in (classifier_mod, generic_agent_mod, synthesizer_mod, investigation_mod, agentic_loop_mod):
-            monkeypatch.setattr(mod, "bedrock", llm)
+            monkeypatch.setattr(mod, "llm", llm)
 
         monkeypatch.setattr(agent_mod, "storage", _InMemoryStorage())
         monkeypatch.setattr(agent_mod, "distill_rca", AsyncMock())

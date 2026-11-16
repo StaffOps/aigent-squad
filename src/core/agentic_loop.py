@@ -35,7 +35,7 @@ from src.core.agent_config import (
     MAX_TOOL_STEPS,
     CONTEXT_KEEP_LAST_N,
 )
-from src.core.llm import llm as bedrock  # provider-selected (spec 28); local name kept for patch-compat
+from src.core.llm import llm  # provider-selected client (spec 28)
 from src.core.capability_gate import (
     CapabilityDeniedError,
     current_agent_id,
@@ -385,7 +385,7 @@ async def run_agentic_loop(
                 # - FINAL answer: the app-level OUTPUT guardrail inside converse()
                 #   always runs on text blocks (regardless of this flag), so the
                 #   answer reaching the user is still guardrail-checked.
-                resp = await bedrock.converse(
+                resp = await llm.converse(
                     messages=messages,
                     system_prompt=system_prompt,
                     max_tokens=4096,

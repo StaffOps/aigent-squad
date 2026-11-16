@@ -1,10 +1,10 @@
 """KbStore: async PostgreSQL client for kb_items."""
-import os
 import json
 from typing import Any, Optional
 
 import asyncpg
 
+from src.core.config import reveal, settings
 from src.core.kb.models import KbItem
 from src.core.logger import logger
 
@@ -18,11 +18,11 @@ class KbStore:
             return
         try:
             self._pool = await asyncpg.create_pool(
-                host=os.getenv("POSTGRES_HOST", "postgres"),
-                port=int(os.getenv("POSTGRES_PORT", "5432")),
-                user=os.getenv("POSTGRES_USER", "aigent"),
-                password=os.getenv("POSTGRES_PASSWORD", "changeme"),
-                database=os.getenv("POSTGRES_DB", "aigent_kb"),
+                host=settings.postgres_host,
+                port=settings.postgres_port,
+                user=settings.postgres_user,
+                password=reveal(settings.postgres_password),
+                database=settings.postgres_db,
                 min_size=1,
                 max_size=5,
             )

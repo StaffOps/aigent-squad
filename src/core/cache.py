@@ -1,7 +1,7 @@
 import redis
 import json
 from typing import Any, Optional
-from src.core.config import settings
+from src.core.config import reveal, settings
 from src.core.logger import logger
 
 
@@ -14,7 +14,7 @@ class CacheStore:
                 host=settings.redis_host,
                 port=settings.redis_port,
                 ssl=settings.redis_ssl,
-                password=settings.redis_password,
+                password=reveal(settings.redis_password) or None,
                 decode_responses=True
             )
         except Exception as e:

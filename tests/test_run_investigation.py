@@ -39,7 +39,7 @@ def _rca_json():
 @pytest.mark.asyncio
 async def test_run_investigation_returns_rca_result():
     agents = {"obs": _make_agent(_valid_evidence_json())}
-    with patch("src.supervisor.investigation.bedrock") as mock_bedrock:
+    with patch("src.supervisor.investigation.llm") as mock_bedrock:
         mock_bedrock.invoke = AsyncMock(return_value=_rca_json())
         result = await _run(agents)
     assert isinstance(result, RCAResult)
@@ -54,7 +54,7 @@ async def test_run_investigation_handles_agent_failure():
     bad_agent.process_request = AsyncMock(side_effect=RuntimeError("timeout"))
 
     agents = {"good": good_agent, "bad": bad_agent}
-    with patch("src.supervisor.investigation.bedrock") as mock_bedrock:
+    with patch("src.supervisor.investigation.llm") as mock_bedrock:
         mock_bedrock.invoke = AsyncMock(return_value=_rca_json())
         result = await _run(agents)
     # Should complete despite failure
@@ -66,7 +66,7 @@ async def test_run_investigation_respects_max_agents():
     agents = {f"agent{i}": _make_agent(_valid_evidence_json()) for i in range(5)}
     with (
         patch("src.supervisor.investigation.MAX_AGENTS_PER_INVESTIGATION", 2),
-        patch("src.supervisor.investigation.bedrock") as mock_bedrock,
+        patch("src.supervisor.investigation.llm") as mock_bedrock,
     ):
         mock_bedrock.invoke = AsyncMock(return_value=_rca_json())
         await _run(agents)
@@ -80,7 +80,7 @@ async def test_run_investigation_parses_evidence_json():
         {"signal_type": "trace", "timestamp": "2026-06-14T09:00:00Z", "strength": "forte", "summary": "slow span"},
     ])
     agents = {"obs": _make_agent(evidence_json)}
-    with patch("src.supervisor.investigation.bedrock") as mock_bedrock:
+    with patch("src.supervisor.investigation.llm") as mock_bedrock:
         mock_bedrock.invoke = AsyncMock(return_value=_rca_json())
         result = await _run(agents)
     assert len(result.evidence) == 1
@@ -91,7 +91,7 @@ async def test_run_investigation_parses_evidence_json():
 @pytest.mark.asyncio
 async def test_run_investigation_falls_back_on_invalid_json():
     agents = {"obs": _make_agent("I found something wrong but no JSON here")}
-    with patch("src.supervisor.investigation.bedrock") as mock_bedrock:
+    with patch("src.supervisor.investigation.llm") as mock_bedrock:
         mock_bedrock.invoke = AsyncMock(return_value=_rca_json())
         result = await _run(agents)
     assert len(result.evidence) == 1
@@ -107,7 +107,7 @@ async def test_run_investigation_records_rounds_metric():
     record call must be a bare positional value.
     """
     agents = {"obs": _make_agent(_valid_evidence_json())}
-    with patch("src.supervisor.investigation.bedrock") as mock_bedrock, \
+    with patch("src.supervisor.investigation.llm") as mock_bedrock, \
          patch("src.supervisor.investigation.investigation_rounds") as mock_rounds:
         mock_bedrock.invoke = AsyncMock(return_value=_rca_json())
         await _run(agents)
@@ -139,7 +139,7 @@ async def test_run_investigation_rounds_metric_reads_state_field():
 
     pinned = PinnedRoundsState(symptom="latency spike")
 
-    with patch("src.supervisor.investigation.bedrock") as mock_bedrock, \
+    with patch("src.supervisor.investigation.llm") as mock_bedrock, \
          patch("src.supervisor.investigation.investigation_rounds") as mock_rounds, \
          patch("src.supervisor.investigation.InvestigationState", return_value=pinned):
         mock_bedrock.invoke = AsyncMock(return_value=_rca_json())
@@ -169,7 +169,7 @@ async def test_synthesize_rca_includes_rag_block_when_provided():
     timeline = evidence[:]
 
     with patch("src.supervisor.investigation.inject_similar_cases", new_callable=AsyncMock) as mock_rag, \
-         patch("src.supervisor.investigation.bedrock") as mock_bedrock:
+         patch("src.supervisor.investigation.llm") as mock_bedrock:
         mock_rag.return_value = "<similar_cases>\n<case>OOM pattern</case>\n</similar_cases>\n\nNOTE: priors."
         mock_bedrock.invoke = AsyncMock(return_value=json.dumps({
             "hypothesis": "CPU saturation", "prevention": []
@@ -189,7 +189,7 @@ async def test_synthesize_rca_handles_invalid_json_response():
     timeline = []
 
     with patch("src.supervisor.investigation.inject_similar_cases", new_callable=AsyncMock, return_value=""), \
-         patch("src.supervisor.investigation.bedrock") as mock_bedrock:
+         patch("src.supervisor.investigation.llm") as mock_bedrock:
         mock_bedrock.invoke = AsyncMock(return_value="not valid json at all")
 
         result = await _synthesize_rca("something broke", evidence, timeline)
@@ -206,7 +206,7 @@ async def test_synthesize_rca_handles_no_evidence():
     from src.supervisor.investigation import _synthesize_rca
 
     with patch("src.supervisor.investigation.inject_similar_cases", new_callable=AsyncMock, return_value=""), \
-         patch("src.supervisor.investigation.bedrock") as mock_bedrock:
+         patch("src.supervisor.investigation.llm") as mock_bedrock:
         mock_bedrock.invoke = AsyncMock(return_value=json.dumps({
             "hypothesis": "unknown", "prevention": []
         }))

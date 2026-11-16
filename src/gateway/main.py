@@ -15,7 +15,7 @@ from fastapi.responses import JSONResponse, StreamingResponse  # noqa: E402
 from pydantic import BaseModel  # noqa: E402
 import uvicorn  # noqa: E402
 
-from src.core.config import settings  # noqa: E402
+from src.core.config import reveal, settings  # noqa: E402
 from src.core.rate_limiter import AdmissionGuard, estimate_cost  # noqa: E402
 from src.gateway import __version__  # noqa: E402
 from src.gateway.auth import AuthResult, get_key_agent_map, require_edge_auth  # noqa: E402
@@ -39,7 +39,7 @@ from src.supervisor.openai_compat import (  # noqa: E402
 try:
     _redis = aioredis.from_url(
         f"redis://{settings.redis_host}:{settings.redis_port}",
-        password=settings.redis_password,
+        password=reveal(settings.redis_password) or None,
         decode_responses=True,
     )
 except Exception:  # pragma: no cover - construction never blocks

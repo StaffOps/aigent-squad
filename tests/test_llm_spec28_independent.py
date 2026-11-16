@@ -788,7 +788,7 @@ def _loop_kwargs(adapters, **kw):
 def loop_llm(openai_env, monkeypatch):
     import src.core.agentic_loop as loop_mod
     c = _client()
-    monkeypatch.setattr(loop_mod, "bedrock", c)
+    monkeypatch.setattr(loop_mod, "llm", c)
     return c
 
 
@@ -880,7 +880,7 @@ class TestStreamingAgenticLoopOpenAI:
     @pytest.mark.asyncio
     async def test_streaming_loop_allowlist_and_final_text(self, openai_env, router, monkeypatch):
         import src.core.agentic_loop_streaming as stream_mod
-        monkeypatch.setattr(stream_mod, "bedrock", _client())
+        monkeypatch.setattr(stream_mod, "llm", _client())
         adapter = _mcp_adapter(("list_pods",))
         route = router.post(URL).mock(side_effect=[
             httpx.Response(200, json=_completion(text=None, finish="tool_calls", tool_calls=[

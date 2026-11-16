@@ -2,6 +2,23 @@
 
 ## [Unreleased]
 
+### Changed — spec 28 close-out (2026-11-16) — spec 28 is now `done`
+- **Secret settings are `pydantic.SecretStr` (B-32, Task 15):** `OPENAI_API_KEY`,
+  `REDIS_PASSWORD`, `SUPERVISOR_INTERNAL_TOKEN`, `SLACK_BOT_TOKEN`,
+  `SLACK_SIGNING_SECRET`, `GITLAB_TOKEN`, `DOCS_PORTAL_TOKEN`. `repr(settings)` and
+  model dumps show `**********`; plaintext only at the use site via `config.reveal()`.
+  An empty `REDIS_PASSWORD` still means "no AUTH" (`reveal(...) or None`).
+  `POSTGRES_*` (KB store) moved from `os.getenv` into `Settings` with the same defaults.
+- **Alias rename `bedrock` → `llm` (B-31, Task 14):** the 8 callers and
+  `evals/runner.py` now `from src.core.llm import llm`; test patch targets are
+  `"<caller>.llm"`. No behavior change.
+
+### Fixed — LLM error logs (spec 28 Task 16, 2026-11-16)
+- `OpenAICompatClient` never overrode the `LLMService._error_code` log hook, so
+  retry/error logs always said `error_code: None`. It now logs the sanitized code,
+  and prefers `error.type` when `error.code` is absent or numeric (llama.cpp sends
+  `{"code": 400, "type": "exceed_context_size_error"}`).
+
 ### Fixed — local compose healthchecks (2026-11-16)
 - `docker-compose.yaml`: the `supervisor` and `gateway` healthchecks called `curl`,
   which the runtime image does not ship, so both containers stayed `unhealthy` and

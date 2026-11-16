@@ -78,7 +78,7 @@ class TestNarrationSurfacing:
             }
 
         async def run():
-            with patch("src.core.agentic_loop_streaming.bedrock") as mock_bedrock:
+            with patch("src.core.agentic_loop_streaming.llm") as mock_bedrock:
                 mock_bedrock.converse = AsyncMock(side_effect=mock_converse)
 
                 events = []

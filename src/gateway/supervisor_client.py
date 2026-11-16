@@ -16,7 +16,7 @@ from typing import Any, Optional
 
 import httpx
 
-from src.core.config import settings
+from src.core.config import reveal, settings
 from src.core.logger import logger
 
 
@@ -35,7 +35,7 @@ class SupervisorClient:
         timeout: Optional[float] = None,
     ):
         self._base_url = (base_url or settings.supervisor_url).rstrip("/")
-        self._token = token if token is not None else (settings.supervisor_internal_token or "")
+        self._token = token if token is not None else reveal(settings.supervisor_internal_token)
         # httpx pool sized above the worker pool so the connection pool never
         # becomes a hidden second bottleneck below the semaphore (round-table).
         max_conn = max_connections or (settings.gateway_max_concurrent + 5)

@@ -1,7 +1,7 @@
 import json
 from typing import Any, List, Optional
 from dataclasses import dataclass, field
-from src.core.llm import llm as bedrock  # provider-selected (spec 28); local name kept for patch-compat
+from src.core.llm import llm  # provider-selected client (spec 28)
 from src.core.guardrail import GuardrailBlockedError
 from src.core.state_store import ConversationMessage
 from src.core.token_budget import truncate_history_by_tokens
@@ -113,7 +113,7 @@ If unable to classify, return an empty agents list."""
     ) -> ClassifierResult:
         """Classify user intent; falls back to keyword matching on LLM failure.
 
-        ``user_id``/``session_id`` flow to ``bedrock.invoke`` so classifier-stage
+        ``user_id``/``session_id`` flow to ``llm.invoke`` so classifier-stage
         guardrail blocks are attributable in the audit log and the classifier's
         token usage counts against the session budget (spec 14 findings A + C).
         """
@@ -125,7 +125,7 @@ If unable to classify, return an empty agents list."""
         )
 
         try:
-            response = await bedrock.invoke(
+            response = await llm.invoke(
                 messages=[{"role": "user", "content": user_input}],
                 system_prompt=prompt,
                 temperature=0.3,
