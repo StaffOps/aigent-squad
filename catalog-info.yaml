@@ -1,0 +1,33 @@
+# Backstage catalog: Domain (GitHub org) -> System (this repo) -> Component(s).
+apiVersion: backstage.io/v1alpha1
+kind: System
+metadata:
+  name: aigent-squad
+  title: aigent-squad
+  description: "Multi-agent AI platform for AWS/Kubernetes operations: edge gateway + supervisor with 6 read-only specialist agents + MCP server (StaffOps)"
+  annotations:
+    github.com/project-slug: StaffOps/aigent-squad
+  links:
+    - url: https://github.com/StaffOps/aigent-squad
+      title: Repository
+      icon: github
+spec:
+  owner: group:staffops
+  domain: staffops
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: aigent-squad
+  title: aigent-squad
+  description: "Container image ghcr.io/staffops/aigent-squad — one image, two tiers (gateway :8000, supervisor :8001)"
+  annotations:
+    github.com/project-slug: StaffOps/aigent-squad
+    staffops.space/image: ghcr.io/staffops/aigent-squad
+    staffops.space/dependency-track-project: ghcr.io/staffops/aigent-squad
+  tags: [container-image, python]
+spec:
+  type: service
+  lifecycle: experimental
+  owner: group:staffops
+  system: aigent-squad
