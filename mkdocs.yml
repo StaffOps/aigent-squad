@@ -58,7 +58,6 @@ nav:
       - CI/CD & Versioning: CI-CD.md
 
 plugins:
-  - techdocs-core
   - search:
       lang: en
 

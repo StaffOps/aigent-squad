@@ -1,6 +1,4 @@
 # Docs-site build tool version — the ONE place it is pinned (BACKLOG F-022a).
 # Read by `make docs` and by CI (.github/workflows/docs.yml, both the PR strict
 # build and the deploy build), so a dev and CI build the site with the same version.
-mkdocs-material==9.7.7
-# Backstage TechDocs plugin (same version as the backstage-platform image).
-mkdocs-techdocs-core==1.7.1
+mkdocs-material==9.5.39
