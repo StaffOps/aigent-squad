@@ -3,11 +3,10 @@
 ## [Unreleased]
 
 ### Added — Backstage TechDocs + catalog tags (2026-11-18)
-- `mkdocs.yml` loads the `techdocs-core` plugin so Backstage TechDocs renders the
-  docs site; `catalog-info.yaml` gains `backstage.io/techdocs-ref: dir:.` and
-  technology tags on the System and the Component.
-- `requirements-docs.txt`: `mkdocs-techdocs-core==1.7.1` (same as the Backstage
-  image); `mkdocs-material` 9.5.39 → 9.7.7, the version techdocs-core 1.7.1 requires.
+- `catalog-info.yaml` gains `backstage.io/techdocs-ref: dir:.` and technology tags
+  on the System and the Component. `mkdocs.yml` is unchanged: Backstage injects the
+  `techdocs-core` plugin itself at build time (plugin-techdocs-node), so the repo's
+  own site keeps its palette and Material search, and `mkdocs-material` stays 9.5.39.
 
 ### Added — CI brings the compose stack up (BACKLOG F-022a / B-09, 2026-11-16)
 - `.github/workflows/stack.yml`: on every PR/push to dev/main (code changes), build and
