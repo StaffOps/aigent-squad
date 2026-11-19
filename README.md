@@ -296,7 +296,7 @@ User Query: "How many EC2 instances are running?"
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Docker & Docker Compose
+- Docker & Docker Compose, `make`
 - AWS CLI configured (`~/.aws` mounted read-only in dev)
 - kubectl configured (optional — for the kubernetes agent)
 - No local Python needed — everything (run, tests, lint) goes through Docker
@@ -305,28 +305,32 @@ User Query: "How many EC2 instances are running?"
 
 ```bash
 # 1. Clone repository
-git clone git@github.com:StaffOps/staffops-aigent-squad.git
-cd staffops-aigent-squad
+git clone git@github.com:StaffOps/aigent-squad.git
+cd aigent-squad
 
-# 2. Configure environment
-cp .env.example .env
-# Edit .env with your AWS credentials and settings
+# 2. Start the stack (dev-safe defaults in docker-compose.yaml; no .env needed —
+#    create one from .env.example only to override settings)
+make up
 
-# 3. Run setup script
-./setup-local.sh
+# 3. Prove it works end-to-end (health + 1 real Bedrock query + /v1/models)
+make smoke
 
-# 4. Verify services
-curl http://localhost:8000/ready   # gateway (public front door)
+# 4. Tests, lint, stop
+make test && make lint
+make down
 ```
+
+Full walkthrough: [`QUICKSTART.md`](QUICKSTART.md).
 
 **Services** (two-tier, spec 31):
 - Gateway (public): http://localhost:8000  — `/query`, `/v1/*`, `/jobs/{id}/cancel`
-- Supervisor (backend): http://localhost:8001  — `/internal/*` (gateway-only)
+- Supervisor (backend): internal port 8001, not published — `/internal/*` (gateway-only)
 - MCP Server: http://localhost:8006  (→ gateway)
 - Redis: localhost:6379
 - DynamoDB Local: http://localhost:8100
 - PostgreSQL (KB, optional): localhost:5432
 - Prometheus: http://localhost:9099 · Grafana: http://localhost:3001
+- LibreChat: http://localhost:3080 (+ MongoDB, internal) — see `docs/LIBRECHAT.md`
 
 ---
 

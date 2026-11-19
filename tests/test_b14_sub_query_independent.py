@@ -108,7 +108,7 @@ class TestClassifierParsesSubQuery:
              "sub_query": "List pods in CrashLoopBackOff in namespace prod for the last 1h"}
         ])
 
-        with patch("src.core.classifier.bedrock") as mock_br:
+        with patch("src.core.classifier.llm") as mock_br:
             mock_br.invoke = AsyncMock(return_value=resp)
             result = await c.classify("quais pods crashando na última hora em prod?", [])
 
@@ -129,7 +129,7 @@ class TestClassifierParsesSubQuery:
              "sub_query": "Error rate trend for api-gateway last 3h"},
         ])
 
-        with patch("src.core.classifier.bedrock") as mock_br:
+        with patch("src.core.classifier.llm") as mock_br:
             mock_br.invoke = AsyncMock(return_value=resp)
             result = await c.classify("after the deploy 3h ago, errors spiked — is it the new instances?", [])
 
@@ -148,7 +148,7 @@ class TestClassifierParsesSubQuery:
             {"agent": "kubernetes", "confidence": 0.95, "sub_query": ""}
         ])
 
-        with patch("src.core.classifier.bedrock") as mock_br:
+        with patch("src.core.classifier.llm") as mock_br:
             mock_br.invoke = AsyncMock(return_value=resp)
             result = await c.classify("yes", [])
 
@@ -165,7 +165,7 @@ class TestClassifierParsesSubQuery:
             {"agent": "aws", "confidence": 0.9}
         ])
 
-        with patch("src.core.classifier.bedrock") as mock_br:
+        with patch("src.core.classifier.llm") as mock_br:
             mock_br.invoke = AsyncMock(return_value=resp)
             result = await c.classify("list S3 buckets", [])
 
@@ -183,7 +183,7 @@ class TestClassifierParsesSubQuery:
             "reasoning": "null sub_query"
         })
 
-        with patch("src.core.classifier.bedrock") as mock_br:
+        with patch("src.core.classifier.llm") as mock_br:
             mock_br.invoke = AsyncMock(return_value=resp)
             result = await c.classify("show nodes", [])
 
@@ -219,7 +219,7 @@ class TestClassifierParsesSubQuery:
                 cfg.routing_keywords = ["pod", "node", "kubectl"]
         c = Classifier(reg)
 
-        with patch("src.core.classifier.bedrock") as mock_br:
+        with patch("src.core.classifier.llm") as mock_br:
             mock_br.invoke = AsyncMock(side_effect=RuntimeError("LLM down"))
             result = await c.classify("show me pod logs", [])
 
@@ -617,7 +617,7 @@ class TestNoRegressionWithoutSubQuery:
             "reasoning": "cost query"
         })
 
-        with patch("src.core.classifier.bedrock") as mock_br:
+        with patch("src.core.classifier.llm") as mock_br:
             mock_br.invoke = AsyncMock(return_value=resp)
             result = await c.classify("how much are we spending on EC2?", [])
 

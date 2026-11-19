@@ -2,52 +2,34 @@
 
 ## 🚀 Setup in 3 Steps
 
-### 1. Configure Credentials
+### 1. Prerequisites
+
+- Docker + Docker Compose, `make`
+- AWS credentials in `~/.aws` (mounted read-only into the supervisor) with Bedrock
+  access — if you use SSO, run `aws sso login` first; an expired session makes the
+  supervisor fail its readiness check
+- No `.env` is needed: `docker-compose.yaml` ships dev-safe defaults
+  (`INTERNAL_API_TOKEN=dev-secret-token`, `REDIS_PASSWORD=changeme`,
+  `GUARDRAIL_ENABLED=false`). Create a `.env` (template: `.env.example`) only to
+  override something, e.g. `GITLAB_TOKEN` for the devops agent.
+
+> **Guardrail note**: the application default is `GUARDRAIL_ENABLED=true`
+> (fail-closed), but local compose sets it to `false`. To exercise the guardrail
+> locally, provision one via `infra/terraform/guardrail/` and set
+> `GUARDRAIL_ENABLED=true` + `GUARDRAIL_ID`/`GUARDRAIL_VERSION` in `.env`.
+
+### 2. Start the stack
 
 ```bash
-# Copy the example
-cp .env.example .env
-
-# Edit with your settings
-vim .env
-```
-
-**Minimum required**:
-```bash
-# AWS (required — for Bedrock)
-# Use ~/.aws/credentials (automatically mounted read-only)
-AWS_REGION=us-east-1
-
-# Auth for all non-health endpoints
-INTERNAL_API_TOKEN=dev-secret-token
-SUPERVISOR_INTERNAL_TOKEN=dev-supervisor-token   # gateway → supervisor link
-
-# Redis
-REDIS_PASSWORD=changeme
-REDIS_SSL=false          # dev only
-
-# GitLab (optional — devops agent)
-GITLAB_TOKEN=glpat-your-read-only-token
-```
-
-> **Guardrail note**: `GUARDRAIL_ENABLED=true` is the default (fail-closed). For
-> local dev without a provisioned Bedrock Guardrail, either set
-> `GUARDRAIL_ENABLED=false` or provision one via `infra/terraform/guardrail/`
-> and set `GUARDRAIL_ID`/`GUARDRAIL_VERSION`.
-
-### 2. Run Setup
-
-```bash
-make up && make smoke
-
-# or the legacy wrapper (delegates to the same targets):
-./setup-local.sh
+make up      # starts everything, waits for gateway /ready (60s max)
+make smoke   # health + 1 real query (Bedrock round-trip) + /v1/models
 ```
 
 This brings up the two-tier stack: **gateway** (public, :8000) → **supervisor**
-(backend, :8001, in-process specialists) + Redis, DynamoDB Local, PostgreSQL
-(KB), MCP server, and the observability stack (OTel Collector, Prometheus,
-Tempo, Grafana).
+(backend, internal-only, in-process specialists) + Redis, DynamoDB Local,
+PostgreSQL (KB), MCP server, the observability stack (OTel Collector,
+Prometheus, Tempo, Grafana), and LibreChat + MongoDB. Stop it with `make down`
+(`make down V=1` also drops volumes).
 
 ### 3. Test
 
@@ -76,7 +58,7 @@ curl -H 'X-Internal-Token: dev-secret-token' http://localhost:8000/v1/models
 | Service | Port | URL | Health |
 |---------|------|-----|--------|
 | Gateway (public front door) | 8000 | http://localhost:8000 | `/healthz`, `/ready` |
-| Supervisor (backend-only) | 8001 | http://localhost:8001 | `/healthz`, `/ready` |
+| Supervisor (backend-only) | — (internal 8001, not published) | reachable only from the gateway | `/healthz`, `/ready` |
 | MCP Server | 8006 | http://localhost:8006 | `/health` |
 | Redis | 6379 | localhost:6379 | — |
 | DynamoDB Local | 8100 | http://localhost:8100 | — |
@@ -84,8 +66,14 @@ curl -H 'X-Internal-Token: dev-secret-token' http://localhost:8000/v1/models
 | OTel Collector | 4317 | — | — |
 | Prometheus | 9099 | http://localhost:9099 | — |
 | Grafana | 3001 | http://localhost:3001 | — |
+| LibreChat | 3080 | http://localhost:3080 | `/health` |
+| MongoDB (LibreChat storage) | — (internal) | — | — |
 
-> The 5 specialists (aws, kubernetes, finops, devops, observability) run
+> LibreChat points at the remote devops-core squad by default, not at the local
+> gateway; see `docs/LIBRECHAT.md` and the comment in `docker-compose.yaml` to
+> point it at `http://gateway:8000/v1`.
+
+> The 6 specialists (aws, kubernetes, finops, devops, observability, security) run
 > **in-process inside the supervisor** — they have no ports. They are defined by
 > config in `agents/<name>/` (`agent.yaml` + `prompt.md`).
 
@@ -127,9 +115,9 @@ make lint                              # ruff, CI-verbatim scope
 make typecheck                         # mypy gate (blocks the CI test job)
 ```
 
-> The private `staffops-otel-libs` dep is handled automatically: without repo
-> access, `make test` generates a no-op stub and warns loudly. "Passes locally"
-> ≠ "passes CI" — confirm with `gh run list` after pushing.
+> `make test` always replaces the `otel-helper` dependency with a no-op stub
+> (the test container has no git) and warns loudly. "Passes locally" ≠ "passes
+> CI" — confirm with `gh run list` after pushing.
 
 ### Debug
 ```bash
@@ -157,9 +145,14 @@ docker compose logs supervisor
 # Common cause: invalid agent.yaml (Pydantic fails fast at startup) —
 # check the agents/<name>/agent.yaml schema (see AGENTS.md).
 
-# Check if a port is busy
+# Supervisor readiness detail (port 8001 is internal; the image has no curl)
+docker compose exec supervisor python -c "import http.client as h;c=h.HTTPConnection('127.0.0.1',8001);c.request('GET','/ready');print(c.getresponse().read().decode())"
+
+# Expired AWS SSO session? (Bedrock/DynamoDB clients fail)
+aws sso login
+
+# Check if the gateway port is busy
 lsof -i :8000
-lsof -i :8001
 ```
 
 ### 401 on every request
@@ -169,8 +162,9 @@ The gateway is fail-closed: `INTERNAL_API_TOKEN` must be set and sent as
 
 ### 403 on legitimate queries
 Spec-14 defense is fail-closed: a Bedrock Guardrail block, InputScanner
-detection, or output-filter match returns 403. For local dev without a
-provisioned guardrail, set `GUARDRAIL_ENABLED=false`.
+detection, or output-filter match returns 403. Local compose already sets
+`GUARDRAIL_ENABLED=false`; a 403 locally means an env override (check `.env`)
+or an InputScanner/output-filter block.
 
 ### AWS credentials error
 ```bash
@@ -209,9 +203,9 @@ docker compose restart supervisor
 
 ### 2. Add a NEW agent (zero code)
 ```bash
-mkdir agents/security
-vim agents/security/agent.yaml    # name, description, routing_keywords, datasources
-vim agents/security/prompt.md
+mkdir agents/<name>
+vim agents/<name>/agent.yaml      # name, description, domain, capabilities, routing_keywords, datasources
+vim agents/<name>/prompt.md
 docker compose restart supervisor # auto-discovered by AgentRegistry
 ```
 See `docs/HOW-TO-NEW-AGENT.md`.

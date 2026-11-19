@@ -84,6 +84,7 @@ availability).
 | Config-driven agents (`agent.yaml` + `prompt.md`) | Zero-code agent creation; git-managed; hot-reload on restart |
 | DatasourceAdapter pattern | Decouples data fetching from agent logic; enforces read-only at the code level |
 | Bedrock-direct (no framework) | No LangGraph — direct `bedrock-runtime` API calls for full control of prompts and cost |
+| Pluggable LLM transport (spec 28, ADR-0009) | `LLMService` common layer (breaker, retry, guardrail, token/cost metrics) + provider transport: Bedrock (default) or any OpenAI-compatible `/chat/completions` (`LLM_PROVIDER=openai`, Bedrock Guardrail L1 auto-off) |
 
 ## Core components
 

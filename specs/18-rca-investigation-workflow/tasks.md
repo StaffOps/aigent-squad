@@ -14,7 +14,7 @@
 - [x] T8: Cost ceiling (number of agents, number of evidence queries) read from config (spec 19) and applied before calls (depends on: T5) — done 2026-06-14 (via env var cost cap)
 - [x] T9 (test-author DIFFERENT from author): pytest ≥90% — parallel collection, timeline, correlation (3/2/1 signals), counter-evidence, trivial fast-path, cost ceiling (depends on: T7, T8) — done 2026-06-14
 - [x] T10: Independent review (`code-review`): read-only preserved (zero remediation), anti-false-confidence, cost (depends on: T9) — done 2026-06-14
-- [ ] T11: Smoke via Docker — 1 trivial symptom (fast-path) + 1 cross-domain (full investigation) (depends on: T10) — deferred (manual smoke only)
+- [x] T11: Smoke via Docker — 1 trivial symptom (fast-path) + 1 cross-domain (full investigation) (depends on: T10) — done 2026-11-15 — `tests/test_smoke_t11.py::TestSpec18T11InvestigationSmoke` (trivial: triage skips RCA, classifier-routed single agent, no synthesis; cross-domain: `mode=investigate` AND the triage heuristic both yield a full `RCAResult` — 5 agents' evidence, ordered timeline, exactly 1 rca-synthesizer call, classifier bypassed, evidence spend charged to the real session)
 
 ## Suggested order
 T1→T2/T3; T4; T5→T6→T7; T8; T9→T10→T11.
@@ -89,4 +89,4 @@ Open Phase 2 **only if** a trigger is observed in real usage:
 - Multi-hypothesis fault-tree (rank competing hypotheses)
 - These remain as promotion triggers — implement only when real usage demonstrates Phase 1 is insufficient.
 
-**Deferred**: T11 formal smoke test (manual smoke performed), Phase 2 entirely.
+**Deferred**: T14 (correlator gain measurement vs the spec-35 RCA baseline) and Phase 2 (promotion-trigger gated). T11 closed 2026-11-15 (`tests/test_smoke_t11.py`).

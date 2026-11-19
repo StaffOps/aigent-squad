@@ -164,10 +164,10 @@ async def test_converse_token_metrics_emitted(bedrock_client, mock_boto3_client)
         input_tokens=100, output_tokens=50,
     )
 
-    with patch("src.core.bedrock.token_counter") as mock_counter, \
-         patch("src.core.bedrock.estimated_cost"), \
-         patch("src.core.bedrock.llm_duration"), \
-         patch("src.core.bedrock.prompt_size_tokens"):
+    with patch("src.core.llm.service.token_counter") as mock_counter, \
+         patch("src.core.llm.service.estimated_cost"), \
+         patch("src.core.llm.service.llm_duration"), \
+         patch("src.core.llm.service.prompt_size_tokens"):
         await bedrock_client.converse(
             messages=[{"role": "user", "content": [{"text": "q"}]}],
             system_prompt="sys",
@@ -191,7 +191,7 @@ async def test_converse_budget_tracker_called(bedrock_client, mock_boto3_client)
         input_tokens=80, output_tokens=40,
     )
 
-    with patch("src.core.bedrock.budget_tracker") as mock_budget:
+    with patch("src.core.llm.service.budget_tracker") as mock_budget:
         await bedrock_client.converse(
             messages=[{"role": "user", "content": [{"text": "q"}]}],
             system_prompt="sys",
@@ -208,7 +208,7 @@ async def test_converse_budget_session_id_override(bedrock_client, mock_boto3_cl
         input_tokens=10, output_tokens=5,
     )
 
-    with patch("src.core.bedrock.budget_tracker") as mock_budget:
+    with patch("src.core.llm.service.budget_tracker") as mock_budget:
         await bedrock_client.converse(
             messages=[{"role": "user", "content": [{"text": "q"}]}],
             system_prompt="sys",
@@ -231,7 +231,7 @@ async def test_converse_retries_on_throttling_then_succeeds(bedrock_client, mock
 
     mock_boto3_client.converse.side_effect = [throttle_err, success_resp]
 
-    with patch("src.core.bedrock.time.sleep") as mock_sleep:
+    with patch("src.core.llm.service.time.sleep") as mock_sleep:
         result = await bedrock_client.converse(
             messages=[{"role": "user", "content": [{"text": "retry me"}]}],
             system_prompt="sys",
@@ -251,7 +251,7 @@ async def test_converse_retries_on_service_unavailable(bedrock_client, mock_boto
     success_resp = _converse_response()
     mock_boto3_client.converse.side_effect = [err, success_resp]
 
-    with patch("src.core.bedrock.time.sleep"):
+    with patch("src.core.llm.service.time.sleep"):
         result = await bedrock_client.converse(
             messages=[{"role": "user", "content": [{"text": "q"}]}],
             system_prompt="sys",
@@ -266,7 +266,7 @@ async def test_converse_exhausts_retries_on_throttling(bedrock_client, mock_boto
     throttle_err = _make_client_error("ThrottlingException")
     mock_boto3_client.converse.side_effect = [throttle_err, throttle_err, throttle_err]
 
-    with patch("src.core.bedrock.time.sleep"):
+    with patch("src.core.llm.service.time.sleep"):
         with pytest.raises(ClientError) as exc_info:
             await bedrock_client.converse(
                 messages=[{"role": "user", "content": [{"text": "fail"}]}],
@@ -283,8 +283,8 @@ async def test_converse_backoff_delay_increases(bedrock_client, mock_boto3_clien
     success_resp = _converse_response()
     mock_boto3_client.converse.side_effect = [throttle_err, throttle_err, success_resp]
 
-    with patch("src.core.bedrock.time.sleep") as mock_sleep, \
-         patch("src.core.bedrock.random.uniform", return_value=0.5):
+    with patch("src.core.llm.service.time.sleep") as mock_sleep, \
+         patch("src.core.llm.service.random.uniform", return_value=0.5):
         await bedrock_client.converse(
             messages=[{"role": "user", "content": [{"text": "q"}]}],
             system_prompt="sys",
@@ -317,14 +317,14 @@ async def test_converse_passes_guardrail_config(bedrock_client, mock_boto3_clien
         bc = BedrockClient()
         bc.client = mock_boto3_client
 
-        with patch("src.core.bedrock.resolve_model", return_value="us.anthropic.claude-sonnet-4-5-20250929-v1:0"), \
-             patch("src.core.bedrock.guardrail"), \
-             patch("src.core.bedrock.budget_tracker"), \
-             patch("src.core.bedrock.token_counter"), \
-             patch("src.core.bedrock.estimated_cost"), \
-             patch("src.core.bedrock.llm_duration"), \
-             patch("src.core.bedrock.prompt_size_tokens"), \
-             patch("src.core.bedrock.compute_cost", return_value=0.001):
+        with patch("src.core.llm.service.resolve_model", return_value="us.anthropic.claude-sonnet-4-5-20250929-v1:0"), \
+             patch("src.core.llm.service.guardrail"), \
+             patch("src.core.llm.service.budget_tracker"), \
+             patch("src.core.llm.service.token_counter"), \
+             patch("src.core.llm.service.estimated_cost"), \
+             patch("src.core.llm.service.llm_duration"), \
+             patch("src.core.llm.service.prompt_size_tokens"), \
+             patch("src.core.llm.service.compute_cost", return_value=0.001):
             bc._converse_sync(
                 messages=[{"role": "user", "content": [{"text": "test"}]}],
                 system_prompt="sys",
@@ -350,14 +350,14 @@ async def test_converse_no_guardrail_config_when_disabled(bedrock_client, mock_b
         bc = BedrockClient()
         bc.client = mock_boto3_client
 
-        with patch("src.core.bedrock.resolve_model", return_value="model-id"), \
-             patch("src.core.bedrock.guardrail"), \
-             patch("src.core.bedrock.budget_tracker"), \
-             patch("src.core.bedrock.token_counter"), \
-             patch("src.core.bedrock.estimated_cost"), \
-             patch("src.core.bedrock.llm_duration"), \
-             patch("src.core.bedrock.prompt_size_tokens"), \
-             patch("src.core.bedrock.compute_cost", return_value=0.0):
+        with patch("src.core.llm.service.resolve_model", return_value="model-id"), \
+             patch("src.core.llm.service.guardrail"), \
+             patch("src.core.llm.service.budget_tracker"), \
+             patch("src.core.llm.service.token_counter"), \
+             patch("src.core.llm.service.estimated_cost"), \
+             patch("src.core.llm.service.llm_duration"), \
+             patch("src.core.llm.service.prompt_size_tokens"), \
+             patch("src.core.llm.service.compute_cost", return_value=0.0):
             bc._converse_sync(
                 messages=[{"role": "user", "content": [{"text": "t"}]}],
                 system_prompt="sys",
@@ -381,14 +381,14 @@ async def test_converse_no_guardrail_config_when_id_none(bedrock_client, mock_bo
         bc = BedrockClient()
         bc.client = mock_boto3_client
 
-        with patch("src.core.bedrock.resolve_model", return_value="model-id"), \
-             patch("src.core.bedrock.guardrail"), \
-             patch("src.core.bedrock.budget_tracker"), \
-             patch("src.core.bedrock.token_counter"), \
-             patch("src.core.bedrock.estimated_cost"), \
-             patch("src.core.bedrock.llm_duration"), \
-             patch("src.core.bedrock.prompt_size_tokens"), \
-             patch("src.core.bedrock.compute_cost", return_value=0.0):
+        with patch("src.core.llm.service.resolve_model", return_value="model-id"), \
+             patch("src.core.llm.service.guardrail"), \
+             patch("src.core.llm.service.budget_tracker"), \
+             patch("src.core.llm.service.token_counter"), \
+             patch("src.core.llm.service.estimated_cost"), \
+             patch("src.core.llm.service.llm_duration"), \
+             patch("src.core.llm.service.prompt_size_tokens"), \
+             patch("src.core.llm.service.compute_cost", return_value=0.0):
             bc._converse_sync(
                 messages=[{"role": "user", "content": [{"text": "t"}]}],
                 system_prompt="sys",
@@ -448,7 +448,7 @@ async def test_converse_non_retryable_error_raises_immediately(bedrock_client, m
     validation_err = _make_client_error("ValidationException", "Invalid request")
     mock_boto3_client.converse.side_effect = validation_err
 
-    with patch("src.core.bedrock.time.sleep") as mock_sleep:
+    with patch("src.core.llm.service.time.sleep") as mock_sleep:
         with pytest.raises(ClientError) as exc_info:
             await bedrock_client.converse(
                 messages=[{"role": "user", "content": [{"text": "bad"}]}],
@@ -468,7 +468,7 @@ async def test_converse_access_denied_raises_immediately(bedrock_client, mock_bo
     err = _make_client_error("AccessDeniedException", "Not authorized")
     mock_boto3_client.converse.side_effect = err
 
-    with patch("src.core.bedrock.time.sleep") as mock_sleep:
+    with patch("src.core.llm.service.time.sleep") as mock_sleep:
         with pytest.raises(ClientError) as exc_info:
             await bedrock_client.converse(
                 messages=[{"role": "user", "content": [{"text": "denied"}]}],
@@ -547,7 +547,7 @@ async def test_converse_guardrail_blocked_does_not_trip_breaker(bedrock_client, 
     bedrock_client.circuit_breaker.record_failure = MagicMock()
 
     # GuardrailBlockedError can come from the pre-call guardrail.apply inside _converse_sync
-    with patch("src.core.bedrock.guardrail") as mock_gr:
+    with patch("src.core.llm.service.guardrail") as mock_gr:
         mock_gr.apply.side_effect = GuardrailBlockedError("policy refusal", "INPUT")
         with pytest.raises(GuardrailBlockedError):
             await bedrock_client.converse(

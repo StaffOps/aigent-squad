@@ -10,7 +10,7 @@ import time as time_mod
 
 from otel_helper import get_tracer
 
-from src.core.bedrock import bedrock
+from src.core.llm import llm  # provider-selected client (spec 28)
 from src.core.guardrail import GuardrailBlockedError
 from src.core.input_scanner import InputScanner
 from src.core.investigation import (
@@ -239,7 +239,7 @@ async def _synthesize_rca(
 
 Produce the RCA JSON."""
 
-    response = await bedrock.invoke(
+    response = await llm.invoke(
         messages=[{"role": "user", "content": user_msg}],
         system_prompt=RCA_SYNTHESIZER_PROMPT,
         temperature=0.2,

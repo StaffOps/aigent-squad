@@ -64,7 +64,7 @@ _RCA_JSON = json.dumps({
 
 @pytest.mark.asyncio
 class TestGenericAgentForwardsBudgetSessionId:
-    @patch("src.core.generic_agent.bedrock")
+    @patch("src.core.generic_agent.llm")
     async def test_budget_session_id_forwarded_when_given(self, mock_bedrock):
         mock_bedrock.invoke = AsyncMock(return_value="ok")
         agent = GenericAgent(config=_make_config(), prompt="sys", adapters=[])
@@ -81,7 +81,7 @@ class TestGenericAgentForwardsBudgetSessionId:
         assert kw["session_id"] == "s-1-inv-abcd1234"
         assert kw["budget_session_id"] == "s-1"
 
-    @patch("src.core.generic_agent.bedrock")
+    @patch("src.core.generic_agent.llm")
     async def test_budget_session_id_defaults_to_none_when_omitted(self, mock_bedrock):
         """Ordinary (non-investigation) calls don't pass budget_session_id —
         bedrock.invoke must fall back to session_id (backward compatible)."""
@@ -123,7 +123,7 @@ async def test_record_usage_charged_to_budget_session_id_when_provided(mock_boto
     client = BedrockClient()
     client.client = mock_boto3_client
 
-    with patch("src.core.bedrock.budget_tracker") as mock_tracker:
+    with patch("src.core.llm.service.budget_tracker") as mock_tracker:
         await client.invoke(
             messages=[{"role": "user", "content": "test"}],
             system_prompt="sys",
@@ -144,7 +144,7 @@ async def test_record_usage_falls_back_to_session_id_when_budget_session_id_abse
     client = BedrockClient()
     client.client = mock_boto3_client
 
-    with patch("src.core.bedrock.budget_tracker") as mock_tracker:
+    with patch("src.core.llm.service.budget_tracker") as mock_tracker:
         await client.invoke(
             messages=[{"role": "user", "content": "test"}],
             system_prompt="sys",
@@ -167,7 +167,7 @@ async def test_run_investigation_fanout_charges_parent_session_budget():
     agent = _make_agent(_EVIDENCE_JSON)
     with patch("src.supervisor.investigation.inject_similar_cases",
                new_callable=AsyncMock, return_value=""), \
-         patch("src.supervisor.investigation.bedrock") as mock_bedrock:
+         patch("src.supervisor.investigation.llm") as mock_bedrock:
         mock_bedrock.invoke = AsyncMock(return_value=_RCA_JSON)
         await run_investigation(
             symptom="latency spike",

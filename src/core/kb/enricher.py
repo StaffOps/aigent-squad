@@ -1,7 +1,7 @@
 """Enrich KbDelta drafts using Opus (or fallback to Sonnet)."""
 import json
 
-from src.core.bedrock import bedrock
+from src.core.llm import llm  # provider-selected client (spec 28)
 from src.core.kb.models import KbDelta
 from src.core.kb.redactor import redact
 from src.core.investigation import RCAResult
@@ -25,7 +25,7 @@ async def enrich_deltas(drafts: list[KbDelta], rca: RCAResult) -> list[KbDelta]:
     rca_text = redact(json.dumps(rca.to_dict()))
     user_msg = f"Drafts:\n{drafts_json}\n\nOriginal RCA:\n{rca_text}\n\nReturn refined deltas."
     try:
-        response = await bedrock.invoke(
+        response = await llm.invoke(
             messages=[{"role": "user", "content": user_msg}],
             system_prompt=ENRICHER_PROMPT,
             temperature=0.3,

@@ -63,7 +63,7 @@ one; a bypass of one does not compromise the others. Implemented in
 
 | Layer | Component | Where | Role |
 |-------|-----------|-------|------|
-| **L1** | Bedrock Guardrail | inside `bedrock.invoke` (input + output) | Model-independent prompt-attack / denied-topic / PII evaluation |
+| **L1** | Bedrock Guardrail | inside `LLMService.invoke`/`converse` (input + output) — **Bedrock provider only** (spec 28) | Model-independent prompt-attack / denied-topic / PII evaluation |
 | **L2** | `InputScanner` | before context (worker agents) | Normalize (NFKC, zero-width + RTL/bidi strip, homoglyph fold) + cheap heuristics (oversized, control-char, repeated-char, base64-blob inspection) |
 | **L3** | Context isolation | `generic_agent` | `<infra_data>`/`<conversation_history>`/`<user_query>` delimiters + "treat as DATA" reinforcement (positionally anchored last) |
 | **L4** | `OutputFilter` | after invoke | PII / secret / credential leak scan on the response |
@@ -99,11 +99,52 @@ once redacted, and a genuine exfiltration attempt still loses its payload
 either way (the leaked content is stripped before the user sees it), hard
 -blocking bought nothing but denied real answers on false positives — the
 tradeoff was decided in favor of availability for this layer specifically.
+
+**L1 has a second stated exception — it is OFF for non-Bedrock LLM providers**
+(spec 28, 2026-11-15); see the section below.
 This does not weaken detection: the audit event still fires on every leak,
 exact and fuzzy (separator-obfuscated) matching is unchanged, and a
 sophisticated adversarial injection still has to defeat the same
 instruction-hierarchy defenses (L1–L3) regardless of what happens to L5's
 output afterward.
+
+### L1 is OFF for non-Bedrock LLM providers (spec 28, ADR-0009) — stated exception
+
+The Bedrock Guardrail is an AWS Bedrock API. With `LLM_PROVIDER=openai` (any
+OpenAI-compatible endpoint) it is **switched off automatically** — a deliberate
+exception to the fail-closed rule above, decided 2026-11-15. Keeping it fail-closed
+would either require Bedrock access on a non-Bedrock deployment or 403 every request.
+
+Every L1 point becomes a no-op under `openai`:
+
+| L1 point | Where | Under `openai` |
+|---|---|---|
+| Ingress input guard (genuine user question) | `supervisor.process_request` | no-op |
+| Per-stage INPUT / OUTPUT guard | `LLMService.invoke()` / `converse()` | no-op |
+| Tool ARGUMENTS guard (pre-exec) | `agentic_loop._guardrail_tool_args` | no-op — the read-only allowlist + loop budgets still apply |
+| Tool RESULT guard / redaction (pre-context) | `agentic_loop._guardrail_tool_result` | no-op — tool results still go in as framed DATA (T12) |
+| Converse server-side `guardrailConfig` + guardContent tagging | Bedrock transport only | never built |
+
+It is **never silent**: startup WARNING `llm_guardrail_l1_inactive` (audit-flagged),
+`aigent.llm.guardrail_l1_active{provider="openai"} = 0`, and `/ready` reports
+`checks.llm.guardrail_l1: "inactive"`. Alert on the metric being 0 in any
+environment that requires L1.
+
+**What still protects you:** L2 InputScanner (normalization + heuristics,
+fail-closed), L3 delimitation, L4 output filter (PII/secrets, fail-closed),
+L5 canary, the response-quality guard, L6 rate/budget, and the read-only posture
+(app allowlist + IAM deny + K8s RBAC). **What you lose:** the independent,
+model-side prompt-attack / denied-topic / PII evaluation. If your threat model
+needs that, stay on `LLM_PROVIDER=bedrock`.
+
+The API key for the OpenAI-compatible endpoint is a secret: mount it as a file
+(`OPENAI_API_KEY_FILE`, preferred) or inject `OPENAI_API_KEY` from a Secret. It is
+only placed in the request header — never logged, never in error messages (a server
+error code that echoes the key, or looks like any credential, is replaced by
+`redacted`). Plain `http://` is refused at startup unless the endpoint is local or
+in-cluster (`localhost`, `127.0.0.1`, `::1`, `*.svc`, `*.svc.cluster.local`,
+single-label service names); proxy env vars are ignored and redirects are not
+followed, so the key only ever goes to `OPENAI_BASE_URL`.
 
 ### Layer delimitation (L3 detail)
 
@@ -191,3 +232,12 @@ metadata:
 ## Environment variables
 
 See `.env.example` for all configurable secrets.
+
+Secret settings (`OPENAI_API_KEY`, `REDIS_PASSWORD`, `SUPERVISOR_INTERNAL_TOKEN`,
+`SLACK_BOT_TOKEN`, `SLACK_SIGNING_SECRET`, `GITLAB_TOKEN`, `DOCS_PORTAL_TOKEN`,
+`POSTGRES_PASSWORD`) are
+typed `pydantic.SecretStr` in `src/core/config.py`, so `repr(settings)`, a model dump
+or a debug log of the settings object shows `**********`, never the value. Code reads
+the plaintext only at the use site via `config.reveal(...)` (B-32). `POSTGRES_PASSWORD`
+keeps its local-only default `changeme` (matches docker-compose) — set a real value
+wherever the KB is enabled.

@@ -1,6 +1,7 @@
 # ADR-001 — Bedrock-direct vs. an agent framework (Strands)
 
 **Status**: Accepted — the Bedrock-direct/no-framework decision stands; the **"Caminho A" (MCP-as-adapter, non-agentic) part is superseded by ADR-0008** (spec 37, agentic tool-calling via the Bedrock Converse API — still no framework).
+**Amended**: 2026-11-15 by ADR-0009 (`docs/architecture/decisions/0009-llm-provider-abstraction.md`) — the LLM *transport* is now pluggable (Bedrock or any OpenAI-compatible API, `LLM_PROVIDER`); orchestration stays framework-free.
 **Date**: 2026-06-16
 **Decision context**: AIgent-squad multi-agent orchestration
 **Related**: `02-unify-agent-architecture`, `17-multi-agent-collaboration`, `18-rca-investigation-workflow`, steering `project.md` ("do not reintroduce LangGraph")

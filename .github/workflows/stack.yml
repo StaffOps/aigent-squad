@@ -1,0 +1,62 @@
+name: Stack
+
+# Brings the local docker-compose stack up exactly as a developer's `make up` does and
+# proves it reaches healthy (BACKLOG F-022a / B-09). Catches compose-level regressions no
+# unit test sees — the 2026-11 examples: a healthcheck calling a binary absent from the
+# image (`curl`), and a DynamoDB Local table nobody created, each of which left `make up`
+# broken on every machine while the whole test suite stayed green.
+#
+# No AWS credentials here on purpose: /ready does not call Bedrock (the `llm` check is
+# informational) and DynamoDB Local uses static dummy keys
+# (DYNAMODB_LOCAL_STATIC_CREDENTIALS). The Bedrock round-trip stays in `make smoke`.
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - "specs/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stack-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  stack-up:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      # Only the two-tier app path (+ its dependencies via depends_on). LibreChat/Mongo and
+      # the observability stack are not part of the gateway→supervisor readiness contract
+      # and would only add image pulls.
+      - name: Build and start (wait for healthy)
+        run: docker compose up -d --build --wait --wait-timeout 300 gateway mcp-server
+
+      # The supervisor's own /ready (redis, dynamodb, agents) is already proven: `--wait`
+      # only returns once its healthcheck — which calls that endpoint — is healthy.
+      - name: Gateway /ready is 200 and every dependency check is ok
+        run: |
+          body=$(curl -sf http://localhost:8000/ready)
+          echo "$body"
+          echo "$body" | python3 -c 'import json,sys; d=json.load(sys.stdin); bad=[k for k,v in d.get("checks",{}).items() if isinstance(v,dict) and v.get("ok") is False]; sys.exit(f"failing checks: {bad}" if bad else 0)'
+
+      - name: Edge auth is enforced (401 without a token, 200 with the dev token)
+        run: |
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8000/v1/models)" = "401"
+          curl -sf -H "X-Internal-Token: dev-secret-token" http://localhost:8000/v1/models | grep -q '"aigent-squad"'
+
+      - name: Logs on failure
+        if: failure()
+        run: docker compose logs --no-color --tail 200 supervisor gateway mcp-server dynamodb-init
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v

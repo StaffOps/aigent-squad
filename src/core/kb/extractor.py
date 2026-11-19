@@ -1,7 +1,7 @@
 """Extract KbDelta drafts from RCA results using Sonnet."""
 import json
 
-from src.core.bedrock import bedrock
+from src.core.llm import llm  # provider-selected client (spec 28)
 from src.core.kb.models import KbDelta
 from src.core.kb.redactor import redact
 from src.core.investigation import RCAResult
@@ -37,7 +37,7 @@ async def extract_deltas(rca: RCAResult) -> list[KbDelta]:
     rca_text = redact(json.dumps(rca.to_dict()))
     user_msg = f"RCA result:\n{rca_text}\n\nExtract reusable knowledge items as JSON."
     try:
-        response = await bedrock.invoke(
+        response = await llm.invoke(
             messages=[{"role": "user", "content": user_msg}],
             system_prompt=EXTRACTOR_PROMPT,
             temperature=0.2,

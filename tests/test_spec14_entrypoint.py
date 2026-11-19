@@ -120,7 +120,7 @@ class TestClassifierAttribution:
             "reasoning": "ec2",
         })
 
-        with patch("src.core.classifier.bedrock") as mock_bedrock:
+        with patch("src.core.classifier.llm") as mock_bedrock:
             mock_bedrock.invoke = AsyncMock(return_value=response)
             await classifier.classify(
                 "list ec2", [], user_id="user-42", session_id="sess-99"
@@ -138,7 +138,7 @@ class TestClassifierAttribution:
             "reasoning": "ec2",
         })
 
-        with patch("src.core.classifier.bedrock") as mock_bedrock:
+        with patch("src.core.classifier.llm") as mock_bedrock:
             mock_bedrock.invoke = AsyncMock(return_value=response)
             result = await classifier.classify("list ec2", [])
 

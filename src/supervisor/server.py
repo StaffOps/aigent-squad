@@ -7,20 +7,20 @@ setup_telemetry()
 
 from contextlib import asynccontextmanager
 from typing import Any, Optional
-import boto3
 import redis as redis_lib
 import redis.asyncio as aioredis
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 from src.core.auth import require_token
-from src.core.config import settings
+from src.core.config import reveal, settings
 from src.core.guardrail import GuardrailBlockedError
 from src.core.health import DependencyChecker
 from src.core.internal_auth import require_internal_token
 from src.core.logger import logger
 from src.core.kb.store import kb_store
 from src.core.session_lock import SessionLock, SessionLockConflict
+from src.core.state_store import dynamodb_resource
 
 from src.supervisor.agent import supervisor
 from src.supervisor.alert_handler import AlertmanagerPayload, handle_alert_payload
@@ -35,14 +35,10 @@ _health_redis = redis_lib.Redis(
     host=settings.redis_host,
     port=settings.redis_port,
     ssl=settings.redis_ssl,
-    password=settings.redis_password,
+    password=reveal(settings.redis_password) or None,
     socket_connect_timeout=2,
 )
-_health_dynamodb_table = boto3.resource(
-    "dynamodb",
-    region_name=settings.aws_region,
-    endpoint_url=settings.dynamodb_endpoint,
-).Table(settings.dynamodb_sessions_table)
+_health_dynamodb_table = dynamodb_resource().Table(settings.dynamodb_sessions_table)
 
 # Async Redis for distributed session lock (spec 25 T3). Fail-open: if
 # construction fails, _session_redis stays None and SessionLock allows all.
@@ -50,7 +46,7 @@ try:
     _redis_scheme = "rediss" if settings.redis_ssl else "redis"
     _session_redis: Optional[aioredis.Redis] = aioredis.from_url(
         f"{_redis_scheme}://{settings.redis_host}:{settings.redis_port}",
-        password=settings.redis_password,
+        password=reveal(settings.redis_password) or None,
         decode_responses=True,
     )
 except Exception:
@@ -67,6 +63,9 @@ async def lifespan(app: Any) -> Any:
     yield
     await kb_store.close()
     await supervisor.close()
+    # Spec 28: release the LLM transport's pooled connections (no-op for Bedrock).
+    from src.core.llm import get_llm
+    get_llm().close()
 
 
 app = FastAPI(title="Supervisor Service", lifespan=lifespan)
@@ -200,6 +199,11 @@ async def ready() -> Any:
 
     agents_ok = len(supervisor.agents) > 0
     results["agents"] = {"ok": agents_ok, "detail": f"{len(supervisor.agents)} agent(s) loaded"}
+
+    # Spec 28 Decision 10: informational — exposes the LLM provider and whether
+    # the Bedrock Guardrail (L1) is active. Never fails readiness.
+    from src.core.llm.factory import provider_status
+    results["llm"] = provider_status()
 
     all_ok = redis_result.ok and dynamo_result.ok and agents_ok
     status_code = 200 if all_ok else 503

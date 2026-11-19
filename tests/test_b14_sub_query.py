@@ -78,7 +78,7 @@ class TestClassifierSubQueryParse:
             "reasoning": "Time-bound observability query"
         })
 
-        with patch("src.core.classifier.bedrock") as mock_bedrock:
+        with patch("src.core.classifier.llm") as mock_bedrock:
             mock_bedrock.invoke = AsyncMock(return_value=bedrock_response)
             result = await classifier.classify("como tá a latência do service X na última meia hora?", [])
 
@@ -96,7 +96,7 @@ class TestClassifierSubQueryParse:
             "reasoning": "EC2 query"
         })
 
-        with patch("src.core.classifier.bedrock") as mock_bedrock:
+        with patch("src.core.classifier.llm") as mock_bedrock:
             mock_bedrock.invoke = AsyncMock(return_value=bedrock_response)
             result = await classifier.classify("list EC2 instances", [])
 
@@ -118,7 +118,7 @@ class TestClassifierSubQueryParse:
             "reasoning": "Cross-domain: infra change + observability impact"
         })
 
-        with patch("src.core.classifier.bedrock") as mock_bedrock:
+        with patch("src.core.classifier.llm") as mock_bedrock:
             mock_bedrock.invoke = AsyncMock(return_value=bedrock_response)
             result = await classifier.classify(
                 "por que o custo subiu depois do deploy nas últimas 2h?", []

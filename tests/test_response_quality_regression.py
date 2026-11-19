@@ -45,7 +45,7 @@ class TestF001ToolScaffoldingRegression:
     referenced an MCP capability that wasn't wired (see specs/BACKLOG.md
     F-001). Reproducing the exact observed shape here."""
 
-    @patch("src.core.generic_agent.bedrock")
+    @patch("src.core.generic_agent.llm")
     async def test_use_mcp_tool_xml_now_blocked(self, mock_bedrock):
         mock_bedrock.invoke = AsyncMock(
             return_value=(
@@ -77,7 +77,7 @@ class TestF002RawAdapterErrorRegression:
     IRSA lacked permission (see specs/BACKLOG.md F-002). Reproducing the
     exact observed shape here."""
 
-    @patch("src.core.generic_agent.bedrock")
+    @patch("src.core.generic_agent.llm")
     async def test_boto3_access_denied_string_now_blocked(self, mock_bedrock):
         mock_bedrock.invoke = AsyncMock(
             return_value=(
@@ -108,7 +108,7 @@ class TestF003McpTaskGroupRegression:
     specs/BACKLOG.md F-003), wrapped in a fabricated-sounding diagnostic
     report. Reproducing the exact observed adapter-error shape here."""
 
-    @patch("src.core.generic_agent.bedrock")
+    @patch("src.core.generic_agent.llm")
     async def test_mcp_taskgroup_error_now_blocked(self, mock_bedrock):
         mock_bedrock.invoke = AsyncMock(
             return_value=(
@@ -143,7 +143,7 @@ class TestCleanResponsesStillPass:
         ("finops", "Your last 30 days of AWS spend totals $191,225.98."),
         ("kubernetes", "The devops namespace has 4 deployments and 12 pods, all healthy."),
     ])
-    @patch("src.core.generic_agent.bedrock")
+    @patch("src.core.generic_agent.llm")
     async def test_clean_answer_returns_normally(self, mock_bedrock, agent_name, answer):
         mock_bedrock.invoke = AsyncMock(return_value=answer)
 
@@ -171,7 +171,7 @@ class TestPreFixVsPostFixSameCallPath:
     watch the F-001 defect reach the user; re-enable it, watch it get
     blocked" in one place."""
 
-    @patch("src.core.generic_agent.bedrock")
+    @patch("src.core.generic_agent.llm")
     async def test_defect_passes_when_disabled_blocked_when_enabled(self, mock_bedrock, monkeypatch):
         defect_text = (
             "<use_mcp_tool>\n"

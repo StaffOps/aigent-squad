@@ -97,7 +97,7 @@ class TestContract1SingleToolCall:
         ])
         adapter.call_tool = AsyncMock(return_value="pod-a Running\npod-b CrashLoop")
 
-        with patch("src.core.agentic_loop.bedrock") as mock_bed:
+        with patch("src.core.agentic_loop.llm") as mock_bed:
             mock_bed.converse = AsyncMock(side_effect=[
                 _tool_response([{"id": "t1", "name": "list_pods", "input": {}}]),
                 _text_response("2 pods found: pod-a Running, pod-b CrashLoop."),
@@ -123,7 +123,7 @@ class TestContract1SingleToolCall:
         ])
         adapter.call_tool = AsyncMock(return_value="UNIQUE_MARKER_XYZ")
 
-        with patch("src.core.agentic_loop.bedrock") as mock_bed:
+        with patch("src.core.agentic_loop.llm") as mock_bed:
             mock_bed.converse = AsyncMock(side_effect=[
                 _tool_response([{"id": "t1", "name": "list_pods", "input": {}}]),
                 _text_response("done"),
@@ -167,7 +167,7 @@ class TestContract2MultiStepLoop:
 
         adapter.call_tool = _mock_call
 
-        with patch("src.core.agentic_loop.bedrock") as mock_bed:
+        with patch("src.core.agentic_loop.llm") as mock_bed:
             mock_bed.converse = AsyncMock(side_effect=[
                 # Turn 1: model lists pods
                 _tool_response([{"id": "t1", "name": "list_pods", "input": {}}]),
@@ -201,7 +201,7 @@ class TestContract3MaxStepsCap:
         ])
         adapter.call_tool = AsyncMock(return_value="data")
 
-        with patch("src.core.agentic_loop.bedrock") as mock_bed, \
+        with patch("src.core.agentic_loop.llm") as mock_bed, \
              patch("src.core.agentic_loop.MAX_TOOL_STEPS", 3):
             # Model always requests another tool (infinite without budget)
             mock_bed.converse = AsyncMock(
@@ -226,7 +226,7 @@ class TestContract3MaxStepsCap:
         ])
         adapter.call_tool = AsyncMock(return_value="some-data")
 
-        with patch("src.core.agentic_loop.bedrock") as mock_bed, \
+        with patch("src.core.agentic_loop.llm") as mock_bed, \
              patch("src.core.agentic_loop.MAX_TOOL_STEPS", 1):
             mock_bed.converse = AsyncMock(
                 return_value=_tool_response([{"id": "t1", "name": "list_pods", "input": {}}])
@@ -255,7 +255,7 @@ class TestContract4BudgetEnforcement:
         ])
         adapter.call_tool = AsyncMock(return_value="data")
 
-        with patch("src.core.agentic_loop.bedrock") as mock_bed, \
+        with patch("src.core.agentic_loop.llm") as mock_bed, \
              patch("src.core.agentic_loop.MAX_LOOP_TOKENS", 150):
             # Each call uses 50+30=80 tokens; after 2 calls = 160 > 150
             mock_bed.converse = AsyncMock(side_effect=[
@@ -279,7 +279,7 @@ class TestContract4BudgetEnforcement:
         ])
         adapter.call_tool = AsyncMock(return_value="data")
 
-        with patch("src.core.agentic_loop.bedrock") as mock_bed, \
+        with patch("src.core.agentic_loop.llm") as mock_bed, \
              patch("src.core.agentic_loop.MAX_LOOP_DURATION_MS", 1):
             # Duration budget = 1ms — will be exceeded after first converse + tool
             # Provide enough responses for the loop to potentially continue
@@ -311,7 +311,7 @@ class TestContract5GuardrailB3:
         ])
         adapter.call_tool = AsyncMock(return_value="should never see this")
 
-        with patch("src.core.agentic_loop.bedrock") as mock_bed, \
+        with patch("src.core.agentic_loop.llm") as mock_bed, \
              patch("src.core.agentic_loop._guardrail_tool_args", return_value=False):
             mock_bed.converse = AsyncMock(side_effect=[
                 _tool_response([{"id": "t1", "name": "list_pods",
@@ -346,7 +346,7 @@ class TestContract5GuardrailB3:
 
         redaction_msg = "[tool result redacted by guardrail — contains blocked content]"
 
-        with patch("src.core.agentic_loop.bedrock") as mock_bed, \
+        with patch("src.core.agentic_loop.llm") as mock_bed, \
              patch("src.core.agentic_loop._guardrail_tool_result", return_value=redaction_msg):
             mock_bed.converse = AsyncMock(side_effect=[
                 _tool_response([{"id": "t1", "name": "list_pods", "input": {}}]),
@@ -379,7 +379,7 @@ class TestContract5GuardrailB3:
             captured_args.append((tool_name, args))
             return True  # allow
 
-        with patch("src.core.agentic_loop.bedrock") as mock_bed, \
+        with patch("src.core.agentic_loop.llm") as mock_bed, \
              patch("src.core.agentic_loop._guardrail_tool_args", side_effect=mock_guardrail_args):
             mock_bed.converse = AsyncMock(side_effect=[
                 _tool_response([{"id": "t1", "name": "list_pods",
@@ -410,7 +410,7 @@ class TestContract6FailOpen:
         ])
         adapter.call_tool = AsyncMock(side_effect=ConnectionError("ECONNREFUSED"))
 
-        with patch("src.core.agentic_loop.bedrock") as mock_bed:
+        with patch("src.core.agentic_loop.llm") as mock_bed:
             mock_bed.converse = AsyncMock(side_effect=[
                 _tool_response([{"id": "t1", "name": "list_pods", "input": {}}]),
                 _text_response("The tool is unavailable right now."),
@@ -436,7 +436,7 @@ class TestContract6FailOpen:
                           "inputSchema": {"json": {"type": "object", "properties": {}}}}}
         ])
 
-        with patch("src.core.agentic_loop.bedrock") as mock_bed:
+        with patch("src.core.agentic_loop.llm") as mock_bed:
             mock_bed.converse = AsyncMock(side_effect=[
                 _tool_response([{"id": "t1", "name": "delete_namespace", "input": {}}]),
                 _text_response("That tool is not available."),
@@ -457,7 +457,7 @@ class TestContract6FailOpen:
         adapter = _adapter(tools=["list_pods"])
         adapter.list_tool_specs = AsyncMock(side_effect=RuntimeError("server down"))
 
-        with patch("src.core.agentic_loop.bedrock") as mock_bed:
+        with patch("src.core.agentic_loop.llm") as mock_bed:
             mock_bed.converse = AsyncMock(
                 return_value=_text_response("No tools available, but I can help.")
             )
@@ -495,7 +495,7 @@ class TestContract7B8MultiToolUse:
 
         adapter.call_tool = _call
 
-        with patch("src.core.agentic_loop.bedrock") as mock_bed:
+        with patch("src.core.agentic_loop.llm") as mock_bed:
             mock_bed.converse = AsyncMock(side_effect=[
                 _tool_response([
                     {"id": "t1", "name": "list_pods", "input": {}},
@@ -534,7 +534,7 @@ class TestContract7B8MultiToolUse:
 
         adapter.call_tool = _call
 
-        with patch("src.core.agentic_loop.bedrock") as mock_bed:
+        with patch("src.core.agentic_loop.llm") as mock_bed:
             mock_bed.converse = AsyncMock(side_effect=[
                 _tool_response([
                     {"id": "t1", "name": "list_pods", "input": {}},
@@ -758,7 +758,7 @@ class TestContract9SR2CaseSensitivity:
             side_effect=PermissionError("tool 'List_Pods' not in allowlist")
         )
 
-        with patch("src.core.agentic_loop.bedrock") as mock_bed:
+        with patch("src.core.agentic_loop.llm") as mock_bed:
             # Model asks for "List_Pods" (wrong case) — router resolves it to the
             # adapter, but adapter.call_tool raises PermissionError
             mock_bed.converse = AsyncMock(side_effect=[
@@ -789,7 +789,7 @@ class TestEdgeCases:
                           "inputSchema": {"json": {"type": "object", "properties": {}}}}}
         ])
 
-        with patch("src.core.agentic_loop.bedrock") as mock_bed:
+        with patch("src.core.agentic_loop.llm") as mock_bed:
             mock_bed.converse = AsyncMock(return_value={
                 "stop_reason": "tool_use",
                 "content": [{"type": "text", "text": "Actually, here's the answer."}],
@@ -812,7 +812,7 @@ class TestEdgeCases:
         huge_result = "X" * 10000
         adapter.call_tool = AsyncMock(return_value=huge_result)
 
-        with patch("src.core.agentic_loop.bedrock") as mock_bed, \
+        with patch("src.core.agentic_loop.llm") as mock_bed, \
              patch("src.core.agentic_loop.MAX_TOOL_RESULT_CHARS", 100):
             mock_bed.converse = AsyncMock(side_effect=[
                 _tool_response([{"id": "t1", "name": "list_pods", "input": {}}]),
@@ -842,7 +842,7 @@ class TestEdgeCases:
                           "inputSchema": {"json": {"type": "object", "properties": {}}}}}
         ])
 
-        with patch("src.core.agentic_loop.bedrock") as mock_bed:
+        with patch("src.core.agentic_loop.llm") as mock_bed:
             mock_bed.converse = AsyncMock(
                 return_value=_text_response("direct answer")
             )
@@ -862,7 +862,7 @@ class TestEdgeCases:
         adapter = _adapter(tools=[])
         adapter.list_tool_specs = AsyncMock(return_value=[])
 
-        with patch("src.core.agentic_loop.bedrock") as mock_bed:
+        with patch("src.core.agentic_loop.llm") as mock_bed:
             mock_bed.converse = AsyncMock(
                 return_value=_text_response("no tools available")
             )

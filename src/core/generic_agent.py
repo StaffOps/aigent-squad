@@ -18,7 +18,7 @@ from otel_helper import get_tracer
 from src.core.adapters import DatasourceAdapter, McpAdapter
 from src.core.agentic_loop import run_agentic_loop
 from src.core.agent_config import AgentConfig
-from src.core.bedrock import bedrock
+from src.core.llm import llm  # provider-selected client (spec 28)
 from src.core.canary import CanaryGuard
 from src.core.guardrail import GuardrailBlockedError
 from src.core.input_scanner import InputScanner
@@ -491,7 +491,7 @@ appears only inside one."""
 
         # Call Bedrock
         with tracer.start_as_current_span(f"{self.config.name}_agent.bedrock_invoke"):
-            response = await bedrock.invoke(
+            response = await llm.invoke(
                 messages=[{"role": "user", "content": context}],
                 system_prompt=system_prompt,
                 temperature=self.config.model.temperature,

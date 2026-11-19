@@ -32,7 +32,7 @@ import yaml
 
 sys.path.insert(0, "/app")
 
-from src.core.bedrock import bedrock  # noqa: E402
+from src.core.llm import llm  # noqa: E402  — provider-selected judge (spec 28)
 from src.core.metrics import eval_score  # noqa: E402
 
 EVALS_DIR = Path(__file__).parent
@@ -96,7 +96,7 @@ def _mechanical_checks(response_text: str, actual_agent: str, case: dict) -> tup
 async def _judge(question: str, answer: str) -> dict:
     """Score coherence+actionability via Haiku (temp 0, versioned rubric)."""
     user_msg = f"Question: {question}\n\nAnswer: {answer}"
-    raw = await bedrock.invoke(
+    raw = await llm.invoke(
         messages=[{"role": "user", "content": user_msg}],
         system_prompt=JUDGE_PROMPT,
         temperature=0.0,

@@ -256,14 +256,14 @@ ROADMAP is plan-only from here.
 | 03-fix-cache-observability | bugfix | — | single-file bugfix.md |
 | 04-harden-security | done | — |  |
 | 05-helm-chart | superseded | — | → 22-agent-capability-manifest |
-| 06-resilience-patterns | done-with-deferrals | — | deferred: T11 formal smoke |
+| 06-resilience-patterns | done | 2026-11-15 |  |
 | 07-readiness-probes | done | 2026-06-17 |  |
 | 08-ci-cd-pipeline | done-with-deferrals | — | deferred: T7 demo stage |
 | 10-metrics-and-cost-observability | done | 2026-06-18 |  |
 | 11-bedrock-resilience-cost | done | 2026-07-02 |  |
 | 14-security-hardening | done | 2026-07-03 | depends_on: 04-harden-security |
-| 17-multi-agent-collaboration | done-with-deferrals | — | deferred: T11 formal smoke |
-| 18-rca-investigation-workflow | done-with-deferrals | 2026-08-18 | deferred: T11 formal smoke |
+| 17-multi-agent-collaboration | done | 2026-11-15 |  |
+| 18-rca-investigation-workflow | done-with-deferrals | 2026-08-18 | deferred: T14 correlator gain measurement |
 | 19-config-driven-platform | superseded | — | → 22-agent-capability-manifest |
 | 21-incident-memory-learning | done-with-deferrals | — | deferred: Opus enricher (Sonnet-only for now), Slack approval flow |
 | 22-agent-capability-manifest | done | — |  |
@@ -272,15 +272,15 @@ ROADMAP is plan-only from here.
 | 25-multi-tenant-concurrency | done | 2026-08-18 |  |
 | 26-agent-skills | done | — | depends_on: 02-unify-agent-architecture |
 | 27-bedrock-cost-attribution | done | — |  |
-| 28-llm-provider-abstraction | design-only | — |  |
+| 28-llm-provider-abstraction | done | 2026-11-16 |  |
 | 29-openai-compat-bridge | done | 2026-07-01 |  |
 | 30-datasource-cache-layer | done | 2026-06-21 |  |
 | 31-edge-gateway-worker-pool | done-with-deferrals | 2026-07-01 | deferred: T21 k6 load test |
 | 32-spec-lifecycle-ssot | done | 2026-07-17 |  |
-| 33-operational-review-loop | not-started | — | depends_on: 32-spec-lifecycle-ssot |
+| 33-operational-review-loop | done | 2026-11-16 | depends_on: 32-spec-lifecycle-ssot |
 | 34-release-runbook | done-with-deferrals | 2026-07-15 | deferred: RELEASE.md Phases 3-5 (chart bump / overlay / rollout) — gated on B-25 |
 | 35-quality-eval-harness | done-with-deferrals | 2026-07-15 | deferred: TRIGGERS.md rows (deferred to spec 33 T1) |
-| 36-agent-native-dev-loop | done-with-deferrals | 2026-07-04 | deferred: T11 independent review (fresh-clone dry run + .claude contract) |
+| 36-agent-native-dev-loop | done | 2026-11-16 |  |
 | 37-agentic-tool-calling | done | 2026-07-20 |  |
 | 38-model-tier-escalation | done | 2026-07-22 | depends_on: 37-agentic-tool-calling |
 | 39-observability-rca-uplift | done-with-deferrals | 2026-07-23 | deferred: T3.4 deterministic investigation.py path (Phase 2 — prompt-RCA validated live, trigger not met) |
@@ -290,5 +290,7 @@ ROADMAP is plan-only from here.
 | 43-agent-capability-tiers | in-progress | — | depends_on: 37-agentic-tool-calling, 14-security-hardening |
 | 44-write-capable-agents | not-started | — | depends_on: 43-agent-capability-tiers, 21-incident-memory-learning, 37-agentic-tool-calling |
 | 45-supply-chain-hardening | done | 2026-08-17 | depends_on: 08-ci-cd-pipeline, 36-agent-native-dev-loop |
+
+
 
 <!-- specs-status:end -->

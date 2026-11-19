@@ -2,6 +2,130 @@
 
 ## [Unreleased]
 
+### Added — Backstage TechDocs + catalog tags (2026-11-18)
+- `catalog-info.yaml` gains `backstage.io/techdocs-ref: dir:.` and technology tags
+  on the System and the Component. `mkdocs.yml` is unchanged: Backstage injects the
+  `techdocs-core` plugin itself at build time (plugin-techdocs-node), so the repo's
+  own site keeps its palette and Material search, and `mkdocs-material` stays 9.5.39.
+
+### Added — CI brings the compose stack up (BACKLOG F-022a / B-09, 2026-11-16)
+- `.github/workflows/stack.yml`: on every PR/push to dev/main (code changes), build and
+  start the two-tier stack with `docker compose up --wait`, then assert gateway `/ready`
+  is 200 with every check ok and that edge auth is enforced (401 without a token, 200
+  with the dev token). No AWS credentials needed. Catches compose regressions the unit
+  suite cannot (missing binary in a healthcheck, missing DynamoDB Local table).
+
+### Changed — pinned lint/typecheck tools (BACKLOG F-022a, 2026-11-16)
+- `requirements-lint.txt` pins `ruff==0.17.5` and `mypy==2.4.1`; `make lint` /
+  `make typecheck` and the CI `lint` / `typecheck` jobs all install from it.
+- A local `ruff`/`mypy` is used only when its version equals the pin; otherwise the
+  Docker path runs the pinned version. The old `local || docker` fallback re-ran a
+  FAILING local check under a possibly different version — a failure now fails.
+
+### Fixed — local dev loop (spec 36 T11 fresh-clone review, 2026-11-16)
+- **`make up` now reaches a healthy stack on a fresh clone.** Nothing created the
+  `agent-sessions` table in the in-memory DynamoDB Local, so the supervisor's `/ready`
+  failed on every machine. A one-shot `dynamodb-init` compose service creates it.
+- **History no longer depends on AWS SSO locally.** `DYNAMODB_LOCAL_STATIC_CREDENTIALS=true`
+  (compose only; ignored without `DYNAMODB_ENDPOINT`) signs DynamoDB Local requests with
+  dummy keys, so an expired SSO token (needed only for Bedrock) does not take the stack
+  down. One `state_store.dynamodb_resource()` now builds the client for both the history
+  store and the `/ready` probe.
+- **`make up` rebuilds from the working tree** (`--build`, cached) — it used to run a stale image.
+- **`make smoke` no longer passes on a fail-open agent error** (a 200 carrying `"error"`,
+  e.g. expired AWS credentials); it fails with a playbook pointer.
+- **`make pin-check` can fail on macOS again.** It used `grep -P`, which macOS grep lacks
+  (exit 2 was read as "no match" → false OK). Now perl; a scanner error fails the gate.
+- Removed the vestigial `ssh: default` build blocks and the mcp-server SSH mount (all
+  dependencies are public `git+https`); builds no longer need an SSH agent.
+- `make scan`: `$(pwd)` → `$$(pwd)` (make expanded it to empty).
+
+### Changed — spec 28 close-out (2026-11-16) — spec 28 is now `done`
+- **Secret settings are `pydantic.SecretStr` (B-32, Task 15):** `OPENAI_API_KEY`,
+  `REDIS_PASSWORD`, `SUPERVISOR_INTERNAL_TOKEN`, `SLACK_BOT_TOKEN`,
+  `SLACK_SIGNING_SECRET`, `GITLAB_TOKEN`, `DOCS_PORTAL_TOKEN`. `repr(settings)` and
+  model dumps show `**********`; plaintext only at the use site via `config.reveal()`.
+  An empty `REDIS_PASSWORD` still means "no AUTH" (`reveal(...) or None`).
+  `POSTGRES_*` (KB store) moved from `os.getenv` into `Settings` with the same defaults.
+- **Alias rename `bedrock` → `llm` (B-31, Task 14):** the 8 callers and
+  `evals/runner.py` now `from src.core.llm import llm`; test patch targets are
+  `"<caller>.llm"`. No behavior change.
+
+### Fixed — LLM error logs (spec 28 Task 16, 2026-11-16)
+- `OpenAICompatClient` never overrode the `LLMService._error_code` log hook, so
+  retry/error logs always said `error_code: None`. It now logs the sanitized code,
+  and prefers `error.type` when `error.code` is absent or numeric (llama.cpp sends
+  `{"code": 400, "type": "exceed_context_size_error"}`).
+
+### Fixed — local compose healthchecks (2026-11-16)
+- `docker-compose.yaml`: the `supervisor` and `gateway` healthchecks called `curl`,
+  which the runtime image does not ship, so both containers stayed `unhealthy` and
+  `make up` / dependent services (`gateway` → `supervisor`, `mcp-server` → `gateway`)
+  never started. They now use `python -c "urllib.request.urlopen(...)"` (exit 1 on
+  connection error or non-2xx), verified inside `ghcr.io/staffops/aigent-squad:0.5.0`.
+
+### Added — spec 28 LLM provider abstraction + OpenAI-compatible provider (2026-11-15)
+- `src/core/llm/`: `LLMProvider` Protocol + `LLMResult`, `LLMService` common layer
+  (circuit breaker, semaphore, retry/jitter, guardrail calls, token/cost/budget
+  metrics), `OpenAICompatClient` (hand-written httpx client for
+  `POST {OPENAI_BASE_URL}/chat/completions` — plain completions AND the agentic
+  Converse tool loop: `toolSpec`/`toolUse`/`toolResult` ↔ `tools`/`tool_calls`/`role=tool`),
+  provider factory + startup validation.
+- `LLM_PROVIDER=bedrock|openai` (global, default `bedrock` — behavior unchanged),
+  provider-neutral `LLM_MODEL_ID` / `LLM_CLASSIFIER_MODEL_ID` / `LLM_SYNTHESIS_MODEL_ID`,
+  `LLM_PRICE_*`, `OPENAI_*` settings (see `.env.example`).
+- Metrics: `aigent.llm.provider_errors{provider,error_class}`,
+  `aigent.llm.guardrail_l1_active{provider}`. `/ready` gains an informational `llm` check.
+- ADR-0009 (amends ADR-001 for LLM transport only).
+
+### Changed
+- `BedrockClient` is now `LLMService` + Bedrock transport (same behavior, same tests;
+  patch targets for the moved policy names moved to `src.core.llm.service`).
+- **Security exception**: with `LLM_PROVIDER=openai` the Bedrock Guardrail (spec 14 L1)
+  is switched off automatically (startup WARNING, metric = 0, `/ready` detail). L2–L6 unchanged.
+
+## [0.5.0] - 2026-08-18
+
+### Added — spec 33 operational review loop (2026-08-19)
+- `specs/TRIGGERS.md`: 12 promotion/demotion triggers cataloged, 7 gaps identified
+- `specs/reviews/TEMPLATE.md`: fixed 6-section template for monthly reviews
+- `specs/reviews/2026-08.md`: first real review (1/12 measurable, 11 gaps documented)
+- Cadence documented in specs/README.md (monthly + per-release)
+
+### Added — Renovate self-hosted workflow (2026-08-18)
+- `.github/workflows/renovate.yml`: weekly Monday schedule, `GITHUB_TOKEN` auth
+- `renovate.json` config already in place (pinDigests, grouped PRs)
+
+### Added — Grafana dashboard (2026-08-18)
+- "AIgent Squad - Concurrency & Rate Limiting" in DevOps-Testing/StaffOps (uid: `a4j5w8`)
+- 7 panels: queue depth, wait percentiles, HTTP codes, 429s, 409s, latency, active requests
+
+### Added — k6 load test validated live (2026-08-18)
+- `scenario_basic.js` ran against live EKS cluster: 0% errors, p95 14s
+- Threshold adjusted to 15s (realistic for LLM workloads)
+
+### Fixed — spec 18 T16 correlator review (2026-08-18)
+3 blockers found by independent review, all fixed:
+- `independent < 3` no longer early-returns LOW (Track B has no count requirement)
+- Unexplained contradiction → LOW (was incorrectly capping at MEDIUM)
+- Derivation pair check applies even when fault_domain is empty
+- Added CHANGE+IMPACT+TEMPORAL(rollback) → HIGH path
+
+### Fixed — harness findings (2026-08-18)
+- Contextvar `current_agent_id` reset in finally (prevented stale agent_id in fan-out)
+- Session-lock Redis uses `rediss://` when `redis_ssl=True` (password was plaintext)
+- Bedrock queue_depth metric no longer drifts negative on cancellation
+- Semaphore limit floored at `max(1, limit)` (prevents BEDROCK_MAX_CONCURRENT=0 deadlock)
+
+### Added — 56 dedicated tests (2026-08-18)
+- `test_session_lock.py` (15 tests): acquire/release/fail-open/Lua/context manager
+- `test_capability_gate.py` (22 tests): tier enforcement/deny/pass/singleton
+- `test_circuit_breaker_redis.py` (19 tests): state transitions/pipeline/fallback
+
+### Added — spec 18 T15 real-RCA existence proof (2026-08-18)
+- Real production incident (anonymized) validated through the EVIDENCE-MODEL correlator
+- Track A, HIGH confidence confirmed against manual RCA
+
 ### Added — spec 45 supply-chain hardening COMPLETE (2026-08-17)
 All 5 phases of spec 45 shipped in one session:
 - **Phase 1+2**: 38 action refs pinned by SHA, `pin-check` CI gate + `make pin-check`, explicit

@@ -1,7 +1,7 @@
 ---
 spec: 28-llm-provider-abstraction
-status: design-only
-completed: null
+status: done
+completed: 2026-11-16
 superseded_by: null
 depends_on: []
 deferred: []
@@ -10,7 +10,9 @@ deferred: []
 # Feature: LLM Provider Abstraction (multi-provider layer)
 
 **Spec**: `28-llm-provider-abstraction`
-**Status**: 📝 design only — do not implement without an explicit decision
+**Status**: 🔨 in progress — Phase 1 + Phase 2 implemented 2026-11-15 (owner decision: hand-written
+OpenAI-compatible httpx client, global `LLM_PROVIDER`, Bedrock Guardrail L1 auto-off for non-Bedrock);
+independent test author + independent review pending
 **Depends on**: `ADR-001` (reopens the "Bedrock-direct, no framework" decision)
 **Related**: `27-bedrock-cost-attribution`, `11-bedrock-resilience-cost`,
 `steering/efficiency-cost.md`
@@ -56,16 +58,16 @@ identifier).
 
 ## Acceptance Criteria
 
-- [ ] `LLMProvider` interface (Protocol) with `invoke(...)` — current signature.
-- [ ] `BedrockProvider` = refactor of the current `BedrockClient`, **identical
+- [x] `LLMProvider` interface (Protocol) with `invoke(...)` — current signature. (2026-11-15)
+- [x] `BedrockProvider` = refactor of the current `BedrockClient`, **identical
       behavior** (same tests pass with no change in expectations).
-- [ ] Circuit breaker, retry, and metrics live in the **common layer** (above the
+- [x] Circuit breaker, retry, and metrics live in the **common layer** (above the
       provider), not duplicated per implementation.
-- [ ] Provider selection via env var (`LLM_PROVIDER=bedrock|...`).
-- [ ] The second provider is a separate decision (litellm vs hand-written — see design).
-- [ ] Cost-attribution (spec 27) validated with the selected provider.
-- [ ] ≥90% coverage on new code; `BedrockProvider` tests = the current ones.
-- [ ] ADR-001 updated (or a new ADR) recording the change and the trade-off.
+- [x] Provider selection via env var (`LLM_PROVIDER=bedrock|openai`).
+- [x] The second provider is a separate decision — decided 2026-11-15: hand-written (design Decision 4).
+- [x] Cost-attribution (spec 27) validated with the selected provider — with mocks (both providers); live endpoint check open.
+- [x] ≥90% coverage on new code; `BedrockProvider` tests = the current ones (patch targets retargeted only).
+- [x] ADR-001 updated (or a new ADR) recording the change and the trade-off — ADR-0009.
 
 ## Out of scope
 

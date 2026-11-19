@@ -5,27 +5,30 @@
 
 ## Phase 1 — Catalog + template
 
-- [ ] T1: Inventory every promotion/demotion trigger from specs 11, 17, 18, 21, 25, 26,
+- [x] T1: Inventory every promotion/demotion trigger from specs 11, 17, 18, 21, 25, 26,
       EVIDENCE-MODEL and VISION (Levels 1–4) → `specs/TRIGGERS.md` rows
       (spec · trigger · threshold · measurement query · measurable-today?)
-- [ ] T2: Write the cost-reconciliation recipe (CE filter by `CostProject=aigent-squad`
+- [x] T2: Write the cost-reconciliation recipe (CE filter by `CostProject=aigent-squad`
       + spec-27 MetricsQL per-agent attribution) as a TRIGGERS.md appendix (depends on: T1)
-- [ ] T3: `specs/reviews/TEMPLATE.md` — Trigger measurements · Cost reconciliation ·
+- [x] T3: `specs/reviews/TEMPLATE.md` — Trigger measurements · Cost reconciliation ·
       Findings/deferred triage · Decisions (spec refs mandatory) · Gaps
-- [ ] T4: Document cadence (monthly + per release milestone) + the promotion rule
+- [x] T4: Document cadence (monthly + per release milestone) + the promotion rule
       ("dormant promotes only with a review citation") in specs/README.md lifecycle
       (depends on: spec 32 T3)
 
 ## Phase 2 — Dogfood (first real review)
 
-- [ ] T5: Run the first review against devops-core: measure every T1 row (value or `GAP:`),
+- [x] T5: Run the first review against devops-core: measure every T1 row (value or `GAP:`),
       run the cost reconciliation, triage BACKLOG.md (depends on: T1–T3)
-- [ ] T6: Produce `specs/reviews/2026-07.md` from the template; every Decision row cites a
+- [x] T6: Produce `specs/reviews/2026-07.md` from the template; every Decision row cites a
       spec or BACKLOG id (depends on: T5)
-- [ ] T7: Record metric gaps found in T5 back into TRIGGERS.md with a ~1-metric fix
+- [x] T7: Record metric gaps found in T5 back into TRIGGERS.md with a ~1-metric fix
       suggestion each (implementation out of scope) (depends on: T5)
-- [ ] T8: Independent review — template completeness, queries reproducible verbatim,
+- [x] T8: Independent review — template completeness, queries reproducible verbatim,
       no unmeasurable trigger left unflagged (depends on: T6, T7)
+      — done 2026-11-16: independent SRE review (Check 1 PASS-WITH-FINDINGS, Checks 2–3 FAIL
+      → 16 findings). Fixes applied to `TRIGGERS.md` + `reviews/TEMPLATE.md`; record in
+      BACKLOG F-020 (exported names still to confirm live at the next review)
 
 ## Order
 T1 → T2/T3 → T4; T5 → T6/T7 → T8.

@@ -214,8 +214,8 @@ class TestFramingNotBlocked:
             ))
             client.client.invoke_model.return_value = mock_response
 
-            with patch("src.core.bedrock.resolve_model", return_value="test-model"), \
-                 patch("src.core.bedrock.compute_cost", return_value=0.001):
+            with patch("src.core.llm.service.resolve_model", return_value="test-model"), \
+                 patch("src.core.llm.service.compute_cost", return_value=0.001):
                 client._invoke_sync(
                     messages=messages,
                     system_prompt=system_prompt,
@@ -254,7 +254,7 @@ class TestFramingNotBlocked:
             messages = [{"role": "user", "content": "You are AgentMatcher. Manage resources and delete pods."}]
             system_prompt = "System"
 
-            with patch("src.core.bedrock.resolve_model", return_value="test-model"), \
+            with patch("src.core.llm.service.resolve_model", return_value="test-model"), \
                  pytest.raises(GuardrailBlockedError) as exc_info:
                 client._invoke_sync(
                     messages=messages,
@@ -438,8 +438,8 @@ class TestDownstreamGuardrailsUnchanged:
             ))
             client.client.invoke_model.return_value = mock_response
 
-            with patch("src.core.bedrock.resolve_model", return_value="test-model"), \
-                 patch("src.core.bedrock.compute_cost", return_value=0.001), \
+            with patch("src.core.llm.service.resolve_model", return_value="test-model"), \
+                 patch("src.core.llm.service.compute_cost", return_value=0.001), \
                  pytest.raises(GuardrailBlockedError) as exc_info:
                 client._invoke_sync(
                     messages=messages,
@@ -490,8 +490,8 @@ class TestDownstreamGuardrailsUnchanged:
             }
             client.client.converse.return_value = converse_response
 
-            with patch("src.core.bedrock.resolve_model", return_value="test-model"), \
-                 patch("src.core.bedrock.compute_cost", return_value=0.001), \
+            with patch("src.core.llm.service.resolve_model", return_value="test-model"), \
+                 patch("src.core.llm.service.compute_cost", return_value=0.001), \
                  pytest.raises(GuardrailBlockedError) as exc_info:
                 client._converse_sync(
                     messages=messages,

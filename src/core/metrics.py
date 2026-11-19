@@ -367,6 +367,36 @@ bedrock_throttles = meter.create_counter(
     unit="1",
 )
 
+# --- LLM provider abstraction (spec 28) ---
+# Labels: provider ∈ {bedrock, openai} (LLM_PROVIDER — 2 values),
+#         error_class ∈ {throttled, server_error, timeout, client_error, malformed}
+# Cardinality: ≤10 series. Emitted by the common LLMService retry loop for EVERY
+# provider (Bedrock throttles additionally keep aigent.bedrock.throttles{model}).
+llm_provider_errors = meter.create_counter(
+    name="aigent.llm.provider_errors",
+    description=(
+        "LLM transport errors seen by the common retry loop (each attempt). "
+        "Labels: provider (bedrock|openai), error_class "
+        "(throttled|server_error|timeout|client_error|malformed)."
+    ),
+    unit="1",
+)
+
+# Labels: provider ∈ {bedrock, openai}. Cardinality: 2 series.
+# 1 = the Bedrock Guardrail (spec 14 L1) is evaluating requests; 0 = it is OFF.
+# PER-POD: each supervisor process adds its own 0/1 once at startup, so a
+# fleet-wide sum counts pods with L1 active — use min()/max() by pod to alert.
+# It is OFF automatically whenever LLM_PROVIDER != bedrock (spec 28 Decision 10)
+# or GUARDRAIL_ENABLED=false — alert on 0 in environments that require L1.
+llm_guardrail_l1_active = meter.create_up_down_counter(
+    name="aigent.llm.guardrail_l1_active",
+    description=(
+        "1 when the Bedrock Guardrail (L1) is active, 0 when inactive "
+        "(non-Bedrock LLM provider or GUARDRAIL_ENABLED=false). Label: provider."
+    ),
+    unit="1",
+)
+
 # --- (d) Context trimmed messages ---
 # Labels: agent_id (bounded by registered agents — max ~10)
 # Cardinality: ~10 series

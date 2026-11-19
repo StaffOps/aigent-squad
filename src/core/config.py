@@ -1,7 +1,51 @@
+from pydantic import SecretStr
 from pydantic_settings import BaseSettings
-from typing import Optional
+from typing import Literal, Optional, Union
+
+def reveal(value: Union[SecretStr, str, None]) -> str:
+    """Plaintext of a secret setting ('' when unset) — call ONLY at the use site.
+
+    Secret settings are ``SecretStr`` (B-32) so ``repr(settings)``/debug dumps show
+    ``'**********'``. A plain ``str`` is accepted too (tests assign one directly).
+    """
+    if value is None:
+        return ""
+    if isinstance(value, SecretStr):
+        return str(value.get_secret_value())
+    # Coerce anything else (e.g. a MagicMock in tests) so callers always get a str:
+    # a comparison then fails closed instead of raising TypeError.
+    return str(value)
+
 
 class Settings(BaseSettings):  # type: ignore[misc]
+    # LLM provider (spec 28) — GLOBAL selection. "bedrock" (default) keeps the
+    # historical behavior byte-identical; "openai" routes every LLM call to an
+    # OpenAI-compatible POST {OPENAI_BASE_URL}/chat/completions. Under "openai"
+    # the Bedrock Guardrail (L1) is switched off automatically — a documented
+    # exception to fail-closed security (AGENTS.md invariant 6, ADR-0009).
+    llm_provider: Literal["bedrock", "openai"] = "bedrock"
+    # Provider-neutral model ids per role. Unset → fall back to the BEDROCK_*
+    # role vars (bedrock) or to LLM_MODEL_ID (openai; LLM_MODEL_ID is required).
+    llm_model_id: Optional[str] = None
+    llm_classifier_model_id: Optional[str] = None
+    llm_synthesis_model_id: Optional[str] = None
+    # Per-1M-token USD pricing for non-Bedrock models (spec 28 Decision 9).
+    # Both unset → cost metrics read 0 (startup WARNING); never invented.
+    llm_price_input_per_1m: Optional[float] = None
+    llm_price_output_per_1m: Optional[float] = None
+
+    # OpenAI-compatible endpoint (LLM_PROVIDER=openai). The key is a secret:
+    # prefer OPENAI_API_KEY_FILE (file-mounted); it wins over OPENAI_API_KEY.
+    openai_base_url: Optional[str] = None
+    openai_api_key: Optional[SecretStr] = None
+    openai_api_key_file: Optional[str] = None
+    # "Authorization" sends "Bearer <key>"; any other header sends the raw key
+    # (e.g. "api-key" for Azure OpenAI-compatible endpoints).
+    openai_api_key_header: str = "Authorization"
+    # Request field carrying the output-token cap ("max_completion_tokens" for
+    # OpenAI reasoning models; most compatible servers accept "max_tokens").
+    openai_max_tokens_field: str = "max_tokens"
+
     # AWS
     aws_region: str = "us-east-1"
     bedrock_model_id: str = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"  # Claude Sonnet 4.5 (US inference profile; model requires INFERENCE_PROFILE, not on-demand)
@@ -117,16 +161,21 @@ class Settings(BaseSettings):  # type: ignore[misc]
     # DynamoDB
     dynamodb_sessions_table: str = "agent-sessions"
     dynamodb_endpoint: Optional[str] = None
+    # Local dev only (docker-compose): sign DynamoDB-local requests with fixed dummy
+    # credentials instead of the AWS chain, so an expired SSO token (needed only for
+    # Bedrock) does not take conversation history — and the supervisor's /ready —
+    # down with it. Ignored unless DYNAMODB_ENDPOINT is set. Never enable in a cluster.
+    dynamodb_local_static_credentials: bool = False
     
     # ElastiCache
     redis_host: str
     redis_port: int = 6379
     redis_ssl: bool = True
-    redis_password: Optional[str] = None
+    redis_password: Optional[SecretStr] = None
     
     # Slack (optional)
-    slack_bot_token: Optional[str] = None
-    slack_signing_secret: Optional[str] = None
+    slack_bot_token: Optional[SecretStr] = None
+    slack_signing_secret: Optional[SecretStr] = None
     slack_proactive_channel: Optional[str] = None
     
     # API
@@ -137,7 +186,7 @@ class Settings(BaseSettings):  # type: ignore[misc]
     # SUPERVISOR_INTERNAL_TOKEN gates the supervisor's /internal/process; it is a
     # DISTINCT secret from INTERNAL_API_TOKEN (edge auth). Fail-closed: the
     # supervisor refuses /internal/process if this is unset (see internal_auth).
-    supervisor_internal_token: Optional[str] = None
+    supervisor_internal_token: Optional[SecretStr] = None
     # Where the gateway forwards to (supervisor Service URL in K8s).
     supervisor_url: str = "http://localhost:8001"
     # Worker pool (gateway-side admission). Defaults from spec 31 round-table.
@@ -163,7 +212,7 @@ class Settings(BaseSettings):  # type: ignore[misc]
     rate_budget_enabled: bool = True         # master switch for admission guards
     
     # GitLab (DevOps Agent)
-    gitlab_token: Optional[str] = None
+    gitlab_token: Optional[SecretStr] = None
     gitlab_url: str = "https://gitlab.com"
     
     # MCP Servers
@@ -183,8 +232,17 @@ class Settings(BaseSettings):  # type: ignore[misc]
     # Documentation Portal (DevOps)
     docs_portal_url: str = "https://docs.company.internal/"
     docs_portal_url_new: str = "https://docs.company.com/"
-    docs_portal_token: Optional[str] = None
+    docs_portal_token: Optional[SecretStr] = None
     
+    # Incident-memory KB store (spec 21, PostgreSQL + pgvector; optional). Same
+    # defaults the store used via os.getenv before B-32 — the password default
+    # matches docker-compose's local-only "changeme".
+    postgres_host: str = "postgres"
+    postgres_port: int = 5432
+    postgres_user: str = "aigent"
+    postgres_password: Optional[SecretStr] = SecretStr("changeme")
+    postgres_db: str = "aigent_kb"
+
     # RAG / Knowledge Base (FinOps)
     finops_knowledge_base_id: Optional[str] = None  # Bedrock Knowledge Base ID
     rag_enabled: bool = False  # Enable RAG retrieval

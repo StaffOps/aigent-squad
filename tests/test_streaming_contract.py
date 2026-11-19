@@ -144,7 +144,7 @@ class TestContract1_SSEFramingWithToolCall:
     OpenAI chat.completion.chunk framing."""
 
     @pytest.mark.asyncio
-    @patch("src.core.agentic_loop_streaming.bedrock")
+    @patch("src.core.agentic_loop_streaming.llm")
     @patch("src.core.agentic_loop_streaming._guardrail_tool_args", return_value=True)
     @patch("src.core.agentic_loop_streaming._guardrail_tool_result", side_effect=lambda r, *a, **kw: r)
     async def test_event_sequence_ordering(self, _gr, _ga, mock_bedrock):
@@ -170,7 +170,7 @@ class TestContract1_SSEFramingWithToolCall:
         )
 
     @pytest.mark.asyncio
-    @patch("src.core.agentic_loop_streaming.bedrock")
+    @patch("src.core.agentic_loop_streaming.llm")
     @patch("src.core.agentic_loop_streaming._guardrail_tool_args", return_value=True)
     @patch("src.core.agentic_loop_streaming._guardrail_tool_result", side_effect=lambda r, *a, **kw: r)
     async def test_sse_frames_are_valid_openai_chunks(self, _gr, _ga, mock_bedrock):
@@ -211,7 +211,7 @@ class TestContract1_SSEFramingWithToolCall:
         assert json_frames[-1]["choices"][0]["finish_reason"] == "stop"
 
     @pytest.mark.asyncio
-    @patch("src.core.agentic_loop_streaming.bedrock")
+    @patch("src.core.agentic_loop_streaming.llm")
     @patch("src.core.agentic_loop_streaming._guardrail_tool_args", return_value=True)
     @patch("src.core.agentic_loop_streaming._guardrail_tool_result", side_effect=lambda r, *a, **kw: r)
     async def test_sse_contains_tool_call_and_result_content(self, _gr, _ga, mock_bedrock):
@@ -242,7 +242,7 @@ class TestContract1_SSEFramingWithToolCall:
         assert "Found pods" in all_content
 
     @pytest.mark.asyncio
-    @patch("src.core.agentic_loop_streaming.bedrock")
+    @patch("src.core.agentic_loop_streaming.llm")
     @patch("src.core.agentic_loop_streaming._guardrail_tool_args", return_value=True)
     @patch("src.core.agentic_loop_streaming._guardrail_tool_result", side_effect=lambda r, *a, **kw: r)
     async def test_all_frames_share_single_completion_id(self, _gr, _ga, mock_bedrock):
@@ -327,7 +327,7 @@ class TestContract3_S4Redaction:
     Raw output never appears in any chunk."""
 
     @pytest.mark.asyncio
-    @patch("src.core.agentic_loop_streaming.bedrock")
+    @patch("src.core.agentic_loop_streaming.llm")
     @patch("src.core.agentic_loop_streaming._guardrail_tool_args", return_value=True)
     @patch("src.core.agentic_loop_streaming._guardrail_tool_result")
     async def test_raw_secret_never_in_any_event(self, mock_guardrail, _ga, mock_bedrock):
@@ -367,7 +367,7 @@ class TestContract3_S4Redaction:
         assert "AKIAIOSFODNN7EXAMPLE" not in all_text
 
     @pytest.mark.asyncio
-    @patch("src.core.agentic_loop_streaming.bedrock")
+    @patch("src.core.agentic_loop_streaming.llm")
     @patch("src.core.agentic_loop_streaming._guardrail_tool_args", return_value=True)
     @patch("src.core.agentic_loop_streaming._guardrail_tool_result")
     async def test_raw_secret_never_in_sse_frames(self, mock_guardrail, _ga, mock_bedrock):
@@ -424,7 +424,7 @@ class TestContract4_BudgetExhaustion:
     finish_reason='length'."""
 
     @pytest.mark.asyncio
-    @patch("src.core.agentic_loop_streaming.bedrock")
+    @patch("src.core.agentic_loop_streaming.llm")
     @patch("src.core.agentic_loop_streaming._guardrail_tool_args", return_value=True)
     @patch("src.core.agentic_loop_streaming._guardrail_tool_result", side_effect=lambda r, *a, **kw: r)
     @patch("src.core.agentic_loop_streaming.MAX_TOOL_STEPS", 1)
@@ -448,7 +448,7 @@ class TestContract4_BudgetExhaustion:
         assert "⚠️" in combined or "concluir" in combined.lower()
 
     @pytest.mark.asyncio
-    @patch("src.core.agentic_loop_streaming.bedrock")
+    @patch("src.core.agentic_loop_streaming.llm")
     @patch("src.core.agentic_loop_streaming._guardrail_tool_args", return_value=True)
     @patch("src.core.agentic_loop_streaming._guardrail_tool_result", side_effect=lambda r, *a, **kw: r)
     @patch("src.core.agentic_loop_streaming.MAX_LOOP_DURATION_MS", 0)
@@ -464,7 +464,7 @@ class TestContract4_BudgetExhaustion:
         assert events[-1].finish_reason == "length"
 
     @pytest.mark.asyncio
-    @patch("src.core.agentic_loop_streaming.bedrock")
+    @patch("src.core.agentic_loop_streaming.llm")
     @patch("src.core.agentic_loop_streaming._guardrail_tool_args", return_value=True)
     @patch("src.core.agentic_loop_streaming._guardrail_tool_result", side_effect=lambda r, *a, **kw: r)
     @patch("src.core.agentic_loop_streaming.MAX_LOOP_TOKENS", 1)
@@ -480,7 +480,7 @@ class TestContract4_BudgetExhaustion:
         assert events[-1].finish_reason == "length"
 
     @pytest.mark.asyncio
-    @patch("src.core.agentic_loop_streaming.bedrock")
+    @patch("src.core.agentic_loop_streaming.llm")
     @patch("src.core.agentic_loop_streaming._guardrail_tool_args", return_value=True)
     @patch("src.core.agentic_loop_streaming._guardrail_tool_result", side_effect=lambda r, *a, **kw: r)
     @patch("src.core.agentic_loop_streaming.MAX_TOOL_STEPS", 1)
@@ -510,7 +510,7 @@ class TestContract5_FailOpen:
     cleanly with [DONE]."""
 
     @pytest.mark.asyncio
-    @patch("src.core.agentic_loop_streaming.bedrock")
+    @patch("src.core.agentic_loop_streaming.llm")
     @patch("src.core.agentic_loop_streaming._guardrail_tool_args", return_value=True)
     @patch("src.core.agentic_loop_streaming._guardrail_tool_result", side_effect=lambda r, *a, **kw: r)
     async def test_unknown_tool_yields_error_step_and_completes(
@@ -547,7 +547,7 @@ class TestContract5_FailOpen:
         assert events[-1].finish_reason == "stop"
 
     @pytest.mark.asyncio
-    @patch("src.core.agentic_loop_streaming.bedrock")
+    @patch("src.core.agentic_loop_streaming.llm")
     @patch("src.core.agentic_loop_streaming._guardrail_tool_args", return_value=False)
     async def test_guardrail_blocked_args_yields_blocked_step(self, _ga, mock_bedrock):
         """Guardrail blocks tool args → inline blocked step, stream continues."""
@@ -569,7 +569,7 @@ class TestContract5_FailOpen:
         assert isinstance(events[-1], StepDone)
 
     @pytest.mark.asyncio
-    @patch("src.core.agentic_loop_streaming.bedrock")
+    @patch("src.core.agentic_loop_streaming.llm")
     @patch("src.core.agentic_loop_streaming._guardrail_tool_args", return_value=True)
     @patch("src.core.agentic_loop_streaming._guardrail_tool_result", side_effect=lambda r, *a, **kw: r)
     async def test_fail_open_sse_ends_with_done(self, _gr, _ga, mock_bedrock):
@@ -595,7 +595,7 @@ class TestContract5_FailOpen:
         assert frames[-1] == "data: [DONE]\n\n"
 
     @pytest.mark.asyncio
-    @patch("src.core.agentic_loop_streaming.bedrock")
+    @patch("src.core.agentic_loop_streaming.llm")
     async def test_adapter_connection_failure_degrades_gracefully(self, mock_bedrock):
         """If adapter.list_tool_specs() throws, loop still produces output."""
         mock_bedrock.converse = AsyncMock(return_value=_bedrock_final("No tools available."))
@@ -627,7 +627,7 @@ class TestContract6_ExtendedThinkingDefault:
         assert ENABLE_EXTENDED_THINKING is False
 
     @pytest.mark.asyncio
-    @patch("src.core.agentic_loop_streaming.bedrock")
+    @patch("src.core.agentic_loop_streaming.llm")
     @patch("src.core.agentic_loop_streaming.ENABLE_EXTENDED_THINKING", False)
     async def test_reasoning_blocks_ignored_when_flag_off(self, mock_bedrock):
         """Even if model returns reasoning blocks, they are NOT emitted when off."""
@@ -645,7 +645,7 @@ class TestContract6_ExtendedThinkingDefault:
         assert len(thinking) == 0, "No thinking events when flag is OFF"
 
     @pytest.mark.asyncio
-    @patch("src.core.agentic_loop_streaming.bedrock")
+    @patch("src.core.agentic_loop_streaming.llm")
     @patch("src.core.agentic_loop_streaming.ENABLE_EXTENDED_THINKING", True)
     async def test_reasoning_emitted_when_flag_on(self, mock_bedrock):
         """When flag is ON and model returns reasoning, StepThinking is emitted."""
@@ -666,7 +666,7 @@ class TestContract6_ExtendedThinkingDefault:
         assert "step by step" in thinking[0].text
 
     @pytest.mark.asyncio
-    @patch("src.core.agentic_loop_streaming.bedrock")
+    @patch("src.core.agentic_loop_streaming.llm")
     @patch("src.core.agentic_loop_streaming.ENABLE_EXTENDED_THINKING", True)
     async def test_thinking_rendered_with_emoji_in_sse(self, mock_bedrock):
         """StepThinking renders as 💭 in SSE frames."""
@@ -739,7 +739,7 @@ class TestStreamingLoopInvariants:
     """Structural invariants that must hold for any streaming execution."""
 
     @pytest.mark.asyncio
-    @patch("src.core.agentic_loop_streaming.bedrock")
+    @patch("src.core.agentic_loop_streaming.llm")
     @patch("src.core.agentic_loop_streaming._guardrail_tool_args", return_value=True)
     @patch("src.core.agentic_loop_streaming._guardrail_tool_result", side_effect=lambda r, *a, **kw: r)
     async def test_done_is_always_last_event(self, _gr, _ga, mock_bedrock):
@@ -761,7 +761,7 @@ class TestStreamingLoopInvariants:
         assert done_count == 1
 
     @pytest.mark.asyncio
-    @patch("src.core.agentic_loop_streaming.bedrock")
+    @patch("src.core.agentic_loop_streaming.llm")
     async def test_final_chunk_text_is_nonempty_for_normal_answer(self, mock_bedrock):
         """A normal answer always has non-empty FinalChunk text."""
         mock_bedrock.converse = AsyncMock(return_value=_bedrock_final("Real answer."))
@@ -788,7 +788,7 @@ class TestStreamingLoopInvariants:
         assert frames[-1] == "data: [DONE]\n\n"
 
     @pytest.mark.asyncio
-    @patch("src.core.agentic_loop_streaming.bedrock")
+    @patch("src.core.agentic_loop_streaming.llm")
     @patch("src.core.agentic_loop_streaming._guardrail_tool_args", return_value=True)
     @patch("src.core.agentic_loop_streaming._guardrail_tool_result", side_effect=lambda r, *a, **kw: r)
     async def test_multiple_tool_calls_in_sequence(self, _gr, _ga, mock_bedrock):

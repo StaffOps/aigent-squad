@@ -66,6 +66,17 @@ dormant trigger fired, and reconciles real operational data (cost, error
 rates) against what the spec assumed at design time. A spec is never
 "done and forgotten" — it's "done, and now measured."
 
+### Operational review cadence (spec 33)
+
+- **Frequency**: monthly + once per release milestone (whichever comes first).
+- **Rule**: dormant phases promote ONLY with a review citation that records a
+  measured trigger crossing its threshold. No intuition-driven promotion.
+- **Inputs**: `specs/TRIGGERS.md` (trigger catalog with thresholds and queries),
+  AWS Cost Explorer (real bill), `specs/BACKLOG.md` (deferred/dormant items).
+- **Output**: `specs/reviews/YYYY-MM.md` following `specs/reviews/TEMPLATE.md`.
+- **Who**: any team member or agent session; the review record is the artifact,
+  not the role of the reviewer.
+
 ## Two tiers: full spec vs `bugfix.md`
 
 Not every change needs three files. Use judgment:
