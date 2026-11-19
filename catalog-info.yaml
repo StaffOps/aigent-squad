@@ -17,20 +17,128 @@ spec:
   owner: group:staffops
   domain: staffops
 ---
+# One Component per deployable service (backstage-platform ADR 0002). gateway and
+# supervisor are the same image (two tiers, spec 31), so they share the image and
+# Dependency-Track annotations.
 apiVersion: backstage.io/v1alpha1
 kind: Component
 metadata:
-  name: aigent-squad
-  title: aigent-squad
-  description: "Container image ghcr.io/staffops/aigent-squad — one image, two tiers (gateway :8000, supervisor :8001)"
+  name: aigent-squad-gateway
+  title: aigent-squad gateway
+  description: "Public edge API (:8000): OpenAI-compatible /v1, /query, job cancel, health; edge auth, rate/budget admission, backpressure"
   annotations:
     github.com/project-slug: StaffOps/aigent-squad
+    backstage.io/techdocs-ref: dir:.
     staffops.space/image: ghcr.io/staffops/aigent-squad
     staffops.space/dependency-track-project: ghcr.io/staffops/aigent-squad
-    backstage.io/techdocs-ref: dir:.
-  tags: [container-image, python, fastapi, mcp]
+  tags: [container-image, python, fastapi]
 spec:
   type: service
   lifecycle: experimental
+  owner: group:staffops
+  system: aigent-squad
+  providesApis: [aigent-squad-gateway-api]
+  consumesApis: [aigent-squad-supervisor-api]
+  dependsOn: [component:aigent-squad-supervisor, resource:aigent-squad-redis]
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: aigent-squad-supervisor
+  title: aigent-squad supervisor
+  description: "Internal orchestrator (:8001, internal token only): classifier routing to 6 in-process specialist agents, LLM via Bedrock or OpenAI-compatible, security layers, KB review, Alertmanager intake"
+  annotations:
+    github.com/project-slug: StaffOps/aigent-squad
+    backstage.io/techdocs-ref: dir:.
+    staffops.space/image: ghcr.io/staffops/aigent-squad
+    staffops.space/dependency-track-project: ghcr.io/staffops/aigent-squad
+  tags: [container-image, python, fastapi, aws-bedrock]
+spec:
+  type: service
+  lifecycle: experimental
+  owner: group:staffops
+  system: aigent-squad
+  providesApis: [aigent-squad-supervisor-api]
+  dependsOn: [resource:aigent-squad-redis, resource:aigent-squad-postgres, resource:aigent-squad-dynamodb]
+---
+# Own Dockerfile (mcp-server/Dockerfile), not published to GHCR: no image annotations.
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: aigent-squad-mcp-server
+  title: aigent-squad mcp-server
+  description: "HTTP bridge for MCP clients (Kiro CLI) to the gateway /query (:8006)"
+  annotations:
+    github.com/project-slug: StaffOps/aigent-squad
+    backstage.io/techdocs-ref: dir:.
+  tags: [python, mcp]
+spec:
+  type: service
+  lifecycle: experimental
+  owner: group:staffops
+  system: aigent-squad
+  consumesApis: [aigent-squad-gateway-api]
+  dependsOn: [component:aigent-squad-gateway]
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: aigent-squad-gateway-api
+  title: aigent-squad gateway API
+  description: "Public edge API of the gateway (OpenAPI, generated: make openapi)"
+  tags: [openapi]
+spec:
+  type: openapi
+  lifecycle: experimental
+  owner: group:staffops
+  system: aigent-squad
+  definition:
+    $text: ./openapi/gateway.json
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: aigent-squad-supervisor-api
+  title: aigent-squad supervisor API
+  description: "Internal supervisor API, gateway-only behind SUPERVISOR_INTERNAL_TOKEN (OpenAPI, generated: make openapi)"
+  tags: [openapi]
+spec:
+  type: openapi
+  lifecycle: experimental
+  owner: group:staffops
+  system: aigent-squad
+  definition:
+    $text: ./openapi/supervisor.json
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: aigent-squad-redis
+  description: "Redis: datasource cache, rate/budget admission and job lifecycle for gateway and supervisor. Production: AWS ElastiCache (in-cluster Redis only for dev)"
+  tags: [redis, aws, elasticache]
+spec:
+  type: database
+  owner: group:staffops
+  system: aigent-squad
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: aigent-squad-postgres
+  description: "PostgreSQL with pgvector: incident knowledge base and embeddings (optional, off by default)"
+  tags: [postgresql, pgvector]
+spec:
+  type: database
+  owner: group:staffops
+  system: aigent-squad
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: aigent-squad-dynamodb
+  description: "AWS DynamoDB (managed): per-agent conversation history, 24h TTL (DynamoDB Local in dev)"
+  tags: [dynamodb, aws]
+spec:
+  type: database
   owner: group:staffops
   system: aigent-squad

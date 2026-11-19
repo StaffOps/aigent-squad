@@ -148,3 +148,17 @@ jobs:
           SERVICE_NAME: test
           OTEL_EXPORTER_OTLP_ENDPOINT: http://localhost:4317
           AWS_REGION: us-east-1
+
+      # Backstage API entities read openapi/*.json via `$text` (catalog-info.yaml).
+      # Same check as chaitops / maturity-score-card: regenerate, fail on any diff.
+      - name: OpenAPI specs are up to date
+        run: |
+          python scripts/export_openapi.py src.gateway.main:app openapi/gateway.json >/dev/null
+          python scripts/export_openapi.py src.supervisor.server:app openapi/supervisor.json >/dev/null
+          git diff --exit-code -- openapi/ || {
+            echo "::error::openapi/*.json is stale; run 'make openapi' and commit the result"
+            exit 1
+          }
+        env:
+          REDIS_HOST: localhost
+          AWS_REGION: us-east-1

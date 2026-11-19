@@ -1,7 +1,7 @@
 # Canonical command surface (spec 36). Every golden path is a target here;
 # AGENTS.md/QUICKSTART reference these instead of raw commands. CI calls the
 # same targets (same-harness principle — spec 23 extended to the entrypoint).
-.PHONY: up down smoke test test-one test-ci lint typecheck eval specs-status pin-check mcp-rbac-audit harness-score install-hooks verify-release scan capability-validate load-test help
+.PHONY: up down smoke test test-one test-ci lint typecheck eval specs-status pin-check mcp-rbac-audit harness-score install-hooks verify-release scan capability-validate load-test openapi help
 
 # AI-agent harness maturity floor (harness-score L0-L4). Raise this ONLY after
 # the score genuinely clears the next level — never to make a red CI go green.
@@ -54,6 +54,15 @@ eval: ## Quality eval T2 (spec 35) — golden sets + LLM judge, real Bedrock cos
 
 eval-rca: ## RCA scenario eval T8/T9 (spec 35 Phase 3) — fixture-fed, real Bedrock cost (~$0.50-1.50)
 	./scripts/eval-rca-local.sh
+
+openapi: ## Regenerate openapi/{gateway,supervisor}.json (Backstage API entities; CI fails on drift)
+	@# Docker, same interpreter as the CI test job; imports log to stdout, so specs go to files.
+	docker run --rm -v "$$(pwd):/app" -w /app -e REDIS_HOST=localhost -e AWS_REGION=us-east-1 python:3.11-slim \
+	  sh -c "apt-get -qq update >/dev/null && apt-get -qq install -y git >/dev/null 2>&1 && \
+	         pip install -q -r requirements.txt 2>/dev/null && \
+	         python scripts/export_openapi.py src.gateway.main:app openapi/gateway.json >/dev/null && \
+	         python scripts/export_openapi.py src.supervisor.server:app openapi/supervisor.json >/dev/null"
+	@echo "openapi/ regenerated"
 
 specs-status: ## Spec status SSOT lint (spec 32) — frontmatter consistency + ROADMAP table check
 	@python3 -c "import yaml" >/dev/null 2>&1 && python3 scripts/specs_status.py || \
