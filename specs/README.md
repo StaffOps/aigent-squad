@@ -3,7 +3,7 @@
 The process itself, written once. Individual specs reference this file
 instead of restating any of it. Written by spec 32 (`32-spec-lifecycle-ssot`)
 in response to a recurring failure mode: status living in ≥4 places
-(each spec's `tasks.md`, two `ROADMAP.md` tables, `HANDOFF.md`, ad-hoc notes)
+(each spec's `tasks.md`, two `ROADMAP.md` tables, `docs/handoff.md`, ad-hoc notes)
 with no mechanical check, drifting apart on every milestone.
 
 ## Single source of truth: frontmatter
@@ -157,7 +157,7 @@ Adopted from `template-project` conventions, backfilled 2026-07-03:
 | A decision scoped to exactly one spec | `design.md`'s Rationale section (numbered decisions) — no separate ADR needed |
 | Findings, product backlog items, pending decisions, dormant work, deferred tails | `specs/BACKLOG.md` (the ONLY home — see Decision 3 in spec 32's `design.md`) |
 | Long-term vision / phased maturity levels | `specs/VISION.md` |
-| Session continuity | `HANDOFF.md` — current session + next steps only; prior sessions archived to `archive/handoffs/YYYY-MM-DD.md` (overwritten, not appended — see spec 32 `design.md` Decision 4) |
+| Session continuity | `docs/handoff.md` — current session + next steps only; prior sessions archived to `archive/handoffs/YYYY-MM-DD.md` (overwritten, not appended — see spec 32 `design.md` Decision 4) |
 | Frozen historical deliberation (superseded analysis, not living docs) | `Status: frozen (date)` banner at the top, left in place under `specs/` |
 
 When a new architectural decision is made that would matter to someone

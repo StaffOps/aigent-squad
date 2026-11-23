@@ -31,8 +31,8 @@
    validates the `specs/ROADMAP.md` canonical table against every spec's
    frontmatter and fails on any drift (unknown status, a `done` carrying
    deferrals, a `deferred:` item missing from `specs/BACKLOG.md`). Confirm
-   `HANDOFF.md`'s most recent entries match `git log`.
-3. **`CHANGES.md` `[Unreleased]` accurate**: read the section top-to-bottom;
+   `docs/handoff.md`'s most recent entries match `git log`.
+3. **`CHANGELOG.md` `[Unreleased]` accurate**: read the section top-to-bottom;
    every entry must correspond to something actually shipped and reachable
    from `dev`. Stale/superseded entries get folded or removed before the cut,
    not silently carried forward.
@@ -219,7 +219,7 @@ IAT=$(aws secretsmanager get-secret-value --secret-id STAFFOPS_AIGENT_SQUAD \
    a HANDOFF TODO for days). Check: any `gh auth token` / manually-created PAT
    used for this release specifically, not a long-lived credential someone
    else depends on. **Do this before anything else in Phase 7, not after.**
-2. **`CHANGES.md` cut**: rename `[Unreleased]` → `[X.Y.Z] - <date>`, start a
+2. **`CHANGELOG.md` cut**: rename `[Unreleased]` → `[X.Y.Z] - <date>`, start a
    fresh empty `[Unreleased]` above it. Consolidate/dedupe entries that
    accumulated since the last real cut (check: is everything currently under
    `[Unreleased]` actually still accurate, or does some of it describe a
@@ -228,7 +228,7 @@ IAT=$(aws secretsmanager get-secret-value --secret-id STAFFOPS_AIGENT_SQUAD \
    version + the honest next bump gate.
 4. **`specs/<NN>/tasks.md`** for every spec that shipped this cycle: confirm
    `[x]` + completion dates are accurate (not just "some things checked").
-5. **`HANDOFF.md` overwrite** (spec 32 rule, now active): overwrite `HANDOFF.md`
+5. **`docs/handoff.md` overwrite** (spec 32 rule, now active): overwrite `docs/handoff.md`
    with the current session + next steps only, moving the prior content to
    `archive/handoffs/YYYY-MM-DD.md`.
 6. **Run the operational review** (spec 33, once it ships — same
@@ -290,7 +290,7 @@ yet; cross that bridge when it's real.
 ## Dry-run validation (2026-07-15, against the 0.3.0 cycle)
 
 Every ad-hoc action actually taken during the 2026-07-01 → 2026-07-03 cycle
-(source: `HANDOFF.md`, sessions "2026-07-01" and "2026-07-02 → 2026-07-03"),
+(source: `docs/handoff.md`, sessions "2026-07-01" and "2026-07-02 → 2026-07-03"),
 mapped onto a phase above — zero orphans found:
 
 | 0.3.0-cycle action (from HANDOFF) | Runbook phase |
