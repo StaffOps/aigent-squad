@@ -193,7 +193,7 @@ Goal: operational visibility into the capability tier system.
 - [ ] T5.9: Update `docs/METRICS.md` — add a row per new metric with its exact bounded label set,
       and extend the Labels table with the new `agent_id` values and the `tier`/`outcome`/
       `duration_bucket` enums.
-- [ ] T5.10: `CHANGES.md` entry.
+- [ ] T5.10: `CHANGELOG.md` entry.
 
 ---
 

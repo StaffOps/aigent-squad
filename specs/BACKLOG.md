@@ -297,7 +297,7 @@ Note: if the Grafana LLM app COULD send `model=aigent-squad-observability`, that
 - **Observability metrics (5 new + 3 fixes)** — ✅ DEPLOYED live (agentic29, helm rev 63) + **homologated in VictoriaMetrics** 2026-07-24. Metrics→VM gap RESOLVED: `serviceMonitor.enabled=true` in the overlay (k8s-setup a197015) — vmagent now scrapes the app's /metrics; all 5 new + fixed aigent_* confirmed queryable in VM. Full harness GO earlier.
 - ✅ **RESOLVED (verified 2026-11-16):** `fix/openai-compat-drop-system-messages` has 0 commits not in `dev`. ~~**Branch reconcile + push** — all local work (i18n 72 files, metrics, docs, tier-fix code) is on `fix/openai-compat-drop-system-messages`, NOT merged to `dev` (needs PR). GitLab prompts + k8s-setup overlay from agentic28 ARE pushed/live.~~
 - ✅ **DONE:** tag `v0.5.0` exists (PR #28 dev→main). ~~**0.5.0 cut** — milestone candidate (agentic28 live-validated); release action pending user go.~~
-> **Full pending inventory: see `HANDOFF.md`.**
+> **Full pending inventory: see `docs/handoff.md`.**
 
 ---
 

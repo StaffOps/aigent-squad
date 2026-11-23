@@ -40,7 +40,7 @@ WHEN a milestone is ready on `dev` THEN there SHALL be a single ordered checklis
 rollout → homologation → docs/changelog → post-release cleanup.
 
 WHEN a release starts THEN pre-flight SHALL verify: CI green on `dev` (`gh run list`),
-spec statuses consistent (spec-32 gate), CHANGES.md `[Unreleased]` accurate, and the
+spec statuses consistent (spec-32 gate), CHANGELOG.md `[Unreleased]` accurate, and the
 version bump justified by a measurable result (per `version-management` — e.g. 0.4.0
 gates on spec-14 findings A/B/D closed).
 
@@ -56,7 +56,7 @@ WHEN the rollout lands THEN homologation SHALL follow a written smoke list (heal
 real query per critical agent, one security probe expecting 403, one budget/rate header
 check) — the 2026-07-01/03 homologations, made repeatable.
 
-WHEN the release completes THEN post-release SHALL include: CHANGES.md cut, HANDOFF
+WHEN the release completes THEN post-release SHALL include: CHANGELOG.md cut, HANDOFF
 overwrite (spec 32 rule), operational review run (spec 33), and a **credential hygiene**
 step (revoke any temporary tokens/PATs used during the cycle).
 

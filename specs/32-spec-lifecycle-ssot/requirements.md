@@ -54,7 +54,7 @@ WHEN a new contributor (or AI agent) asks "how does the spec process work here" 
 (full spec vs `bugfix.md`), verification pipeline (written ONCE, referenced by specs),
 when security review is mandatory, numbering and language conventions.
 
-WHEN a session ends THEN `HANDOFF.md` SHALL be **overwritten** (last session + next steps
+WHEN a session ends THEN `docs/handoff.md` SHALL be **overwritten** (last session + next steps
 only), with previous sessions archived — never appended into a contradictory palimpsest.
 
 WHEN a root specs/ document is a frozen deliberation (ANALYSIS, ECOSYSTEM, EVIDENCE-MODEL)
@@ -90,7 +90,7 @@ current state.
 - [ ] ROADMAP slimmed to plan-only: single status table (validated by the script),
       backlog section replaced by a pointer to BACKLOG.md, "Long-term Vision" moved to
       `specs/VISION.md`.
-- [ ] HANDOFF.md restructured: current session + next steps only; prior sessions moved to
+- [ ] docs/handoff.md restructured: current session + next steps only; prior sessions moved to
       `archive/handoffs/`; the overwrite rule stated at the top of the file.
 - [ ] `Status: frozen (date)` banners on ANALYSIS.md, ECOSYSTEM.md, EVIDENCE-MODEL.md
       (AUDIT.md already has one).

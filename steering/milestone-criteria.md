@@ -9,7 +9,7 @@ Every milestone (spec, feature, or significant change) MUST meet ALL of these be
 2. Coverage ≥ 90% (enforced via --cov-fail-under=90)
 3. Tests passing (all green)
 4. NEW METRICS instrumented + documented in docs/METRICS.md
-5. Documentation updated (CHANGES.md, ROADMAP.md, spec tasks.md, relevant docs/)
+5. Documentation updated (CHANGELOG.md, ROADMAP.md, spec tasks.md, relevant docs/)
 6. Only then: commit
 ```
 
@@ -36,7 +36,7 @@ Every milestone (spec, feature, or significant change) MUST meet ALL of these be
   - BOUNDED cardinality only — no `user_id`, `trace_id`, raw error messages, or unbounded paths in labels
 
 ### Documentation
-- `CHANGES.md`: entry describing what changed
+- `CHANGELOG.md`: entry describing what changed
 - `specs/ROADMAP.md`: mark completed specs
 - `specs/<spec>/tasks.md`: **mark each task `[x]` with completion date**; explicitly mark deferred tasks as `NOT IMPLEMENTED` or `deferred to Phase X`
 - **Operational docs** in `docs/` MUST be updated when behavior, architecture, or APIs change:
@@ -60,7 +60,7 @@ Before running `git commit`, verify:
 - [ ] **All operational docs in `docs/` reflect reality** (architecture, setup, security, etc — not just CHANGES)
 - [ ] Spec `tasks.md` reflects what was done vs deferred (with dates)
 - [ ] `ROADMAP.md` aligned with reality
-- [ ] `CHANGES.md` entry written
+- [ ] `CHANGELOG.md` entry written
 - [ ] No stale docs left behind (delete obsolete ones)
 
 ## Anti-patterns
@@ -72,5 +72,5 @@ Before running `git commit`, verify:
 - ❌ New metrics without `docs/METRICS.md` entry
 - ❌ High-cardinality labels (user_id, trace_id, error message text)
 - ❌ Saying a spec is "done" when only Phase 1 is done — be explicit about what's deferred
-- ❌ Updating CHANGES.md but leaving operational docs (ARCHITECTURE, SETUP, SECURITY, etc) stale
+- ❌ Updating CHANGELOG.md but leaving operational docs (ARCHITECTURE, SETUP, SECURITY, etc) stale
 - ❌ Keeping outdated docs around "in case" — delete or rewrite, never both

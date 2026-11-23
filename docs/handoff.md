@@ -2,7 +2,7 @@
 
 > **Overwrite rule (spec 32, Decision 4)** — this file holds **only the current session
 > + next steps**. It is *overwritten*, never appended. Previous content moves to
-> `archive/handoffs/YYYY-MM-DD.md`. Permanent history lives in `CHANGES.md`; per-spec status
+> `archive/handoffs/YYYY-MM-DD.md`. Permanent history lives in `CHANGELOG.md`; per-spec status
 > in spec frontmatter + `specs/ROADMAP.md`.
 >
 > Prior sessions: `archive/handoffs/2026-07-16.md`, `archive/handoffs/2026-07-17.md`,

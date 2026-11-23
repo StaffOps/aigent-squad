@@ -12,7 +12,7 @@ specs/README.md      ← the process itself, written once
 specs/BACKLOG.md     ← dormant + findings (F-NNN) + deferred register
 specs/VISION.md      ← Levels 1–4 (moved out of ROADMAP)
 specs/ROADMAP.md     ← plan only: phases, priority, deps + ONE validated table
-HANDOFF.md           ← overwritten each session; history → archive/handoffs/
+docs/handoff.md           ← overwritten each session; history → archive/handoffs/
 ```
 
 ## Frontmatter schema (in `requirements.md` of each spec)
@@ -88,7 +88,7 @@ existing "pre-push gate" culture (lint before push).
 
 **Justification**: a handoff's value is "what do I need to resume", which is inherently
 *current*; stale sections actively mislead (proven: "dev and main in sync" was false at
-read time). CHANGES.md already covers permanent history — appending to HANDOFF duplicates
+read time). CHANGELOG.md already covers permanent history — appending to HANDOFF duplicates
 it badly.
 
 ### Decision 5: the "done-with-open-tasks" check is frontmatter-internal, not a tasks.md checkbox count

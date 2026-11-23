@@ -10,7 +10,7 @@
 > end-to-end in a real EKS cluster (gateway + supervisor, IRSA → Bedrock, Istio
 > HTTPRoute) with defense-in-depth anti-prompt-injection (spec 14, L1–L6).
 > Remaining work is tracked in [`specs/ROADMAP.md`](specs/ROADMAP.md) (authoritative)
-> and [`HANDOFF.md`](HANDOFF.md) (session state). The original audit that seeded the
+> and [`docs/handoff.md`](docs/handoff.md) (session state). The original audit that seeded the
 > spec backlog is kept as a historical record in [`specs/AUDIT.md`](specs/AUDIT.md).
 > Work happens on the `dev` branch.
 
@@ -346,7 +346,7 @@ Full walkthrough: [`QUICKSTART.md`](QUICKSTART.md).
 - [`specs/BACKLOG.md`](specs/BACKLOG.md) - Live items: findings (`F-*`), product backlog (`B-*`), dormant work, deferred register
 - [`specs/VISION.md`](specs/VISION.md) - Long-term maturity levels (autonomous multi-agent north star)
 - [`specs/AUDIT.md`](specs/AUDIT.md) - Historical audit (2026-05-30) that seeded the spec backlog — findings since fixed (frozen)
-- [`HANDOFF.md`](HANDOFF.md) - Current session + next steps (overwritten each session; prior sessions in `archive/handoffs/`)
+- [`docs/handoff.md`](docs/handoff.md) - Current session + next steps (overwritten each session; prior sessions in `archive/handoffs/`)
 - [`specs/01-fix-blockers/`](specs/01-fix-blockers/) - Unblock build and broken code
 - [`specs/02-unify-agent-architecture/`](specs/02-unify-agent-architecture/) - Unify agents on the base pattern
 - [`specs/03-fix-cache-observability/`](specs/03-fix-cache-observability/) - Deterministic cache + OTel
@@ -359,7 +359,7 @@ Full walkthrough: [`QUICKSTART.md`](QUICKSTART.md).
 
 ### Getting Started
 - [QUICKSTART.md](QUICKSTART.md) - Setup in 3 steps
-- [CHANGES.md](CHANGES.md) - Changelog
+- [CHANGELOG.md](CHANGELOG.md) - Changelog
 - [archive/IMPLEMENTATION_HISTORY.md](archive/IMPLEMENTATION_HISTORY.md) - Historical roadmap (v2.0, Phases 1-13)
 
 ### Technical Docs

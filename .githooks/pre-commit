@@ -18,7 +18,7 @@ if [ -n "$code_touched" ] && [ -z "$docs_touched" ]; then
   echo "$code_touched" | sed 's/^/     /'
   echo ""
   echo "   AGENTS.md workflow rule: \"Docs ship with code\" — update docs/,"
-  echo "   HANDOFF.md, or the relevant specs/<NN>/*.md in the same commit."
+  echo "   docs/handoff.md, or the relevant specs/<NN>/*.md in the same commit."
   echo ""
   echo "   If this specific commit genuinely needs no doc changes:"
   echo "     git commit --no-verify"

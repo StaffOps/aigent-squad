@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Changed — org docs standard file names (2026-11-23)
+- `CHANGES.md` → `CHANGELOG.md` and `HANDOFF.md` → `docs/handoff.md` (`git mv`, history
+  kept), matching the StaffOps docs standard the Backstage Scorecard checks (README.md,
+  CHANGELOG.md, AGENTS.md, docs/handoff.md). Live references updated (AGENTS.md, README,
+  RELEASE.md, specs, steering, pre-commit hook); historical records keep the old names.
+
 ### Added — Backstage TechDocs + catalog tags (2026-11-18)
 - `catalog-info.yaml` gains `backstage.io/techdocs-ref: dir:.` and technology tags
   on the System and the Component. `mkdocs.yml` is unchanged: Backstage injects the

@@ -26,7 +26,7 @@ commit is validated. The difference vs a PR gate: validation is **post-commit**
 > need **GitHub Pro/Team** (or a public repo) for private repos — the current
 > plan returns HTTP 403. So the rules above are **policy, not a technical lock**.
 > What *is* enforced today: the `guard` job fails any PR to `main` not from `dev`,
-> and CI runs on every push/PR. Tracked in `HANDOFF.md`.
+> and CI runs on every push/PR. Tracked in `docs/handoff.md`.
 
 ---
 
@@ -121,13 +121,13 @@ Chart A.B.C ── chart-releaser ──▶ Helm repo (staffops.github.io/helm-c
 - The chart's `image.tag` resolves to `Chart.AppVersion` — never `latest` in prod.
 - Bump chart `version` on any chart change; bump `appVersion` when it targets a
   new app release.
-- `CHANGES.md` follows Keep-a-Changelog: `[Unreleased]` becomes `[X.Y.Z] - date`
+- `CHANGELOG.md` follows Keep-a-Changelog: `[Unreleased]` becomes `[X.Y.Z] - date`
   when a tag is cut.
 
 ### Cutting a release
 
 1. Land all changes on `main` (via `dev`), CI green.
-2. Set `CHANGES.md` heading `[Unreleased]` → `[X.Y.Z] - <date>`.
+2. Set `CHANGELOG.md` heading `[Unreleased]` → `[X.Y.Z] - <date>`.
 3. In `helm-charts`: `appVersion: "X.Y.Z"`, `image.tag` → `X.Y.Z` (or empty to
    inherit `appVersion`), bump chart `version`.
 4. `git tag vX.Y.Z && git push origin vX.Y.Z` → `release.yml` builds, scans

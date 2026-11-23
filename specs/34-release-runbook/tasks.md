@@ -61,7 +61,7 @@
       explicit note that no branch protection backs it. **F8** (Low) Phase
       1.5 missed `docs.yml`'s `mkdocs.yml` trigger path — added.
 - [x] T7 (partial, 2026-07-15): executed Phases 0-2 of `RELEASE.md` for real
-      — pre-flight (`CHANGES.md` cut to `[0.4.0]`, CI confirmed green), PR
+      — pre-flight (`CHANGELOG.md` cut to `[0.4.0]`, CI confirmed green), PR
       `dev→main` (#19, already existed as a rolling PR since 2026-07-02 —
       updated title/body and merged rather than opening a new one, guard job
       + all checks green), tag `v0.4.0` pushed, `release.yml` green (1m37s,
@@ -82,7 +82,7 @@
       Harbor-deployed cluster, before the tag was even cut. Phase 7 (close):
       credential hygiene checked (no cycle-specific temporary tokens used —
       `gh auth token`/AWS SSO are the operator's own long-lived
-      credentials, nothing to revoke), `CHANGES.md` cut, `specs/ROADMAP.md`
+      credentials, nothing to revoke), `CHANGELOG.md` cut, `specs/ROADMAP.md`
       "Suggested real version" updated, this file updated. HANDOFF
       overwrite / spec-33 review steps stay not-yet-active per RELEASE.md's
       own note (specs 32/33 unshipped).

@@ -19,7 +19,7 @@ read-only by default, defense-in-depth anti-prompt-injection (spec 14).
 > spec 43 Phase 1 (capability gate), spec 25 Phases 1-3 (distributed concurrency).
 > 139 commits ahead of `main`. Next release: when user decides to cut.
 > through a PR (see `RELEASE.md` for the release flow specifically).
-> Real status per spec in `specs/ROADMAP.md`; session state in `HANDOFF.md`.
+> Real status per spec in `specs/ROADMAP.md`; session state in `docs/handoff.md`.
 > `specs/AUDIT.md` is the historical 2026-05-30 audit (findings fixed — kept as record).
 
 ---
@@ -361,7 +361,7 @@ in `docs/METRICS.md`.
 Phase/spec status is **not duplicated here**. Authoritative per-spec status lives in
 each spec's `requirements.md` frontmatter and the single canonical table in
 [`specs/ROADMAP.md`](specs/ROADMAP.md) (CI-validated by `scripts/specs_status.py`).
-Live session state + next steps: `HANDOFF.md`. Live items (findings/backlog/deferred):
+Live session state + next steps: `docs/handoff.md`. Live items (findings/backlog/deferred):
 [`specs/BACKLOG.md`](specs/BACKLOG.md).
 
 ---

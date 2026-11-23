@@ -294,7 +294,7 @@ Goal: full operational visibility, documentation, and the after-the-fact poisoni
 - [ ] T4.8c: Update `docs/METRICS.md` — one row per metric added in T4.4 with its exact bounded
       label set, plus the two new `agent_id` values in the Labels table.
 - [ ] T4.9: Update `docs/MCP_INTEGRATION.md` — add `grafana-mcp` write tools exposed only to `incident-management`.
-- [ ] T4.10: `CHANGES.md` entry.
+- [ ] T4.10: `CHANGELOG.md` entry.
 
 ---
 

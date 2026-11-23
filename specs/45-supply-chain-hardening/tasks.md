@@ -63,7 +63,7 @@ by a pipeline that can be hijacked signs the wrong thing convincingly.
 - [x] T1.5: Scorecard badge in `README.md`. **Do not gate CI on the score** — several checks are
       permanently unfixable here (`Contributors` needs 3+ orgs; `Fuzzing` has no Python support;
       `Packaging` does not recognise Docker Hub), so a threshold gate would encode noise as policy.
-- [ ] T1.6: Record the baseline score in `CHANGES.md` before any Phase 2/3 work, so the delta is
+- [ ] T1.6: Record the baseline score in `CHANGELOG.md` before any Phase 2/3 work, so the delta is
       attributable instead of anecdotal.
 - [x] T1.7: Branch protection on `dev` and `main` (required checks, no force-push). Note: this is a
       repo **setting**, not a file — record what was configured in `docs/SECURITY.md` so it is
@@ -202,7 +202,7 @@ stop: that is the invariant, not an implementation detail.
 - [ ] T5.4: Update `AGENTS.md` with the new `make` targets (`pin-check`, `verify-release`, and `scan`
       if T4.2b adds it). **Unconditional**: this spec adds CI checks, and spec 36 requires the local
       harness to match, so the contract changed by definition.
-- [ ] T5.5: `CHANGES.md` entry with the before/after Scorecard score from T1.6.
+- [ ] T5.5: `CHANGELOG.md` entry with the before/after Scorecard score from T1.6.
 
 ---
 
