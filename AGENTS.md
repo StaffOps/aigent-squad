@@ -318,8 +318,8 @@ No code changes needed — `AgentRegistry` auto-discovers at startup.
 | `GITLAB_TOKEN` | optional | — | DevOps agent (read-only) |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | optional | `http://otel-collector:4317` | Tracing |
 | `POSTGRES_HOST/USER/PASSWORD/DB` | optional | — | Knowledge base (disabled by default) |
-| `POSTGRES_SSLMODE` | | — (asyncpg default) | TLS mode for the Postgres **history** store: `disable` \| `allow` \| `prefer` \| `require` \| `verify-ca` \| `verify-full`; empty = unset. `require` = encrypted, **not verified**; `verify-*` need a CA bundle (`POSTGRES_SSLROOTCERT`) |
-| `POSTGRES_SSLROOTCERT` | with `verify-*` | — | Path to the PEM CA bundle that verifies the server (e.g. the cloud provider's RDS bundle, mounted); fallback `PGSSLROOTCERT`, then `~/.postgresql/root.crt`; none found → no connect, error logged, history fails open |
+| `POSTGRES_SSLMODE` | | — (asyncpg default) | TLS mode for the Postgres **history** store: `disable` \| `allow` \| `prefer` \| `require` \| `verify-ca` \| `verify-full`; empty = unset. `require` = encrypted, CA-verified only if a bundle is found; `verify-*` always verify and need a CA bundle (`POSTGRES_SSLROOTCERT`) |
+| `POSTGRES_SSLROOTCERT` | with `verify-*` | — | Path to the PEM CA bundle that verifies the server (e.g. the cloud provider's RDS bundle, mounted), or `system`; used by `require` and `verify-*`; fallback `PGSSLROOTCERT`, then `~/.postgresql/root.crt`; missing/invalid under `verify-*` → no connect, error logged, history fails open. Client certs/CRL via the standard `PGSSLCERT`/`PGSSLKEY`/`PGSSLCRL` |
 
 See `.env.example` for full template.
 
@@ -360,7 +360,7 @@ All metrics named `aigent.<domain>.<name>`. Key ones:
 | `aigent.llm.provider_errors` | provider, error_class | LLM transport errors (spec 28) |
 | `aigent.llm.guardrail_l1_active` | provider | 0 = Bedrock Guardrail L1 inactive (spec 28) |
 
-**No high-cardinality labels** — never add `user_id`, `trace_id`, or raw error text as labels.
+**No high-cardinality labels** — never add `user_id`, `session_id`, `trace_id`, a URL, or raw error text as labels (no exceptions; `aigent.token_budget.exceeded` uses a bounded `reason`).
 Every new feature must emit ≥1 custom metric, defined in `src/core/metrics.py` and documented
 in `docs/METRICS.md`.
 

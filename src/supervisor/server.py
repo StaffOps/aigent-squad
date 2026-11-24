@@ -62,6 +62,7 @@ async def lifespan(app: Any) -> Any:
     await kb_store.connect()
     yield
     await kb_store.close()
+    await _history_store.aclose()  # cancels the Postgres background purge (spec 46)
     await supervisor.close()
     # Spec 28: release the LLM transport's pooled connections (no-op for Bedrock).
     from src.core.llm import get_llm

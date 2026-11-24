@@ -332,7 +332,7 @@ class TestRefusalMetric:
         with patch("src.core.token_budget.token_budget_exceeded_blocks") as mock_metric:
             with pytest.raises(TokenBudgetExceeded):
                 tracker.check_budget("sess-metric")
-            mock_metric.add.assert_called_once_with(1, {"session_id": "sess-metric"})
+            mock_metric.add.assert_called_once_with(1, {"reason": "exhausted"})
 
     def test_metric_emitted_on_redis_failure(self):
         """Fail-closed refusal ALSO emits the metric (observability of the cap)."""
@@ -344,7 +344,7 @@ class TestRefusalMetric:
         with patch("src.core.token_budget.token_budget_exceeded_blocks") as mock_metric:
             with pytest.raises(TokenBudgetExceeded):
                 tracker.check_budget("sess-redis-fail")
-            mock_metric.add.assert_called_once_with(1, {"session_id": "sess-redis-fail"})
+            mock_metric.add.assert_called_once_with(1, {"reason": "store_unavailable"})
 
     def test_metric_not_emitted_when_under_budget(self, shared_redis):
         """No false metric emission when the budget has headroom."""
