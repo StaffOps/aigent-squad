@@ -465,16 +465,15 @@ investigation_fanout_errors = meter.create_counter(
 )
 
 # === F-019: Per-session token budget (Redis-backed, fail-closed) ===
-# Labels: session_id — NOT a high-cardinality risk here because this counter only
-# increments on REFUSAL (a rare event, not every request). A session that hits the
-# cap adds 1 series; sessions that don't hit it add zero. Worst case bounded by
-# the number of sessions that blow their budget in a scrape interval (~0).
+# Labels: reason (exhausted|store_unavailable) — bounded. The session id goes to
+# the log line only, never to a label (F-028: no unbounded label values).
 token_budget_exceeded_blocks = meter.create_counter(
     name="aigent.token_budget.exceeded",
     description=(
         "Requests refused because the session token budget was exhausted "
         "(or Redis was unavailable and the budget failed closed). "
-        "Label: session_id. Observable signal for the cap that was previously silent."
+        "Label: reason (exhausted|store_unavailable). Observable signal for the cap "
+        "that was previously silent."
     ),
     unit="1",
 )
@@ -487,5 +486,24 @@ history_backend_errors = meter.create_counter(
         "Conversation-history store errors swallowed fail-open (the query still "
         "answers with empty/partial history). Labels: backend, op."
     ),
+    unit="1",
+)
+
+# === F-029: KB retention sweep + provenance (spec 21) ===
+kb_retention_deleted = meter.create_counter(
+    name="aigent.kb.retention.deleted",
+    description="KB items deleted by the retention sweep, by rule (rejected_superseded | max_age)",
+    unit="1",
+)
+
+kb_retention_errors = meter.create_counter(
+    name="aigent.kb.retention.errors",
+    description="KB retention sweeps that failed (fail-open: the KB keeps serving)",
+    unit="1",
+)
+
+kb_provenance_written = meter.create_counter(
+    name="aigent.kb.provenance.written",
+    description="kb_provenance rows written alongside new KB items",
     unit="1",
 )

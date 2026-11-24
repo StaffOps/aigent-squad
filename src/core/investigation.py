@@ -89,6 +89,11 @@ class RCAResult:
     independent_signal_count: int = 0
     temporal_violations: list[str] = field(default_factory=list)
 
+    # InvestigationState.id of the run that produced this result ("" when not
+    # produced by run_investigation). Feeds KB provenance (F-029); deliberately
+    # NOT part of to_dict(), which is the API/LLM-facing shape.
+    investigation_id: str = ""
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "hypothesis": self.hypothesis,

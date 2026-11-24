@@ -281,6 +281,24 @@ class Settings(BaseSettings):  # type: ignore[misc]
     # in the pod). Unset falls back to PGSSLROOTCERT, then ~/.postgresql/root.crt.
     postgres_sslrootcert: Annotated[Optional[str], BeforeValidator(_empty_is_unset)] = None
 
+    # Incident-memory KB switch + retention (spec 21, F-029). KB_ENABLED=false
+    # turns the KB off completely: no distillation, no RAG, no store connection,
+    # and the /kb/* endpoints answer 503. Default true keeps the old behaviour
+    # (the KB runs whenever its Postgres is reachable).
+    kb_enabled: bool = True
+    # Rejected and superseded items are deleted this many days after their last
+    # status change (updated_at).
+    kb_rejected_retention_days: int = Field(default=30, gt=0)
+    # Optional maximum age (days since created_at) for every other item (active
+    # and pending review). Unset = keep them until someone deletes them.
+    kb_item_max_age_days: Annotated[Optional[Annotated[int, Field(gt=0)]], BeforeValidator(_empty_is_unset)] = None
+    # The retention sweep runs at most once per interval, opportunistically (at
+    # connect and on KB reads/writes — no cron). Each sweep deletes at most
+    # batch_size x max_batches rows per rule.
+    kb_retention_interval_seconds: int = Field(default=3600, gt=0)
+    kb_retention_batch_size: int = Field(default=500, gt=0)
+    kb_retention_max_batches: int = Field(default=10, gt=0)
+
     # RAG / Knowledge Base (FinOps)
     finops_knowledge_base_id: Optional[str] = None  # Bedrock Knowledge Base ID
     rag_enabled: bool = False  # Enable RAG retrieval

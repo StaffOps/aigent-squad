@@ -27,6 +27,7 @@ All metrics emitted by AIgent-squad, collected via OTel Collector → Prometheus
 |--------|------|--------|-------------|
 | `aigent.tokens.total` | Counter | `agent_id`, `model`, `direction` | Tokens consumed (running total) |
 | `aigent.cost.estimated` | Counter | `agent_id`, `model` | Estimated USD cost |
+| `aigent.token_budget.exceeded` | Counter | `reason` | Requests refused by the per-session token budget (spec 11). `reason` ∈ {`exhausted`, `store_unavailable`} (Redis down → budget fails closed). No `session_id` label: the session id is in the refusal log line only (F-028) |
 | `aigent.tier.routing_decisions` | Counter | `tier` | Spec 38 tier-routing decisions (fast/standard/deep) — % of queries routed to Opus, from VictoriaMetrics without a LogQL hack (3 series) |
 | `aigent.tool.call_duration` | Histogram | `tool_name`, `status` | Per-MCP-tool latency + success/error/timeout (which tool is slow/broken; tool_name bounded by the read-only allowlist) |
 | `aigent.guardrail.blocks` | Counter | `source`, `agent_id` | Guardrail blocks/redactions by source (INPUT/OUTPUT) — safety signal without LogQL |
@@ -126,6 +127,9 @@ will read as sparse/absent unless someone has run an eval recently.
 | `aigent.kb.rag.queries` | Counter | — | RAG injection queries |
 | `aigent.kb.rag.hits` | Counter | — | Queries that returned similar cases |
 | `aigent.kb.budget.exhausted` | Counter | — | Distillations skipped due to budget |
+| `aigent.kb.retention.deleted` | Counter | `rule` | KB items deleted by the retention sweep (`rejected_superseded` \| `max_age`, F-029) |
+| `aigent.kb.retention.errors` | Counter | — | Failed retention sweeps (fail-open) |
+| `aigent.kb.provenance.written` | Counter | — | `kb_provenance` rows written with new KB items |
 
 ## Alert Ingestion (spec 18 Phase 2)
 
@@ -160,6 +164,7 @@ Do not build alerts on these — they do not exist yet.
 | `from` / `to` (circuit breaker) | closed, open, half_open | 3 |
 | `type` (kb) | troubleshooting, decision, pattern, infrastructure | 4 |
 | `status` (kb) | active, pending_review, superseded, rejected | 4 |
+| `rule` (kb retention) | rejected_superseded, max_age | 2 |
 | `has_failures` (synthesizer) | True, False | 2 |
 
 ## Dashboards

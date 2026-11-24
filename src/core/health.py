@@ -6,6 +6,7 @@ URL: only the dependency, a short state and the exception CLASS. The full error
 (and, for HTTP checks, the URL) is logged server-side instead (BACKLOG F-025 f).
 """
 import asyncio
+import re
 import time
 from dataclasses import dataclass, field
 from typing import Any, Callable, Awaitable
@@ -35,10 +36,15 @@ def _log_url(url: str) -> str:
     return strip_url_query(url)
 
 
-def _subject(key: str) -> str:
-    # Cache keys are "<dependency>" or "<dependency>:<target>" (http:<url>);
-    # only the dependency part is probe-safe.
-    return key.split(":", 1)[0]
+# Probe-safe label for an HTTP check: a short token chosen by the caller (the
+# check/datasource name), never derived from the URL.
+_LABEL = re.compile(r"[A-Za-z0-9._-]{1,64}")
+
+
+def _http_label(name: str | None) -> str:
+    if name and _LABEL.fullmatch(name):
+        return f"http:{name}"
+    return "http"
 
 
 class DependencyChecker:
@@ -55,20 +61,29 @@ class DependencyChecker:
             return result
         return None
 
-    async def _run(self, key: str, coro_fn: Callable[[], Awaitable[DepResult]]) -> DepResult:
+    async def _run(
+        self,
+        key: str,
+        coro_fn: Callable[[], Awaitable[DepResult]],
+        subject: str | None = None,
+        log_target: str | None = None,
+    ) -> DepResult:
+        """Run one check. ``subject`` is the probe-safe label (default: ``key``);
+        ``log_target`` (a URL) goes to the log only, scrubbed."""
+        subject = subject or key
         cached = self._cached(key)
         if cached is not None:
             return cached
         try:
             result = await asyncio.wait_for(coro_fn(), timeout=self._timeout)
         except asyncio.TimeoutError:
-            if _subject(key) != key:
+            if log_target is not None:
                 logger.warning("readiness check timed out", extra={
-                    "dependency": _subject(key), "target": _log_url(key.split(":", 1)[1]),
+                    "dependency": subject, "target": _log_url(log_target),
                 })
-            result = DepResult(ok=False, detail=f"{_subject(key)}: timeout after {self._timeout}s")
+            result = DepResult(ok=False, detail=f"{subject}: timeout after {self._timeout}s")
         except Exception as exc:
-            result = failure(_subject(key), exc)
+            result = failure(subject, exc)
         self._cache[key] = result
         return result
 
@@ -119,19 +134,24 @@ class DependencyChecker:
 
         return await self._run("bedrock-creds", _check)
 
-    async def check_http(self, url: str, client: Any) -> DepResult:
-        key = f"http:{url}"
+    async def check_http(self, url: str, client: Any, name: str | None = None) -> DepResult:
+        """HTTP dependency check. ``name`` labels the result (``http:<name>``) so
+        operators can tell probes apart; the URL never reaches ``detail``.
+        A ``name`` that is not a short ``[A-Za-z0-9._-]`` token falls back to ``http``.
+        """
+        label = _http_label(name)
+        key = f"{label}|{url}"
 
         async def _check() -> DepResult:
             try:
                 resp = await client.get(url, timeout=self._timeout)
                 if resp.status_code < 500:
-                    return DepResult(ok=True, detail=f"http: {resp.status_code}")
+                    return DepResult(ok=True, detail=f"{label}: {resp.status_code}")
                 logger.warning("readiness check failed", extra={
-                    "dependency": "http", "url": _log_url(url), "status": resp.status_code,
+                    "dependency": label, "url": _log_url(url), "status": resp.status_code,
                 })
-                return DepResult(ok=False, detail=f"http: status {resp.status_code}")
+                return DepResult(ok=False, detail=f"{label}: status {resp.status_code}")
             except Exception as exc:
-                return failure("http", exc, url=_log_url(url))
+                return failure(label, exc, url=_log_url(url))
 
-        return await self._run(key, _check)
+        return await self._run(key, _check, subject=label, log_target=url)
