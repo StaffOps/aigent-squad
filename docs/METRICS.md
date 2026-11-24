@@ -66,6 +66,17 @@ above the threshold (default 5), KEDA provisions additional pods to drain the
 queue. `queue_wait_seconds` p95 > 5s signals the semaphore limit
 (`BEDROCK_MAX_CONCURRENT`) is too low for current traffic.
 
+## Edge gateway (spec 31, F-009)
+
+| Metric | Type | Labels | Description |
+|--------|------|--------|-------------|
+| `aigent.gateway.pool_rejections` | Counter | — | Requests rejected with 503 because the worker pool was at capacity |
+| `aigent.gateway.pool_depth` | UpDownCounter | — | In-flight jobs held by the worker pool |
+| `aigent.gateway.queue_wait` | Histogram | — | Time a job waited for a pool slot (ms) |
+| `aigent.gateway.redis_fallback_active` | Counter | — | Job lifecycle fell back to log-only (Redis unavailable) |
+| `aigent.gateway.input_rejections` | Counter | `reason` | Requests rejected with 413 by the edge size caps; `reason` ∈ {`body_bytes`, `input_chars`, `messages`} |
+| `aigent.gateway.timeouts` | Counter | `kind` | Jobs aborted by a gateway timeout; `kind` ∈ {`first_byte`, `idle`, `job`} |
+
 ## Resilience (spec 06)
 
 | Metric | Type | Labels | Description |

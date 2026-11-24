@@ -2,6 +2,21 @@
 
 ## [Unreleased]
 
+### Fixed — gateway input caps and job timeout (BACKLOG F-009 S4 + C1, 2026-11-24)
+- The gateway now rejects oversized requests with 413 `request_too_large` before admission
+  or any LLM work: forwarded user turn over `GATEWAY_MAX_INPUT_CHARS` (default 10 000, the
+  InputScanner limit), `/v1` requests with more than `GATEWAY_MAX_MESSAGES` messages
+  (default 200), and a body over `GATEWAY_MAX_BODY_BYTES` (default 1 MiB, declared or
+  chunked).
+- `GATEWAY_JOB_TIMEOUT_SECONDS` is now enforced as the overall wall-clock cap on a job. It
+  was stored and never read; only the httpx per-read timeout bounded a request. Pooled
+  paths return 504 `gateway_timeout`; the `/v1` SSE path returns 504 before the stream
+  opens and ends with an SSE error event after.
+- First-byte and idle timeouts already applied to pooled jobs but surfaced as an unhandled
+  500; they now return the same 504 `gateway_timeout`.
+- The three gateway timeouts must now be > 0 (startup validation).
+- New metrics `aigent.gateway.input_rejections{reason}` and `aigent.gateway.timeouts{kind}`.
+
 ### Security — streamed answers get the L4 output filter and L5 canary (2026-11-24)
 - The streaming path sent the final answer to the client, and saved it to history, without
   the L4 output filter (secrets/PII) or the L5 canary check that the non-streaming path runs.

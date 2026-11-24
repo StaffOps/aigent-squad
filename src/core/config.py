@@ -208,9 +208,9 @@ class Settings(BaseSettings):  # type: ignore[misc]
     supervisor_url: str = "http://localhost:8001"
     # Worker pool (gateway-side admission). Defaults from spec 31 round-table.
     gateway_max_concurrent: int = 20
-    gateway_job_timeout_seconds: int = 150
-    gateway_first_byte_timeout_seconds: int = 90
-    gateway_idle_stream_timeout_seconds: int = 35
+    gateway_job_timeout_seconds: int = Field(default=150, gt=0)
+    gateway_first_byte_timeout_seconds: int = Field(default=90, gt=0)
+    gateway_idle_stream_timeout_seconds: int = Field(default=35, gt=0)
     # Bedrock boto3 client timeouts. Default read_timeout (60s) was cut on slow Converse
     # turns (large context + Sonnet) → ReadTimeoutError → stream 'terminated'. Keep below
     # gateway_job_timeout_seconds so the gateway doesn't cut first.
@@ -220,6 +220,12 @@ class Settings(BaseSettings):  # type: ignore[misc]
     # TTL of the gateway's ``job:<id>`` status records in Redis (F-028). Status is
     # informational only; without an expiry the records accumulated forever.
     gateway_job_record_ttl_seconds: int = Field(default=86400, gt=0)
+    # Edge input-size caps (F-009). Rejected with 413 before admission or any LLM work.
+    # max_input_chars matches the supervisor InputScanner limit (10 000 chars) so the
+    # oversized request stops at the edge instead of after the hop.
+    gateway_max_input_chars: int = Field(default=10_000, gt=0)
+    gateway_max_messages: int = Field(default=200, gt=0)
+    gateway_max_body_bytes: int = Field(default=1_048_576, gt=0)
     # Bedrock concurrency semaphore (spec 25 T8): max in-flight Bedrock calls.
     # Prevents overwhelming the Bedrock endpoint (ThrottlingException cascade).
     bedrock_max_concurrent: int = 20
