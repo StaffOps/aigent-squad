@@ -181,6 +181,7 @@ src/
     worker_pool.py      ← Local semaphore(20), PoolFullError→503, cancel via Redis poll
     supervisor_client.py← httpx client + preflight to the supervisor backend
     auth.py             ← Edge auth (INTERNAL_API_TOKEN / GATEWAY_API_KEYS, fail-closed)
+    feedback.py         ← POST /feedback + response-id records (spec 47, consumer-scoped)
   core/
     generic_agent.py    ← Config-driven agent (all 6 specialists use this)
     llm/                ← LLM chokepoint (spec 28): service.py = LLMService common layer
@@ -305,6 +306,8 @@ No code changes needed — `AgentRegistry` auto-discovers at startup.
 | `INPUT_SCANNER_ENABLED` / `OUTPUT_FILTER_ENABLED` / `CANARY_ENABLED` | | `true` | Spec-14 L2/L4/L5 toggles |
 | `RATE_BUDGET_ENABLED` | | `true` | Gateway admission guards (rate + daily budget) |
 | `GATEWAY_MAX_CONCURRENT` | | `20` | WorkerPool size (+ `GATEWAY_*_TIMEOUT_SECONDS`) |
+| `FEEDBACK_ENABLED` | | `true` | Spec 47 `POST /feedback` + response-id records (off → `/feedback` 404, nothing recorded) |
+| `FEEDBACK_RESPONSE_TTL_SECONDS` / `FEEDBACK_RECORD_TTL_SECONDS` / `FEEDBACK_COMMENT_MAX_CHARS` | | `86400` / `604800` / `1000` | How long an answer can be rated / how long a rating is kept / comment cap |
 | `GATEWAY_JOB_RECORD_TTL_SECONDS` | | `86400` | Expiry of the gateway's `job:<id>` status records in Redis (F-028); must be > 0 |
 | `GATEWAY_MAX_INPUT_CHARS` / `GATEWAY_MAX_MESSAGES` / `GATEWAY_MAX_BODY_BYTES` | | `10000` / `200` / `1048576` | Edge size caps (F-009): forwarded user turn length (= InputScanner limit), `/v1` message count, declared `Content-Length`. Over → 413 `request_too_large`, before admission or any LLM work |
 | `REDIS_HOST` | ✅ | — | Cache + rate/budget + job lifecycle |
@@ -366,6 +369,7 @@ All metrics named `aigent.<domain>.<name>`. Key ones:
 | `aigent.circuit_breaker.transitions` | — | Bedrock resilience events |
 | `aigent.llm.provider_errors` | provider, error_class | LLM transport errors (spec 28) |
 | `aigent.llm.guardrail_l1_active` | provider | 0 = Bedrock Guardrail L1 inactive (spec 28) |
+| `aigent.feedback.score` | agent_id, score | User ratings by bucket positive/neutral/negative (spec 47) |
 
 **No high-cardinality labels** — never add `user_id`, `session_id`, `trace_id`, a URL, or raw error text as labels (no exceptions; `aigent.token_budget.exceeded` uses a bounded `reason`).
 Every new feature must emit ≥1 custom metric, defined in `src/core/metrics.py` and documented

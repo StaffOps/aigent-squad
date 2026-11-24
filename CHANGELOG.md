@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+### Added — user feedback on answers (spec 47, BACKLOG B-03, 2026-11-24)
+- New gateway endpoint `POST /feedback` (`{response_id, score, comment?}`; `score` is
+  `"up"`/`"down"` or 1–5). Edge-authenticated and scoped to the consumer (API key): an id
+  another key received answers 404, like an unknown or expired one; a second rating answers 409.
+- Every answer now carries a response id: a new `response_id` field on `/query`, the OpenAI
+  `id` on `/v1/chat/completions`, and an `X-Aigent-Response-Id` header on both (streaming
+  included). Additive only — no field was removed or renamed.
+- Ratings live in Redis (`FEEDBACK_RESPONSE_TTL_SECONDS` 24 h to rate, `FEEDBACK_RECORD_TTL_SECONDS`
+  7 days kept; comment capped by `FEEDBACK_COMMENT_MAX_CHARS`). Recording is fail-open for
+  queries; `/feedback` answers 503 when Redis is down. `FEEDBACK_ENABLED=false` turns it off.
+- New metrics `aigent.feedback.score{agent_id, score}` and `aigent.feedback.errors{reason}`;
+  a negative-feedback-share row in `specs/TRIGGERS.md` for spec 33 reviews.
+
 ### Fixed — gateway input caps and job timeout (BACKLOG F-009 S4 + C1, 2026-11-24)
 - The gateway now rejects oversized requests with 413 `request_too_large` before admission
   or any LLM work: forwarded user turn over `GATEWAY_MAX_INPUT_CHARS` (default 10 000, the

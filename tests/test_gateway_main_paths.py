@@ -410,4 +410,6 @@ class TestAdmissionAllow:
                 "user_input": "hi", "user_id": "u1", "session_id": "s1"
             })
             assert resp.status_code == 200
-            assert resp.json() == result
+            body = resp.json()
+            assert body.pop("response_id").startswith("resp-")  # spec 47, additive
+            assert body == result

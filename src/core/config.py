@@ -303,6 +303,16 @@ class Settings(BaseSettings):  # type: ignore[misc]
     finops_knowledge_base_id: Optional[str] = None  # Bedrock Knowledge Base ID
     rag_enabled: bool = False  # Enable RAG retrieval
 
+    # User feedback (spec 47). The gateway mints a response id per answer and keeps a
+    # Redis ownership record so POST /feedback can rate it (scoped to the consumer).
+    # Recording is fail-open; the feedback write refuses (503) when Redis is down.
+    feedback_enabled: bool = True
+    # How long an answer can be rated (default = the 24 h history retention).
+    feedback_response_ttl_seconds: int = Field(default=86400, gt=0)
+    # How long a submitted rating (+ optional comment) is kept for B-19 / reviews.
+    feedback_record_ttl_seconds: int = Field(default=604800, gt=0)
+    feedback_comment_max_chars: int = Field(default=1000, ge=0)
+
     
     class Config:
         env_file = ".env"

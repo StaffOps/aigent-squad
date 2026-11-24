@@ -128,6 +128,7 @@ Learns from completed investigations. Distills RCA results into KB items stored 
 | `/v1/models` | GET | edge auth | OpenAI-compatible model list |
 | `/v1/chat/completions` | POST | edge auth | OpenAI-compatible chat (LibreChat) |
 | `/jobs/{id}/cancel` | POST | edge auth | Cancel an in-flight job |
+| `/feedback` | POST | edge auth | Rate an answer (spec 47) — see below |
 
 Edge auth accepts `X-Internal-Token`, `X-API-Key`, or `Authorization: Bearer <token>`
 (any one). The OpenAI surface accepts **any** `model` value: `aigent-squad-<agent>` forces a
@@ -137,6 +138,29 @@ Backpressure: `503` with `Retry-After` and a body `error.type` of
 `service_overloaded` (pool full, self-healing) or `backend_unavailable`
 (supervisor unreachable). Admission denials: `429 rate_limited` /
 `503 budget_exhausted` with `X-RateLimit-Remaining` / `X-Budget-Remaining-USD`.
+
+#### Feedback (spec 47)
+
+Every answer carries a response id: `response_id` in the `/query` body, the OpenAI `id` on
+`/v1/chat/completions`, and the `X-Aigent-Response-Id` header on both (streaming included —
+on a proxied stream the chunk ids are the supervisor's, so use the header).
+
+```bash
+curl -s -X POST http://localhost:8000/feedback \
+  -H "X-API-Key: $KEY" -H 'Content-Type: application/json' \
+  -d '{"response_id": "chatcmpl-…", "score": "down", "comment": "wrong namespace"}'
+# 201 {"response_id": "chatcmpl-…", "status": "recorded"}
+```
+
+- `score`: `"up"`, `"down"`, or an integer 1–5. `comment` is optional, at most
+  `FEEDBACK_COMMENT_MAX_CHARS` (1000). Unknown fields → `422`.
+- Scoped to the authenticated consumer (API key): an id another key received answers `404`,
+  the same as an unknown id or one older than `FEEDBACK_RESPONSE_TTL_SECONDS` (24 h).
+- One rating per answer: a repeat answers `409 already_rated`.
+- Redis unavailable → `503 feedback_unavailable` (ownership cannot be checked). Queries are
+  never affected: recording the response id is fail-open.
+- Counted in `aigent.feedback.score{agent_id, score}`. UIs (LibreChat) do not call this API
+  yet.
 
 ### Supervisor (internal, `:8001`)
 

@@ -120,7 +120,10 @@ class TestQuery:
                 "user_input": "list ec2", "user_id": "u1", "session_id": "s1"
             })
             assert resp.status_code == 200
-            assert resp.json() == expected
+            body = resp.json()
+            # Spec 47 adds response_id; every original field is forwarded unchanged.
+            assert body.pop("response_id").startswith("resp-")
+            assert body == expected
 
     def test_query_503_pool_full_during_submit(self, client):
         """PoolFullError raised during submit (race) still returns 503."""
