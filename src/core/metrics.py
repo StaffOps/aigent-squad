@@ -452,7 +452,7 @@ token_budget_exceeded_blocks = meter.create_counter(
 )
 
 # === Spec 46: Conversation history backend (fail-open) ===
-# Labels: backend (redis|dynamodb|postgres), op (save|fetch|connect) — both bounded.
+# Labels: backend (redis|dynamodb|postgres), op (save|fetch|connect|purge) — both bounded.
 history_backend_errors = meter.create_counter(
     name="aigent.history.backend_errors",
     description=(

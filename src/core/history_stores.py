@@ -20,7 +20,7 @@ import redis.asyncio as aioredis
 
 from src.core.config import reveal, settings
 from src.core.logger import logger
-from src.core.conversation import HISTORY_TTL_SECONDS, ConversationMessage
+from src.core.conversation import HISTORY_TTL_SECONDS, ConversationMessage, cap_history_content
 from src.core.conversation import record_history_error as _record_error
 
 # Upper bound of messages kept per Redis key. Readers ask for at most 50; the
@@ -109,7 +109,7 @@ class RedisHistoryStore:
                 "id": uuid.uuid4().hex,
                 "agent_id": agent_id,
                 "role": message.role,
-                "content": message.content,
+                "content": cap_history_content(message.content),
                 "timestamp": message.timestamp,
             })
             cutoff = now - HISTORY_TTL_SECONDS
@@ -184,13 +184,28 @@ CREATE INDEX IF NOT EXISTS aigent_history_pk_created ON aigent_history (pk, crea
 CREATE INDEX IF NOT EXISTS aigent_history_expires ON aigent_history (expires_at);
 """
 
-# Expired rows are purged opportunistically on write, in bounded batches, so no
-# cron is needed and a write never pays for a large backlog (spec 46 Decision 3).
-_PG_PURGE = """
+# Expired rows are purged in bounded batches, so no cron is needed and no request
+# ever pays for a large backlog (spec 46 Decision 3): one batch on every write,
+# up to PG_STARTUP_PURGE_BATCHES once the schema is ready (a replica that only
+# reads, or restarts after an idle period, still cleans up), and one batch on
+# read at most every PG_READ_PURGE_INTERVAL_SECONDS (BACKLOG F-025 a).
+PG_PURGE_BATCH = 100
+_PG_PURGE = f"""
 DELETE FROM aigent_history WHERE ctid IN (
-    SELECT ctid FROM aigent_history WHERE expires_at < now() LIMIT 100
+    SELECT ctid FROM aigent_history WHERE expires_at < now() LIMIT {PG_PURGE_BATCH}
 )
 """
+_PG_TABLE_EXISTS = "SELECT to_regclass('aigent_history')"
+PG_STARTUP_PURGE_BATCHES = 10
+PG_READ_PURGE_INTERVAL_SECONDS = 300.0
+
+
+def _deleted_rows(status: Any) -> int:
+    # asyncpg's execute() returns the command tag, e.g. "DELETE 100".
+    try:
+        return int(str(status).rsplit(" ", 1)[-1])
+    except ValueError:
+        return 0
 
 # Seconds to wait before retrying a failed pool connect (fail-open meanwhile).
 PG_RECONNECT_SECONDS = 30.0
@@ -202,7 +217,14 @@ _PG_SCHEMA_LOCK_KEY = 4646046
 
 
 class PostgresHistoryStore:
-    """Plain relational history table (no pgvector) in the KB's Postgres."""
+    """Plain relational history table (no pgvector) in the KB's Postgres.
+
+    Privileges: when ``aigent_history`` does not exist yet, the first connect
+    creates it and its indexes (``_PG_SCHEMA``), which needs CREATE on the target
+    schema. To run with a DML-only role (SELECT/INSERT/DELETE), pre-create the
+    table and indexes with a migration role: an existing table is used as-is and
+    no DDL runs. TLS: ``POSTGRES_SSLMODE``.
+    """
 
     backend = "postgres"
 
@@ -210,6 +232,31 @@ class PostgresHistoryStore:
         self._pool = pool
         self._lock: Optional[asyncio.Lock] = None
         self._last_failure: float = 0.0
+        # monotonic time of the last read-path purge (0 = never)
+        self._last_read_purge: float = 0.0
+
+    async def _purge_on_ready(self, conn: Any) -> None:
+        """Bounded backlog purge once the schema is ready; never fails the connect."""
+        try:
+            for _ in range(PG_STARTUP_PURGE_BATCHES):
+                if _deleted_rows(await conn.execute(_PG_PURGE)) < PG_PURGE_BATCH:
+                    break
+        except Exception as e:
+            _record_error("postgres", "purge")
+            logger.warning("Postgres history startup purge failed (fail-open)", extra={"error": str(e)})
+
+    async def _maybe_purge_on_read(self, conn: Any) -> None:
+        """One bounded batch at most every PG_READ_PURGE_INTERVAL_SECONDS."""
+        now = time.monotonic()
+        if self._last_read_purge and now - self._last_read_purge < PG_READ_PURGE_INTERVAL_SECONDS:
+            return
+        self._last_read_purge = now
+        try:
+            await conn.execute(_PG_PURGE)
+        except Exception as e:
+            # Never cost the read its result: the rows were already fetched.
+            _record_error("postgres", "purge")
+            logger.warning("Postgres history read purge failed (fail-open)", extra={"error": str(e)})
 
     def _in_backoff(self) -> bool:
         return bool(self._last_failure) and time.monotonic() - self._last_failure < PG_RECONNECT_SECONDS
@@ -240,13 +287,18 @@ class PostgresHistoryStore:
                     min_size=1,
                     max_size=5,
                     timeout=PG_CONNECT_TIMEOUT_SECONDS,
+                    **({"ssl": settings.postgres_sslmode} if settings.postgres_sslmode else {}),
                 )
                 async with pool.acquire() as conn:
-                    await conn.execute("SELECT pg_advisory_lock($1)", _PG_SCHEMA_LOCK_KEY)
-                    try:
-                        await conn.execute(_PG_SCHEMA)
-                    finally:
-                        await conn.execute("SELECT pg_advisory_unlock($1)", _PG_SCHEMA_LOCK_KEY)
+                    # A table pre-created by a migration role is used as-is: no
+                    # DDL runs, so the runtime role needs no CREATE privilege.
+                    if await conn.fetchval(_PG_TABLE_EXISTS) is None:
+                        await conn.execute("SELECT pg_advisory_lock($1)", _PG_SCHEMA_LOCK_KEY)
+                        try:
+                            await conn.execute(_PG_SCHEMA)
+                        finally:
+                            await conn.execute("SELECT pg_advisory_unlock($1)", _PG_SCHEMA_LOCK_KEY)
+                    await self._purge_on_ready(conn)
                 self._pool, pool = pool, None
             except BaseException as e:
                 # Never leak a half-initialized pool (e.g. no CREATE privilege on
@@ -285,7 +337,7 @@ class PostgresHistoryStore:
                     """INSERT INTO aigent_history
                        (pk, sk, agent_id, role, content, ts, created_at, expires_at)
                        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)""",
-                    _pk(user_id, session_id), sk, agent_id, message.role, message.content,
+                    _pk(user_id, session_id), sk, agent_id, message.role, cap_history_content(message.content),
                     message.timestamp, now, now + timedelta(seconds=HISTORY_TTL_SECONDS),
                 )
                 await conn.execute(_PG_PURGE)
@@ -301,6 +353,7 @@ class PostgresHistoryStore:
             return []
         async with pool.acquire() as conn:
             rows = await conn.fetch(sql, *args)
+            await self._maybe_purge_on_read(conn)
         return [
             ConversationMessage(role=r["role"], content=r["content"], timestamp=r["ts"], agent_id=r["agent_id"])
             for r in reversed(rows)

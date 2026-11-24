@@ -123,3 +123,40 @@ class TestDiscoverFailsOnInvalidSchema:
 
         with pytest.raises(RuntimeError, match=r"Invalid agent config .*bad-agent.*'loc': 'name'"):
             registry.discover()
+
+
+class TestDiscoverRejectsSharedEnableSwitch:
+    """F-025 (e): `a-b` and `a_b` map to one AGENT_A_B_ENABLED switch."""
+
+    @staticmethod
+    def _yaml(name: str, enabled: bool = True) -> str:
+        return (
+            f"name: {name}\n"
+            "description: Switch collision\n"
+            "domain: testing\n"
+            "capabilities: [x]\n"
+            "datasources: []\n"
+            f"enabled: {'true' if enabled else 'false'}\n"
+        )
+
+    def test_names_sharing_a_switch_fail_discovery(self, tmp_path, make_agent_dir):
+        make_agent_dir("dir1", yaml_override=self._yaml("a-b"))
+        make_agent_dir("dir2", yaml_override=self._yaml("a_b"))
+        registry = AgentRegistry(agents_dir=str(tmp_path))
+        with pytest.raises(RuntimeError, match="AGENT_A_B_ENABLED"):
+            registry.discover()
+
+    def test_collision_is_detected_even_when_one_is_disabled(self, tmp_path, make_agent_dir):
+        # The env switch could re-enable the disabled one, so the clash still matters.
+        make_agent_dir("dir1", yaml_override=self._yaml("a.b", enabled=False))
+        make_agent_dir("dir2", yaml_override=self._yaml("A-B"))
+        registry = AgentRegistry(agents_dir=str(tmp_path))
+        with pytest.raises(RuntimeError, match="share the switch"):
+            registry.discover()
+
+    def test_distinct_switches_load_normally(self, tmp_path, make_agent_dir):
+        make_agent_dir("dir1", yaml_override=self._yaml("a-b"))
+        make_agent_dir("dir2", yaml_override=self._yaml("a-c"))
+        registry = AgentRegistry(agents_dir=str(tmp_path))
+        registry.discover()
+        assert sorted(registry.agent_names()) == ["a-b", "a-c"]

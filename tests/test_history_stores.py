@@ -187,7 +187,13 @@ class _FakeConn:
         self.executed.append((sql, args))
         return self.rows
 
-    async def fetchval(self, sql: str) -> int:
+    # to_regclass() result: None = table missing (DDL runs), a name = pre-created.
+    table_exists: Any = None
+
+    async def fetchval(self, sql: str) -> Any:
+        if "to_regclass" in sql:
+            self.executed.append((sql, ()))
+            return self.table_exists
         return 1
 
 
@@ -280,7 +286,10 @@ async def test_postgres_connect_creates_schema_once():
     statements = [sql for sql, _ in conn.executed]
     schema_sql, = [sql for sql in statements if "CREATE TABLE" in sql]
     # DDL runs under a session advisory lock (replicas starting together)
-    assert "pg_advisory_lock" in statements[0] and "pg_advisory_unlock" in statements[-1]
+    assert "to_regclass" in statements[0]
+    lock_at = next(i for i, s in enumerate(statements) if "pg_advisory_lock" in s)
+    unlock_at = next(i for i, s in enumerate(statements) if "pg_advisory_unlock" in s)
+    assert lock_at < statements.index(schema_sql) < unlock_at
     assert "CREATE TABLE IF NOT EXISTS aigent_history" in schema_sql
     assert "vector" not in schema_sql.lower()
 

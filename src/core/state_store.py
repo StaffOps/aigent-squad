@@ -12,6 +12,7 @@ from src.core.config import settings
 from src.core.conversation import (  # re-exported: existing imports use state_store
     HISTORY_TTL_SECONDS,
     ConversationMessage,
+    cap_history_content,
     record_history_error as _record_error,
 )
 from src.core.logger import logger
@@ -89,7 +90,7 @@ class DynamoDBHistoryStore:
                     'session_id': session_id,
                     'agent_id': agent_id,
                     'role': message.role,
-                    'content': message.content,
+                    'content': cap_history_content(message.content),
                     'timestamp': message.timestamp,
                     'ttl': ttl
                 }

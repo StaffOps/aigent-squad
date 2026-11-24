@@ -2,10 +2,12 @@
 from __future__ import annotations
 
 import hashlib
+import re
 import time
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
 from typing import Any, TYPE_CHECKING
+from urllib.parse import urlsplit, urlunsplit
 
 import boto3
 import httpx
@@ -15,6 +17,7 @@ from kubernetes.config import ConfigException
 from src.core.agent_config import DatasourceConfig
 from src.core.cache import cache
 from src.core.config import settings
+from src.core.logger import logger
 from src.core.metrics import cache_hits, cache_misses
 
 if TYPE_CHECKING:
@@ -57,6 +60,55 @@ def mcp_error_detail(exc: BaseException, _depth: int = 0) -> str:
     name = type(exc).__name__
     # Some transport errors stringify to "" — the type alone is still a clue.
     return f"{name}: {msg}" if msg else name
+
+
+def _http_status(exc: BaseException) -> int | None:
+    response = getattr(exc, "response", None)
+    status = getattr(response, "status_code", None)
+    return status if isinstance(status, int) else None
+
+
+def transport_error_summary(exc: BaseException, _depth: int = 0) -> str:
+    """LLM-safe description of a transport failure: exception CLASS + HTTP status.
+
+    Datasource errors are returned into the LLM context (fail-open), and
+    exception messages carry addresses — httpx says ``... for url '<url>'``,
+    query strings included (tokens, scoped ids). So the context only ever gets
+    the root-cause class name (unwrapped like :func:`mcp_error_detail`) and the
+    HTTP status when there is one; the full message goes to the log through
+    :func:`log_transport_error` (BACKLOG F-025 b).
+    """
+    status = _http_status(exc)
+    if _depth < _MAX_UNWRAP_DEPTH and status is None:
+        subs = getattr(exc, "exceptions", None)
+        if subs:
+            summary = transport_error_summary(subs[0], _depth + 1)
+            extra = len(subs) - 1
+            return f"{summary} (+{extra} more)" if extra > 0 else summary
+        cause = getattr(exc, "__cause__", None)
+        if cause is not None and cause is not exc:
+            return transport_error_summary(cause, _depth + 1)
+    name = type(exc).__name__
+    return f"{name} (HTTP {status})" if status is not None else name
+
+
+_URL_TAIL = re.compile(r"(https?://[^\s'\"?#]*)[?#][^\s'\"]*")
+
+
+def strip_url_query(url: str) -> str:
+    """``url`` without query string or fragment (where credentials tend to live)."""
+    parts = urlsplit(url)
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, "", ""))
+
+
+def log_transport_error(source: str, url: str, exc: BaseException) -> None:
+    """Operator-side record of a datasource failure: full root cause, no query strings."""
+    logger.warning("datasource transport error (fail-open)", extra={
+        "datasource": source,
+        "url": strip_url_query(url),
+        "error_type": type(exc).__name__,
+        "error": _URL_TAIL.sub(r"\1", mcp_error_detail(exc)),
+    })
 
 
 
@@ -211,7 +263,8 @@ class HttpAdapter(DatasourceAdapter):
                 r.raise_for_status()
                 return f"[http:{self.name}] {r.text[:2000]}"
         except Exception as e:
-            return f"[http:{self.name}] error: {e}"
+            log_transport_error(f"http:{self.name}", self.url, e)
+            return f"[http:{self.name}] error: {transport_error_summary(e)}"
 
 
 class AthenaAdapter(DatasourceAdapter):
@@ -346,8 +399,9 @@ class McpAdapter(DatasourceAdapter):
                     async with ClientSession(read, write) as session:
                         await session.initialize()
                         specs = self._build_specs_from_session(session, name_map, await session.list_tools())
-        except Exception:
+        except Exception as e:
             # Fail-open: if we can't reach the server, contribute no tools (degraded)
+            log_transport_error(f"mcp:{self.name}", self.url, e)
             specs = []
 
         self._name_map = name_map
@@ -436,7 +490,8 @@ class McpAdapter(DatasourceAdapter):
         except PermissionError:
             raise  # Re-raise allowlist violations
         except Exception as e:
-            return f"[mcp:{self.name}:{server_name}] error: {mcp_error_detail(e)}"
+            log_transport_error(f"mcp:{self.name}:{server_name}", self.url, e)
+            return f"[mcp:{self.name}:{server_name}] error: {transport_error_summary(e)}"
 
     def _resolve_server_name(self, converse_name: str) -> str:
         """Resolve a Converse tool name back to the MCP server's real name.
@@ -485,8 +540,9 @@ class McpAdapter(DatasourceAdapter):
             # teardown *after* tools ran successfully.  Don't discard data we
             # already collected — only surface the error when nothing was
             # gathered (fail-open for partial results).
+            log_transport_error(f"mcp:{self.name}", self.url, e)
             if not results:
-                return f"[mcp:{self.name}] error: {mcp_error_detail(e)}"
+                return f"[mcp:{self.name}] error: {transport_error_summary(e)}"
         return "\n".join(results)
 
     async def _invoke_tools(self, session: Any, query: str) -> list[str]:
@@ -507,7 +563,8 @@ class McpAdapter(DatasourceAdapter):
                 res = await session.call_tool(tool_name, args)
                 results.append(f"[mcp:{self.name}:{tool_name}] {self._render(res)}")
             except Exception as e:  # one tool failing must not kill the rest
-                results.append(f"[mcp:{self.name}:{tool_name}] error: {mcp_error_detail(e)}")
+                log_transport_error(f"mcp:{self.name}:{tool_name}", self.url, e)
+                results.append(f"[mcp:{self.name}:{tool_name}] error: {transport_error_summary(e)}")
         return results
 
     @staticmethod

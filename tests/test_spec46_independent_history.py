@@ -209,7 +209,7 @@ class TestRedisContract:
     @pytest.mark.asyncio
     async def test_unicode_and_large_content_round_trip(self, fake_redis, clock):
         store = hs.RedisHistoryStore(client=fake_redis)
-        text = "ação 🚀 日本語 ​ \"quotes\" \\ newline\n" + "x" * 200_000
+        text = "ação 🚀 日本語 ​ \"quotes\" \\ newline\n" + "x" * 15_000  # under the default HISTORY_MAX_MESSAGE_CHARS (F-025 c)
         await store.save_chat_message("ü", "sé", "aws", _msg(text, role="assistant"))
         [got] = await store.fetch_chat("ü", "sé", "aws")
         assert got.content == text
@@ -326,6 +326,8 @@ class _ShimConn:
     async def fetchval(self, sql: str) -> Any:
         if self.db.fail:
             raise OSError("postgres down")
+        if "to_regclass" in sql:  # F-025: DDL only runs when the table is missing
+            return "aigent_history" if any("CREATE TABLE" in s for s in self.db.executed) else None
         return 1
 
 
@@ -532,7 +534,8 @@ class TestCheckHistory:
         down = await DependencyChecker(cache_ttl=0).check_history(_Store(False))
         assert not down.ok and "postgres" in down.detail
         boom = await DependencyChecker(cache_ttl=0).check_history(_Store(OSError("refused")))
-        assert not boom.ok and "refused" in boom.detail
+        assert not boom.ok and boom.detail == "history: postgres unreachable (OSError)"
+        assert "refused" not in boom.detail  # F-025 f: no raw exception text on /ready
 
         cached_store = _Store(True)
         checker = DependencyChecker(cache_ttl=60)

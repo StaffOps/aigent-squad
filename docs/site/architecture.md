@@ -161,6 +161,24 @@ specialist agents run in-process — no per-agent ports.
 | DynamoDB | Conversation history when `HISTORY_BACKEND=dynamodb` (AWS deployments, TTL 24h) | TTL-based |
 
 What each store can contain (prompts, infrastructure data), exact retention per backend, who can
-read it and how to change it: [Data classification and retention](https://github.com/StaffOps/staffops-aigent-squad/blob/main/docs/SECURITY.md#data-classification-and-retention)
+read it and how to change it: [Data classification and retention](https://github.com/StaffOps/aigent-squad/blob/main/docs/SECURITY.md#data-classification-and-retention)
 in `docs/SECURITY.md`. Conversation history is kept 24 h on every backend; the value is a fixed
 constant today, not a setting. KB items have no expiry.
+
+Every history backend caps the stored `content` of one message at `HISTORY_MAX_MESSAGE_CHARS`
+(default 16000, truncated with a marker).
+
+**Redis history and memory.** History shares Redis memory with the datasource cache, the
+rate/budget counters and job state, and `session_id` is chosen by the client, so the number of
+sessions is not bounded by the server. Set `maxmemory` and `maxmemory-policy volatile-ttl`:
+under memory pressure Redis then evicts only keys that carry a TTL (history, cache, counters),
+shortest remaining TTL first, and never keys without one. Note that the shortest-lived keys are the
+per-minute rate counters, so sustained pressure weakens rate limiting (it fails open) before it
+drops history; size `maxmemory` so eviction stays exceptional.
+
+**Postgres history.** When the `aigent_history` table does not exist, the first connect creates it
+and its indexes, which needs `CREATE` on the schema. To run with a DML-only role
+(SELECT/INSERT/DELETE), create the table beforehand with a migration role (DDL in
+`src/core/history_stores.py`, `_PG_SCHEMA`); an existing table is used as-is. Expired rows are
+deleted in bounded batches: on every write, once when the store connects, and on reads at most
+every 5 minutes. TLS: `POSTGRES_SSLMODE`.

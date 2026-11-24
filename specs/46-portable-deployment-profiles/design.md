@@ -12,7 +12,7 @@
    SupervisorAgent ──► HistoryStore (Protocol)
                           ├── DynamoDBHistoryStore   (current ChatStorage, unchanged behavior)
                           ├── RedisHistoryStore      (sorted set per user#session#agent, EXPIRE 24h)
-                          └── PostgresHistoryStore   (plain table, expires_at, purge on write)
+                          └── PostgresHistoryStore   (plain table, expires_at, bounded purge)
 
    agents/<name>/agent.yaml ──► AgentRegistry
         url: ${K8S_MCP_URL}         │ 1. yaml.safe_load
@@ -43,9 +43,12 @@
 
 3. **Postgres is the durable/auditable option, opt-in.** Plain table
    `(pk text, sk text, payload jsonb, expires_at timestamptz)`, PK `(pk, sk)`, index on
-   `expires_at`; expired rows are excluded on read and purged opportunistically on write (bounded
-   `DELETE … LIMIT`-style batch), so no cron is required. *Trade-off*: Postgres becomes required when
-   selected (today it is optional for the KB).
+   `expires_at`; expired rows are excluded on read and purged in bounded `DELETE … LIMIT`-style
+   batches — on every write, up to 10 batches once the store connects, and one batch on read at most
+   every 5 minutes (F-025: a read-only or restarted replica still cleans up) — so no cron is
+   required. DDL runs only when the table is missing, so a DML-only runtime role works once a
+   migration role has created it; TLS via `POSTGRES_SSLMODE`. *Trade-off*: Postgres becomes required
+   when selected (today it is optional for the KB).
 
 4. **Redis is the default; DynamoDB is opt-in for AWS** (user decision 2026-11-24). `HISTORY_BACKEND`
    unset = `redis`, which works in every environment because Redis is already required. The AWS
