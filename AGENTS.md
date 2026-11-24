@@ -321,8 +321,8 @@ No code changes needed — `AgentRegistry` auto-discovers at startup.
 | `KB_ENABLED` | | `true` | Incident-memory KB (spec 21). `false` = no distillation, no RAG, no KB Postgres connection, `/kb/*` → 503 (F-029) |
 | `KB_REJECTED_RETENTION_DAYS` / `KB_ITEM_MAX_AGE_DAYS` | | `30` / unset | KB retention: rejected+superseded items deleted N days after their status change; active/pending items deleted N days after creation only when the max age is set |
 | `KB_RETENTION_INTERVAL_SECONDS` / `KB_RETENTION_BATCH_SIZE` / `KB_RETENTION_MAX_BATCHES` | | `3600` / `500` / `10` | KB retention sweep: at most once per interval (at start + on KB reads/writes, no cron), bounded batch deletes, fail-open |
-| `POSTGRES_SSLMODE` | | — (asyncpg default) | TLS mode for the Postgres **history** store: `disable` \| `allow` \| `prefer` \| `require` \| `verify-ca` \| `verify-full`; empty = unset. `require` = encrypted, **not verified**; `verify-*` need a CA bundle (`POSTGRES_SSLROOTCERT`) |
-| `POSTGRES_SSLROOTCERT` | with `verify-*` | — | Path to the PEM CA bundle that verifies the server (e.g. the cloud provider's RDS bundle, mounted); fallback `PGSSLROOTCERT`, then `~/.postgresql/root.crt`; none found → no connect, error logged, history fails open |
+| `POSTGRES_SSLMODE` | | — (asyncpg default) | TLS mode for the Postgres **history** store: `disable` \| `allow` \| `prefer` \| `require` \| `verify-ca` \| `verify-full`; empty = unset. `require` = encrypted, CA-verified only if a bundle is found; `verify-*` always verify and need a CA bundle (`POSTGRES_SSLROOTCERT`) |
+| `POSTGRES_SSLROOTCERT` | with `verify-*` | — | Path to the PEM CA bundle that verifies the server (e.g. the cloud provider's RDS bundle, mounted), or `system`; used by `require` and `verify-*`; fallback `PGSSLROOTCERT`, then `~/.postgresql/root.crt`; missing/invalid under `verify-*` → no connect, error logged, history fails open. Client certs/CRL via the standard `PGSSLCERT`/`PGSSLKEY`/`PGSSLCRL` |
 
 See `.env.example` for full template.
 
@@ -363,7 +363,7 @@ All metrics named `aigent.<domain>.<name>`. Key ones:
 | `aigent.llm.provider_errors` | provider, error_class | LLM transport errors (spec 28) |
 | `aigent.llm.guardrail_l1_active` | provider | 0 = Bedrock Guardrail L1 inactive (spec 28) |
 
-**No high-cardinality labels** — never add `user_id`, `trace_id`, or raw error text as labels.
+**No high-cardinality labels** — never add `user_id`, `session_id`, `trace_id`, a URL, or raw error text as labels (no exceptions; `aigent.token_budget.exceeded` uses a bounded `reason`).
 Every new feature must emit ≥1 custom metric, defined in `src/core/metrics.py` and documented
 in `docs/METRICS.md`.
 

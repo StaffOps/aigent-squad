@@ -68,6 +68,7 @@ and by model.
 |--------|------|--------|-------------|
 | `aigent.tokens.total` | Counter | `agent_id`, `model`, `direction` | Tokens consumed (input and output tracked separately) |
 | `aigent.cost.estimated` | Counter | `agent_id`, `model` | Estimated USD cost from Bedrock pricing |
+| `aigent.token_budget.exceeded` | Counter | `reason` | Requests refused by the per-session token budget; `reason` is `exhausted` or `store_unavailable` (Redis down, the budget fails closed) |
 | `aigent.tier.routing_decisions` | Counter | `tier` | Spec 38 tier-routing decisions (fast/standard/deep) — tier distribution / Opus invocation ratio (3 series) |
 | `aigent.tool.call_duration` | Histogram | `tool_name`, `status` | Per-MCP-tool latency + success/error/timeout (tool_name bounded by read-only allowlist) |
 | `aigent.guardrail.blocks` | Counter | `source`, `agent_id` | Guardrail blocks/redactions by source — safety signal |

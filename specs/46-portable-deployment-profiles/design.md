@@ -48,7 +48,7 @@
    the connect lock, so readiness never waits on it), and one batch on read at most every 5 minutes
    (F-025: a read-only or restarted replica still cleans up) — so no cron is required. DDL runs only
    when the table is missing, so a DML-only runtime role works once a migration role has created it;
-   TLS via `POSTGRES_SSLMODE` (`require` encrypts without verifying; `verify-ca`/`verify-full` need
+   TLS via `POSTGRES_SSLMODE` (`require` encrypts, and verifies only when a CA bundle is found; `verify-ca`/`verify-full` need
    a CA bundle via `POSTGRES_SSLROOTCERT`, else the store fails open with a logged error). *Trade-off*: Postgres becomes required
    when selected (today it is optional for the KB).
 

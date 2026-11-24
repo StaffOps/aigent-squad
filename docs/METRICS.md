@@ -27,6 +27,7 @@ All metrics emitted by AIgent-squad, collected via OTel Collector → Prometheus
 |--------|------|--------|-------------|
 | `aigent.tokens.total` | Counter | `agent_id`, `model`, `direction` | Tokens consumed (running total) |
 | `aigent.cost.estimated` | Counter | `agent_id`, `model` | Estimated USD cost |
+| `aigent.token_budget.exceeded` | Counter | `reason` | Requests refused by the per-session token budget (spec 11). `reason` ∈ {`exhausted`, `store_unavailable`} (Redis down → budget fails closed). No `session_id` label: the session id is in the refusal log line only (F-028) |
 | `aigent.tier.routing_decisions` | Counter | `tier` | Spec 38 tier-routing decisions (fast/standard/deep) — % of queries routed to Opus, from VictoriaMetrics without a LogQL hack (3 series) |
 | `aigent.tool.call_duration` | Histogram | `tool_name`, `status` | Per-MCP-tool latency + success/error/timeout (which tool is slow/broken; tool_name bounded by the read-only allowlist) |
 | `aigent.guardrail.blocks` | Counter | `source`, `agent_id` | Guardrail blocks/redactions by source (INPUT/OUTPUT) — safety signal without LogQL |
