@@ -427,5 +427,5 @@ async def test_mcp_adapter_tool_error_does_not_abort_others():
     # Format changed deliberately by F-011: MCP error strings now name the
     # exception TYPE before the message, so a log line identifies the failure
     # class ("ConnectError", "TimeoutError") and not just its text.
-    assert "a] error: Exception: boom" in result
+    assert "a] error: Exception" in result and "boom" not in result  # F-025 b
     assert "b-ok" in result  # second tool still ran

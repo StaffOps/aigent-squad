@@ -310,12 +310,14 @@ No code changes needed — `AgentRegistry` auto-discovers at startup.
 | `AGENT_<NAME>_ENABLED` | | — | Per-environment agent on/off (spec 46), e.g. `AGENT_AWS_ENABLED=false` off-AWS |
 | `AIGENT_ALLOW_LINK_LOCAL_DATASOURCES` | | `false` | Allow datasource URLs on link-local / instance-metadata addresses (refused by default, spec 46) |
 | `HISTORY_BACKEND` | | `redis` | Conversation-history store (spec 46): `redis` \| `dynamodb` \| `postgres`; **AWS deployments set `dynamodb` explicitly**; 24h retention on every backend (fixed constant `HISTORY_TTL_SECONDS`, not configurable — see `docs/SECURITY.md` → Data classification and retention) |
+| `HISTORY_MAX_MESSAGE_CHARS` | | `16000` | Per-message cap on stored history `content`, every backend (truncated with a marker; `0` = no cap). With `HISTORY_BACKEND=redis`, set Redis `maxmemory` + `maxmemory-policy volatile-ttl` (see `docs/site/architecture.md` → Data stores) |
 | `DYNAMODB_SESSIONS_TABLE` | | `agent-sessions` | Conversation history (when `HISTORY_BACKEND=dynamodb`) |
 | `DYNAMODB_ENDPOINT` | | AWS | Set to `http://dynamodb-local:8000` for dev |
 | `SLACK_BOT_TOKEN` | optional | — | Slack integration |
 | `GITLAB_TOKEN` | optional | — | DevOps agent (read-only) |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | optional | `http://otel-collector:4317` | Tracing |
 | `POSTGRES_HOST/USER/PASSWORD/DB` | optional | — | Knowledge base (disabled by default) |
+| `POSTGRES_SSLMODE` | | — (asyncpg default) | TLS mode for the Postgres **history** store, passed to asyncpg as `ssl=`: `disable` \| `allow` \| `prefer` \| `require` \| `verify-ca` \| `verify-full`; empty = unset |
 
 See `.env.example` for full template.
 

@@ -438,7 +438,7 @@ class TestFailOpenToolError:
             result = await adapter.collect("q")
 
         assert "bad_tool] error:" in result
-        assert "tool exploded" in result
+        assert "bad_tool] error: RuntimeError" in result and "tool exploded" not in result  # F-025 b
 
     @pytest.mark.asyncio
     async def test_tool_error_inline_string_streamable_http(self):
@@ -460,7 +460,7 @@ class TestFailOpenToolError:
             result = await adapter.collect("q")
 
         assert "bad_tool] error:" in result
-        assert "tool exploded" in result
+        assert "bad_tool] error: RuntimeError" in result and "tool exploded" not in result  # F-025 b
 
     @pytest.mark.asyncio
     async def test_one_tool_error_does_not_abort_others_streamable(self):
@@ -484,7 +484,7 @@ class TestFailOpenToolError:
 
         # F-011: MCP error strings now name the exception TYPE before the
         # message, so a log line identifies the failure class, not just its text.
-        assert "a] error: RuntimeError: a-fail" in result
+        assert "a] error: RuntimeError" in result and "a-fail" not in result  # F-025 b
         assert "b-ok" in result
 
 
@@ -557,7 +557,7 @@ class TestConnectionFailure:
         with patch("mcp.client.sse.sse_client", side_effect=ConnectionError("refused")):
             result = await adapter.collect("q")
         assert "[mcp:x] error:" in result
-        assert "refused" in result
+        assert "[mcp:x] error: ConnectionError" in result and "refused" not in result  # F-025 b
 
     @pytest.mark.asyncio
     async def test_streamable_http_connection_refused(self):
@@ -570,7 +570,7 @@ class TestConnectionFailure:
         ):
             result = await adapter.collect("q")
         assert "[mcp:x] error:" in result
-        assert "refused" in result
+        assert "[mcp:x] error: ConnectionError" in result and "refused" not in result  # F-025 b
 
 
 # ---------------------------------------------------------------------------

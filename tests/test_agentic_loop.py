@@ -196,9 +196,10 @@ class TestMcpSessionPool:
         pool = _McpSessionPool([adapter])
         result = await pool.call_tool("test-mcp", "get_pods", {})
 
-        # Must name the root cause (unwrapped by mcp_error_detail)
-        assert "connection refused" in result
+        # Must name the root cause CLASS (unwrapped); since F-025 (b) the message
+        # itself stays in the log — it can carry the server URL.
         assert "ConnectionRefusedError" in result
+        assert "connection refused" not in result
         # Must NOT expose the useless TaskGroup wrapper
         assert "TaskGroup" not in result, (
             f"mcp_error_detail not active at this call site — got wrapper: {result!r}"

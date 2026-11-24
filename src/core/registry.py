@@ -7,7 +7,7 @@ import yaml
 from pydantic import ValidationError
 
 from src.core.agent_config import AgentConfig
-from src.core.agent_env import DegradedDatasource, apply_environment
+from src.core.agent_env import DegradedDatasource, apply_environment, enabled_env_var
 from src.core.logger import logger
 
 
@@ -27,6 +27,7 @@ class AgentRegistry:
             raise RuntimeError(f"AGENTS_DIR not found: {self.agents_dir}")
 
         self.degraded_datasources = []
+        switches: dict[str, str] = {}  # AGENT_<NAME>_ENABLED -> agent name
         for agent_dir in sorted(self.agents_dir.iterdir()):
             config_path = agent_dir / "agent.yaml"
             if not agent_dir.is_dir() or not config_path.exists():
@@ -45,6 +46,16 @@ class AgentRegistry:
                     for err in e.errors(include_input=False, include_url=False)
                 ]
                 raise RuntimeError(f"Invalid agent config {config_path}: {errors}") from None
+
+            # Two names that normalize to one AGENT_<NAME>_ENABLED (e.g. `a-b` and
+            # `a_b`) would share a single on/off switch: refuse, whatever their state.
+            switch = enabled_env_var(config.name)
+            owner = switches.setdefault(switch, config.name)
+            if owner != config.name:
+                raise RuntimeError(
+                    f"Agents '{owner}' and '{config.name}' share the switch {switch}; "
+                    "rename one of them"
+                )
 
             if not config.enabled:
                 logger.info(f"Agent '{config.name}' disabled, skipping")

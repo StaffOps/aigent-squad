@@ -619,7 +619,8 @@ async def test_check_history_ok_down_and_error():
     assert r.ok is False and "postgres unreachable" in r.detail
     boom = MagicMock(backend="postgres", ping=AsyncMock(side_effect=OSError("refused")))
     r = await checker.check_history(boom)
-    assert r.ok is False and "refused" in r.detail
+    assert r.ok is False and r.detail == "history: postgres unreachable (OSError)"
+    assert "refused" not in r.detail  # F-025 f: generic detail, error logged only
 
 
 def test_ready_reports_degraded_datasources_but_stays_ready():

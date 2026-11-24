@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+### Fixed — spec 46 follow-ups (BACKLOG F-025 a/b/c/e/f, 2026-11-24)
+- Postgres history: expired rows also purged at connect and (at most every 5 min) on
+  read; DDL skipped when the table already exists (lets a migration role pre-create it);
+  optional `POSTGRES_SSLMODE`.
+- Datasource/tool transport errors reaching the LLM context carry only the error class and
+  HTTP status (the full message, with query strings removed, goes to the logs).
+- `HISTORY_MAX_MESSAGE_CHARS` (default 16000) caps stored message content on every history
+  backend; Redis `maxmemory-policy` guidance documented.
+- Agents whose names map to the same `AGENT_<NAME>_ENABLED` switch fail discovery.
+- `/ready` details no longer include raw exception text (logged server-side instead).
+
 ### Security — history, rate limits and sessions scoped to the API key (BACKLOG F-024, 2026-11-24)
 - The gateway now forwards user ids as `<consumer>:<user_id>`, where consumer is a short
   sha256 of the authenticated API key (or `internal` for the internal token). A key holder

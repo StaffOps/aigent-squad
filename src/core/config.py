@@ -1,6 +1,6 @@
-from pydantic import SecretStr
+from pydantic import BeforeValidator, Field, SecretStr
 from pydantic_settings import BaseSettings
-from typing import Literal, Optional, Union
+from typing import Annotated, Any, Literal, Optional, Union
 
 def reveal(value: Union[SecretStr, str, None]) -> str:
     """Plaintext of a secret setting ('' when unset) — call ONLY at the use site.
@@ -15,6 +15,13 @@ def reveal(value: Union[SecretStr, str, None]) -> str:
     # Coerce anything else (e.g. a MagicMock in tests) so callers always get a str:
     # a comparison then fails closed instead of raising TypeError.
     return str(value)
+
+
+def _empty_is_unset(value: Any) -> Any:
+    """Blank string setting -> None (a chart renders an unset value as "")."""
+    if isinstance(value, str) and not value.strip():
+        return None
+    return value
 
 
 class Settings(BaseSettings):  # type: ignore[misc]
@@ -163,6 +170,10 @@ class Settings(BaseSettings):  # type: ignore[misc]
     # HISTORY_BACKEND=dynamodb explicitly; `postgres` is opt-in (durable/auditable,
     # plain table, no pgvector). An invalid value fails startup (Literal).
     history_backend: Literal["redis", "dynamodb", "postgres"] = "redis"
+    # Per-message cap on stored history `content` (every backend). Bounds memory
+    # (Redis shares it with rate/budget counters) and row size; longer content is
+    # cut and ends with a truncation marker. 0 disables the cap.
+    history_max_message_chars: int = Field(default=16_000, ge=0)
 
     # DynamoDB
     dynamodb_sessions_table: str = "agent-sessions"
@@ -248,6 +259,13 @@ class Settings(BaseSettings):  # type: ignore[misc]
     postgres_user: str = "aigent"
     postgres_password: Optional[SecretStr] = SecretStr("changeme")
     postgres_db: str = "aigent_kb"
+    # TLS mode for the Postgres HISTORY store (spec 46), passed to asyncpg as
+    # `ssl=`. Unset (or empty) = asyncpg's default. The KB store is unaffected.
+    # Charts often render an unset value as "" — that also means "not set".
+    postgres_sslmode: Annotated[
+        Optional[Literal["disable", "allow", "prefer", "require", "verify-ca", "verify-full"]],
+        BeforeValidator(_empty_is_unset),
+    ] = None
 
     # RAG / Knowledge Base (FinOps)
     finops_knowledge_base_id: Optional[str] = None  # Bedrock Knowledge Base ID

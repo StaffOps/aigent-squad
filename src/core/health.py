@@ -1,8 +1,16 @@
-"""Health check primitives — DependencyChecker with per-dep caching and timeout."""
+"""Health check primitives — DependencyChecker with per-dep caching and timeout.
+
+``DepResult.detail`` is served by the unauthenticated ``/ready`` endpoint, so it
+never carries raw exception text (hostnames, DSNs, driver messages): only the
+dependency, a short state and the exception CLASS. The full error is logged
+server-side instead (BACKLOG F-025 f).
+"""
 import asyncio
 import time
 from dataclasses import dataclass, field
 from typing import Any, Callable, Awaitable
+
+from src.core.logger import logger
 
 
 @dataclass
@@ -10,6 +18,14 @@ class DepResult:
     ok: bool
     detail: str
     checked_at: float = field(default_factory=time.monotonic)
+
+
+def failure(subject: str, exc: BaseException) -> DepResult:
+    """Generic, probe-safe failure result; the full error goes to the log only."""
+    logger.warning("readiness check failed", extra={
+        "dependency": subject, "error_type": type(exc).__name__, "error": str(exc),
+    })
+    return DepResult(ok=False, detail=f"{subject} unreachable ({type(exc).__name__})")
 
 
 class DependencyChecker:
@@ -35,7 +51,7 @@ class DependencyChecker:
         except asyncio.TimeoutError:
             result = DepResult(ok=False, detail=f"{key}: timeout after {self._timeout}s")
         except Exception as exc:
-            result = DepResult(ok=False, detail=f"{key}: {exc}")
+            result = failure(key.split(":", 1)[0], exc)
         self._cache[key] = result
         return result
 
@@ -48,7 +64,7 @@ class DependencyChecker:
                     return DepResult(ok=True, detail="redis: pong")
                 return DepResult(ok=False, detail="redis: no pong")
             except Exception as exc:
-                return DepResult(ok=False, detail=f"redis: {exc}")
+                return failure("redis", exc)
 
         return await self._run("redis", _check)
 
@@ -58,7 +74,7 @@ class DependencyChecker:
                 await asyncio.to_thread(dynamodb_table.load)
                 return DepResult(ok=True, detail="dynamodb: table reachable")
             except Exception as exc:
-                return DepResult(ok=False, detail=f"dynamodb: {exc}")
+                return failure("dynamodb", exc)
 
         return await self._run("dynamodb", _check)
 
@@ -72,7 +88,7 @@ class DependencyChecker:
                     return DepResult(ok=True, detail=f"history: {backend} reachable")
                 return DepResult(ok=False, detail=f"history: {backend} unreachable")
             except Exception as exc:
-                return DepResult(ok=False, detail=f"history: {backend}: {exc}")
+                return failure(f"history: {backend}", exc)
 
         return await self._run("history", _check)
 
@@ -82,7 +98,7 @@ class DependencyChecker:
                 await asyncio.to_thread(sts_client.get_caller_identity)
                 return DepResult(ok=True, detail="bedrock-creds: identity ok")
             except Exception as exc:
-                return DepResult(ok=False, detail=f"bedrock-creds: {exc}")
+                return failure("bedrock-creds", exc)
 
         return await self._run("bedrock-creds", _check)
 
@@ -96,6 +112,6 @@ class DependencyChecker:
                     return DepResult(ok=True, detail=f"http {url}: {resp.status_code}")
                 return DepResult(ok=False, detail=f"http {url}: status {resp.status_code}")
             except Exception as exc:
-                return DepResult(ok=False, detail=f"http {url}: {exc}")
+                return failure(f"http {url}", exc)
 
         return await self._run(key, _check)
