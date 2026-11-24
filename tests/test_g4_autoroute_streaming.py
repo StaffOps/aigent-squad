@@ -884,3 +884,98 @@ class TestEdgeCases:
         assert call_kw["input_text"] == "get pods"
         assert call_kw["user_id"] == "u1"
         assert call_kw["session_id"] == "s1"
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# F-026: completed streamed answers are saved to history (both paths)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+def _storage_spy(monkeypatch):
+    spy = MagicMock()
+    spy.save_chat_message = AsyncMock()
+    spy.fetch_all_chats = AsyncMock(return_value=[])
+    spy.fetch_chat = AsyncMock(return_value=[])
+    monkeypatch.setattr("src.supervisor.agent.storage", spy)
+    return spy
+
+
+def _saved(spy):
+    return [(c.args[2], c.args[3].role, c.args[3].content) for c in spy.save_chat_message.await_args_list]
+
+
+class TestF026StreamedAnswerSaved:
+    @pytest.mark.asyncio
+    async def test_autoroute_saves_user_then_assistant(self, monkeypatch):
+        spy = _storage_spy(monkeypatch)
+        agent = _make_mock_agent("kubernetes")
+        sup, _ = _make_supervisor({"kubernetes": agent},
+                                  ClassifierResult(agents=[AgentMatch(agent="kubernetes", confidence=0.9)]))
+        gen = await sup.process_request_streaming(user_input="list pods", user_id="u1", session_id="s1")
+        await _collect_events(gen)
+        assert _saved(spy) == [
+            ("kubernetes", "user", "list pods"),
+            ("kubernetes", "assistant", "Here are the pods in monitoring."),
+        ]
+
+    @pytest.mark.asyncio
+    async def test_forced_agent_saves_assistant_from_chunks(self, monkeypatch):
+        spy = _storage_spy(monkeypatch)
+
+        async def chunked():
+            yield StepFinalChunk(text="part one, ")
+            yield StepFinalChunk(text="part two")
+            yield StepDone(finish_reason="stop")
+
+        agent = _make_mock_agent("aws")
+        agent.process_request_streaming = AsyncMock(return_value=chunked())
+        sup, _ = _make_supervisor({"aws": agent})
+        gen = await sup.process_request_streaming(user_input="q", user_id="u1", session_id="s1", force_agent="aws")
+        await _collect_events(gen)
+        assert ("aws", "assistant", "part one, part two") in _saved(spy)
+
+    @pytest.mark.asyncio
+    async def test_interrupted_stream_saves_no_partial_answer(self, monkeypatch):
+        spy = _storage_spy(monkeypatch)
+
+        async def never_done():
+            yield StepFinalChunk(text="half an answ")
+            yield StepFinalChunk(text="er that never ends")
+
+        agent = _make_mock_agent("aws")
+        agent.process_request_streaming = AsyncMock(return_value=never_done())
+        sup, _ = _make_supervisor({"aws": agent})
+        gen = await sup.process_request_streaming(user_input="q", user_id="u1", session_id="s1", force_agent="aws")
+        await _collect_events(gen)
+        assert all(role != "assistant" for _, role, _ in _saved(spy))
+
+    @pytest.mark.asyncio
+    async def test_history_failure_does_not_break_the_stream(self, monkeypatch):
+        spy = _storage_spy(monkeypatch)
+
+        async def save(user_id, session_id, agent_id, message, *a, **k):
+            if message.role == "assistant":
+                raise ConnectionError("history down")
+
+        spy.save_chat_message = AsyncMock(side_effect=save)
+        agent = _make_mock_agent("kubernetes")
+        sup, _ = _make_supervisor({"kubernetes": agent},
+                                  ClassifierResult(agents=[AgentMatch(agent="kubernetes", confidence=0.9)]))
+        gen = await sup.process_request_streaming(user_input="list pods", user_id="u1", session_id="s1")
+        events = await _collect_events(gen)
+        assert isinstance(events[-1], StepDone)  # client still receives the full stream
+
+    @pytest.mark.asyncio
+    async def test_empty_answer_not_saved(self, monkeypatch):
+        spy = _storage_spy(monkeypatch)
+
+        async def tools_only():
+            yield StepToolCall(tool_name="t", args_display="")
+            yield StepDone(finish_reason="stop")
+
+        agent = _make_mock_agent("aws")
+        agent.process_request_streaming = AsyncMock(return_value=tools_only())
+        sup, _ = _make_supervisor({"aws": agent})
+        gen = await sup.process_request_streaming(user_input="q", user_id="u1", session_id="s1", force_agent="aws")
+        await _collect_events(gen)
+        assert all(role != "assistant" for _, role, _ in _saved(spy))
