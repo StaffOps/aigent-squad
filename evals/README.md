@@ -110,7 +110,7 @@ same change.
   golden sets lean on capability-gap honesty checks rather than "does it
   answer correctly," and score better against a real cluster/production
   GitLab token.
-- `kubernetes`'s MCP datasource (`${K8S_MCP_URL}`, e.g. `kube-mcp.mcp-servers.svc.cluster.local`)
+- `kubernetes`'s MCP datasource (`${K8S_MCP_URL}`, set per deployment)
   is only resolvable from inside the devops-core cluster network — a local
   `make eval` run will see honest "couldn't reach the cluster" answers
   rather than real cluster data. Still a valid signal (tests the honesty

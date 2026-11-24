@@ -11,12 +11,11 @@ deferred: []
 
 **Spec**: `46-portable-deployment-profiles`
 **Severity**: 🟠 Architectural (removes two hard AWS/environment couplings without changing the read-only or fail-closed invariants)
-**Origin**: golden-image cluster test on k8s01, 2026-11-24. Running outside AWS exposed two couplings:
+**Origin**: a cluster test outside AWS, 2026-11-24. Running outside AWS exposed two couplings:
 (1) the conversation history only has a DynamoDB backend, so the supervisor `/ready` fails and the
 gateway preflight returns 503 for every query (worked around with an in-memory DynamoDB Local);
-(2) MCP URLs are baked into the image's `agents/*/agent.yaml` (`kube-mcp.mcp-servers…`,
-`vm-mcp.mcp-servers…`) and do not exist on k8s01 (`kubernetes-mcp.mcp-servers:8080` there), so the
-agentic tool path could not be exercised at all.
+(2) MCP URLs are baked into the image's `agents/*/agent.yaml` as one specific cluster's Service
+names, which do not exist in other clusters, so the agentic tool path could not be exercised at all.
 **Depends on**: `28-llm-provider-abstraction` (same provider-by-env pattern, already proven),
 `37-agentic-tool-calling` (MCP datasources + fail-closed allowlist)
 
@@ -24,7 +23,7 @@ agentic tool path could not be exercised at all.
 
 ## Problem
 
-The squad is meant to run on AWS and off AWS (homelab k8s01, any Kubernetes). Spec 28 made the LLM
+The squad is meant to run on AWS and off AWS (any Kubernetes). Spec 28 made the LLM
 portable; two other pieces are still bound to one environment:
 
 1. **History store.** `src/core/state_store.py::ChatStorage` talks to DynamoDB only. The data is a
@@ -76,8 +75,10 @@ agent SHALL be enabled/disabled or re-addressed WITHOUT copying its prompt or co
 WHEN an override tries to change a datasource's `tools` allowlist, `read_only`, or capability tier
 THEN it SHALL be rejected at startup — environment profiles cannot widen capabilities.
 
-WHEN a team deploys to k8s01 THEN a single profile values file SHALL give a working squad: Redis
-history, chaitops LLM (spec 28), local MCP addresses, AWS-only agents off.
+WHEN a team deploys to a Kubernetes cluster outside AWS THEN a single example profile values file
+SHALL give a working squad once its placeholders are filled: Redis history, an OpenAI-compatible LLM
+(spec 28), the cluster's MCP addresses, AWS-only agents off. Environment-specific values live in the
+deploying team's own GitOps repo, never in this product repo.
 
 ---
 
@@ -101,10 +102,13 @@ history, chaitops LLM (spec 28), local MCP addresses, AWS-only agents off.
    values move to the AWS profile so the AWS deployment is unchanged.
 9. Chart: `agentOverrides` map (`enabled`, `env`) rendered as env vars / agent enable flags, without
    duplicating prompts; `agentsSource` keeps working.
-10. Chart profiles: `values-aws.yaml` (today's behavior, `HISTORY_BACKEND=dynamodb`) and `values-k8s01.yaml` (Redis history,
-    chaitops, k8s01 MCPs, `aws`/`finops` off); `helm lint` + render tests for both.
-11. Live verification on k8s01 with the k8s01 profile: `/ready` 200 without DynamoDB, one query
-    with history, one agentic query that calls a real MCP tool through chaitops.
+10. Chart profiles: `values-aws.yaml` (today's behavior, `HISTORY_BACKEND=dynamodb`) and
+    `values-offaws.yaml` (example with placeholders: Redis history, OpenAI-compatible LLM, MCP
+    addresses, `aws`/`finops` off); `helm lint` + render tests for both. No environment-specific
+    hostnames, Service names or endpoints in either file.
+11. Live verification on a Kubernetes cluster outside AWS using the off-AWS profile: `/ready` 200
+    without DynamoDB, one query with history, one agentic query that calls a real MCP tool through
+    an OpenAI-compatible LLM.
 12. Docs: `docs/ARCHITECTURE.md`, `docs/HOW-TO-NEW-AGENT.md` (env-addressed MCPs), AGENTS.md env
     table, chart README.
 

@@ -67,7 +67,7 @@
 
 7. **Unset variable disables the datasource, not the agent.** Matches fail-open for availability:
    the agent still answers (and calibrated honesty already makes it say it could not verify, as seen
-   live on k8s01). Not silent: startup WARNING `datasource_unconfigured agent=… datasource=… var=…`
+   live in the 2026-11-24 off-AWS cluster test). Not silent: startup WARNING `datasource_unconfigured agent=… datasource=… var=…`
    and a `/ready` `checks.agents.degraded` list. `/ready` stays 200 — a missing optional MCP is a
    degraded capability, not an outage. *Trade-off*: a typo in a profile is a warning, not a crash;
    mitigated by the chart render test asserting every `${VAR}` used by enabled agents is set.
@@ -103,9 +103,10 @@
   secret not in logs).
 - Chart: `helm lint` + render tests for both profiles; assertion that every `${VAR}` referenced by
   enabled agents is set in the profile.
-- Live (k8s01, profile k8s01): `/ready` 200 with no DynamoDB, two-turn conversation shows history,
-  one agentic query calls `kubernetes-mcp` through chaitops (closes the gap left by the
-  2026-11-24 golden test).
+- Live (a Kubernetes cluster outside AWS, off-AWS profile with its placeholders filled by the
+  deploying team): `/ready` 200 with no DynamoDB, two-turn conversation shows history, one
+  agentic query calls a real MCP tool through an OpenAI-compatible LLM (closes the gap left by the
+  2026-11-24 test).
 
 ## Risks
 
