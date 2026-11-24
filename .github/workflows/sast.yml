@@ -1,8 +1,8 @@
 name: SAST
 
-# Static analysis of our Python source (Bandit). Bandit (not CodeQL) because
-# the repo is private without GitHub Advanced Security — Bandit runs entirely in
-# CI and fails the job on findings, no Security-tab upload required.
+# Static analysis of our Python source (Bandit): a fast pattern gate that runs
+# entirely in CI and fails the job on findings. Data-flow analysis with results in
+# the Security tab is CodeQL (codeql.yml); the two are complementary.
 # Reviewed false-positives are suppressed inline with `# nosec <ID>` + reason.
 on:
   push:
