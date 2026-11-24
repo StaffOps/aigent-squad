@@ -22,6 +22,9 @@ delegates_to:
 required_env: [AWS_REGION]
 port: 8001
 skills:
+  - aws-idle-resource-inventory
+  - aws-security-group-audit
+  - iam-least-privilege-review
   - aws-csi-driver-metrics
   - aws-load-balancer-controller-metrics
   - cloudfront-patterns

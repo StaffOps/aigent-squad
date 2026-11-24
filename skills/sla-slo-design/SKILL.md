@@ -242,7 +242,7 @@ SLO overview dashboard (datasource UID: `victoriametrics`):
 ## <org> Specifics
 
 - Stack: VictoriaMetrics (metrics) + VMAlert (rules) + Alertmanager (routing)
-- Alert channels: `#eks-notifications-workload-prd` (SEV1-2), `#eks-notifications-teams` (SEV3-4)
+- Alert channels: `#alerts-workload-prd` (SEV1-2), `#alerts-teams` (SEV3-4)
 - Datasource UID: `victoriametrics`
 - Recording rules namespace: `monitoring`
 - SLO review cadence: quarterly (with service owners)

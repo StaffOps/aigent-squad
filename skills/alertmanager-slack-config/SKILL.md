@@ -17,7 +17,7 @@ alertmanager:
       - name: slack-critical-warning
         slack_configs:
           - api_url_file: /etc/alertmanager/secrets/slack-webhook
-            channel: '#eks-notifications'
+            channel: '#alerts'
             send_resolved: true
             title: '{{ template "slack.title" . }}'
             text: '{{ template "slack.text" . }}'
@@ -115,11 +115,11 @@ annotations:
 
 | Channel | Receiver | Purpose |
 |---------|----------|---------|
-| `#eks-notifications` | slack-critical-warning | General cluster alerts |
-| `#eks-notifications-argo` | (separate) | ArgoCD sync issues |
-| `#eks-notifications-teams` | (separate) | Team-specific alerts |
-| `#eks-notifications-workload-dev` | (separate) | Dev workload alerts |
-| `#eks-notifications-workload-prd` | (separate) | Prd workload alerts |
+| `#alerts` | slack-critical-warning | General cluster alerts |
+| `#alerts-argocd` | (separate) | ArgoCD sync issues |
+| `#alerts-teams` | (separate) | Team-specific alerts |
+| `#alerts-workload-dev` | (separate) | Dev workload alerts |
+| `#alerts-workload-prd` | (separate) | Prd workload alerts |
 
 ## Secret management
 

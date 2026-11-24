@@ -179,7 +179,7 @@ externalSecret:
 serviceAccount:
   create: true
   annotations:
-    eks.amazonaws.com/role-arn: "arn:aws:iam::524040971621:role/dpm-my-new-service-dev"
+    eks.amazonaws.com/role-arn: "arn:aws:iam::<ACCOUNT_ID>:role/dpm-my-new-service-dev"
 
 # Node scheduling
 node:
@@ -250,7 +250,7 @@ externalSecret:
 serviceAccount:
   create: true
   annotations:
-    eks.amazonaws.com/role-arn: "arn:aws:iam::524040971621:role/dpm-my-new-service-prd"
+    eks.amazonaws.com/role-arn: "arn:aws:iam::<ACCOUNT_ID>:role/dpm-my-new-service-prd"
 
 node:
   arch: arm64

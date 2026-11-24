@@ -27,6 +27,7 @@ delegates_to:
     when: "need deployment/rollout status"
 port: 8004
 skills:
+  - ci-pipeline-failure-triage
   - argo-events-metrics
   - argo-rollouts-metrics
   - argo-workflows-metrics

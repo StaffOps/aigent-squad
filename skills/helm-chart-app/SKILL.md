@@ -227,7 +227,7 @@ IRSA annotation for pod-level AWS access:
 serviceAccount:
   create: true
   annotations:
-    eks.amazonaws.com/role-arn: "arn:aws:iam::524040971621:role/dpm-people-api-role"
+    eks.amazonaws.com/role-arn: "arn:aws:iam::<ACCOUNT_ID>:role/dpm-people-api-role"
 ```
 
 ## Ingress
@@ -354,7 +354,7 @@ autoscaling:
   triggers:
     - type: aws-sqs-queue
       metadata:
-        queueURL: "https://sqs.us-east-1.amazonaws.com/524040971621/dpm-queue"
+        queueURL: "https://sqs.us-east-1.amazonaws.com/<ACCOUNT_ID>/dpm-queue"
         queueLength: "5"
 ```
 

@@ -62,6 +62,9 @@ delegates_to:
     when: "need metrics to correlate with pod behavior"
 port: 8002
 skills:
+  - k8s-crashloop-triage
+  - k8s-pending-pod-scheduling
+  - k8s-node-pressure-triage
   - aws-csi-driver-metrics
   - aws-load-balancer-controller-metrics
   - backing-services-metrics

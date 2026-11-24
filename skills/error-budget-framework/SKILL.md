@@ -293,21 +293,21 @@ routes:
       - tier = slo
       - severity = critical
     receiver: slack-prd-workload
-    # → #eks-notifications-workload-prd
+    # → #alerts-workload-prd
     repeat_interval: 15m
 
   - matchers:
       - tier = slo
       - severity = warning
     receiver: slack-prd-workload
-    # → #eks-notifications-workload-prd
+    # → #alerts-workload-prd
     repeat_interval: 1h
 
   - matchers:
       - tier = slo
       - severity = info
     receiver: slack-teams
-    # → #eks-notifications-teams
+    # → #alerts-teams
     repeat_interval: 4h
 ```
 

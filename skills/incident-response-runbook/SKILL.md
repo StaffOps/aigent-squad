@@ -68,7 +68,7 @@ Is there customer-visible impact?
 **Goal**: Identify that an incident is occurring.
 
 Sources:
-- Alertmanager → Slack (`#eks-notifications-workload-prd`)
+- Alertmanager → Slack (`#alerts-workload-prd`)
 - Customer reports (support tickets, Slack)
 - Synthetic monitoring (Uptime Kuma — roadmap)
 - Team observation (dashboard anomaly)
@@ -90,7 +90,7 @@ Actions:
    Service: dpm-people-api
    Cluster: <org>-workloads-prd-nv
    Impact: API returning 503 for all requests
-   IC: @karlipegomes
+   IC: @<incident-commander>
    ```
 2. Create dedicated thread (or channel for SEV1 lasting >1h)
 3. Assign roles: Ops Lead, Comms Lead, Scribe
@@ -155,8 +155,8 @@ Actions:
 | Channel | Purpose | Who posts |
 |---------|---------|-----------|
 | `#incidents-active` | Active incident coordination | IC, responders |
-| `#eks-notifications-workload-prd` | Alert source (automated) | Alertmanager |
-| `#eks-notifications-teams` | Team-specific alerts | Alertmanager |
+| `#alerts-workload-prd` | Alert source (automated) | Alertmanager |
+| `#alerts-teams` | Team-specific alerts | Alertmanager |
 | `#postmortem` | Post-mortem sharing | IC/Author |
 
 ### Status Update Template
@@ -188,7 +188,7 @@ Need: [decision/resource/approval needed]
 
 | Tool | Purpose | Access |
 |------|---------|--------|
-| **Slack** | Primary coordination | `#incidents-active`, `#eks-notifications-*` |
+| **Slack** | Primary coordination | `#incidents-active`, `#alerts-*` |
 | **Grafana** | Metrics/traces/logs investigation | `https://grafana.<org-domain>` |
 | **Alertmanager** | Alert history, silences | `https://alertmanager.<org-domain>` |
 | **ArgoCD** | Deployment status, rollback | Internal |

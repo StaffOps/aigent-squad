@@ -43,9 +43,9 @@ These are **predictive** — they alert before symptoms appear because recovery 
 
 | Level | Destination | Response | SLA | Examples |
 |-------|-------------|----------|-----|----------|
-| **Critical (Page)** | `#eks-notifications-workload-prd` + on-call | Immediate (5 min) | Resolve in 1h | SLO burn rate >14.4x, service down |
-| **Warning (Page)** | `#eks-notifications-workload-prd` | Urgent (15 min) | Resolve in 4h | SLO burn rate >6x, degraded |
-| **Info (Ticket)** | `#eks-notifications-teams` | Business hours | Resolve in 1 sprint | SLO burn rate >3x, capacity trending |
+| **Critical (Page)** | `#alerts-workload-prd` + on-call | Immediate (5 min) | Resolve in 1h | SLO burn rate >14.4x, service down |
+| **Warning (Page)** | `#alerts-workload-prd` | Urgent (15 min) | Resolve in 4h | SLO burn rate >6x, degraded |
+| **Info (Ticket)** | `#alerts-teams` | Business hours | Resolve in 1 sprint | SLO burn rate >3x, capacity trending |
 | **None (Log)** | Dashboard only | No response | None | Informational, context for investigation |
 
 ### Severity Assignment Rules
@@ -142,11 +142,11 @@ route:
 
 | Channel | Receiver | Content |
 |---------|----------|---------|
-| `#eks-notifications` | slack-critical-warning | General cluster alerts (critical + warning) |
-| `#eks-notifications-workload-prd` | slack-workload-prd | Production workload alerts + SLO burns |
-| `#eks-notifications-workload-dev` | slack-workload-dev | Dev workload alerts (lower urgency) |
-| `#eks-notifications-teams` | slack-team-* | Team-specific routing |
-| `#eks-notifications-argo` | slack-argo | ArgoCD sync failures |
+| `#alerts` | slack-critical-warning | General cluster alerts (critical + warning) |
+| `#alerts-workload-prd` | slack-workload-prd | Production workload alerts + SLO burns |
+| `#alerts-workload-dev` | slack-workload-dev | Dev workload alerts (lower urgency) |
+| `#alerts-teams` | slack-team-* | Team-specific routing |
+| `#alerts-argocd` | slack-argo | ArgoCD sync failures |
 
 ### Grouping Strategy
 
@@ -169,7 +169,7 @@ amtool silence add \
   namespace="monitoring" \
   --duration=2h \
   --comment="Planned maintenance: VM cluster upgrade" \
-  --author="karlipegomes"
+  --author="<user>"
 
 # Silence specific alert
 amtool silence add \
@@ -187,7 +187,7 @@ curl -X POST https://alertmanager.<org-domain>/api/v2/silences \
     "matchers": [{"name": "namespace", "value": "monitoring", "isRegex": false}],
     "startsAt": "2026-05-29T02:00:00Z",
     "endsAt": "2026-05-29T04:00:00Z",
-    "createdBy": "karlipegomes",
+    "createdBy": "<user>",
     "comment": "Planned maintenance: Tempo upgrade"
   }'
 ```
@@ -293,4 +293,4 @@ Design → Implement → Test → Deploy → Monitor → Tune → Retire
 - Related skills: `error-budget-framework`, `alertmanager-slack-config`, `vmalert-configuration`, `runbook-authoring`
 - <org> Alertmanager: `https://alertmanager.<org-domain>`
 - <org> Grafana: `https://grafana.<org-domain>`
-- Slack channels: `#eks-notifications`, `#eks-notifications-workload-prd`, `#eks-notifications-teams`
+- Slack channels: `#alerts`, `#alerts-workload-prd`, `#alerts-teams`
