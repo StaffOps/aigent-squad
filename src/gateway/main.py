@@ -53,6 +53,7 @@ worker_pool = WorkerPool(
     idle_timeout=settings.gateway_idle_stream_timeout_seconds,
     cancel_poll_interval=settings.gateway_cancel_poll_seconds,
     redis_client=_redis,
+    job_record_ttl=settings.gateway_job_record_ttl_seconds,
 )
 # Global admission guards (rate + budget), Redis-coordinated, fail-open.
 admission = AdmissionGuard(

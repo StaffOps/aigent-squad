@@ -17,6 +17,7 @@ from unittest.mock import MagicMock, patch
 import fakeredis
 import pytest
 
+from src.core.redis_keys import hash_id
 from src.core.token_budget import (
     SessionBudgetTracker,
     TokenBudgetExceeded,
@@ -285,7 +286,7 @@ class TestTTL:
 
         tracker.record_usage("sess-ttl", input_tokens=100, output_tokens=100)
 
-        key = "token_budget:session:sess-ttl"
+        key = "token_budget:session:" + hash_id("sess-ttl")
         ttl = client.ttl(key)
         # TTL should be approximately 86400 (might be 86399 due to timing)
         assert ttl > 0
@@ -301,7 +302,7 @@ class TestTTL:
         tracker = SessionBudgetTracker(max_tokens_per_session=10000, redis_client=client)
 
         tracker.record_usage("sess-ttl2", input_tokens=100, output_tokens=100)
-        key = "token_budget:session:sess-ttl2"
+        key = "token_budget:session:" + hash_id("sess-ttl2")
 
         # Manually shorten TTL to simulate time passing
         client.expire(key, 100)
@@ -481,7 +482,7 @@ class TestEdgeCases:
         tracker.record_usage("sess-ns", input_tokens=100, output_tokens=100)
 
         # Verify the key format
-        key = "token_budget:session:sess-ns"
+        key = "token_budget:session:" + hash_id("sess-ns")
         assert client.exists(key)
         # Rate limiter keys would be "rate:user:..." or "budget:global:..."
         # No collision by construction

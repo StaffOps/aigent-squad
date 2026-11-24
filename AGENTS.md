@@ -303,6 +303,7 @@ No code changes needed — `AgentRegistry` auto-discovers at startup.
 | `INPUT_SCANNER_ENABLED` / `OUTPUT_FILTER_ENABLED` / `CANARY_ENABLED` | | `true` | Spec-14 L2/L4/L5 toggles |
 | `RATE_BUDGET_ENABLED` | | `true` | Gateway admission guards (rate + daily budget) |
 | `GATEWAY_MAX_CONCURRENT` | | `20` | WorkerPool size (+ `GATEWAY_*_TIMEOUT_SECONDS`) |
+| `GATEWAY_JOB_RECORD_TTL_SECONDS` | | `86400` | Expiry of the gateway's `job:<id>` status records in Redis (F-028); must be > 0 |
 | `REDIS_HOST` | ✅ | — | Cache + rate/budget + job lifecycle |
 | `REDIS_PASSWORD` | ✅ | — | Cache auth |
 | `REDIS_SSL` | | `true` | Disable in dev |

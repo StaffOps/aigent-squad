@@ -21,6 +21,7 @@ from types import TracebackType
 from typing import Any, Optional, Type
 
 from src.core.logger import logger
+from src.core.redis_keys import hash_id
 
 # Lua script: atomically release the lock ONLY if we still hold it.
 # Avoids the race where: holder A's lock expires → B acquires → A finishes
@@ -70,7 +71,8 @@ class SessionLock:
 
     @property
     def _key(self) -> str:
-        return f"session_lock:{self._session_id}"
+        # Hashed id (F-028): raw session ids stay out of Redis key names.
+        return f"session_lock:{hash_id(self._session_id)}"
 
     async def acquire(self) -> bool:
         """Attempt to acquire the lock. Returns True if acquired.
