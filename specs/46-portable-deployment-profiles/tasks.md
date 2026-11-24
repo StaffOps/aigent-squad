@@ -28,14 +28,31 @@
 
 ## Phase 3 — Chart profiles (helm-charts repo)
 
-- [ ] T11 `agentOverrides` map → env vars, no prompt copies (AC 9)
-- [ ] T12 `values-aws.yaml` (today's behavior, `HISTORY_BACKEND=dynamodb`) + `values-offaws.yaml` (placeholder example: Redis history, OpenAI-compatible LLM, MCP addresses, aws/finops off; no environment-specific values) (AC 10)
-- [ ] T13 Render tests + assertion that every `${VAR}` of enabled agents is set (AC 10)
+> Done 2026-11-24 on the helm-charts branch `feat/aigent-squad-portable-profiles` (local; ships
+> with the next chart version, together with the next app release). `history.backend` and
+> `agentOverrides` (only `enabled`/`env`, anything else fails the render; a null env value
+> unsets the variable); generic placeholder profiles `values-aws.yaml` / `values-offaws.yaml`,
+> both using the image's agents (`services.supervisor.mountAgents: false`);
+> `tests/profiles_test.sh` (18 checks) runs in the chart CI. T13 note: the chart cannot know
+> every `${VAR}` an agent references, so the test asserts the addresses each profile intends
+> to provide; any other unset address is reported by the app as degraded at runtime.
+
+- [x] T11 `agentOverrides` map → env vars, no prompt copies (AC 9)
+- [x] T12 `values-aws.yaml` (today's behavior, `HISTORY_BACKEND=dynamodb`) + `values-offaws.yaml` (placeholder example: Redis history, OpenAI-compatible LLM, MCP addresses, aws/finops off; no environment-specific values) (AC 10)
+- [x] T13 Render tests + assertion that every `${VAR}` of enabled agents is set (AC 10)
 
 ## Phase 4 — Verification and docs
 
-- [ ] T14 Docs: ARCHITECTURE, HOW-TO-NEW-AGENT, AGENTS.md env table, chart README, CHANGELOG upgrade note (AWS must set `HISTORY_BACKEND=dynamodb`), RELEASE.md check (AC 12)
-- [ ] T15 Live verification on a Kubernetes cluster outside AWS: `/ready` 200 without DynamoDB, history across 2 turns, 1 agentic MCP call via an OpenAI-compatible LLM (AC 11)
+> T15 done 2026-11-24 on a Kubernetes cluster outside AWS, with the chart branch above, the
+> off-AWS profile plus an environment overlay kept outside the product repos, and an
+> OpenAI-compatible LLM: `/ready` 200 with no DynamoDB (`history.backend=redis`, aws/finops
+> off, unset addresses listed as degraded); an agentic query called the cluster's Kubernetes
+> MCP server through the LLM's tool calling (results matched `kubectl`); a follow-up question
+> was answered from the Redis history. Not shown: history shared across supervisor replicas
+> (both turns hit the same replica; by design history lives in Redis, outside the process).
+
+- [x] T14 Docs: ARCHITECTURE, HOW-TO-NEW-AGENT, AGENTS.md env table, chart README, CHANGELOG upgrade note (AWS must set `HISTORY_BACKEND=dynamodb`), RELEASE.md check (AC 12)
+- [x] T15 Live verification on a Kubernetes cluster outside AWS: `/ready` 200 without DynamoDB, history across 2 turns, 1 agentic MCP call via an OpenAI-compatible LLM (AC 11)
 - [ ] T16 Independent test authorship (different session than the implementer)
 - [ ] T17 Independent code review (fresh context)
 - [ ] T18 Security review (mandatory: datasource addressing / data egress, header secrets, capability widening)

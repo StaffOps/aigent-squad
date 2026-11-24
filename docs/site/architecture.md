@@ -47,7 +47,8 @@ just function calls.
          │          │           │            │
     ┌────────┐ ┌────────┐ ┌─────────┐ ┌──────────────┐
     │ Redis  │ │Postgres│ │DynamoDB │ │ OTel Collect.│
-    │ cache  │ │pgvector│ │(history)│ │  → Prometheus│
+    │cache + │ │pgvector│ │(history,│ │  → Prometheus│
+    │history │ │        │ │ opt-in) │ │              │
     └────────┘ └────────┘ └─────────┘ └──────────────┘
 ```
 
@@ -142,7 +143,7 @@ Backpressure: `503` with `Retry-After` and a body `error.type` of
 | Path | Method | Auth | Purpose |
 |------|:------:|:----:|---------|
 | `/healthz` | GET | — | Liveness |
-| `/ready` | GET | — | Readiness (Redis + DynamoDB + agents) |
+| `/ready` | GET | — | Readiness (Redis + history backend + agents; degraded datasources listed) |
 | `/internal/process` | POST | `X-Supervisor-Token` | Orchestration entry (gateway-only) |
 | `/internal/agents` | GET | `X-Supervisor-Token` | Agent names for `/v1/models` |
 | `/alerts/incoming` | POST | `X-Internal-Token` | Alertmanager webhook → auto-RCA |
@@ -155,6 +156,6 @@ specialist agents run in-process — no per-agent ports.
 
 | Store | Purpose | Persistence |
 |-------|---------|-------------|
-| Redis | Datasource cache (per-agent TTL 1–60 min) | Ephemeral |
-| PostgreSQL + pgvector | KB items + RAG embeddings | Persistent |
-| DynamoDB | Conversation history (TTL 24h) | TTL-based |
+| Redis | Datasource cache (per-agent TTL 1–60 min); conversation history by default (`HISTORY_BACKEND=redis`, 24h) | Ephemeral |
+| PostgreSQL + pgvector | KB items + RAG embeddings; optionally conversation history (`HISTORY_BACKEND=postgres`, plain table, 24h) | Persistent |
+| DynamoDB | Conversation history when `HISTORY_BACKEND=dynamodb` (AWS deployments, TTL 24h) | TTL-based |
