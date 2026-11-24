@@ -179,6 +179,7 @@ src/
     worker_pool.py      ← Local semaphore(20), PoolFullError→503, cancel via Redis poll
     supervisor_client.py← httpx client + preflight to the supervisor backend
     auth.py             ← Edge auth (INTERNAL_API_TOKEN / GATEWAY_API_KEYS, fail-closed)
+    feedback.py         ← POST /feedback + response-id records (spec 47, consumer-scoped)
   core/
     generic_agent.py    ← Config-driven agent (all 6 specialists use this)
     llm/                ← LLM chokepoint (spec 28): service.py = LLMService common layer
@@ -303,6 +304,8 @@ No code changes needed — `AgentRegistry` auto-discovers at startup.
 | `INPUT_SCANNER_ENABLED` / `OUTPUT_FILTER_ENABLED` / `CANARY_ENABLED` | | `true` | Spec-14 L2/L4/L5 toggles |
 | `RATE_BUDGET_ENABLED` | | `true` | Gateway admission guards (rate + daily budget) |
 | `GATEWAY_MAX_CONCURRENT` | | `20` | WorkerPool size (+ `GATEWAY_*_TIMEOUT_SECONDS`) |
+| `FEEDBACK_ENABLED` | | `true` | Spec 47 `POST /feedback` + response-id records (off → `/feedback` 404, nothing recorded) |
+| `FEEDBACK_RESPONSE_TTL_SECONDS` / `FEEDBACK_RECORD_TTL_SECONDS` / `FEEDBACK_COMMENT_MAX_CHARS` | | `86400` / `604800` / `1000` | How long an answer can be rated / how long a rating is kept / comment cap |
 | `GATEWAY_JOB_RECORD_TTL_SECONDS` | | `86400` | Expiry of the gateway's `job:<id>` status records in Redis (F-028); must be > 0 |
 | `REDIS_HOST` | ✅ | — | Cache + rate/budget + job lifecycle |
 | `REDIS_PASSWORD` | ✅ | — | Cache auth |
@@ -359,6 +362,7 @@ All metrics named `aigent.<domain>.<name>`. Key ones:
 | `aigent.circuit_breaker.transitions` | — | Bedrock resilience events |
 | `aigent.llm.provider_errors` | provider, error_class | LLM transport errors (spec 28) |
 | `aigent.llm.guardrail_l1_active` | provider | 0 = Bedrock Guardrail L1 inactive (spec 28) |
+| `aigent.feedback.score` | agent_id, score | User ratings by bucket positive/neutral/negative (spec 47) |
 
 **No high-cardinality labels** — never add `user_id`, `trace_id`, or raw error text as labels.
 Every new feature must emit ≥1 custom metric, defined in `src/core/metrics.py` and documented

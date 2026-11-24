@@ -40,6 +40,7 @@
 | EVIDENCE-MODEL §4 | Level-2 gate: evidence collection insufficient to reach HIGH confidence routinely | `baixa` share > 50% over 30d | `sum(increase(aigent_investigation_completed_total{confidence="baixa"}[30d])) / sum(increase(aigent_investigation_completed_total[30d])) > 0.5` | ✅ MEASURABLE (emitted at `src/supervisor/investigation.py`); needs production volume to be meaningful |
 
 | spec 31 / 33 design | Gateway pressure — backpressure or admission guards firing in normal operation | any sustained non-zero | `sum(increase(aigent_gateway_pool_rejections_total[30d]))`, `max_over_time(aigent_gateway_pool_depth[30d])`, `sum by (reason) (increase(aigent_rate_limit_blocks_total[30d]))` | ✅ MEASURABLE (`src/core/metrics.py`) |
+| spec 47 (B-03) | Users find answers wrong or unhelpful (satisfaction trend; feeds B-19) | GAP: threshold undefined until a baseline exists (G8) | Negative share: `sum(increase(aigent_feedback_score_total{score="negative"}[30d])) / sum(increase(aigent_feedback_score_total[30d]))`; per agent: same with `sum by (agent_id)`. Volume check first: `sum(increase(aigent_feedback_score_total[30d]))` (a share over a handful of ratings is noise) | ✅ MEASURABLE (`src/gateway/feedback.py`); needs a UI or client that sends ratings to have volume |
 | BACKLOG B-08 | Security-layer overhead (ms + $/request) too high to justify | GAP: threshold undefined | No per-layer latency/cost metric | GAP: needs per-layer timing (G10) |
 ---
 
@@ -54,7 +55,7 @@
 | G5 | `aigent.skill.miss` counter with detection logic | Medium (requires knowing when a skill SHOULD have matched) | spec 26 |
 | G6 | `aigent.session_lock.timeout` counter (queue_wait is already emitted) | Low | spec 25 resurrection (2nd condition) |
 | G7 | Level 3+ implementation + A/B framework | High | VISION L2→L3, spec 11 synthesizer |
-| G8 | Thresholds defined for spec 11 accuracy, spec 26 miss rate, B-08 overhead | Low (decision after a baseline) | spec 11, spec 26, B-08 |
+| G8 | Thresholds defined for spec 11 accuracy, spec 26 miss rate, B-08 overhead, spec 47 negative-feedback share | Low (decision after a baseline) | spec 11, spec 26, B-08 |
 | G9 | Prompt-cache write/read token counter (the `direction` label is only input/output) | Low | cost review "prompt caching working?" |
 | G10 | Per-security-layer latency histogram | Low–Medium | B-08 |
 

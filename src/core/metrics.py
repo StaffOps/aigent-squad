@@ -476,3 +476,24 @@ history_backend_errors = meter.create_counter(
     ),
     unit="1",
 )
+
+# === Spec 47: User feedback ===
+# Labels: agent_id (sanitised, bounded), score (positive|neutral|negative). Never
+# user_id / session_id / response_id / consumer_id.
+feedback_score = meter.create_counter(
+    name="aigent.feedback.score",
+    description=(
+        "User ratings accepted by POST /feedback, by agent and score bucket "
+        "(up/4/5=positive, 3=neutral, down/1/2=negative). Labels: agent_id, score."
+    ),
+    unit="1",
+)
+# Label: reason (unknown_response|already_rated|store_unavailable|record_failed).
+feedback_errors = meter.create_counter(
+    name="aigent.feedback.errors",
+    description=(
+        "Feedback refusals and fail-open recording errors. record_failed means a "
+        "response id could not be stored (the query still answered). Label: reason."
+    ),
+    unit="1",
+)

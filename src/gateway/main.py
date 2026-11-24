@@ -19,6 +19,14 @@ from src.core.config import reveal, settings  # noqa: E402
 from src.core.rate_limiter import AdmissionGuard, estimate_cost  # noqa: E402
 from src.gateway import __version__  # noqa: E402
 from src.gateway.auth import AuthResult, get_key_agent_map, require_edge_auth, scoped_user_id  # noqa: E402
+from src.gateway.feedback import (  # noqa: E402
+    RESPONSE_ID_HEADER,
+    FeedbackStore,
+    agent_of,
+    create_feedback_router,
+    new_completion_id,
+    new_query_response_id,
+)
 from src.gateway.supervisor_client import (  # noqa: E402
     SupervisorClient,
     SupervisorUnavailableError,
@@ -61,6 +69,9 @@ admission = AdmissionGuard(
     rate_per_minute=settings.rate_limit_per_minute,
     daily_budget_usd=settings.daily_budget_usd,
 )
+
+# Response-id ownership records + POST /feedback (spec 47). Fail-open on record.
+feedback_store = FeedbackStore(_redis)
 
 # Agent names exposed by the OpenAI bridge. The gateway holds no registry; it
 # learns them from the supervisor at startup (best-effort; refreshable).
@@ -114,6 +125,8 @@ app = FastAPI(title="AIgent-squad Gateway", version=__version__, lifespan=lifesp
 # directly (trailing slash) to skip the hop in the one place it's
 # actually worth avoiding.
 app.mount("/metrics", metrics_app())
+# Resolved per request so tests (and a future store swap) can replace the global.
+app.include_router(create_feedback_router(lambda: feedback_store))
 
 
 class QueryRequest(BaseModel):  # type: ignore[misc]
@@ -209,7 +222,17 @@ async def query(request: QueryRequest, auth: AuthResult = Depends(require_edge_a
         return _busy_response("backend_unavailable", "supervisor backend unavailable")
     except Exception as exc:
         return _forward_error(exc)
-    return result
+    if not isinstance(result, dict):
+        return result
+    # Spec 47: mint the rateable response id (additive field + header).
+    response_id = new_query_response_id()
+    await feedback_store.record_response(
+        response_id, auth, user_id, request.session_id, agent_of(result)
+    )
+    return JSONResponse(
+        content={**result, "response_id": response_id},
+        headers={RESPONSE_ID_HEADER: response_id},
+    )
 
 
 @app.get("/v1/models", dependencies=[Depends(require_edge_auth)])  # type: ignore[untyped-decorator]
@@ -258,6 +281,8 @@ async def openai_chat_completions(
     user_input = messages_to_user_input(request.messages)
     session_id = x_session_id or f"openai-{user_id}"
     job_id = str(uuid.uuid4())
+    # Spec 47: the rateable id — the OpenAI ``id`` of this answer + a header.
+    response_id = new_completion_id()
 
     # --- Phase 3.5 FIX: check request.stream BEFORE any LLM call ---
     # A streaming request makes exactly ONE agentic invocation (process_stream).
@@ -284,10 +309,16 @@ async def openai_chat_completions(
                 finally:
                     await resp.aclose()
 
+            # The supervisor mints its own chunk ids on this path; the header carries
+            # the rateable id and the agent is not known here (spec 47 Decision 1).
+            await feedback_store.record_response(
+                response_id, auth, user_id, session_id, force_agent or "auto"
+            )
             return StreamingResponse(
                 _proxy_sse(),
                 media_type="text/event-stream",
-                headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+                headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no",
+                         RESPONSE_ID_HEADER: response_id},
             )
         except (SupervisorUnavailableError, Exception):
             # Streaming endpoint unavailable — fall back to non-streaming
@@ -307,10 +338,15 @@ async def openai_chat_completions(
         except Exception as exc:
             return _forward_error(exc)
 
+        fallback_dict: dict[str, Any] = fallback_result if isinstance(fallback_result, dict) else {}
+        await feedback_store.record_response(
+            response_id, auth, user_id, session_id, agent_of(fallback_dict)
+        )
         return StreamingResponse(
-            sse_stream(fallback_result, request.model),
+            sse_stream(fallback_result, request.model, completion_id=response_id),
             media_type="text/event-stream",
-            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no",
+                     RESPONSE_ID_HEADER: response_id},
         )
 
     # --- Non-streaming path: existing _one_shot + worker-pool logic unchanged ---
@@ -334,7 +370,13 @@ async def openai_chat_completions(
     except Exception as exc:
         return _forward_error(exc)
 
-    return build_completion(result if isinstance(result, dict) else {}, request.model).model_dump()
+    result_dict: dict[str, Any] = result if isinstance(result, dict) else {}
+    await feedback_store.record_response(
+        response_id, auth, user_id, session_id, agent_of(result_dict)
+    )
+    completion = build_completion(result_dict, request.model)
+    completion.id = response_id
+    return JSONResponse(content=completion.model_dump(), headers={RESPONSE_ID_HEADER: response_id})
 
 
 @app.post("/jobs/{job_id}/cancel", status_code=202, dependencies=[Depends(require_edge_auth)])  # type: ignore[untyped-decorator]

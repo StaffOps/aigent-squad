@@ -222,6 +222,13 @@ recently.
 | `aigent.quality.unverified_claims_per_response` | Histogram | `agent_id` | **Distinct** ungrounded numeric claims per response (deduped, capped at 20). Spec 41 — the counter says *how bad*, this says *how many*. Resource IDs never reach here (they block earlier). Default SDK buckets; explicit boundaries would require a View in the `otel_helper` provider. |
 | `aigent.eval.score` | Histogram | `suite`, `agent_id` | Per-question/scenario score (0-1). `suite="golden"` from `make eval`'s golden-set + LLM-judge run (mechanical checks are the floor — a failure zeroes the score regardless of judge opinion). `suite="rca"` from `make eval-rca`'s fixture-fed scenarios (spec 35 Phase 3, mechanical-only, no judge); `agent_id` holds the scenario id for this suite, not an agent name. |
 
+## User feedback (spec 47)
+
+| Metric | Type | Labels | Description |
+|--------|------|--------|-------------|
+| `aigent.feedback.score` | Counter | `agent_id`, `score` | Ratings accepted by `POST /feedback`; `score` is `positive` (up, 4, 5), `neutral` (3) or `negative` (down, 1, 2) |
+| `aigent.feedback.errors` | Counter | `reason` | `unknown_response`, `already_rated`, `store_unavailable`, or `record_failed` (response id not stored; the query still answered) |
+
 ## Health and readiness (spec 07)
 
 Emitted by the dependency health checker on every `/healthz` and `/ready` request.

@@ -125,6 +125,15 @@ will read as sparse/absent unless someone has run an eval recently.
 | `aigent.alerts.investigation_triggered` | Counter | — | Investigations triggered from alerts |
 | `aigent.alerts.postback` | Counter | `status` | Slack post-back attempts |
 
+## User feedback (spec 47)
+
+| Metric | Type | Labels | Description |
+|--------|------|--------|-------------|
+| `aigent.feedback.score` | Counter | `agent_id`, `score` | User ratings accepted by `POST /feedback` (spec 47). `score`: `positive` (up, 4, 5), `neutral` (3), `negative` (down, 1, 2). Proxied `/v1` streams report `agent_id="auto"` (or the forced agent) |
+| `aigent.feedback.errors` | Counter | `reason` | Feedback refusals (`unknown_response`, `already_rated`, `store_unavailable`) and fail-open response-id recording errors (`record_failed`) — spec 47 |
+
+Satisfaction trend for spec 33 reviews: `specs/TRIGGERS.md` (negative-feedback share).
+
 ## Known gaps (not usable yet)
 
 Do not build alerts on these — they do not exist yet.
@@ -150,6 +159,8 @@ Do not build alerts on these — they do not exist yet.
 | `type` (kb) | troubleshooting, decision, pattern, infrastructure | 4 |
 | `status` (kb) | active, pending_review, superseded, rejected | 4 |
 | `has_failures` (synthesizer) | True, False | 2 |
+| `score` (feedback) | positive, neutral, negative | 3 |
+| `reason` (feedback errors) | unknown_response, already_rated, store_unavailable, record_failed | 4 |
 
 ## Dashboards
 
