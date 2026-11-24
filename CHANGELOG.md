@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Fixed — streamed answers are saved to conversation history (BACKLOG F-026, 2026-11-24)
+- The streaming paths (forced agent and auto-route) saved the user turn but never the
+  answer, so streaming clients lost the squad's previous replies from the next turn's
+  context. A completed answer (stream reached its end) is now saved like the
+  non-streaming path; an interrupted stream saves nothing; a history error never breaks
+  the stream.
+
 ### Fixed — spec 46 follow-ups (BACKLOG F-025 a/b/c/e/f, 2026-11-24)
 - Postgres history: expired rows also purged at connect and (at most every 5 min) on
   read; DDL skipped when the table already exists (lets a migration role pre-create it);

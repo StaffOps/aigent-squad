@@ -337,7 +337,7 @@ class SupervisorAgent:
           - Token budget exceeded
           - Unknown/unclassifiable input
         """
-        from src.core.agentic_loop_streaming import StepRouting
+        from src.core.agentic_loop_streaming import StepDone, StepFinalChunk, StepRouting
 
         start_time = time.time()
 
@@ -413,8 +413,15 @@ class SupervisorAgent:
                 # FIX 1 (streaming undercount): wrap generator to emit RED
                 # metrics after the stream is fully consumed.
                 async def _forced_stream() -> Any:
+                    answer: list[str] = []
                     try:
                         async for event in step_gen:
+                            if isinstance(event, StepFinalChunk):
+                                answer.append(event.text)
+                            elif isinstance(event, StepDone):
+                                # F-026: persist the answer like the non-streaming path,
+                                # so the next turn has the squad's previous reply.
+                                await self._save_streamed_answer(user_id, session_id, force_agent, answer)
                             yield event
                     finally:
                         # Emit RED metrics on completion OR early close (disconnect/timeout)
@@ -505,13 +512,35 @@ class SupervisorAgent:
                         reasoning=classification.reasoning or "",
                         sub_query=agents[0].sub_query or "",
                     )
+                    answer: list[str] = []
                     async for event in agent_step_gen:
+                        if isinstance(event, StepFinalChunk):
+                            answer.append(event.text)
+                        elif isinstance(event, StepDone):
+                            await self._save_streamed_answer(user_id, session_id, resolved_name, answer)
                         yield event
                 finally:
                     # Emit RED metrics on completion OR early close (client disconnect / timeout)
                     self._record_metrics(resolved_name, "", user_id, session_id, start_time)
 
             return _routed_stream()
+
+    async def _save_streamed_answer(
+        self, user_id: str, session_id: str, agent_name: str, chunks: list[str],
+    ) -> None:
+        """F-026: save a completed streamed answer to history (fail-open)."""
+        text = "".join(chunks).strip()
+        if not text:
+            return
+        try:
+            await storage.save_chat_message(user_id, session_id, agent_name, ConversationMessage(
+                role="assistant",
+                content=text,
+                timestamp=datetime.now(timezone.utc).isoformat(),
+                agent_id=agent_name,
+            ))
+        except Exception as e:  # history is fail-open: never break the stream
+            logger.warning("streamed answer not saved to history (fail-open)", extra={"error": str(e)})
 
     async def _single_agent_call(
         self, agent_name: str, classification: ClassifierResult,

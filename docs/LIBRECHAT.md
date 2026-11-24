@@ -197,6 +197,9 @@ Observability counterpart: `aigent.quality.confidence` and
   token-by-token streaming arrives with spec 06. The frame format is already
   OpenAI-compatible, so the client works correctly either way.
 - **`usage` is zero**: token accounting is deferred (spec 10/27).
+- **History with streaming**: a completed streamed answer is saved to conversation
+  history like a non-streamed one (F-026), so follow-up turns see the previous
+  reply; an interrupted stream (client disconnect, timeout) saves only the question.
 - **Identity is self-declared within a key**: `user`/session come from the request;
   there is no per-user authn yet (same limitation as the rest of the API — see
   `ANALYSIS.md` SEC-D12). The gateway scopes them to the authenticated credential
