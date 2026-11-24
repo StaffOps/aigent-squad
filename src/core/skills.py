@@ -21,6 +21,12 @@ _FRONTMATTER_RE = re.compile(r"^\s*---\s*\n(.*?)\n---\s*\n?(.*)$", re.DOTALL)
 _WORD_RE = re.compile(r"[a-z0-9]+")
 
 
+def _contains_run(tokens: list[str], run: list[str]) -> bool:
+    """True if ``run`` appears as a contiguous slice of ``tokens``."""
+    n = len(run)
+    return any(tokens[i:i + n] == run for i in range(len(tokens) - n + 1))
+
+
 @dataclass
 class Skill:
     """A unit of on-demand knowledge parsed from SKILL.md."""
@@ -34,12 +40,17 @@ class Skill:
         """Keyword match: True if any keyword appears in the query (token-aware).
 
         Single-word keywords match on word boundaries (avoids 'oom' matching
-        'room'); multi-word keywords match as a substring.
+        'room'); multi-word keywords match as a substring. Punctuated keywords
+        (``cert-manager``, ``kube_pod``, ``0.0.0.0/0``) are split the same way
+        as the query and match when their tokens appear contiguously, so
+        "cert-manager", "cert manager" and "cert_manager" all match — before,
+        they were compared whole against single tokens and could never match.
         """
         if not self.keywords:
             return False
         q = query.lower()
-        q_tokens = set(_WORD_RE.findall(q))
+        q_token_list = _WORD_RE.findall(q)
+        q_tokens = set(q_token_list)
         for kw in self.keywords:
             k = kw.lower().strip()
             if not k:
@@ -49,6 +60,10 @@ class Skill:
                     return True
             elif k in q_tokens:
                 return True
+            else:
+                kw_tokens = _WORD_RE.findall(k)
+                if len(kw_tokens) > 1 and _contains_run(q_token_list, kw_tokens):
+                    return True
         return False
 
 

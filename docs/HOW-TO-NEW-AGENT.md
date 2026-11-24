@@ -132,11 +132,10 @@ A single skill can be shared by multiple agents (e.g. kubernetes + observability
 
 - **Single-word keywords** match on word boundaries (`oom` won't match `room`).
 - **Multi-word keywords** (`"out of memory"`) match as a substring.
-- **Punctuated single keywords never match.** The query is split into
-  alphanumeric tokens, so a keyword with `-`, `_`, `/`, `.` or `:` but no space
-  (`cert-manager`, `kube_pod`, `0.0.0.0/0`) can never equal a token. Write it as a
-  plain word or a space-separated phrase instead (`certmanager`, `"cert manager"`);
-  note the hyphenated spelling in a query is still not caught by either form.
+- **Punctuated keywords** (`cert-manager`, `kube_pod`, `0.0.0.0/0`) are split like
+  the query and match when their parts appear next to each other, in order — so
+  `cert-manager` matches "cert-manager", "cert manager" and "cert_manager", but not
+  "nginx" alone for `ingress-nginx`.
 - **At most 3 skills are injected per turn** (`AIGENT_MAX_SKILLS_PER_TURN`), taken in
   **allowlist order**. Put the agent's core triage skills first, and avoid generic
   keywords (`aws`, `node`, `pipeline`, `cost`) that match almost every query and
