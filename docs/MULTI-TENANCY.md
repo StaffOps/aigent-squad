@@ -19,10 +19,12 @@ Sliding-window rate limiting protects against abuse and ensures fair resource di
 
 | Scope | Default | Env Var | Behavior on limit |
 |-------|---------|---------|-------------------|
-| Per-user | 30 req/min | `RATE_LIMIT_PER_USER` | HTTP 429 + `Retry-After` header |
-| Global | 200 req/min | `RATE_LIMIT_GLOBAL` | HTTP 429 (all users) |
+| Per-user | 60 req/min | `RATE_LIMIT_PER_MINUTE` | HTTP 429 + `Retry-After` header |
+| All guards | on | `RATE_BUDGET_ENABLED` | `false` turns off the per-user rate limit and the daily budget |
 
-**Implementation**: Redis-backed sliding window (`ZRANGEBYSCORE` on timestamp-scored sets). Falls back to in-memory counter if Redis is unavailable (fail-open — availability over strictness).
+There is no global requests-per-minute limit; the cluster-wide guard is the daily USD budget below.
+
+**Implementation**: Redis-backed sliding window per user (timestamp-scored sorted set, `src/core/rate_limiter.py`), enforced at the gateway. If Redis is unavailable the request is allowed (fail-open — availability over strictness).
 
 ## Budget Control
 
@@ -102,8 +104,8 @@ triggers:
 | Variable | Default | Purpose |
 |----------|---------|---------|
 | `HISTORY_BACKEND` | `redis` | History store (`redis` \| `dynamodb` \| `postgres`); retention is a fixed 24 h |
-| `RATE_LIMIT_PER_USER` | 30 | Requests/min per user |
-| `RATE_LIMIT_GLOBAL` | 200 | Requests/min cluster-wide |
+| `RATE_LIMIT_PER_MINUTE` | 60 | Requests/min per user (sliding window) |
+| `RATE_BUDGET_ENABLED` | `true` | Master switch for the rate limit and daily budget |
 | `DAILY_BUDGET_USD` | 50.0 | Daily cost cap |
 | `BEDROCK_MAX_CONCURRENT` | 10 | Per-pod Bedrock concurrency |
 | `CIRCUIT_BREAKER_THRESHOLD` | 5 | Failures before opening circuit |
