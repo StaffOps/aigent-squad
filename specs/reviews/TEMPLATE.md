@@ -44,6 +44,7 @@ Paste the query you actually ran; "Window" is the range you used (default `[30d]
 | Skills keyword-miss (spec 26) | — | — | NOT MEASURABLE (G5) | undefined (G8) | GAP |
 | Evidence confidence skew (EVIDENCE-MODEL §4) — `baixa` share | | 30d | __% | >50% | ⬜ / 🟡 / 🔴 |
 | Gateway pressure (spec 31) — pool rejections / max pool depth / rate-limit blocks | | 30d | __ / __ / __ | sustained non-zero | ⬜ / 🟡 / 🔴 |
+| Negative-feedback share (spec 47) — total ratings / negative share / worst agent | | 30d | __ / __% / __ | undefined (G8) | GAP / trend note |
 | Security-layer overhead (BACKLOG B-08) | — | — | NOT MEASURABLE (G10) | undefined (G8) | GAP |
 
 **Legend**: ⬜ = well below threshold; 🟡 = approaching (>70% of threshold); 🔴 = crossed → action required; GAP = not measurable today (cite the gap id). No other status symbols.

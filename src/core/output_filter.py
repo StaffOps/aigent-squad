@@ -72,6 +72,25 @@ def _digest(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8", errors="replace")).hexdigest()[:12]
 
 
+def redact_secrets(text: str) -> str:
+    """``text`` with every L4 pattern match replaced by ``[REDACTED:<category>]``.
+
+    For text that must reach the model in part, such as an MCP server's JSON-RPC
+    error message. A model answer is still blocked by :meth:`OutputFilter.scan`;
+    this redaction keeps a secret from ever entering the context. Runs whether
+    or not the output filter is enabled.
+    """
+    for name, pattern in _PATTERNS:
+        if name == "credit_card":
+            text = pattern.sub(
+                lambda m: "[REDACTED:credit_card]" if _luhn_valid(m.group()) else m.group(),
+                text,
+            )
+        else:
+            text = pattern.sub(f"[REDACTED:{name}]", text)
+    return text
+
+
 def _luhn_valid(candidate: str) -> bool:
     """Luhn checksum — confirms a digit sequence is a plausible card number.
 

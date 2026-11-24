@@ -54,3 +54,12 @@ class KbDelta:
     confidence: float = 0.0
     supersedes_id: Optional[str] = None
     reasoning: str = ""
+
+
+@dataclass
+class KbProvenance:
+    """Where a KB item came from (one row in ``kb_provenance``, spec 21)."""
+    source_investigation_id: str  # InvestigationState.id (UUID)
+    confidence: float
+    extractor_model: Optional[str] = None
+    enricher_model: Optional[str] = None

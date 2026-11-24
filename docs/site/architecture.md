@@ -128,6 +128,7 @@ Learns from completed investigations. Distills RCA results into KB items stored 
 | `/v1/models` | GET | edge auth | OpenAI-compatible model list |
 | `/v1/chat/completions` | POST | edge auth | OpenAI-compatible chat (LibreChat) |
 | `/jobs/{id}/cancel` | POST | edge auth | Cancel an in-flight job |
+| `/feedback` | POST | edge auth | Rate an answer (spec 47) — see below |
 
 Edge auth accepts `X-Internal-Token`, `X-API-Key`, or `Authorization: Bearer <token>`
 (any one). The OpenAI surface accepts **any** `model` value: `aigent-squad-<agent>` forces a
@@ -137,6 +138,29 @@ Backpressure: `503` with `Retry-After` and a body `error.type` of
 `service_overloaded` (pool full, self-healing) or `backend_unavailable`
 (supervisor unreachable). Admission denials: `429 rate_limited` /
 `503 budget_exhausted` with `X-RateLimit-Remaining` / `X-Budget-Remaining-USD`.
+
+#### Feedback (spec 47)
+
+Every answer carries a response id: `response_id` in the `/query` body, the OpenAI `id` on
+`/v1/chat/completions`, and the `X-Aigent-Response-Id` header on both (streaming included —
+on a proxied stream the chunk ids are the supervisor's, so use the header).
+
+```bash
+curl -s -X POST http://localhost:8000/feedback \
+  -H "X-API-Key: $KEY" -H 'Content-Type: application/json' \
+  -d '{"response_id": "chatcmpl-…", "score": "down", "comment": "wrong namespace"}'
+# 201 {"response_id": "chatcmpl-…", "status": "recorded"}
+```
+
+- `score`: `"up"`, `"down"`, or an integer 1–5. `comment` is optional, at most
+  `FEEDBACK_COMMENT_MAX_CHARS` (1000). Unknown fields → `422`.
+- Scoped to the authenticated consumer (API key): an id another key received answers `404`,
+  the same as an unknown id or one older than `FEEDBACK_RESPONSE_TTL_SECONDS` (24 h).
+- One rating per answer: a repeat answers `409 already_rated`.
+- Redis unavailable → `503 feedback_unavailable` (ownership cannot be checked). Queries are
+  never affected: recording the response id is fail-open.
+- Counted in `aigent.feedback.score{agent_id, score}`. UIs (LibreChat) do not call this API
+  yet.
 
 ### Supervisor (internal, `:8001`)
 
@@ -187,19 +211,27 @@ never delays the connect or a readiness probe), and on reads at most every 5 min
 store is not affected):
 
 - unset: the driver default (`prefer`: TLS when the server offers it, no verification);
-- `require`: the connection is **encrypted but the server certificate is not verified**, so it does
-  not protect against an impostor server on the path (the driver only verifies under `require` if it
-  happens to find a CA file through `PGSSLROOTCERT` or `~/.postgresql/root.crt`; do not rely on it,
-  use `verify-*`). `POSTGRES_SSLROOTCERT` is only read for the `verify-*` modes;
+- `require`: the connection is encrypted. The server certificate is verified only when a CA bundle
+  is available (`POSTGRES_SSLROOTCERT`, `PGSSLROOTCERT` or `~/.postgresql/root.crt`, in that
+  order), as in libpq; with no bundle it is encrypt-only and does not protect against an impostor
+  server on the path. To make verification mandatory, use `verify-*`;
 - `verify-ca`: encrypted, and the server certificate must chain to a trusted CA;
 - `verify-full`: as `verify-ca`, and the certificate must also match the host name.
 
 `verify-ca` and `verify-full` need a CA bundle: mount the CA that signed the server certificate
 (for a managed database, the cloud provider's published bundle, e.g. the RDS bundle) and set
 `POSTGRES_SSLROOTCERT` to its path. Without it the store looks at `PGSSLROOTCERT` and then
-`~/.postgresql/root.crt`; when no CA file is found it does not connect, logs an error and counts
+`~/.postgresql/root.crt`. `system` (in either variable) means the system CA bundle of the
+container. A CA bundle that is missing, unreadable or not PEM is a TLS misconfiguration: the store
+does not connect, logs an error (not "unavailable") and counts
 `aigent.history.backend_errors{backend="postgres",op="connect"}`, and history fails open (empty)
 until the configuration is fixed.
+
+The TLS context itself is built by the driver (asyncpg), so the standard libpq client settings keep
+working: a client certificate for mutual TLS (`PGSSLCERT`/`PGSSLKEY`, or
+`~/.postgresql/postgresql.crt`/`postgresql.key`), a revocation list (`PGSSLCRL` or
+`~/.postgresql/root.crl`) and `PGSSLMINPROTOCOLVERSION`/`PGSSLMAXPROTOCOLVERSION` (TLS 1.2 floor
+by default).
 
 **Datasource errors in the LLM context.** When a datasource or MCP tool call fails, the text the
 model sees names the exception class only, plus the HTTP status for HTTP errors and the error code
@@ -207,4 +239,8 @@ for AWS API errors (e.g. `ClientError (AccessDenied)`). Exception messages carry
 account ids and S3 locations, so they go to the logs only, with URL credentials (`user:pass@`)
 and query strings removed. The exception is an MCP protocol error (a JSON-RPC error such as
 invalid params or an unknown tool): the server answered, so the model gets its code and message
-(URLs removed, at most 200 characters) and can correct the call.
+(URLs and secret-looking values removed, at most 200 characters) and can correct the call, and it
+does not count as a circuit-breaker failure. The errors the MCP client raises itself for a closed
+connection (`-32000`) or a read timeout (`408`) are transport failures: class only, and they do
+count. A Kubernetes API error keeps its HTTP status (`ApiException (HTTP 403)`), so a missing RBAC
+permission and a missing object stay distinguishable.

@@ -97,6 +97,33 @@ Short-term memory is consumed during the investigation (Levels 2–4). Long-term
 - Budget cap is a hard stop ($50/month default).
 - RAG injection is best-effort: failure → investigation continues without it, does not block.
 
+## On/off switch, retention and provenance (F-029, 2026-11-24)
+
+- **`KB_ENABLED`** (default `true`): `false` disables the whole KB — the store never connects,
+  distillation returns before any LLM call, RAG returns `""` before embedding, `/kb/*` → 503.
+  Before F-029 the KB ran whenever Postgres was reachable, including when the same Postgres
+  served `HISTORY_BACKEND=postgres`.
+- **Retention** is enforced by the store, not by an operator: rejected/superseded items are
+  deleted `KB_REJECTED_RETENTION_DAYS` (30) after `updated_at`; other items only when
+  `KB_ITEM_MAX_AGE_DAYS` is set, measured from `created_at`.
+  *Decision — opportunistic sweep, no cron.* The supervisor already holds the pool; a sweep at
+  connect plus at most once per `KB_RETENTION_INTERVAL_SECONDS`, started in the background by
+  reads/writes, needs no new deployable (CronJob, pg_cron) and works on any Postgres. Bounded
+  batches (`SELECT … LIMIT … FOR UPDATE SKIP LOCKED`, one transaction each, capped batch count)
+  keep a large backlog from holding locks or stalling a replica; several replicas can sweep at
+  once without conflict. Fail-open (`aigent.kb.retention.errors`): retention must never take
+  the KB, or an investigation, down. `superseded_by` has no `ON DELETE` action, so pointers to
+  doomed rows are cleared first (this bumps the referencing row's `updated_at`, which can delay
+  its own deletion by one retention period — accepted). *Reopen if* a deployment has no KB
+  traffic for long stretches and restarts rarely (then expired rows wait), or the KB grows to
+  where a scheduled job is cheaper than per-replica sweeps.
+- **Provenance**: `run_investigation` sets `RCAResult.investigation_id` (the
+  `InvestigationState.id`, kept out of `to_dict()`), the supervisor passes it to
+  `distill_rca`, and each new item is inserted with its `kb_provenance` row in one
+  transaction (investigation id, delta confidence, extractor = `agent` role model, enricher =
+  `synthesis` role model). A missing or non-UUID id → item without provenance. Alert-triggered
+  investigations (`/alerts/incoming`) are not distilled, so they write no KB items.
+
 ---
 
 ## Costs

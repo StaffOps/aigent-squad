@@ -12,6 +12,7 @@ from unittest.mock import AsyncMock, patch
 from fastapi.testclient import TestClient
 
 from src.gateway.auth import require_edge_auth
+import src.gateway.main as gw
 from src.gateway.main import app
 
 
@@ -60,11 +61,10 @@ class TestQueryAdmission:
 
     def test_admission_skipped_when_disabled(self, client):
         """When settings.rate_budget_enabled=False, admission is bypassed."""
-        with patch("src.gateway.main.settings") as mock_settings, \
+        with patch.object(gw.settings, "rate_budget_enabled", False), \
              patch("src.gateway.main.worker_pool") as mock_pool, \
              patch("src.gateway.main.supervisor_client") as mock_sc, \
              patch("src.gateway.main.admission") as mock_adm:
-            mock_settings.rate_budget_enabled = False
             mock_pool.has_capacity.return_value = True
             mock_sc.is_supervisor_ready = AsyncMock(return_value=True)
             mock_sc.process = AsyncMock(return_value={"agent": "a", "response": "ok", "confidence": 0.9})
@@ -132,12 +132,11 @@ class TestChatCompletionsAdmission:
             mock_sc.process.assert_not_called()
 
     def test_admission_skipped_when_disabled(self, client):
-        with patch("src.gateway.main.settings") as mock_settings, \
+        with patch.object(gw.settings, "rate_budget_enabled", False), \
              patch("src.gateway.main._agent_names", ["aws"]), \
              patch("src.gateway.main.worker_pool") as mock_pool, \
              patch("src.gateway.main.supervisor_client") as mock_sc, \
              patch("src.gateway.main.admission") as mock_adm:
-            mock_settings.rate_budget_enabled = False
             mock_pool.has_capacity.return_value = True
             mock_sc.is_supervisor_ready = AsyncMock(return_value=True)
             mock_sc.process = AsyncMock(return_value={"agent": "a", "response": "ok", "confidence": 0.9})

@@ -62,6 +62,7 @@ async def lifespan(app: Any) -> Any:
     await kb_store.connect()
     yield
     await kb_store.close()
+    await _history_store.aclose()  # cancels the Postgres background purge (spec 46)
     await supervisor.close()
     # Spec 28: release the LLM transport's pooled connections (no-op for Bedrock).
     from src.core.llm import get_llm
@@ -234,13 +235,19 @@ async def health() -> dict[str, str]:
     return {"status": "healthy", "service": "supervisor"}
 
 
-@app.get("/kb/pending", dependencies=[Depends(require_token)])  # type: ignore[untyped-decorator]
+def _require_kb_enabled() -> None:
+    """KB_ENABLED=false (F-029): the /kb/* endpoints answer 503 with a clear reason."""
+    if not settings.kb_enabled:
+        raise HTTPException(status_code=503, detail="Knowledge base is disabled (KB_ENABLED=false)")
+
+
+@app.get("/kb/pending", dependencies=[Depends(require_token), Depends(_require_kb_enabled)])  # type: ignore[untyped-decorator]
 async def list_kb_pending() -> Any:
     items = await kb_store.list_pending_review()
     return {"items": [{"id": i.id, "type": i.type, "title": i.title, "content": i.content, "confidence": i.confidence_score} for i in items]}
 
 
-@app.post("/kb/{item_id}/approve", dependencies=[Depends(require_token)])  # type: ignore[untyped-decorator]
+@app.post("/kb/{item_id}/approve", dependencies=[Depends(require_token), Depends(_require_kb_enabled)])  # type: ignore[untyped-decorator]
 async def approve_kb_item(item_id: str) -> Any:
     ok = await kb_store.update_status(item_id, "active")
     if not ok:
@@ -248,7 +255,7 @@ async def approve_kb_item(item_id: str) -> Any:
     return {"ok": True, "id": item_id, "status": "active"}
 
 
-@app.post("/kb/{item_id}/reject", dependencies=[Depends(require_token)])  # type: ignore[untyped-decorator]
+@app.post("/kb/{item_id}/reject", dependencies=[Depends(require_token), Depends(_require_kb_enabled)])  # type: ignore[untyped-decorator]
 async def reject_kb_item(item_id: str) -> Any:
     ok = await kb_store.update_status(item_id, "rejected")
     if not ok:

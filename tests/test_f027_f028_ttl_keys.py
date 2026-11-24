@@ -63,7 +63,7 @@ async def test_fetch_chat_filters_on_ttl_with_reserved_word_alias(store_and_tabl
     assert kwargs["ExpressionAttributeNames"] == {"#ttl": "ttl"}
     assert before <= kwargs["ExpressionAttributeValues"][":now"] <= after
     assert kwargs["ExpressionAttributeValues"][":pk"] == "u1#s1"
-    assert kwargs["ExpressionAttributeValues"][":agent"] == "aws"
+    assert kwargs["ExpressionAttributeValues"][":agent"] == "aws#"  # '#': no prefix overlap
     assert kwargs["KeyConditionExpression"] == "pk = :pk AND begins_with(sk, :agent)"
     assert kwargs["ScanIndexForward"] is False
     assert kwargs["Limit"] == 5
@@ -82,7 +82,8 @@ async def test_fetch_all_chats_filters_on_ttl(store_and_table):
     assert kwargs["ExpressionAttributeNames"] == {"#ttl": "ttl"}
     assert ":now" in kwargs["ExpressionAttributeValues"]
     assert kwargs["KeyConditionExpression"] == "pk = :pk"
-    assert kwargs["Limit"] == 7
+    # sk orders by agent name, so the whole session is read and sorted by time.
+    assert "Limit" not in kwargs
 
 
 @pytest.mark.asyncio
@@ -105,17 +106,21 @@ async def test_short_filtered_page_follows_last_evaluated_key(store_and_table):
 
 
 @pytest.mark.asyncio
-async def test_overfull_pages_are_truncated_to_max_messages(store_and_table):
+async def test_all_chats_keeps_the_newest_by_timestamp(store_and_table):
     store, table = store_and_table
+
+    def _ts(n: int, agent: str) -> dict[str, Any]:
+        return {**_item(n, agent), "timestamp": f"2026-11-24T10:0{n}:00+00:00"}
+
     table.query.side_effect = [
-        {"Items": [_item(9)], "LastEvaluatedKey": {"sk": "a"}},
-        {"Items": [_item(8), _item(7), _item(6)], "LastEvaluatedKey": {"sk": "b"}},
+        {"Items": [_ts(9, "aws"), _ts(6, "aws")], "LastEvaluatedKey": {"sk": "a"}},
+        {"Items": [_ts(8, "k8s"), _ts(7, "k8s")]},
     ]
 
     msgs = await store.fetch_all_chats("u1", "s1", max_messages=2)
 
     assert table.query.call_count == 2
-    # Keeps the two NEWEST, returned oldest-first.
+    # Keeps the two NEWEST across agents, returned oldest-first.
     assert [m.content for m in msgs] == ["m8", "m9"]
 
 

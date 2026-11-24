@@ -147,6 +147,12 @@ curl -N http://localhost:8000/v1/chat/completions \
   -d '{"model":"aigent-squad-aws","messages":[{"role":"user","content":"list S3 buckets"}],"stream":true}'
 ```
 
+## Feedback (spec 47) — not wired to LibreChat
+
+The gateway accepts ratings at `POST /feedback`, keyed by the completion `id` (see the
+gateway API in `docs/site/architecture.md`). LibreChat's own thumbs up/down stay inside
+LibreChat and do not call this API; a bridge is future work.
+
 ## `x_aigent` — structured quality assessment (spec 41)
 
 Non-streaming responses may carry an extra top-level field, `x_aigent`, holding a

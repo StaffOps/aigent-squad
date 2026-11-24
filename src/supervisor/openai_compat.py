@@ -283,15 +283,18 @@ def build_completion(result: dict[str, Any], model: str) -> ChatCompletionRespon
     )
 
 
-async def sse_stream(result: dict[str, Any], model: str) -> AsyncGenerator[str, None]:
+async def sse_stream(
+    result: dict[str, Any], model: str, completion_id: Optional[str] = None
+) -> AsyncGenerator[str, None]:
     """Streaming: emit OpenAI SSE frames for a completed supervisor result.
 
     Pseudo-streaming fallback: used when the agentic streaming path is not
     available (e.g. classifier/synthesis or legacy non-agentic agents). Emits
     a role prelude, the whole answer as one content delta, a finish frame, then
-    the [DONE] sentinel.
+    the [DONE] sentinel. ``completion_id`` lets the gateway reuse its rateable
+    response id (spec 47); otherwise a fresh one is minted.
     """
-    cid = _completion_id()
+    cid = completion_id or _completion_id()
     created = _now()
 
     prelude = ChatCompletionChunk(
