@@ -133,10 +133,16 @@
    revert to inheriting `Chart.appVersion` (now `X.Y.Z`, no `-dev` suffix), OR
    explicitly record why the pin stays (e.g. still iterating between chart
    releases) with a condition for when to revert.
-3. `pullPolicy` back to `IfNotPresent` once the tag is an immutable release
+3. **Spec 46 settings (from the first release containing it):** the overlay must
+   set `history.backend` explicitly (`dynamodb` for an AWS deployment that keeps
+   DynamoDB history — otherwise history moves to Redis), the MCP addresses the
+   agents reference (`agentOverrides.<agent>.env.K8S_MCP_URL` / `VM_MCP_URL`), and
+   `services.supervisor.mountAgents: false` if it uses the image's agents. Check
+   `/ready` after rollout: `checks.history.backend` and `checks.agents.degraded`.
+4. `pullPolicy` back to `IfNotPresent` once the tag is an immutable release
    tag (not a `-dev` tag some other process keeps overwriting) — `Always` is
    correct ONLY while multiple pushes reuse one mutable tag.
-4. Commit + push (`main`, this repo's convention already treats `main` as
+5. Commit + push (`main`, this repo's convention already treats `main` as
    the working branch — confirmed via `git log`, unlike `[app]`).
 
 ## Phase 5 — Rollout `[k8s-setup]`
