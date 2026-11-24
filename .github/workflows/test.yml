@@ -36,10 +36,14 @@ jobs:
     if: github.event_name == 'pull_request' && github.base_ref == 'main'
     runs-on: ubuntu-latest
     steps:
+      # head_ref is attacker-controlled (any fork can name its branch `$(...)`): pass it through
+      # env so the shell sees data, never `${{ }}` expanded into the script (Dangerous-Workflow).
       - name: Enforce PR source is dev
+        env:
+          HEAD_REF: ${{ github.head_ref }}
         run: |
-          if [ "${{ github.head_ref }}" != "dev" ]; then
-            echo "::error::main only accepts PRs from 'dev' (got '${{ github.head_ref }}')"
+          if [ "$HEAD_REF" != "dev" ]; then
+            echo "::error::main only accepts PRs from 'dev' (got '$HEAD_REF')"
             exit 1
           fi
           echo "OK: PR from dev → main"
