@@ -4,7 +4,7 @@ domain: container-orchestration
 capabilities: [pod_status, node_health, deployment_management, service_discovery]
 routing_keywords: [pod, node, deployment, service, namespace, kubectl, k8s, cluster, replica, hpa]
 datasources:
-  # Access to the cluster via the kube-mcp server (mcp-servers namespace).
+  # Access to the cluster via a Kubernetes MCP server (address per deployment: K8S_MCP_URL).
   # Caminho A of ADR-001: MCP-as-adapter, not autonomous tool-calling.
   # Transport: streamable-http (default since 2026-07-18; /mcp endpoint).
   #
@@ -22,7 +22,7 @@ datasources:
   # through the public ingress (extra latency + an extra failure domain).
   - type: mcp
     name: k8s-mcp
-    url: "${K8S_MCP_URL}"  # spec 46: per-environment address (AWS: http://kube-mcp.mcp-servers.svc.cluster.local:8080/mcp)
+    url: "${K8S_MCP_URL}"  # spec 46: set per deployment, e.g. http://<kubernetes-mcp-service>:8080/mcp
     tools:
       - configuration_view
       - events_list

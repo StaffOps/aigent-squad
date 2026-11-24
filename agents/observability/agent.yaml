@@ -7,7 +7,7 @@ datasources:
   - type: http
     name: prometheus
     url: "${PROMETHEUS_URL}/api/v1/query?query=up"
-  # VictoriaMetrics MCP (mcp-servers ns) — full read-only MetricsQL surface.
+  # VictoriaMetrics MCP (address per deployment: VM_MCP_URL) — full read-only MetricsQL surface.
   # vm-mcp talks to vmselect (read path). Uses streamable-http (/mcp): homolog
   # 2026-07-18 showed its /sse endpoint returns text/html (not a real SSE
   # stream) so SSE times out — /mcp is the working transport. Same rationale as
@@ -16,7 +16,7 @@ datasources:
   # aid, not the security boundary.
   - type: mcp
     name: vm-mcp
-    url: "${VM_MCP_URL}"  # spec 46: per-environment address (AWS: http://vm-mcp.mcp-servers.svc.cluster.local:8080/mcp)
+    url: "${VM_MCP_URL}"  # spec 46: set per deployment, e.g. http://<metrics-mcp-service>:8080/mcp
     transport: streamable-http
     tools:
       - query

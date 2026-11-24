@@ -25,8 +25,8 @@ def _cfg(**over):
 # ---------------------------------------------------------------------------
 
 def test_url_expanded_from_env():
-    raw, degraded = apply_environment(_cfg(), {"K8S_MCP_URL": "http://kubernetes-mcp:8080/mcp"})
-    assert raw["datasources"][0]["url"] == "http://kubernetes-mcp:8080/mcp"
+    raw, degraded = apply_environment(_cfg(), {"K8S_MCP_URL": "http://mcp.example.internal:8080/mcp"})
+    assert raw["datasources"][0]["url"] == "http://mcp.example.internal:8080/mcp"
     assert degraded == []
 
 
@@ -186,12 +186,12 @@ def test_registry_drops_unconfigured_datasource_and_reports(tmp_path, make_agent
 
 
 def test_registry_expands_and_keeps_allowlist(tmp_path, make_agent_dir, monkeypatch):
-    monkeypatch.setenv("K8S_MCP_URL", "http://kubernetes-mcp.mcp-servers:8080/mcp")
+    monkeypatch.setenv("K8S_MCP_URL", "http://mcp.example.internal:8080/mcp")
     make_agent_dir("kube", yaml_override=AGENT_YAML.format(name="kube"))
     reg = AgentRegistry(agents_dir=str(tmp_path))
     reg.discover()
     ds = reg.get("kube").datasources[0]
-    assert ds.url == "http://kubernetes-mcp.mcp-servers:8080/mcp"
+    assert ds.url == "http://mcp.example.internal:8080/mcp"
     assert ds.tools == ["pods_list"]
     assert reg.degraded_datasources == []
 

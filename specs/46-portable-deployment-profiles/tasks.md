@@ -29,13 +29,13 @@
 ## Phase 3 — Chart profiles (helm-charts repo)
 
 - [ ] T11 `agentOverrides` map → env vars, no prompt copies (AC 9)
-- [ ] T12 `values-aws.yaml` (today's behavior, `HISTORY_BACKEND=dynamodb`) + `values-k8s01.yaml` (Redis history, chaitops, k8s01 MCPs, aws/finops off) (AC 10)
+- [ ] T12 `values-aws.yaml` (today's behavior, `HISTORY_BACKEND=dynamodb`) + `values-offaws.yaml` (placeholder example: Redis history, OpenAI-compatible LLM, MCP addresses, aws/finops off; no environment-specific values) (AC 10)
 - [ ] T13 Render tests + assertion that every `${VAR}` of enabled agents is set (AC 10)
 
 ## Phase 4 — Verification and docs
 
 - [ ] T14 Docs: ARCHITECTURE, HOW-TO-NEW-AGENT, AGENTS.md env table, chart README, CHANGELOG upgrade note (AWS must set `HISTORY_BACKEND=dynamodb`), RELEASE.md check (AC 12)
-- [ ] T15 Live k8s01 verification: `/ready` 200 without DynamoDB, history across 2 turns, 1 agentic MCP call via chaitops (AC 11)
+- [ ] T15 Live verification on a Kubernetes cluster outside AWS: `/ready` 200 without DynamoDB, history across 2 turns, 1 agentic MCP call via an OpenAI-compatible LLM (AC 11)
 - [ ] T16 Independent test authorship (different session than the implementer)
 - [ ] T17 Independent code review (fresh context)
 - [ ] T18 Security review (mandatory: datasource addressing / data egress, header secrets, capability widening)
