@@ -317,7 +317,10 @@ No code changes needed — `AgentRegistry` auto-discovers at startup.
 | `SLACK_BOT_TOKEN` | optional | — | Slack integration |
 | `GITLAB_TOKEN` | optional | — | DevOps agent (read-only) |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | optional | `http://otel-collector:4317` | Tracing |
-| `POSTGRES_HOST/USER/PASSWORD/DB` | optional | — | Knowledge base (disabled by default) |
+| `POSTGRES_HOST/USER/PASSWORD/DB` | optional | — | Knowledge base store (used when `KB_ENABLED=true` and Postgres is reachable) |
+| `KB_ENABLED` | | `true` | Incident-memory KB (spec 21). `false` = no distillation, no RAG, no KB Postgres connection, `/kb/*` → 503 (F-029) |
+| `KB_REJECTED_RETENTION_DAYS` / `KB_ITEM_MAX_AGE_DAYS` | | `30` / unset | KB retention: rejected+superseded items deleted N days after their status change; active/pending items deleted N days after creation only when the max age is set |
+| `KB_RETENTION_INTERVAL_SECONDS` / `KB_RETENTION_BATCH_SIZE` / `KB_RETENTION_MAX_BATCHES` | | `3600` / `500` / `10` | KB retention sweep: at most once per interval (at start + on KB reads/writes, no cron), bounded batch deletes, fail-open |
 | `POSTGRES_SSLMODE` | | — (asyncpg default) | TLS mode for the Postgres **history** store: `disable` \| `allow` \| `prefer` \| `require` \| `verify-ca` \| `verify-full`; empty = unset. `require` = encrypted, CA-verified only if a bundle is found; `verify-*` always verify and need a CA bundle (`POSTGRES_SSLROOTCERT`) |
 | `POSTGRES_SSLROOTCERT` | with `verify-*` | — | Path to the PEM CA bundle that verifies the server (e.g. the cloud provider's RDS bundle, mounted), or `system`; used by `require` and `verify-*`; fallback `PGSSLROOTCERT`, then `~/.postgresql/root.crt`; missing/invalid under `verify-*` → no connect, error logged, history fails open. Client certs/CRL via the standard `PGSSLCERT`/`PGSSLKEY`/`PGSSLCRL` |
 

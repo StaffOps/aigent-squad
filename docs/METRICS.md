@@ -116,6 +116,9 @@ will read as sparse/absent unless someone has run an eval recently.
 | `aigent.kb.rag.queries` | Counter | — | RAG injection queries |
 | `aigent.kb.rag.hits` | Counter | — | Queries that returned similar cases |
 | `aigent.kb.budget.exhausted` | Counter | — | Distillations skipped due to budget |
+| `aigent.kb.retention.deleted` | Counter | `rule` | KB items deleted by the retention sweep (`rejected_superseded` \| `max_age`, F-029) |
+| `aigent.kb.retention.errors` | Counter | — | Failed retention sweeps (fail-open) |
+| `aigent.kb.provenance.written` | Counter | — | `kb_provenance` rows written with new KB items |
 
 ## Alert Ingestion (spec 18 Phase 2)
 
@@ -150,6 +153,7 @@ Do not build alerts on these — they do not exist yet.
 | `from` / `to` (circuit breaker) | closed, open, half_open | 3 |
 | `type` (kb) | troubleshooting, decision, pattern, infrastructure | 4 |
 | `status` (kb) | active, pending_review, superseded, rejected | 4 |
+| `rule` (kb retention) | rejected_superseded, max_age | 2 |
 | `has_failures` (synthesizer) | True, False | 2 |
 
 ## Dashboards

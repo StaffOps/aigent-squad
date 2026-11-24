@@ -62,3 +62,10 @@ T15+T16+T17+T18 (closing gate)
 - Opus enricher activation (awaits `BEDROCK_OPUS_MODEL_ID` env configuration)
 - Slack-based approval workflow (HTTP-only for now)
 - Advanced PII redaction (NER-based; current regex is sufficient for MVP)
+
+## F-029 follow-up (2026-11-24)
+
+- [x] `KB_ENABLED` switch (store, distillation, RAG, `/kb/*` → 503) — done 2026-11-24
+- [x] Retention sweep: rejected/superseded after `KB_REJECTED_RETENTION_DAYS`, optional `KB_ITEM_MAX_AGE_DAYS`; bounded, opportunistic, fail-open (`aigent.kb.retention.*`) — done 2026-11-24
+- [x] Provenance: investigation id wired from `run_investigation` to `distill_rca`; `kb_provenance` row written with each new item — done 2026-11-24
+- Deferred: distilling alert-triggered investigations (`/alerts/incoming` never called `distill_rca`; unchanged)

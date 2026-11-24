@@ -2,6 +2,25 @@
 
 ## [Unreleased]
 
+### Fixed — incident-memory KB retention, on/off switch and provenance (F-029, 2026-11-24)
+- New `KB_ENABLED` (default `true`, unchanged behaviour). `false` turns the KB off: the supervisor
+  does not connect to the KB database, no distillation runs, RAG injection is skipped (no
+  embedding call) and `/kb/pending`, `/kb/{id}/approve|reject` answer 503. Before, the KB ran
+  whenever Postgres was reachable, including with `HISTORY_BACKEND=postgres`.
+- KB retention is now enforced: rejected and superseded items are deleted
+  `KB_REJECTED_RETENTION_DAYS` (default 30) after their last status change; active and
+  pending-review items get an optional max age, `KB_ITEM_MAX_AGE_DAYS` (default unset = keep).
+  The sweep runs at start and then at most once per `KB_RETENTION_INTERVAL_SECONDS` (default 1 h)
+  on KB reads/writes, in bounded batches (`KB_RETENTION_BATCH_SIZE`, `KB_RETENTION_MAX_BATCHES`),
+  and is fail-open.
+- `kb_provenance` is now written: investigations carry their id to distillation, so new items get
+  a provenance row (investigation id, confidence, extractor/enricher model) and a non-null
+  `metadata.investigation_id`.
+- New metrics `aigent.kb.retention.deleted{rule}`, `aigent.kb.retention.errors`,
+  `aigent.kb.provenance.written`.
+- `docs/MULTI-TENANCY.md` listed `RATE_LIMIT_PER_USER` / `RATE_LIMIT_GLOBAL`, which never existed;
+  it now shows the real `RATE_LIMIT_PER_MINUTE` (default 60) and `RATE_BUDGET_ENABLED`.
+
 ### Fixed — review of the F-025/F-027/F-028 changes (2026-11-24)
 - MCP circuit breaker: `McpAdapter.call_tool` returns its fail-open error text as a typed
   `McpToolError` string, and the agentic session pool now counts transport failures
