@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+### Security — streamed answers get the L4 output filter and L5 canary (2026-11-24)
+- The streaming path sent the final answer to the client, and saved it to history, without
+  the L4 output filter (secrets/PII) or the L5 canary check that the non-streaming path runs.
+  With `LLM_PROVIDER=openai` (L1 off) nothing scanned a streamed answer. The answer is now
+  checked in full before any of it is sent (`src/core/stream_output_guard.py`): canary
+  redaction, output filter and structural quality check, same order as non-streaming. A
+  blocked answer ends the stream with a refusal and `finish_reason: "content_filter"` and is
+  not saved to history. Canary tokens are now also injected on the streaming path.
+- Reasoning, tool-call argument and tool-result trace lines shown to users are canary-redacted and hidden when
+  they contain sensitive data.
+- New metric `aigent.stream.output_interventions{agent_id, action}`.
+
 ### Fixed — streamed answers are saved to conversation history (BACKLOG F-026, 2026-11-24)
 - The streaming paths (forced agent and auto-route) saved the user turn but never the
   answer, so streaming clients lost the squad's previous replies from the next turn's

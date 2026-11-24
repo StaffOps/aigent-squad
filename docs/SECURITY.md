@@ -108,6 +108,37 @@ sophisticated adversarial injection still has to defeat the same
 instruction-hierarchy defenses (L1–L3) regardless of what happens to L5's
 output afterward.
 
+### Streaming path — same L4/L5 checks before anything is sent (2026-11-24)
+
+The streaming path (`POST /internal/process/stream`, OpenAI `stream: true`) runs the same
+answer checks as the non-streaming path, in the same order: L5 canary (redact-and-continue),
+L4 output filter (fail-closed) and the structural response-quality check. They live in
+`src/core/stream_output_guard.py`, which wraps the agentic step stream:
+
+- The loop has the whole final answer before it slices it into chunks, so the guard holds the
+  chunks until the loop ends, checks the full text (a secret split across two chunks is still
+  caught), then sends it in the usual 200-character chunks. Nothing of the answer reaches the
+  client before the check.
+- **Blocked** (L4, quality check, canary escalation, or an L1 OUTPUT block during the loop):
+  the original text is dropped and the stream ends with `Request blocked by security
+  guardrail.` and `finish_reason: "content_filter"`. The HTTP status is already 200 by then, so
+  this is the streaming equivalent of the 403. A blocked answer is not saved to history.
+- The trace lines users see (💭 model reasoning, 🔧 tool-call arguments, 📦 tool-result
+  summaries) get canary redaction and are replaced by a placeholder when L4 finds sensitive data in them; the stream
+  continues.
+- Under `LLM_PROVIDER != bedrock` (L1 off) this guard is the only output scan on the streaming
+  path, as L4 is on the non-streaming path.
+- Not applied on streaming: the resource-ID groundedness part of the quality check, because the
+  streaming loop does not hand the tool evidence back. The structural part runs.
+- Metric: `aigent.stream.output_interventions{agent_id, action=blocked|trace_redacted}`.
+- Known limits: a canary echoed in trace lines counts toward the per-session escalation
+  threshold once per line (non-streaming counts once per answer), and a hidden trace line is
+  audited as `output_filter_block` although the request completes. The 🧭 routing line
+  (classifier `sub_query`) is not scanned; it is built from the user's own input.
+
+Before this change the streamed answer skipped L4 and L5 on every provider (and canary tokens
+were not injected on the streaming path at all), and was saved to history unscanned.
+
 ### L1 is OFF for non-Bedrock LLM providers (spec 28, ADR-0009) — stated exception
 
 The Bedrock Guardrail is an AWS Bedrock API. With `LLM_PROVIDER=openai` (any
@@ -275,8 +306,8 @@ the behaviour today:
   `src/core/conversation.py`, shared by the Redis, DynamoDB and Postgres stores.
 - **It is not configurable yet.** No environment variable or Helm value changes it; changing it
   means editing that constant and rebuilding the image. History cannot be switched off either:
-  each request writes the user turn and, on the non-streaming path, the answer. (The streaming
-  path stores the user turn only.)
+  each request writes the user turn and the answer. On the streaming path the answer is saved
+  only when the stream completes, after the output checks; a blocked answer is not saved.
 - 24 h is a context window for follow-up questions, not an audit trail. Do not rely on history
   for audit or incident records; use your log pipeline and the KB for that.
 - "24 h" is the point after which a message is no longer used as context. Physical deletion

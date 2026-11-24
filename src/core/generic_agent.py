@@ -244,9 +244,13 @@ class GenericAgent:
         """Return a streaming async generator for the agentic loop (Phase 3.5).
 
         Prepares the same system prompt and adapters as the non-streaming path,
-        then delegates to run_agentic_loop_streaming.
+        then delegates to run_agentic_loop_streaming. The returned generator is
+        wrapped by ``guard_agentic_stream`` so the final answer gets the same
+        L5 canary + L4 output filter + quality checks as ``process_request``
+        before any of it is emitted (spec 14).
         """
         from src.core.agentic_loop_streaming import run_agentic_loop_streaming
+        from src.core.stream_output_guard import guard_agentic_stream
 
         # L2 Input Scanner
         scanner = InputScanner()
@@ -286,6 +290,12 @@ class GenericAgent:
                 str(c) for c in contexts if c and not isinstance(c, Exception)
             )
 
+        # L5 Canary: inject into any pre-collected infra_data (same as _agentic_path)
+        canary_guard = CanaryGuard()
+        canary_tokens: list[str] = []
+        if infra_data:
+            infra_data, canary_tokens = canary_guard.inject(infra_data)
+
         agentic_system = system_prompt
         if infra_data:
             agentic_system = (
@@ -308,7 +318,7 @@ class GenericAgent:
 
         history_text = self._format_history(chat_history)
 
-        return run_agentic_loop_streaming(
+        events = run_agentic_loop_streaming(
             query=input_text,
             system_prompt=agentic_system,
             history_text=history_text,
@@ -319,6 +329,14 @@ class GenericAgent:
             temperature=self.config.model.temperature,
             budget_session_id=budget_session_id,
             model_id_override=model_id_override,
+        )
+        return guard_agentic_stream(
+            events,
+            agent_id=self.config.name,
+            user_id=user_id,
+            session_id=session_id,
+            canary_guard=canary_guard,
+            canary_tokens=canary_tokens,
         )
 
     # ------------------------------------------------------------------
