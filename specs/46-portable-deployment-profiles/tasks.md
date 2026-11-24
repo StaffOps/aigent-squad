@@ -4,12 +4,16 @@
 
 ## Phase 1 — History store abstraction
 
-- [ ] T1 `HistoryStore` protocol + factory (`HISTORY_BACKEND`, default `redis`, invalid → startup error, startup log names the backend) (AC 1)
-- [ ] T2 Move `ChatStorage` behind the protocol as `DynamoDBHistoryStore`, no behavior change (AC 1, Decision 4)
-- [ ] T3 Shared backend contract test suite (save, last-N per agent / all agents, isolation, expiry, fail-open) (AC 2)
-- [ ] T4 `RedisHistoryStore` (sorted set, EXPIRE 24 h, trim to cap) (AC 2)
-- [ ] T5 `PostgresHistoryStore` (idempotent schema, expiry on read + purge on write, no pgvector) (AC 3)
-- [ ] T6 `/ready` history check follows the backend; metric `aigent.history.backend_errors{backend}` + `docs/METRICS.md` (AC 4, 5)
+> Done 2026-11-24 (local branch `feat/spec-46-portable-profiles`). T3 note: the shared contract
+> suite runs against Redis (fakeredis) and Postgres (fake pool; live test opt-in via
+> `HISTORY_PG_LIVE=1`); the DynamoDB store keeps its existing `tests/test_state_store.py`.
+
+- [x] T1 `HistoryStore` protocol + factory (`HISTORY_BACKEND`, default `redis`, invalid → startup error, startup log names the backend) (AC 1)
+- [x] T2 Move `ChatStorage` behind the protocol as `DynamoDBHistoryStore`, no behavior change (AC 1, Decision 4)
+- [x] T3 Shared backend contract test suite (save, last-N per agent / all agents, isolation, expiry, fail-open) (AC 2)
+- [x] T4 `RedisHistoryStore` (sorted set, EXPIRE 24 h, trim to cap) (AC 2)
+- [x] T5 `PostgresHistoryStore` (idempotent schema, expiry on read + purge on write, no pgvector) (AC 3)
+- [x] T6 `/ready` history check follows the backend; metric `aigent.history.backend_errors{backend}` + `docs/METRICS.md` (AC 4, 5)
 
 ## Phase 2 — Environment-addressed agents/MCPs
 

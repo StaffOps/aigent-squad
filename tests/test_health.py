@@ -298,10 +298,12 @@ def test_supervisor_ready_503_when_redis_down():
 
 
 def test_supervisor_ready_503_when_dynamodb_down():
-    """/ready returns 503 when DynamoDB check fails."""
+    """/ready returns 503 when DynamoDB check fails (HISTORY_BACKEND=dynamodb, spec 46)."""
+    from src.core.config import settings
     from src.core.health import DepResult
 
     with (
+        patch.object(settings, "history_backend", "dynamodb"),
         patch("otel_helper.setup_telemetry"),
         patch("otel_helper.get_tracer", return_value=MagicMock()),
         patch("src.supervisor.server.kb_store") as mock_kb,
@@ -334,6 +336,9 @@ def test_supervisor_ready_503_when_dynamodb_down():
         assert response.status_code == 503
         body = response.json()
         assert body["checks"]["dynamodb"]["ok"] is False
+        history = body["checks"]["history"]
+        assert history["ok"] is False and history["backend"] == "dynamodb"
+        assert history["detail"].startswith("dynamodb:")
 
 
 def test_supervisor_ready_503_when_no_agents():
@@ -533,3 +538,73 @@ def test_mcp_ready_200_when_supervisor_ok():
 
     assert response.status_code == 200
     assert response.json()["status"] == "ready"
+
+
+# ---------------------------------------------------------------------------
+# Spec 46 — /ready history check follows HISTORY_BACKEND
+# ---------------------------------------------------------------------------
+
+
+def _ready_with_backend(backend: str, history_ok: bool = True):
+    from src.core.config import settings
+    from src.core.health import DepResult
+
+    with (
+        patch.object(settings, "history_backend", backend),
+        patch("otel_helper.setup_telemetry"),
+        patch("otel_helper.get_tracer", return_value=MagicMock()),
+        patch("src.supervisor.server.kb_store") as mock_kb,
+        patch("src.supervisor.server.supervisor") as mock_sup,
+        patch("src.supervisor.server._checker") as mock_checker,
+        patch("src.supervisor.server._health_redis"),
+        patch("src.supervisor.server._health_dynamodb_table"),
+    ):
+        mock_kb.connect = AsyncMock()
+        mock_kb.close = AsyncMock()
+        mock_sup.close = AsyncMock()
+        mock_sup.agents = {"aws": MagicMock()}
+        mock_sup.registry = MagicMock()
+        mock_checker.check_redis = AsyncMock(return_value=DepResult(ok=history_ok, detail="redis: pong"))
+        mock_checker.check_dynamodb = AsyncMock(return_value=DepResult(ok=True, detail="dynamodb: table reachable"))
+        mock_checker.check_history = AsyncMock(
+            return_value=DepResult(ok=history_ok, detail=f"history: {backend} reachable")
+        )
+
+        import importlib
+        import src.supervisor.server as srv_mod
+        importlib.reload(srv_mod)
+        with patch("src.supervisor.server._checker", mock_checker):
+            from fastapi.testclient import TestClient
+            client = TestClient(srv_mod.app, raise_server_exceptions=False)
+            return client.get("/ready"), mock_checker
+
+
+def test_ready_redis_backend_reuses_redis_check_and_skips_dynamodb():
+    response, checker = _ready_with_backend("redis")
+    assert response.status_code == 200
+    checks = response.json()["checks"]
+    assert checks["history"]["backend"] == "redis" and checks["history"]["ok"] is True
+    assert "dynamodb" not in checks
+    checker.check_dynamodb.assert_not_called()
+
+
+def test_ready_postgres_backend_uses_history_check():
+    response, checker = _ready_with_backend("postgres", history_ok=False)
+    checks = response.json()["checks"]
+    assert response.status_code == 503
+    assert checks["history"] == {"ok": False, "backend": "postgres", "detail": "history: postgres reachable"}
+    checker.check_history.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_check_history_ok_down_and_error():
+    from src.core.health import DependencyChecker
+    checker = DependencyChecker(cache_ttl=0, timeout=1.0)
+    ok_store = MagicMock(backend="redis", ping=AsyncMock(return_value=True))
+    assert (await checker.check_history(ok_store)).ok is True
+    down = MagicMock(backend="postgres", ping=AsyncMock(return_value=False))
+    r = await checker.check_history(down)
+    assert r.ok is False and "postgres unreachable" in r.detail
+    boom = MagicMock(backend="postgres", ping=AsyncMock(side_effect=OSError("refused")))
+    r = await checker.check_history(boom)
+    assert r.ok is False and "refused" in r.detail

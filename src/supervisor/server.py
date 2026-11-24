@@ -20,7 +20,7 @@ from src.core.internal_auth import require_internal_token
 from src.core.logger import logger
 from src.core.kb.store import kb_store
 from src.core.session_lock import SessionLock, SessionLockConflict
-from src.core.state_store import dynamodb_resource
+from src.core.state_store import dynamodb_resource, storage as _history_store
 
 from src.supervisor.agent import supervisor
 from src.supervisor.alert_handler import AlertmanagerPayload, handle_alert_payload
@@ -188,14 +188,23 @@ async def healthz() -> dict[str, str]:
 
 @app.get("/ready")  # type: ignore[untyped-decorator]
 async def ready() -> Any:
-    """Readiness probe — checks Redis, DynamoDB, and ≥1 in-process agent loaded."""
+    """Readiness probe — checks Redis, the history backend (spec 46), and ≥1 in-process agent."""
     results = {}
 
     redis_result = await _checker.check_redis(_health_redis)
     results["redis"] = {"ok": redis_result.ok, "detail": redis_result.detail}
 
-    dynamo_result = await _checker.check_dynamodb(_health_dynamodb_table)
-    results["dynamodb"] = {"ok": dynamo_result.ok, "detail": dynamo_result.detail}
+    # Spec 46: the history check follows HISTORY_BACKEND. Redis history reuses
+    # the Redis check above; DynamoDB keeps its `dynamodb` key for existing readers.
+    backend = settings.history_backend
+    if backend == "dynamodb":
+        history_result = await _checker.check_dynamodb(_health_dynamodb_table)
+        results["dynamodb"] = {"ok": history_result.ok, "detail": history_result.detail}
+    elif backend == "redis":
+        history_result = redis_result
+    else:
+        history_result = await _checker.check_history(_history_store)
+    results["history"] = {"ok": history_result.ok, "backend": backend, "detail": history_result.detail}
 
     agents_ok = len(supervisor.agents) > 0
     results["agents"] = {"ok": agents_ok, "detail": f"{len(supervisor.agents)} agent(s) loaded"}
@@ -205,7 +214,7 @@ async def ready() -> Any:
     from src.core.llm.factory import provider_status
     results["llm"] = provider_status()
 
-    all_ok = redis_result.ok and dynamo_result.ok and agents_ok
+    all_ok = redis_result.ok and history_result.ok and agents_ok
     status_code = 200 if all_ok else 503
     return JSONResponse(
         status_code=status_code,

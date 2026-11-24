@@ -62,6 +62,20 @@ class DependencyChecker:
 
         return await self._run("dynamodb", _check)
 
+    async def check_history(self, store: Any) -> DepResult:
+        """History store readiness (spec 46): backends expose ``async ping()``."""
+        backend = getattr(store, "backend", "unknown")
+
+        async def _check() -> DepResult:
+            try:
+                if await store.ping():
+                    return DepResult(ok=True, detail=f"history: {backend} reachable")
+                return DepResult(ok=False, detail=f"history: {backend} unreachable")
+            except Exception as exc:
+                return DepResult(ok=False, detail=f"history: {backend}: {exc}")
+
+        return await self._run("history", _check)
+
     async def check_bedrock_creds(self, sts_client: Any) -> DepResult:
         async def _check() -> DepResult:
             try:

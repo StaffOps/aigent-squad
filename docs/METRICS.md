@@ -40,6 +40,7 @@ All metrics emitted by AIgent-squad, collected via OTel Collector → Prometheus
 | `aigent.prompt.size_tokens` | Histogram | `agent_id` | Input-token distribution per call (detect prompt bloat; p50/p95) |
 | `aigent.cache.hits` | Counter | `namespace` | Datasource cache hits (avoided re-fetch) — spec 30 |
 | `aigent.cache.misses` | Counter | `namespace` | Datasource cache misses (fresh fetch) — spec 30 |
+| `aigent.history.backend_errors` | Counter | `backend`, `op` | Conversation-history store errors swallowed fail-open (`backend`: redis/dynamodb/postgres; `op`: save/fetch/connect) — spec 46 |
 
 The datasource cache (spec 30) wraps each adapter's `collect()` with a
 deterministic `sha256` key + per-agent TTL (fail-open). `namespace` is the

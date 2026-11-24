@@ -1,23 +1,25 @@
+"""Conversation history store (spec 46).
+
+``storage`` is the process-wide history store, chosen by ``HISTORY_BACKEND``:
+``redis`` (default), ``dynamodb`` (AWS) or ``postgres``. Every backend is
+fail-open — a store outage yields empty history, never a failed request
+(AGENTS.md invariant 6) — and keeps per-agent isolation (invariant 2).
+"""
 import boto3
-from typing import Any, List, Optional, TYPE_CHECKING
+from typing import Any, List, Optional, Protocol
 from datetime import datetime, timedelta, timezone
-from dataclasses import dataclass, field
 from src.core.config import settings
+from src.core.conversation import (  # re-exported: existing imports use state_store
+    HISTORY_TTL_SECONDS,
+    ConversationMessage,
+    record_history_error as _record_error,
+)
 from src.core.logger import logger
 
-if TYPE_CHECKING:
-    from src.core.response_quality import QualityAssessment
-
-
-@dataclass
-class ConversationMessage:
-    """Standard message format"""
-    role: str  # 'user' or 'assistant'
-    content: str
-    timestamp: str
-    agent_id: Optional[str] = None
-    # Spec 41: optional structured quality assessment (not persisted to DynamoDB)
-    quality_assessment: Optional["QualityAssessment"] = field(default=None, repr=False)
+__all__ = [
+    "ChatStorage", "ConversationMessage", "DynamoDBHistoryStore", "HISTORY_TTL_SECONDS",
+    "HistoryStore", "build_history_store", "dynamodb_resource", "storage",
+]
 
 
 def dynamodb_resource() -> Any:
@@ -38,8 +40,29 @@ def dynamodb_resource() -> Any:
     return boto3.resource("dynamodb", **kwargs)
 
 
-class ChatStorage:
+class HistoryStore(Protocol):
+    """What the supervisor needs from a history backend (spec 46 AC 1)."""
+
+    backend: str
+
+    async def save_chat_message(
+        self, user_id: str, session_id: str, agent_id: str,
+        message: ConversationMessage, max_history: int = 20,
+    ) -> None: ...
+
+    async def fetch_chat(
+        self, user_id: str, session_id: str, agent_id: str, max_messages: int = 20,
+    ) -> List[ConversationMessage]: ...
+
+    async def fetch_all_chats(
+        self, user_id: str, session_id: str, max_messages: int = 50,
+    ) -> List[ConversationMessage]: ...
+
+
+class DynamoDBHistoryStore:
     """DynamoDB conversation storage with fail-open resilience"""
+
+    backend = "dynamodb"
 
     def __init__(self) -> None:
         self.dynamodb = dynamodb_resource()
@@ -56,7 +79,7 @@ class ChatStorage:
         try:
             pk = f"{user_id}#{session_id}"
             sk = f"{agent_id}#{datetime.now(timezone.utc).isoformat()}"
-            ttl = int((datetime.now(timezone.utc) + timedelta(hours=24)).timestamp())
+            ttl = int((datetime.now(timezone.utc) + timedelta(seconds=HISTORY_TTL_SECONDS)).timestamp())
 
             self.table.put_item(
                 Item={
@@ -72,6 +95,7 @@ class ChatStorage:
                 }
             )
         except Exception as e:
+            _record_error("dynamodb", "save")
             logger.warning("DynamoDB save failed (fail-open)", extra={
                 "error": str(e), "user_id": user_id, "session_id": session_id
             })
@@ -106,6 +130,7 @@ class ChatStorage:
                 ))
             return messages
         except Exception as e:
+            _record_error("dynamodb", "fetch")
             logger.warning("DynamoDB fetch_chat failed (fail-open)", extra={
                 "error": str(e), "user_id": user_id, "session_id": session_id
             })
@@ -137,10 +162,32 @@ class ChatStorage:
                 ))
             return messages
         except Exception as e:
+            _record_error("dynamodb", "fetch")
             logger.warning("DynamoDB fetch_all_chats failed (fail-open)", extra={
                 "error": str(e), "user_id": user_id, "session_id": session_id
             })
             return []
 
 
-storage = ChatStorage()
+# Back-compat name: the DynamoDB store was the only one before spec 46.
+ChatStorage = DynamoDBHistoryStore
+
+
+def build_history_store(backend: Optional[str] = None) -> HistoryStore:
+    """Factory: one backend per process, chosen at startup (spec 46 Decision 5)."""
+    name = backend or settings.history_backend
+    if name == "dynamodb":
+        store: HistoryStore = DynamoDBHistoryStore()
+    elif name == "redis":
+        from src.core.history_stores import RedisHistoryStore
+        store = RedisHistoryStore()
+    elif name == "postgres":
+        from src.core.history_stores import PostgresHistoryStore
+        store = PostgresHistoryStore()
+    else:  # Settings' Literal already rejects this; guard direct callers too.
+        raise ValueError(f"unknown HISTORY_BACKEND: {name!r} (redis|dynamodb|postgres)")
+    logger.info("history_backend selected", extra={"history_backend": name})
+    return store
+
+
+storage: HistoryStore = build_history_store()
