@@ -180,5 +180,31 @@ drops history; size `maxmemory` so eviction stays exceptional.
 and its indexes, which needs `CREATE` on the schema. To run with a DML-only role
 (SELECT/INSERT/DELETE), create the table beforehand with a migration role (DDL in
 `src/core/history_stores.py`, `_PG_SCHEMA`); an existing table is used as-is. Expired rows are
-deleted in bounded batches: on every write, once when the store connects, and on reads at most
-every 5 minutes. TLS: `POSTGRES_SSLMODE`.
+deleted in bounded batches: on every write, in a background task once the store connects (it
+never delays the connect or a readiness probe), and on reads at most every 5 minutes.
+
+**Postgres TLS.** `POSTGRES_SSLMODE` sets the TLS mode of the history store connection (the KB
+store is not affected):
+
+- unset: the driver default (`prefer`: TLS when the server offers it, no verification);
+- `require`: the connection is **encrypted but the server certificate is not verified**, so it does
+  not protect against an impostor server on the path (the driver only verifies under `require` if it
+  happens to find a CA file through `PGSSLROOTCERT` or `~/.postgresql/root.crt`; do not rely on it,
+  use `verify-*`). `POSTGRES_SSLROOTCERT` is only read for the `verify-*` modes;
+- `verify-ca`: encrypted, and the server certificate must chain to a trusted CA;
+- `verify-full`: as `verify-ca`, and the certificate must also match the host name.
+
+`verify-ca` and `verify-full` need a CA bundle: mount the CA that signed the server certificate
+(for a managed database, the cloud provider's published bundle, e.g. the RDS bundle) and set
+`POSTGRES_SSLROOTCERT` to its path. Without it the store looks at `PGSSLROOTCERT` and then
+`~/.postgresql/root.crt`; when no CA file is found it does not connect, logs an error and counts
+`aigent.history.backend_errors{backend="postgres",op="connect"}`, and history fails open (empty)
+until the configuration is fixed.
+
+**Datasource errors in the LLM context.** When a datasource or MCP tool call fails, the text the
+model sees names the exception class only, plus the HTTP status for HTTP errors and the error code
+for AWS API errors (e.g. `ClientError (AccessDenied)`). Exception messages carry hosts, URLs, ARNs,
+account ids and S3 locations, so they go to the logs only, with URL credentials (`user:pass@`)
+and query strings removed. The exception is an MCP protocol error (a JSON-RPC error such as
+invalid params or an unknown tool): the server answered, so the model gets its code and message
+(URLs removed, at most 200 characters) and can correct the call.

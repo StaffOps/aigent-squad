@@ -44,10 +44,12 @@
 3. **Postgres is the durable/auditable option, opt-in.** Plain table
    `(pk text, sk text, payload jsonb, expires_at timestamptz)`, PK `(pk, sk)`, index on
    `expires_at`; expired rows are excluded on read and purged in bounded `DELETE … LIMIT`-style
-   batches — on every write, up to 10 batches once the store connects, and one batch on read at most
-   every 5 minutes (F-025: a read-only or restarted replica still cleans up) — so no cron is
-   required. DDL runs only when the table is missing, so a DML-only runtime role works once a
-   migration role has created it; TLS via `POSTGRES_SSLMODE`. *Trade-off*: Postgres becomes required
+   batches — on every write, up to 10 batches in a background task once the store connects (outside
+   the connect lock, so readiness never waits on it), and one batch on read at most every 5 minutes
+   (F-025: a read-only or restarted replica still cleans up) — so no cron is required. DDL runs only
+   when the table is missing, so a DML-only runtime role works once a migration role has created it;
+   TLS via `POSTGRES_SSLMODE` (`require` encrypts without verifying; `verify-ca`/`verify-full` need
+   a CA bundle via `POSTGRES_SSLROOTCERT`, else the store fails open with a logged error). *Trade-off*: Postgres becomes required
    when selected (today it is optional for the KB).
 
 4. **Redis is the default; DynamoDB is opt-in for AWS** (user decision 2026-11-24). `HISTORY_BACKEND`
