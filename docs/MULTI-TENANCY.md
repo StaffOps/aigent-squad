@@ -7,7 +7,7 @@ How aigent-squad isolates users, controls costs, and scales under concurrent loa
 Each agent conversation is isolated via DynamoDB-backed session history:
 
 - **Key**: `user_id + session_id` (composite partition key)
-- **TTL**: Sessions expire after `SESSION_TTL_HOURS` (default: 24h)
+- **TTL**: History is kept 24 h on every backend (fixed constant `HISTORY_TTL_SECONDS`, not configurable — see `docs/SECURITY.md` → Data classification and retention)
 - **History**: Each session stores its own message history — no cross-session bleed
 - **Agents**: Different agents within the same session maintain independent histories
 
@@ -101,7 +101,7 @@ triggers:
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
-| `SESSION_TTL_HOURS` | 24 | DynamoDB session expiry |
+| `HISTORY_BACKEND` | `redis` | History store (`redis` \| `dynamodb` \| `postgres`); retention is a fixed 24 h |
 | `RATE_LIMIT_PER_USER` | 30 | Requests/min per user |
 | `RATE_LIMIT_GLOBAL` | 200 | Requests/min cluster-wide |
 | `DAILY_BUDGET_USD` | 50.0 | Daily cost cap |
