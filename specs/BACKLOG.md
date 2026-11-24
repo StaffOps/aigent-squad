@@ -263,17 +263,22 @@ Note: if the Grafana LLM app COULD send `model=aigent-squad-observability`, that
 
 ## Deferred register (tails of "done" specs — completed by spec 32 T7)
 
+> Owner decision 2026-11-24: specs 42 (distributed topology), 43 (capability tiers) and 44
+> (write-capable agents) are postponed — they cannot be tested in the current environment.
+> Deferreds marked POSTPONED below wait; spec 18 T14, spec 35 TRIGGERS rows and spec 39 T3.4
+> are scheduled now.
+
 - ~~specs 06/17/18: T11 formal smoke~~ — ✅ CLOSED 2026-11-15 (`tests/test_smoke_t11.py`, automated in-process smoke under `make test`)
 - spec 18: T14 correlator gain measurement (re-run the spec-35 RCA baseline after T12/T13, record before/after in `evals/results/`)
-- spec 08: T7 demo stage
-- spec 21: Opus enricher activation; Slack approval flow
-- spec 31: T21 k6 load test (T23 final independent review done 2026-07-18 → F-009). Re-checked 2026-11-24: the k6 scenarios exist (`tests/load/`, `make load-test`, manual `load.yml`), but the backpressure/p99 run against the gateway has never been executed (no `load.yml` run on record)
+- spec 08: T7 demo stage — **POSTPONED (owner decision 2026-11-24): later.**
+- spec 21: Opus enricher activation; Slack approval flow — **POSTPONED (owner decision 2026-11-24): later.**
+- spec 31: T21 k6 load test (T23 final independent review done 2026-07-18 → F-009). Re-checked 2026-11-24: the k6 scenarios exist (`tests/load/`, `make load-test`, manual `load.yml`), but the backpressure/p99 run against the gateway has never been executed (no `load.yml` run on record) — **POSTPONED (owner decision 2026-11-24): later.**
 - spec 35: TRIGGERS.md rows (deferred to spec 33 T1). Re-checked 2026-11-24: `specs/TRIGGERS.md` exists now (spec 33 done 2026-11-16) but has no spec-35 quality-regression row yet — that row is the remaining work
 - spec 34: RELEASE.md Phases 3-5 (chart bump / overlay / rollout) — gated on B-25. Gate cleared: B-25 closed 2026-08-17 (GHCR); the phases still have to be exercised on a real release cut
 - ~~spec 36: T11 independent review (fresh-clone dry run + .claude contract)~~ — ✅ CLOSED 2026-11-24 (ran 2026-11-16; spec 36 `done` with no deferrals; its follow-ups are F-022)
 - spec 37: all deferrals CLOSED 2026-07-21 — Auto-route streaming (G-4), MCP SA-RBAC audit gate, Grafana plugin integration (G-1..G-6), and the Guardrail ingress input-guard fix (G-6) are all DONE + homologated live. Non-blocking follow-ups: recommended R1-R7; vm-mcp/observability Prometheus connectivity; provisioning the plugin's real per-consumer key (ExternalSecret). Earlier: count-framing + 40K scale budgets shipped 2026-07-20 (model reports the marker total, 267 not 38).
 - spec 39: T3.4 deterministic investigation.py path (Phase 2 — prompt-RCA validated live agentic28, extraction trigger not met). spec 38 FU-A dispatch-condition doc (Phase 2).
-- spec 41: T3 histogram bucket boundaries — `aigent.quality.unverified_claims_per_response` runs on default SDK buckets, which are coarse for its 0–20 range. The spec asked for `[0,1,2,3,5,10,20]`, but they are not settable from this repo: `opentelemetry-api` 1.29.0's `create_histogram()` accepts only (name, unit, description), and the `MeterProvider` — where a View would live — is owned by the private `otel_helper` lib. Closing this needs an `otel_helper` change (add a View) or an API upgrade that exposes `explicit_bucket_boundaries_advice`. Metric is usable meanwhile; only low-end granularity is lost. Docs corrected to stop claiming the buckets (T8 harness finding B3).
+- spec 41: T3 histogram bucket boundaries — `aigent.quality.unverified_claims_per_response` runs on default SDK buckets, which are coarse for its 0–20 range. The spec asked for `[0,1,2,3,5,10,20]`, but they are not settable from this repo: `opentelemetry-api` 1.29.0's `create_histogram()` accepts only (name, unit, description), and the `MeterProvider` — where a View would live — is owned by the private `otel_helper` lib. Closing this needs an `otel_helper` change (add a View) or an API upgrade that exposes `explicit_bucket_boundaries_advice`. Metric is usable meanwhile; only low-end granularity is lost. Docs corrected to stop claiming the buckets (T8 harness finding B3). — **POSTPONED (owner decision 2026-11-24): later.**
 
 ---
 
