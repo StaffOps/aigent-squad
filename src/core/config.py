@@ -158,6 +158,12 @@ class Settings(BaseSettings):  # type: ignore[misc]
     # invoke. Fail-closed on scanner error. Runs before context construction.
     input_scanner_enabled: bool = True
 
+    # Conversation history backend (spec 46). `redis` (default) works in every
+    # environment because Redis is already required; the AWS deployment sets
+    # HISTORY_BACKEND=dynamodb explicitly; `postgres` is opt-in (durable/auditable,
+    # plain table, no pgvector). An invalid value fails startup (Literal).
+    history_backend: Literal["redis", "dynamodb", "postgres"] = "redis"
+
     # DynamoDB
     dynamodb_sessions_table: str = "agent-sessions"
     dynamodb_endpoint: Optional[str] = None

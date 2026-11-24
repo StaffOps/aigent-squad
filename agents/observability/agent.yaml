@@ -16,7 +16,7 @@ datasources:
   # aid, not the security boundary.
   - type: mcp
     name: vm-mcp
-    url: http://vm-mcp.mcp-servers.svc.cluster.local:8080/mcp
+    url: "${VM_MCP_URL}"  # spec 46: per-environment address (AWS: http://vm-mcp.mcp-servers.svc.cluster.local:8080/mcp)
     transport: streamable-http
     tools:
       - query

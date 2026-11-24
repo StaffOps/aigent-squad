@@ -2,6 +2,26 @@
 
 ## [Unreleased]
 
+### Added — environment-addressed agents/MCPs (spec 46 Phase 2, 2026-11-24)
+- `${VAR}` in `agent.yaml` is expanded at load only in datasource address fields (`url`,
+  `name`, `headers` and `tool_arguments` values); anywhere else it fails startup, so an
+  environment can never change tools, `read_only` or the capability tier.
+- Unset variable → that datasource is dropped (agent still loads), WARNING
+  `datasource_unconfigured`, `/ready` `checks.agents.degraded` (names only, 200).
+- `AGENT_<NAME>_ENABLED` switches agents per environment.
+- Repo MCP URLs are now `${K8S_MCP_URL}` / `${VM_MCP_URL}`. **Upgrade note:** set both in
+  the AWS deployment, or the kubernetes/observability MCP tools are dropped.
+- Fixed: `http` datasource headers were never expanded (devops sent a literal `${GITLAB_TOKEN}`).
+
+### Added — pluggable conversation history (spec 46 Phase 1, 2026-11-24)
+- `HISTORY_BACKEND` selects the history store: `redis` (**new default**), `dynamodb`,
+  `postgres` (plain table, no pgvector). Same contract on every backend: per-agent
+  isolation, 24 h retention, oldest-first, fail-open. New metric
+  `aigent.history.backend_errors{backend,op}`; supervisor `/ready` gains a `history`
+  check that follows the backend (`dynamodb` key kept when that backend is used).
+- **Upgrade note (AWS):** set `HISTORY_BACKEND=dynamodb` in the AWS values/overlay, or
+  history moves to Redis on upgrade (24 h data; queries keep working).
+
 ### Changed — org docs standard file names (2026-11-23)
 - `CHANGES.md` → `CHANGELOG.md` and `HANDOFF.md` → `docs/handoff.md` (`git mv`, history
   kept), matching the StaffOps docs standard the Backstage Scorecard checks (README.md,

@@ -43,7 +43,7 @@ User (LibreChat /v1 · HTTP /query · Alertmanager · MCP :8006)
   ├── Fan-out (parallel) → synthesizer merges N responses
   ├── RCA investigation → agents collect evidence in parallel
   ├── Guardrail: ingress INPUT + agentic tool-args + tool-result + OUTPUT (fail-closed 403) + canary + guardContent input-tagging
-  └── DynamoDB (history, 24h TTL, per-agent isolated)
+  └── History store (HISTORY_BACKEND: redis default · dynamodb on AWS · postgres; 24h, per-agent isolated)
          │
   ┌──────┴──────────────────────────────┐
   │ In-process specialists (no ports)   │
@@ -304,7 +304,10 @@ No code changes needed — `AgentRegistry` auto-discovers at startup.
 | `REDIS_HOST` | ✅ | — | Cache + rate/budget + job lifecycle |
 | `REDIS_PASSWORD` | ✅ | — | Cache auth |
 | `REDIS_SSL` | | `true` | Disable in dev |
-| `DYNAMODB_SESSIONS_TABLE` | | `agent-sessions` | Conversation history |
+| `K8S_MCP_URL` / `VM_MCP_URL` | | — | MCP addresses for the kubernetes / observability agents (spec 46); unset → that datasource is dropped (degraded, agent still loads) |
+| `AGENT_<NAME>_ENABLED` | | — | Per-environment agent on/off (spec 46), e.g. `AGENT_AWS_ENABLED=false` off-AWS |
+| `HISTORY_BACKEND` | | `redis` | Conversation-history store (spec 46): `redis` \| `dynamodb` \| `postgres`; **AWS deployments set `dynamodb` explicitly**; 24h retention on every backend |
+| `DYNAMODB_SESSIONS_TABLE` | | `agent-sessions` | Conversation history (when `HISTORY_BACKEND=dynamodb`) |
 | `DYNAMODB_ENDPOINT` | | AWS | Set to `http://dynamodb-local:8000` for dev |
 | `SLACK_BOT_TOKEN` | optional | — | Slack integration |
 | `GITLAB_TOKEN` | optional | — | DevOps agent (read-only) |

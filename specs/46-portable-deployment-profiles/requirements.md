@@ -1,6 +1,6 @@
 ---
 spec: 46-portable-deployment-profiles
-status: not-started
+status: in-progress
 completed: null
 superseded_by: null
 depends_on: ["28-llm-provider-abstraction", "37-agentic-tool-calling"]
