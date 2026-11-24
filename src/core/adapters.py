@@ -6,12 +6,12 @@ import re
 import time
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
-from typing import Any, TYPE_CHECKING
-from urllib.parse import urlsplit, urlunsplit
+from typing import Any, Literal, TYPE_CHECKING
 
 import boto3
 import httpx
 from kubernetes import client as k8s_client, config as k8s_config
+from kubernetes.client.exceptions import ApiException as K8sApiException
 from kubernetes.config import ConfigException
 
 from src.core.agent_config import DatasourceConfig
@@ -83,9 +83,20 @@ _AWS_CODE = re.compile(r"[A-Za-z0-9._-]{1,64}")
 
 
 def _http_status(exc: BaseException) -> int | None:
+    """HTTP status of an httpx error or a Kubernetes ``ApiException``; None otherwise.
+
+    The Kubernetes client puts the status on the exception itself
+    (``ApiException.status``); keeping it lets the model tell 403 (RBAC) from
+    404 (gone), like the AWS error code does. Bounded to a real HTTP range so a
+    stray attribute can never smuggle text in.
+    """
     response = getattr(exc, "response", None)
     status = getattr(response, "status_code", None)
-    return status if isinstance(status, int) else None
+    if not isinstance(status, int) and isinstance(exc, K8sApiException):
+        status = getattr(exc, "status", None)
+    if isinstance(status, int) and not isinstance(status, bool) and 100 <= status <= 599:
+        return status
+    return None
 
 
 def transport_error_summary(exc: BaseException, _depth: int = 0) -> str:
@@ -115,29 +126,59 @@ def transport_error_summary(exc: BaseException, _depth: int = 0) -> str:
     return f"{name} (HTTP {status})" if status is not None else name
 
 
-# Userinfo (``//user:pass@``) anywhere in free text, and a query/fragment tail
-# after a URL: both are where credentials live.
-_URL_USERINFO = re.compile(r"(?i)(\b[a-z][a-z0-9+.-]*://)[^\s/@'\"]*@")
-_URL_TAIL = re.compile(r"(https?://[^\s'\"?#]*)[?#][^\s'\"]*")
+# A URL with any scheme, up to the next whitespace/quote/bracket. Userinfo and
+# the query/fragment are cut inside :func:`_scrub_url_match`, not by regex,
+# because a password may itself contain '@' or '/' (BACKLOG F-025 review).
+_URL_ANY_SCHEME = re.compile(r"(?i)\b([a-z][a-z0-9+.-]*)://([^\s'\"<>]*)")
+# ``host:port`` — the shape of an authority prefix that is NOT userinfo.
+_HOST_PORT = re.compile(r"[^:@]+:\d+")
+# Scheme-less ``user:password@host[:port]`` (DSNs in driver messages). Kept
+# conservative: needs the ':' and the '@', no '/', '?' or '#' in the password,
+# and must not sit inside a URL path (the look-behind).
+_SCHEMELESS_USERINFO = re.compile(
+    r"(?<![\w/:@.%+-])[A-Za-z0-9._%+-]+:[^\s/?#'\"<>]+@(?=[A-Za-z0-9[])"
+)
+
+
+def _scrub_url_match(match: "re.Match[str]") -> str:
+    scheme, rest = match.group(1), match.group(2)
+    # Query and fragment go for every scheme: tokens, passwords, scoped ids.
+    cut = len(rest)
+    for sep in ("?", "#"):
+        idx = rest.find(sep)
+        if idx != -1:
+            cut = min(cut, idx)
+    head = rest[:cut]
+    # Userinfo ends at the LAST '@' before the query: a password may contain '@'.
+    at = head.rfind("@")
+    if at != -1:
+        candidate = head[:at]
+        slash = candidate.find("/")
+        # A '/' before the '@' means either a path that contains '@'
+        # (``https://registry/@scope/pkg``) or a password that contains '/'
+        # (``redis://:pa/ss@host``). It is userinfo only when the part before the
+        # '/' cannot be a ``host[:port]`` authority, i.e. it has a ':' that is
+        # not followed by a numeric port.
+        prefix = candidate if slash == -1 else candidate[:slash]
+        if slash == -1 or (":" in prefix and not _HOST_PORT.fullmatch(prefix)):
+            head = head[at + 1:]
+    return f"{scheme}://{head}"
 
 
 def scrub_urls(text: str) -> str:
-    """``text`` with URL userinfo and query strings/fragments removed."""
-    return _URL_TAIL.sub(r"\1", _URL_USERINFO.sub(r"\1", text))
+    """``text`` with URL userinfo and query strings/fragments removed.
+
+    Covers any scheme (``https``, ``wss``, ``postgresql``, ``redis``...), passwords
+    that contain '@' or '/', and scheme-less ``user:password@host`` DSNs. Errs on
+    the side of over-redaction; never on leaking.
+    """
+    text = _URL_ANY_SCHEME.sub(_scrub_url_match, text)
+    return _SCHEMELESS_USERINFO.sub("", text)
 
 
 def strip_url_query(url: str) -> str:
     """``url`` without userinfo, query string or fragment (where credentials live)."""
-    parts = urlsplit(url)
-    try:
-        port = parts.port
-    except ValueError:  # malformed port: keep nothing we cannot parse
-        port = None
-    host = parts.hostname or ""
-    if ":" in host:  # IPv6 literal
-        host = f"[{host}]"
-    netloc = f"{host}:{port}" if port is not None else host
-    return urlunsplit((parts.scheme, netloc, parts.path, "", ""))
+    return scrub_urls(url)
 
 
 def log_transport_error(source: str, url: str | None, exc: BaseException) -> None:
@@ -179,33 +220,77 @@ def _find_mcp_error(exc: BaseException, _depth: int = 0) -> BaseException | None
     return None
 
 
+# JSON-RPC codes the mcp CLIENT synthesises for transport failures — the server
+# never answered. mcp 1.x: CONNECTION_CLOSED (-32000), the read timeout
+# (httpx 408), streamable-http "Session terminated" (32600). -32001 is the
+# TypeScript SDK's request timeout, accepted for symmetry.
+MCP_TRANSPORT_ERROR_CODES: frozenset[int] = frozenset({-32000, -32001, 408, 32600})
+
+McpFailureKind = Literal["protocol_error", "transport_error"]
+
+
 def mcp_protocol_error_summary(exc: BaseException) -> str | None:
     """``McpError <code>: <message>`` for a JSON-RPC error, None for anything else.
 
     A JSON-RPC error (invalid params, unknown tool, ...) is the SERVER answering:
     an application error the model can act on in the agentic loop, so its code
-    and message go back, scrubbed of URLs/credentials and capped. Transport
-    failures keep the class-only :func:`transport_error_summary`.
+    and message go back, scrubbed of URLs/credentials/secrets and capped.
+    Transport failures — including the ``McpError`` codes the client synthesises
+    for a closed connection or a read timeout (:data:`MCP_TRANSPORT_ERROR_CODES`)
+    — return None and keep the class-only :func:`transport_error_summary`.
     """
+    from src.core.output_filter import redact_secrets  # lazy: keep adapters import-light
+
     err = _find_mcp_error(exc)
     if err is None:
         return None
     data = getattr(err, "error", None)
     code = getattr(data, "code", None)
+    if isinstance(code, int) and code in MCP_TRANSPORT_ERROR_CODES:
+        return None
     message = getattr(data, "message", None)
     if not isinstance(message, str):
         message = str(err)
-    message = " ".join(scrub_urls(message).split())
+    message = " ".join(redact_secrets(scrub_urls(message)).split())
     if len(message) > MCP_PROTOCOL_ERROR_MAX_CHARS:
         message = message[: MCP_PROTOCOL_ERROR_MAX_CHARS - 3] + "..."
     head = f"McpError {code}" if isinstance(code, int) else "McpError"
     return f"{head}: {message}" if message else head
 
 
+def classify_mcp_failure(exc: BaseException) -> tuple[McpFailureKind, str]:
+    """``(kind, llm_summary)`` for an MCP tool failure.
+
+    ``protocol_error``: the server answered with a JSON-RPC error — healthy
+    server, actionable message. ``transport_error``: anything else (refused, TLS,
+    DNS, timeout, closed connection) — a circuit-breaker failure.
+    """
+    protocol = mcp_protocol_error_summary(exc)
+    if protocol is not None:
+        return "protocol_error", protocol
+    return "transport_error", transport_error_summary(exc)
+
+
 def tool_error_summary(exc: BaseException) -> str:
     """LLM-facing summary of an MCP tool failure: protocol error detail or transport class."""
-    return mcp_protocol_error_summary(exc) or transport_error_summary(exc)
+    return classify_mcp_failure(exc)[1]
 
+
+class McpToolError(str):
+    """The fail-open error text :meth:`McpAdapter.call_tool` returns, typed.
+
+    It IS the string the model sees (so every caller treating the result as
+    text keeps working), and carries ``kind`` so the agentic session pool can
+    tell a transport failure (counts against the circuit breaker) from a
+    JSON-RPC application error (the server is healthy).
+    """
+
+    kind: McpFailureKind
+
+    def __new__(cls, text: str, kind: McpFailureKind) -> "McpToolError":
+        obj = super().__new__(cls, text)
+        obj.kind = kind
+        return obj
 
 
 class DatasourceAdapter(ABC):
@@ -551,6 +636,10 @@ class McpAdapter(DatasourceAdapter):
             for OOM protection). Semantic truncation with a true-count marker
             is applied downstream by the agentic loop's _truncate_with_marker.
 
+        On failure returns an :class:`McpToolError` (a ``str`` carrying
+        ``kind``) instead of raising — fail-open for the model, typed for the
+        circuit breaker.
+
         Raises:
             PermissionError: if name is not in the allowlist (fail-closed).
         """
@@ -590,7 +679,8 @@ class McpAdapter(DatasourceAdapter):
             raise  # Re-raise allowlist violations
         except Exception as e:
             log_transport_error(f"mcp:{self.name}:{server_name}", self.url, e)
-            return f"[mcp:{self.name}:{server_name}] error: {tool_error_summary(e)}"
+            kind, summary = classify_mcp_failure(e)
+            return McpToolError(f"[mcp:{self.name}:{server_name}] error: {summary}", kind)
 
     def _resolve_server_name(self, converse_name: str) -> str:
         """Resolve a Converse tool name back to the MCP server's real name.

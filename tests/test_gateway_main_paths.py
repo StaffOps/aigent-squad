@@ -25,7 +25,7 @@ def _bypass_edge_auth():
 def _admit():
     """Patch admission to allow (returns context managers for use in `with`)."""
     return (
-        patch.object(gw, "settings", **{"rate_budget_enabled": True}),
+        patch.object(gw.settings, "rate_budget_enabled", True),
         patch.object(gw, "admission", **{
             "check_rate": AsyncMock(return_value=(True, 55)),
             "check_budget": AsyncMock(return_value=(True, 40.0)),

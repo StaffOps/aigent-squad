@@ -208,9 +208,9 @@ class Settings(BaseSettings):  # type: ignore[misc]
     supervisor_url: str = "http://localhost:8001"
     # Worker pool (gateway-side admission). Defaults from spec 31 round-table.
     gateway_max_concurrent: int = 20
-    gateway_job_timeout_seconds: int = 150
-    gateway_first_byte_timeout_seconds: int = 90
-    gateway_idle_stream_timeout_seconds: int = 35
+    gateway_job_timeout_seconds: int = Field(default=150, gt=0)
+    gateway_first_byte_timeout_seconds: int = Field(default=90, gt=0)
+    gateway_idle_stream_timeout_seconds: int = Field(default=35, gt=0)
     # Bedrock boto3 client timeouts. Default read_timeout (60s) was cut on slow Converse
     # turns (large context + Sonnet) → ReadTimeoutError → stream 'terminated'. Keep below
     # gateway_job_timeout_seconds so the gateway doesn't cut first.
@@ -220,6 +220,12 @@ class Settings(BaseSettings):  # type: ignore[misc]
     # TTL of the gateway's ``job:<id>`` status records in Redis (F-028). Status is
     # informational only; without an expiry the records accumulated forever.
     gateway_job_record_ttl_seconds: int = Field(default=86400, gt=0)
+    # Edge input-size caps (F-009). Rejected with 413 before admission or any LLM work.
+    # max_input_chars matches the supervisor InputScanner limit (10 000 chars) so the
+    # oversized request stops at the edge instead of after the hop.
+    gateway_max_input_chars: int = Field(default=10_000, gt=0)
+    gateway_max_messages: int = Field(default=200, gt=0)
+    gateway_max_body_bytes: int = Field(default=1_048_576, gt=0)
     # Bedrock concurrency semaphore (spec 25 T8): max in-flight Bedrock calls.
     # Prevents overwhelming the Bedrock endpoint (ThrottlingException cascade).
     bedrock_max_concurrent: int = 20
@@ -274,6 +280,24 @@ class Settings(BaseSettings):  # type: ignore[misc]
     # verifying; verify-* need a CA (e.g. the cloud provider's RDS bundle mounted
     # in the pod). Unset falls back to PGSSLROOTCERT, then ~/.postgresql/root.crt.
     postgres_sslrootcert: Annotated[Optional[str], BeforeValidator(_empty_is_unset)] = None
+
+    # Incident-memory KB switch + retention (spec 21, F-029). KB_ENABLED=false
+    # turns the KB off completely: no distillation, no RAG, no store connection,
+    # and the /kb/* endpoints answer 503. Default true keeps the old behaviour
+    # (the KB runs whenever its Postgres is reachable).
+    kb_enabled: bool = True
+    # Rejected and superseded items are deleted this many days after their last
+    # status change (updated_at).
+    kb_rejected_retention_days: int = Field(default=30, gt=0)
+    # Optional maximum age (days since created_at) for every other item (active
+    # and pending review). Unset = keep them until someone deletes them.
+    kb_item_max_age_days: Annotated[Optional[Annotated[int, Field(gt=0)]], BeforeValidator(_empty_is_unset)] = None
+    # The retention sweep runs at most once per interval, opportunistically (at
+    # connect and on KB reads/writes — no cron). Each sweep deletes at most
+    # batch_size x max_batches rows per rule.
+    kb_retention_interval_seconds: int = Field(default=3600, gt=0)
+    kb_retention_batch_size: int = Field(default=500, gt=0)
+    kb_retention_max_batches: int = Field(default=10, gt=0)
 
     # RAG / Knowledge Base (FinOps)
     finops_knowledge_base_id: Optional[str] = None  # Bedrock Knowledge Base ID

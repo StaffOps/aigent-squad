@@ -211,6 +211,41 @@ silently open the privileged endpoint. NetworkPolicy is independent of mesh heal
 | `Retry-After` | **dynamic + jitter** `ceil(active/max × avg_latency) + random(0,3)` | Avoid thundering-herd retries |
 | httpx `max_connections` | **`max_concurrent + 5`** | Prevent hidden backpressure below the semaphore |
 
+### Enforcement (F-009, 2026-11-24)
+
+The values above are the round-table starting point; the shipped defaults live in
+`src/core/config.py` and the `AGENTS.md` env table. How each timeout is enforced:
+
+| Path | first-byte | idle | job (overall wall clock) |
+|------|-----------|------|--------------------------|
+| `/query`, `/v1` non-streaming (worker pool) | yes | yes | yes — each read waits `min(own budget, time left)`; deadline starts at slot acquisition |
+| `/v1` streaming (SSE proxy, not pooled) | no | no | yes — covers opening the stream, the proxy and the non-streaming fallback |
+
+Every pooled timeout returns **504** `{"error": {"type": "gateway_timeout", ...}}` and
+cancels the job (the pending read is cancelled and the upstream request closed). On the
+SSE path a timeout before the stream opens is the same 504; after headers are sent the
+stream ends with an SSE `data: {"error": {"type": "gateway_timeout", ...}}` event. A
+timeout never triggers the non-streaming fallback (that would re-run the job).
+Counted in `aigent.gateway.timeouts{kind}`.
+
+### Input-size caps (F-009, 2026-11-24)
+
+Before admission, the preflight or any LLM work, the gateway returns **413**
+`{"error": {"type": "invalid_request_error", "code": "request_too_large", ...}}` when:
+
+- the body exceeds `GATEWAY_MAX_BODY_BYTES` (pure ASGI middleware, before auth or
+  parsing: a declared `Content-Length` is rejected before the body is read; a chunked
+  body is counted as it arrives and cut off once it passes the cap);
+- `/v1` `messages` has more than `GATEWAY_MAX_MESSAGES` entries;
+- the forwarded turn (`/query` `user_input`, or the last user message of `/v1`) exceeds
+  `GATEWAY_MAX_INPUT_CHARS` — the same 10 000-char limit the supervisor InputScanner
+  enforces (403), so an oversized request stops at the edge instead of after the hop.
+
+The char cap is on the forwarded turn, not on the sum of all messages: OpenAI clients
+resend the whole conversation, and only the last user turn reaches the supervisor.
+Summing history would reject long conversations whose actual input is small. Counted in
+`aigent.gateway.input_rejections{reason}`.
+
 503 response distinguishes subtypes in the body: `service_overloaded` (pool full,
 self-healing) vs `backend_unavailable` (supervisor unreachable, needs action).
 

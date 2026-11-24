@@ -140,6 +140,19 @@ gateway_redis_fallback_active = meter.create_counter(
     unit="1",
 )
 
+# F-009: edge input-size caps and job timeouts. Labels are bounded enums.
+gateway_input_rejections = meter.create_counter(
+    name="aigent.gateway.input_rejections",
+    description="Requests rejected with 413 by the gateway input-size caps (reason=body_bytes|input_chars|messages)",
+    unit="1",
+)
+
+gateway_timeouts = meter.create_counter(
+    name="aigent.gateway.timeouts",
+    description="Gateway jobs aborted by a timeout (kind=first_byte|idle|job)",
+    unit="1",
+)
+
 rate_limit_blocks = meter.create_counter(
     name="aigent.rate_limit.blocks",
     description="Requests blocked by admission guards (rate or budget)",
@@ -452,16 +465,15 @@ investigation_fanout_errors = meter.create_counter(
 )
 
 # === F-019: Per-session token budget (Redis-backed, fail-closed) ===
-# Labels: session_id — NOT a high-cardinality risk here because this counter only
-# increments on REFUSAL (a rare event, not every request). A session that hits the
-# cap adds 1 series; sessions that don't hit it add zero. Worst case bounded by
-# the number of sessions that blow their budget in a scrape interval (~0).
+# Labels: reason (exhausted|store_unavailable) — bounded. The session id goes to
+# the log line only, never to a label (F-028: no unbounded label values).
 token_budget_exceeded_blocks = meter.create_counter(
     name="aigent.token_budget.exceeded",
     description=(
         "Requests refused because the session token budget was exhausted "
         "(or Redis was unavailable and the budget failed closed). "
-        "Label: session_id. Observable signal for the cap that was previously silent."
+        "Label: reason (exhausted|store_unavailable). Observable signal for the cap "
+        "that was previously silent."
     ),
     unit="1",
 )
@@ -495,5 +507,24 @@ feedback_errors = meter.create_counter(
         "Feedback refusals and fail-open recording errors. record_failed means a "
         "response id could not be stored (the query still answered). Label: reason."
     ),
+    unit="1",
+)
+
+# === F-029: KB retention sweep + provenance (spec 21) ===
+kb_retention_deleted = meter.create_counter(
+    name="aigent.kb.retention.deleted",
+    description="KB items deleted by the retention sweep, by rule (rejected_superseded | max_age)",
+    unit="1",
+)
+
+kb_retention_errors = meter.create_counter(
+    name="aigent.kb.retention.errors",
+    description="KB retention sweeps that failed (fail-open: the KB keeps serving)",
+    unit="1",
+)
+
+kb_provenance_written = meter.create_counter(
+    name="aigent.kb.provenance.written",
+    description="kb_provenance rows written alongside new KB items",
     unit="1",
 )

@@ -15,6 +15,80 @@
 - New metrics `aigent.feedback.score{agent_id, score}` and `aigent.feedback.errors{reason}`;
   a negative-feedback-share row in `specs/TRIGGERS.md` for spec 33 reviews.
 
+### Fixed — gateway input caps and job timeout (BACKLOG F-009 S4 + C1, 2026-11-24)
+- The gateway now rejects oversized requests with 413 `request_too_large` before admission
+  or any LLM work: forwarded user turn over `GATEWAY_MAX_INPUT_CHARS` (default 10 000, the
+  InputScanner limit), `/v1` requests with more than `GATEWAY_MAX_MESSAGES` messages
+  (default 200), and a body over `GATEWAY_MAX_BODY_BYTES` (default 1 MiB, declared or
+  chunked).
+- `GATEWAY_JOB_TIMEOUT_SECONDS` is now enforced as the overall wall-clock cap on a job. It
+  was stored and never read; only the httpx per-read timeout bounded a request. Pooled
+  paths return 504 `gateway_timeout`; the `/v1` SSE path returns 504 before the stream
+  opens and ends with an SSE error event after.
+- First-byte and idle timeouts already applied to pooled jobs but surfaced as an unhandled
+  500; they now return the same 504 `gateway_timeout`.
+- The three gateway timeouts must now be > 0 (startup validation).
+- New metrics `aigent.gateway.input_rejections{reason}` and `aigent.gateway.timeouts{kind}`.
+
+### Fixed — incident-memory KB retention, on/off switch and provenance (F-029, 2026-11-24)
+- New `KB_ENABLED` (default `true`, unchanged behaviour). `false` turns the KB off: the supervisor
+  does not connect to the KB database, no distillation runs, RAG injection is skipped (no
+  embedding call) and `/kb/pending`, `/kb/{id}/approve|reject` answer 503. Before, the KB ran
+  whenever Postgres was reachable, including with `HISTORY_BACKEND=postgres`.
+- KB retention is now enforced: rejected and superseded items are deleted
+  `KB_REJECTED_RETENTION_DAYS` (default 30) after their last status change; active and
+  pending-review items get an optional max age, `KB_ITEM_MAX_AGE_DAYS` (default unset = keep).
+  The sweep runs at start and then at most once per `KB_RETENTION_INTERVAL_SECONDS` (default 1 h)
+  on KB reads/writes, in bounded batches (`KB_RETENTION_BATCH_SIZE`, `KB_RETENTION_MAX_BATCHES`),
+  and is fail-open.
+- `kb_provenance` is now written: investigations carry their id to distillation, so new items get
+  a provenance row (investigation id, confidence, extractor/enricher model) and a non-null
+  `metadata.investigation_id`.
+- New metrics `aigent.kb.retention.deleted{rule}`, `aigent.kb.retention.errors`,
+  `aigent.kb.provenance.written`.
+- `docs/MULTI-TENANCY.md` listed `RATE_LIMIT_PER_USER` / `RATE_LIMIT_GLOBAL`, which never existed;
+  it now shows the real `RATE_LIMIT_PER_MINUTE` (default 60) and `RATE_BUDGET_ENABLED`.
+
+### Fixed — review of the F-025/F-027/F-028 changes (2026-11-24)
+- MCP circuit breaker: `McpAdapter.call_tool` returns its fail-open error text as a typed
+  `McpToolError` string, and the agentic session pool now counts transport failures
+  (connection refused, TLS, DNS) against the per-server breaker; before, every failure counted
+  as a success and the breaker never opened. The `McpError`s the MCP client raises for a closed
+  connection (`-32000`) or a read timeout (`408`) are transport failures too. Only JSON-RPC
+  errors the server returns (invalid params, unknown tool, ...) are not breaker failures, and
+  their message now also goes through the L4 secret patterns before it reaches the model.
+- DynamoDB history: "all agents" reads return the newest unexpired messages across agents. The
+  sort key (`<agent>#<time>`) orders by agent name, so the newest-first `Limit` read could
+  return one agent's old items, or nothing when those had expired. The session is now read
+  whole (bounded: 10 pages, 2000 items; sessions are bounded by the 24 h retention), filtered
+  and sorted by the stored timestamp. The stored key layout is unchanged. A per-agent read no
+  longer matches an agent whose name starts with the same text (`aws` vs `aws-cost`). The
+  boto3 calls run in a worker thread instead of blocking the event loop.
+- Postgres history TLS: asyncpg builds the TLS context again, so client certificates
+  (`PGSSLCERT`/`PGSSLKEY`, `~/.postgresql/postgresql.crt`/`.key`), the CRL (`PGSSLCRL`,
+  `~/.postgresql/root.crl`) and `PGSSLMINPROTOCOLVERSION` work under `verify-*` (the previous
+  hand-built context dropped them, breaking mutual TLS). The CA bundle is resolved and checked
+  by the product and handed to asyncpg. `POSTGRES_SSLROOTCERT` now also applies to `require`,
+  which then verifies the CA, as asyncpg and libpq already do when `PGSSLROOTCERT` or
+  `~/.postgresql/root.crt` exists (the previous note said `require` never verifies; that was
+  wrong). `system` selects the container's system CA bundle. A missing, unreadable or non-PEM
+  CA bundle, a bad client certificate/key and certificate verification failures are logged as
+  TLS misconfiguration (error), not as "unavailable".
+- URL scrubbing in logs and in MCP error text: credentials are removed for any scheme
+  (`redis://`, `postgresql://`, `wss://`, ...), including passwords that contain `@` or `/`, and
+  from scheme-less `user:password@host` strings; query strings and fragments are dropped for every
+  scheme. An e-mail address inside a query string no longer garbles the host.
+- Kubernetes API errors in the LLM context keep their HTTP status (`ApiException (HTTP 403)`).
+- Shutdown: the supervisor closes the history store; the Postgres store cancels and awaits its
+  background startup purge and closes its pool.
+- `aigent.token_budget.exceeded` carries a bounded `reason` (`exhausted` | `store_unavailable`)
+  instead of the raw `session_id` label. Dashboards grouping by `session_id` must change.
+- `/ready` HTTP checks take an optional name: details read `http:<name>: 200` (still no URL).
+- **Upgrade note for F-028 (hashed Redis keys):** during a rolling update (about 120 s, the
+  session-lock TTL), old replicas use raw-id `session_lock:`/`rate:user:` keys and new ones
+  hashed keys, so a lock taken by one version does not exclude a request handled by the other,
+  and the per-user rate counter is split between the two key names for that window.
+
 ### Security — streamed answers get the L4 output filter and L5 canary (2026-11-24)
 - The streaming path sent the final answer to the client, and saved it to history, without
   the L4 output filter (secrets/PII) or the L5 canary check that the non-streaming path runs.
@@ -52,8 +126,8 @@
 ### Fixed — F-025 independent review findings (2026-11-24)
 - Postgres history TLS: `verify-ca`/`verify-full` now work with a mounted CA bundle through the
   new `POSTGRES_SSLROOTCERT` (fallback `PGSSLROOTCERT`, `~/.postgresql/root.crt`); with no CA file
-  the store logs an error, counts `op=connect` and fails open. Docs now say plainly that
-  `require` encrypts without verifying the server.
+  the store logs an error, counts `op=connect` and fails open. (Corrected above: `require`
+  verifies the CA when a bundle is found.)
 - boto3, Kubernetes and Athena datasource errors in the LLM context are now the exception class
   only, plus the AWS error code for API errors (`ClientError (AccessDenied)`); the full message
   (ARNs, account ids, hosts, S3 locations) goes to the logs.
