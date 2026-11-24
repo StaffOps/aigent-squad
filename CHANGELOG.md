@@ -14,6 +14,21 @@
   they contain sensitive data.
 - New metric `aigent.stream.output_interventions{agent_id, action}`.
 
+### Fixed — expired history and Redis key hygiene (BACKLOG F-027, F-028, 2026-11-24)
+- DynamoDB history reads filter on `ttl > now`, so items past their 24 h expiry are no
+  longer fed back as context while DynamoDB has not yet deleted them. Because DynamoDB
+  applies `Limit` before the filter, a short page is followed (at most 3 pages) so callers
+  still get up to `max_messages` unexpired messages.
+- Gateway `job:<id>` status records now expire (`GATEWAY_JOB_RECORD_TTL_SECONDS`, default
+  24 h) instead of accumulating forever.
+- Redis key names no longer contain raw ids: `rate:user:`, `token_budget:session:` and
+  `session_lock:` keys hold a SHA-256 of the user/session id. Prefixes are unchanged.
+- **Upgrade note:** counters and locks keyed the old way are not read after the upgrade and
+  simply expire (rate window 60 s, session lock 120 s, session token budget 24 h) — a
+  session's token budget effectively restarts once. Pre-existing `job:<id>` records have no
+  expiry; delete them once (`redis-cli --scan --pattern 'job:*' | xargs redis-cli del`) or
+  leave them, they are status-only.
+
 ### Fixed — streamed answers are saved to conversation history (BACKLOG F-026, 2026-11-24)
 - The streaming paths (forced agent and auto-route) saved the user turn but never the
   answer, so streaming clients lost the squad's previous replies from the next turn's

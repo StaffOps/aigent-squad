@@ -48,6 +48,7 @@ class WorkerPool:
 
     - ``asyncio.Semaphore`` gates concurrent execution (immediate-reject, no queue)
     - cancellation via a Redis key (``cancel:<job_id>``) polled by a side task
+    - job status in ``job:<job_id>`` with a TTL (``job_record_ttl``, F-028)
     - three timeouts: first-byte, idle-stream, and an overall job backstop
     """
 
@@ -59,6 +60,7 @@ class WorkerPool:
         idle_timeout: float,
         cancel_poll_interval: float = 0.5,
         redis_client: Any = None,
+        job_record_ttl: int = 86400,
     ) -> None:
         self._max = max_concurrent
         self._sem = asyncio.Semaphore(max_concurrent)
@@ -67,6 +69,8 @@ class WorkerPool:
         self._idle_timeout = idle_timeout
         self._cancel_poll = cancel_poll_interval
         self._redis = redis_client
+        # job:<id> records expire (F-028) — status is informational, not durable.
+        self._job_record_ttl = job_record_ttl
         self._active: dict[str, asyncio.Task[None]] = {}
 
     @property
@@ -201,7 +205,9 @@ class WorkerPool:
         if self._redis is None:
             return
         try:
-            await self._redis.set(f"job:{job_id}", json.dumps(record))
+            await self._redis.set(
+                f"job:{job_id}", json.dumps(record), ex=self._job_record_ttl
+            )
         except Exception:
             gateway_redis_fallback_active.add(1)
             logger.warning("job status redis fallback", extra={**record})

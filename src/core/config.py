@@ -217,6 +217,9 @@ class Settings(BaseSettings):  # type: ignore[misc]
     bedrock_read_timeout_seconds: int = 120
     bedrock_connect_timeout_seconds: int = 10
     gateway_cancel_poll_seconds: float = 0.5
+    # TTL of the gateway's ``job:<id>`` status records in Redis (F-028). Status is
+    # informational only; without an expiry the records accumulated forever.
+    gateway_job_record_ttl_seconds: int = Field(default=86400, gt=0)
     # Bedrock concurrency semaphore (spec 25 T8): max in-flight Bedrock calls.
     # Prevents overwhelming the Bedrock endpoint (ThrottlingException cascade).
     bedrock_max_concurrent: int = 20

@@ -33,6 +33,7 @@ from src.core.config import reveal, settings
 from src.core.logger import logger
 from src.core.metrics import token_budget_exceeded_blocks
 from src.core.model_tier import estimate_tokens
+from src.core.redis_keys import hash_id
 from src.core.state_store import ConversationMessage
 
 
@@ -90,7 +91,8 @@ class SessionBudgetTracker:
         return self._max
 
     def _key(self, session_id: str) -> str:
-        return f"{_KEY_PREFIX}{session_id}"
+        # Hashed id (F-028): raw session ids stay out of Redis key names.
+        return f"{_KEY_PREFIX}{hash_id(session_id)}"
 
     def get_usage(self, session_id: str) -> int:
         """Return current cumulative token usage for a session."""

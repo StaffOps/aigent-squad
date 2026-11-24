@@ -20,6 +20,7 @@ from typing import Any
 
 from src.core.logger import logger
 from src.core.metrics import rate_limit_blocks
+from src.core.redis_keys import hash_id
 
 # Pessimistic per-1M-token pricing (USD) for the pre-call budget estimate.
 # Pessimistic = assume max output tokens; a false budget block is preferable to
@@ -75,7 +76,8 @@ class AdmissionGuard:
         """
         if self._redis is None:
             return True, self._rate
-        key = f"rate:user:{user_id}"
+        # Hashed id (F-028): raw user ids stay out of Redis key names.
+        key = f"rate:user:{hash_id(user_id)}"
         now = time.time()
         window_start = now - 60
         try:

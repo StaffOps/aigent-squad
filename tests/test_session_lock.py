@@ -11,6 +11,7 @@ from __future__ import annotations
 import pytest
 from unittest.mock import AsyncMock
 
+from src.core.redis_keys import hash_id
 from src.core.session_lock import SessionLock, SessionLockConflict
 
 
@@ -37,7 +38,7 @@ class TestAcquire:
         assert result is True
         assert lock._acquired is True
         mock_redis.set.assert_awaited_once_with(
-            "session_lock:sess-1", lock._token, nx=True, ex=30
+            "session_lock:" + hash_id("sess-1"), lock._token, nx=True, ex=30
         )
 
     @pytest.mark.asyncio
@@ -101,7 +102,7 @@ class TestRelease:
         assert "GET" in call_args[0]  # Lua script contains GET
         assert "DEL" in call_args[0]  # Lua script contains DEL
         assert call_args[1] == 1  # num_keys
-        assert call_args[2] == "session_lock:sess-1"  # KEYS[1]
+        assert call_args[2] == "session_lock:" + hash_id("sess-1")  # KEYS[1]
         assert call_args[3] == lock._token  # ARGV[1]
 
     @pytest.mark.asyncio

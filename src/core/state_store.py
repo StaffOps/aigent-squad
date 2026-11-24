@@ -41,6 +41,11 @@ def dynamodb_resource() -> Any:
     return boto3.resource("dynamodb", **kwargs)
 
 
+# Upper bound on DynamoDB query pages per history read (F-027): each page evaluates
+# up to ``max_messages`` items before the ttl filter drops expired ones.
+_MAX_QUERY_PAGES = 3
+
+
 class HistoryStore(Protocol):
     """What the supervisor needs from a history backend (spec 46 AC 1)."""
 
@@ -68,6 +73,41 @@ class DynamoDBHistoryStore:
     def __init__(self) -> None:
         self.dynamodb = dynamodb_resource()
         self.table = self.dynamodb.Table(settings.dynamodb_sessions_table)
+
+    def _query_unexpired(
+        self, key_condition: str, values: dict[str, Any], max_messages: int,
+    ) -> List[dict[str, Any]]:
+        """Newest-first items for ``key_condition`` whose ``ttl`` is still ahead (F-027).
+
+        DynamoDB deletes expired items asynchronously (up to days later), so the
+        read filters on ``ttl`` itself. ``Limit`` caps items *evaluated* before the
+        filter, so a page can come back short while expired items remain; follow
+        ``LastEvaluatedKey`` until ``max_messages`` unexpired items are collected,
+        bounded by ``_MAX_QUERY_PAGES`` so a session full of expired rows cannot
+        turn one read into an unbounded scan.
+        """
+        if max_messages <= 0:
+            return []
+        kwargs: dict[str, Any] = {
+            'KeyConditionExpression': key_condition,
+            # 'ttl' is a DynamoDB reserved word → aliased via ExpressionAttributeNames.
+            'FilterExpression': '#ttl > :now',
+            'ExpressionAttributeNames': {'#ttl': 'ttl'},
+            'ExpressionAttributeValues': {
+                **values, ':now': int(datetime.now(timezone.utc).timestamp()),
+            },
+            'ScanIndexForward': False,
+            'Limit': max_messages,
+        }
+        items: List[dict[str, Any]] = []
+        for _ in range(_MAX_QUERY_PAGES):
+            response = self.table.query(**kwargs)
+            items.extend(response.get('Items', []))
+            last_key = response.get('LastEvaluatedKey')
+            if len(items) >= max_messages or not last_key:
+                break
+            kwargs['ExclusiveStartKey'] = last_key
+        return items[:max_messages]
 
     async def save_chat_message(
         self,
@@ -111,18 +151,14 @@ class DynamoDBHistoryStore:
         try:
             pk = f"{user_id}#{session_id}"
 
-            response = self.table.query(
-                KeyConditionExpression='pk = :pk AND begins_with(sk, :agent)',
-                ExpressionAttributeValues={
-                    ':pk': pk,
-                    ':agent': agent_id
-                },
-                ScanIndexForward=False,
-                Limit=max_messages
+            items = self._query_unexpired(
+                'pk = :pk AND begins_with(sk, :agent)',
+                {':pk': pk, ':agent': agent_id},
+                max_messages,
             )
 
             messages = []
-            for item in reversed(response.get('Items', [])):
+            for item in reversed(items):
                 messages.append(ConversationMessage(
                     role=item['role'],
                     content=item['content'],
@@ -146,15 +182,10 @@ class DynamoDBHistoryStore:
         try:
             pk = f"{user_id}#{session_id}"
 
-            response = self.table.query(
-                KeyConditionExpression='pk = :pk',
-                ExpressionAttributeValues={':pk': pk},
-                ScanIndexForward=False,
-                Limit=max_messages
-            )
+            items = self._query_unexpired('pk = :pk', {':pk': pk}, max_messages)
 
             messages = []
-            for item in reversed(response.get('Items', [])):
+            for item in reversed(items):
                 messages.append(ConversationMessage(
                     role=item['role'],
                     content=item['content'],
