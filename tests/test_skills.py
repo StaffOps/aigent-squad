@@ -1,5 +1,7 @@
 """Tests for src/core/skills.py (spec 26)."""
 
+import pytest
+
 from src.core.skills import Skill, SkillRegistry, parse_skill
 
 
@@ -53,6 +55,35 @@ def test_matches_single_word_on_boundary():
     assert skill.matches("pod was OOM killed") is True
     # must not match inside another word
     assert skill.matches("there is room here") is False
+
+
+@pytest.mark.parametrize("query", [
+    "is cert-manager failing to renew?",
+    "cert manager renewal errors",
+    "check the cert_manager logs",
+    "CERT-MANAGER is down",
+])
+def test_matches_punctuated_keyword_any_separator(query):
+    """Hyphen/underscore keywords used to never match (compared whole to single tokens)."""
+    assert Skill(name="s", keywords=["cert-manager"]).matches(query) is True
+
+
+def test_matches_punctuated_keyword_needs_contiguous_tokens():
+    skill = Skill(name="s", keywords=["kube_pod"])
+    assert skill.matches("kube_pod_container_status_restarts_total is high") is True
+    assert skill.matches("a pod in kube system") is False  # tokens present but not adjacent/in order
+
+
+def test_matches_punctuated_keyword_cidr():
+    assert Skill(name="s", keywords=["0.0.0.0/0"]).matches("ingress open to 0.0.0.0/0 on 22") is True
+    assert Skill(name="s", keywords=["0.0.0.0/0"]).matches("ingress from 10.0.0.0/8") is False
+
+
+def test_matches_punctuated_keyword_does_not_match_partial_word():
+    # 'ingress-nginx' must not match on 'nginx' alone or inside another word
+    skill = Skill(name="s", keywords=["ingress-nginx"])
+    assert skill.matches("nginx is slow") is False
+    assert skill.matches("myingress nginxplus") is False
 
 
 def test_matches_multiword_substring():

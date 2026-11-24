@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Fixed — punctuated skill keywords never matched (2026-11-24)
+- `Skill.matches`: a keyword with `-`, `_`, `/`, `.` or `:` and no space was compared
+  whole against single query tokens and could never match (~70 skills affected, e.g.
+  `cert-manager`, `kube_pod`, `ingress-nginx`). Such keywords are now split like the
+  query and match on a contiguous token run.
+
 ### Added — environment-addressed agents/MCPs (spec 46 Phase 2, 2026-11-24)
 - `${VAR}` in `agent.yaml` is expanded at load only in datasource address fields (`url`,
   `name`, `headers` and `tool_arguments` values); anywhere else it fails startup, so an
