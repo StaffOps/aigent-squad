@@ -159,3 +159,8 @@ specialist agents run in-process — no per-agent ports.
 | Redis | Datasource cache (per-agent TTL 1–60 min); conversation history by default (`HISTORY_BACKEND=redis`, 24h) | Ephemeral |
 | PostgreSQL + pgvector | KB items + RAG embeddings; optionally conversation history (`HISTORY_BACKEND=postgres`, plain table, 24h) | Persistent |
 | DynamoDB | Conversation history when `HISTORY_BACKEND=dynamodb` (AWS deployments, TTL 24h) | TTL-based |
+
+What each store can contain (prompts, infrastructure data), exact retention per backend, who can
+read it and how to change it: [Data classification and retention](https://github.com/StaffOps/staffops-aigent-squad/blob/main/docs/SECURITY.md#data-classification-and-retention)
+in `docs/SECURITY.md`. Conversation history is kept 24 h on every backend; the value is a fixed
+constant today, not a setting. KB items have no expiry.

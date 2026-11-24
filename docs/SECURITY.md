@@ -229,6 +229,80 @@ metadata:
 - **Istio Ambient mTLS**: automatic pod-to-pod encryption via ztunnel.
 - **No public IPs** on agent pods; external access via ALB only.
 
+## Data classification and retention
+
+This section lists every place the product keeps data, what that data can contain, how long it
+stays, and who can read it. It describes what the code does today; where the code leaves
+something to the operator (log and trace retention, backups), the section says so.
+
+### Data classes
+
+| Class | What it is | Handling |
+|-------|------------|----------|
+| **User prompts** | Free text sent to `/query` or `/v1/chat/completions` (alerts from `/alerts/incoming` feed investigations directly and are not written to history). A user can paste anything, including infrastructure details and, by mistake, a credential. | Stored in conversation history as received (after the L2 InputScanner normalization). Prompts are **not** redacted before storage. Treat as **confidential**. |
+| **Infrastructure data** | What agents read from AWS, Kubernetes, observability backends and MCP tools: resource names, ARNs, account ids, IPs, log lines, configuration. Collection is read-only, but the data is not public. | Stored in the datasource cache and inside agent answers kept in history; distilled into KB items. Treat as **confidential**. |
+| **Identifiers** | `user_id` and `session_id` as sent by the client. The product does not validate their format, so a client that uses e-mail addresses as user ids puts e-mail addresses into the stores below. | Stored in plain text in some stores (see table), hashed in others. Logged. |
+| **Secrets** | Credentials the product uses (tokens, API keys, passwords). | **Never stored by design.** Read from env/files at the use site (`SecretStr`, see [Environment variables](#environment-variables)); never written to history, cache or KB. The L4 output filter (`OUTPUT_FILTER_ENABLED`, on by default) blocks an answer that contains key, token, private-key, e-mail, CPF or card patterns, so a blocked answer is never saved. The exception is the user: a secret pasted into a prompt is stored with that prompt. |
+
+### Where data is stored
+
+| Store | Contains | Where | Retention (source) and how it is enforced | Who can read it | Change or disable |
+|-------|----------|-------|-------------------------------------------|-----------------|-------------------|
+| Conversation history, `HISTORY_BACKEND=redis` (default) | Prompts and agent answers, tagged with `agent_id`, `role`, `timestamp`. Key names hold a SHA-256 of the user/session pair, not the raw ids. | Redis sorted sets `aigent:history:{…}` (one per session, one per session+agent) | **24 h** (`HISTORY_TTL_SECONDS`, `src/core/conversation.py`). Each write drops members older than 24 h, trims the key to 200 members (`REDIS_MAX_MESSAGES_PER_KEY`) and resets a 24 h key expiry. Reads return only members younger than 24 h. A message older than 24 h can stay in memory until the next write to that session, or until the key expires 24 h after its last write, but is never returned. | Anyone with the Redis password and network access to Redis. | Backend: `HISTORY_BACKEND`. Retention: code constant only (see below). |
+| Conversation history, `HISTORY_BACKEND=dynamodb` | Same messages, plus `user_id` and `session_id` in plain text (`pk = user#session`). | DynamoDB table `DYNAMODB_SESSIONS_TABLE` (default `agent-sessions`) | **24 h**, via the item attribute `ttl` (now + 24 h) and DynamoDB TTL (`infra/terraform/dynamodb/`). DynamoDB deletes expired items **asynchronously**, not at the expiry time, and the product's reads do **not** filter on `ttl`, so an expired item can still be read back as context until DynamoDB deletes it. The local compose table is created without TTL enabled. With PITR on (Terraform default `enable_point_in_time_recovery = true`), deleted items remain recoverable from continuous backups for the PITR window. | IAM principals with read access to the table (the supervisor's role, plus whoever your account policy allows). Encrypted at rest (SSE, optional customer KMS key). | Backend: `HISTORY_BACKEND`. PITR: Terraform variable. |
+| Conversation history, `HISTORY_BACKEND=postgres` | Same messages, plus `user_id` and `session_id` in plain text (`pk` is a JSON pair). | Postgres table `aigent_history` in `POSTGRES_DB` (created on first connect) | **24 h**, via the column `expires_at`. Expired rows are deleted on **write**, at most 100 per write (no cron). Reads only return rows with `expires_at > now()`. Without writes, expired rows stay on disk until the next write. | Anyone with the Postgres credentials and network access. | Backend: `HISTORY_BACKEND`. |
+| Datasource cache | Adapter output (infrastructure data). Key = SHA-256 of adapter identity + query, under the agent's namespace. **Shared across users**: the same query from two users within the TTL is served the same cached data. | Redis, `<namespace>:<sha256>` | Per agent, `cache.ttl` in `agents/<name>/agent.yaml`, enforced by Redis `SETEX`. Shipped values: kubernetes and observability 60 s, aws and devops 300 s, security 600 s, finops 3600 s. | Anyone with the Redis password. | `cache.ttl: 0` in `agent.yaml` disables caching for that agent. |
+| Knowledge base (incident memory, spec 21) | Items distilled by the LLM from completed investigations: title, content, tags, service name, a `reasoning` text in `metadata`, confidence, status. Text is regex-redacted before storage and before embedding (e-mail, AWS key ids, GitHub/GitLab tokens, `Bearer` tokens, `sk-` keys — `src/core/kb/redactor.py`); anything else in the RCA, such as resource names, is kept. **Shared across users**: active items are injected into every later investigation (RAG). | Postgres + pgvector, table `kb_items` (`infra/postgres/init.sql`) | **No expiry.** Items stay until someone deletes them in the database. Reject, supersede and approve change `status`; none of them delete the row. There is no product setting for KB retention. | Anyone with the Postgres credentials. Through the API, holders of `INTERNAL_API_TOKEN` can list pending items with full content (`GET /kb/pending`) and approve or reject them, on the supervisor (gateway-only network path). | Distillation only runs after an investigation that is not low-confidence and while the monthly budget allows it; `KB_MONTHLY_BUDGET_USD=0` stops new items. With no Postgres reachable the KB is disabled (fail-open). |
+| KB embeddings | 1024-dimension vectors of the redacted title + content. Not readable as text, but derived from it. | `kb_items.embedding` | Same as the KB item. | Same as the KB. | Same as the KB. |
+| Rate and budget counters | Per-user request timestamps (key holds the raw `user_id`); global daily spend; per-session token count (key holds the raw `session_id`); KB monthly spend. Numbers only. | Redis: `rate:user:<user_id>`, `budget:global:<date>`, `token_budget:session:<session_id>`, `budget:kb:budget:<yyyymm>` | Rate window 60 s; daily budget 24 h; session token budget 24 h, reset on each use; KB budget 31 days. All by Redis expiry. | Anyone with the Redis password. | `RATE_BUDGET_ENABLED`, `SESSION_TOKEN_BUDGET`, `KB_MONTHLY_BUDGET_USD`. |
+| Job and lock state | Job id, status and update time; cancel flags; per-session request locks; circuit-breaker state. No prompt or answer text. | Redis: `job:<id>`, `cancel:<id>`, `session_lock:<session_id>`, `cb:<name>:*` | Cancel flag 60 s; session lock 120 s; breaker keys twice the recovery timeout. **`job:<id>` records are written without an expiry** and are not removed by the product. | Anyone with the Redis password. | Not configurable. |
+| Logs | JSON to stdout. Request and response logs carry `agent_id`, `user_id`, `session_id`, input/response **length** and duration, not the text. Error logs carry the exception message. Security audit logs (output filter, canary) carry categories and digests, never the matched content. | Your log pipeline | **Not set by the product**: whatever your log backend keeps. | Whoever can read your logs. | Your log backend's retention. |
+| Metrics | Counters and histograms (`aigent.*`). Labels are bounded (agent, model, reason, backend). One exception: `aigent.token_budget.exceeded` carries `session_id`, and only increments when a session is refused for exhausting its budget. | Your metrics backend (OTLP) | Not set by the product. | Whoever can query your metrics. | Your metrics backend's retention. |
+| Traces | Spans with `agent_id`, `user_id`, `session_id`, tool names and token totals. On investigations, the first 200 characters of the symptom (the user's prompt) are a span attribute. | Your tracing backend (OTLP, `OTEL_EXPORTER_OTLP_ENDPOINT`) | Not set by the product. | Whoever can query your traces. | Your tracing backend's retention; leave `OTEL_EXPORTER_OTLP_ENDPOINT` unset to export nothing. |
+
+Data also leaves the product to the LLM provider on every call: prompts, history used as
+context, and infrastructure data go to Bedrock or the configured OpenAI-compatible endpoint
+(`LLM_PROVIDER`), and KB text goes to Bedrock for embeddings
+(`BEDROCK_EMBED_MODEL_ID`). The product does not store it there; the provider's own data
+terms apply.
+
+### Conversation-history retention decision (B-07)
+
+Conversation history is kept for **24 hours on every backend**. That is the decision, and it is
+the behaviour today:
+
+- The value is a constant in code, `HISTORY_TTL_SECONDS = 24 * 3600` in
+  `src/core/conversation.py`, shared by the Redis, DynamoDB and Postgres stores.
+- **It is not configurable yet.** No environment variable or Helm value changes it; changing it
+  means editing that constant and rebuilding the image. History cannot be switched off either:
+  each request writes the user turn and, on the non-streaming path, the answer. (The streaming
+  path stores the user turn only.)
+- 24 h is a context window for follow-up questions, not an audit trail. Do not rely on history
+  for audit or incident records; use your log pipeline and the KB for that.
+- "24 h" is the point after which a message is no longer used as context. Physical deletion
+  follows the per-backend mechanics in the table above: Redis and Postgres clean up on write,
+  DynamoDB deletes asynchronously, and DynamoDB PITR backups can hold deleted items longer.
+
+### Operator guidance
+
+- **Treat history and the KB as confidential.** Prompts may contain anything a user pasted,
+  and answers contain infrastructure data. Give read access to the history store and the KB
+  database only to the product and to the people who operate it.
+- **Encrypt in transit.** Redis: keep `REDIS_SSL=true` (the default) and require a password.
+  Postgres: the product has no TLS setting of its own and does not pass one to the driver, so
+  require TLS on the server side (for example `hostssl` rules in `pg_hba.conf`, or the managed
+  service's "force SSL" option) and/or set the driver's `PGSSLMODE` environment variable (for
+  example `verify-full`). DynamoDB is reached over HTTPS.
+- **Encrypt at rest** with your platform's storage encryption: the Terraform DynamoDB module
+  enables SSE; for Redis and Postgres it is a property of the service you run them on. The
+  local compose Redis writes an append-only file to its volume.
+- **Plan your own retention** for logs, metrics, traces and backups; the product sets none.
+- **Prune what the product never expires**: KB rows (`kb_items`, including rejected and
+  superseded ones) and `job:<id>` keys in Redis.
+- **Choose identifiers with this in mind.** If clients send e-mail addresses as `user_id`,
+  those addresses end up in logs, traces, Redis key names and, on DynamoDB/Postgres, history
+  rows. An opaque id avoids that.
+
 ## Environment variables
 
 See `.env.example` for all configurable secrets.
