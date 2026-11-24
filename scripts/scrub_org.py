@@ -13,7 +13,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(os.environ.get("SCRUB_ROOT", str(Path(__file__).resolve().parents[1])))
-SKILLS = ROOT / "skills"
+SKILLS = ROOT / "example-skills"
 
 # skill dir renames (old -> new). Applied to dirs AND as text replacements.
 SKILL_RENAMES = {

@@ -98,24 +98,26 @@ Environments change **where** a datasource is, never **what** the agent may do:
 ## Skills (lazy-loaded knowledge)
 
 A **skill** is reusable markdown knowledge (a `SKILL.md`) — *not* a tool/action
-(that's a datasource). Skills live in a global `skills/` directory and are
-referenced per-agent. Selection is **lazy**: a skill is injected into the
+(that's a datasource). Skills live in a global directory, `SKILLS_DIR` (the repo ships only generic
+examples in `example-skills/`; keep your own catalog in your environment and
+point `SKILLS_DIR` at it — see `example-skills/README.md`), and are referenced
+per-agent. Selection is **lazy**: a skill is injected into the
 prompt only when the query matches its keywords (token economy).
 
 ```
-skills/
-└── oomkill-investigation/
+example-skills/            # or your own catalog via SKILLS_DIR
+└── k8s-crashloop-triage/
     └── SKILL.md
 ```
 
 ```markdown
 ---
-name: oomkill-investigation
-description: How to investigate OOMKilled pods
-keywords: [oomkill, oom, "out of memory", "exit code 137"]
+name: k8s-crashloop-triage
+description: How to diagnose pods stuck in CrashLoopBackOff
+keywords: [crashloopbackoff, "crash loop", "keeps restarting", "exit code"]
 ---
 
-# Investigating OOMKilled Pods
+# Triage: CrashLoopBackOff
 ... knowledge ...
 ```
 
@@ -123,10 +125,10 @@ Reference it from any agent's `agent.yaml` (allowlist):
 
 ```yaml
 skills:
-  - oomkill-investigation
+  - k8s-crashloop-triage
 ```
 
-When a user query contains a matching keyword (e.g. "pod was OOMKilled"), the
+When a user query contains a matching keyword (e.g. "my pod keeps restarting"), the
 skill body is injected into that agent's system prompt for that request only.
 A single skill can be shared by multiple agents (e.g. kubernetes + observability).
 

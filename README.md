@@ -23,7 +23,7 @@ Work happens on `dev`; releases go through a PR `dev → main` plus a tag ([`REL
 - An LLM classifier (Haiku by default) routes each query to 1–3 specialists; cross-domain queries fan out in parallel and a synthesizer merges the answers.
 - Six specialists, all the same `GenericAgent` driven by `agents/<name>/agent.yaml` + `prompt.md`: **aws**, **kubernetes**, **finops**, **devops**, **observability**, **security**. A new agent is a new directory, with no code change ([`docs/HOW-TO-NEW-AGENT.md`](docs/HOW-TO-NEW-AGENT.md)).
 - Agentic tool-calling (spec 37): the LLM picks read-only MCP tools and arguments in a bounded loop (defaults: 8 steps, 120 s, 300K tokens; set by `AIGENT_MAX_*` env vars). A new MCP server is a URL plus an allowlist.
-- Model tiering per role and per query complexity (specs 11, 38), context trimming for long tool loops (spec 40), lazy-loaded markdown skills (`skills/`, spec 26).
+- Model tiering per role and per query complexity (specs 11, 38), context trimming for long tool loops (spec 40), lazy-loaded markdown skills (spec 26; generic examples in `example-skills/`, your own catalog via `SKILLS_DIR`).
 - RCA investigations, from a query or an Alertmanager alert (spec 18), plus an optional incident-memory knowledge base on PostgreSQL + pgvector (spec 21).
 - Per-agent isolated conversation history in DynamoDB (24 h TTL).
 

@@ -76,19 +76,19 @@ The agent is live and the classifier will route relevant queries to it automatic
 A skill is reusable markdown knowledge injected into the prompt only when the query matches its keywords:
 
 ```
-skills/
-└── oomkill-investigation/
+example-skills/            # or your own catalog via SKILLS_DIR
+└── k8s-crashloop-triage/
     └── SKILL.md
 ```
 
 ```markdown
 ---
-name: oomkill-investigation
-description: How to investigate OOMKilled pods
-keywords: [oomkill, oom, "out of memory", "exit code 137"]
+name: k8s-crashloop-triage
+description: How to diagnose pods stuck in CrashLoopBackOff
+keywords: [crashloopbackoff, "crash loop", "keeps restarting", "exit code"]
 ---
 
-# Investigating OOMKilled Pods
+# Triage: CrashLoopBackOff
 ... knowledge content ...
 ```
 
@@ -96,7 +96,7 @@ Reference it from `agent.yaml`:
 
 ```yaml
 skills:
-  - oomkill-investigation
+  - k8s-crashloop-triage
 ```
 
 When a user query matches a keyword, the skill content is appended to the system prompt for that request only. Skills not matched are never loaded — token economy.

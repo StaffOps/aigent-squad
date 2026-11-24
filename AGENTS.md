@@ -218,7 +218,8 @@ src/
 agents/                 ← Config-driven agent definitions (agent.yaml + prompt.md)
   aws/ · kubernetes/ · finops/ · devops/ · observability/ · security/
 
-skills/                 ← Lazy-loaded markdown knowledge (SKILL.md with YAML frontmatter)
+example-skills/         ← Generic example skills (SKILL.md + YAML frontmatter); real catalogs live
+                          in each environment and load via SKILLS_DIR (repo = product + examples only)
 
 specs/                  ← Spec-driven planning (source of truth)
   AUDIT.md              ← Real state + blockers

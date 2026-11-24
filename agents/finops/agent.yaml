@@ -22,8 +22,3 @@ port: 8003
 skills:
   - cost-spike-explanation
   - aws-idle-resource-inventory
-  - cost-explorer
-  - ec2-rightsizing-patterns
-  - kubecost-metrics
-  - savings-plans-strategy
-  - untagged-resources-bulk-fix
