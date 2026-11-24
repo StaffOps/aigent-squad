@@ -338,6 +338,7 @@ class SupervisorAgent:
           - Unknown/unclassifiable input
         """
         from src.core.agentic_loop_streaming import StepDone, StepFinalChunk, StepRouting
+        from src.core.stream_output_guard import BLOCKED_FINISH_REASON
 
         start_time = time.time()
 
@@ -421,7 +422,10 @@ class SupervisorAgent:
                             elif isinstance(event, StepDone):
                                 # F-026: persist the answer like the non-streaming path,
                                 # so the next turn has the squad's previous reply.
-                                await self._save_streamed_answer(user_id, session_id, force_agent, answer)
+                                # Chunks were already filtered (stream_output_guard); a
+                                # blocked answer is not saved, as in non-streaming.
+                                if event.finish_reason != BLOCKED_FINISH_REASON:
+                                    await self._save_streamed_answer(user_id, session_id, force_agent, answer)
                             yield event
                     finally:
                         # Emit RED metrics on completion OR early close (disconnect/timeout)
@@ -517,7 +521,8 @@ class SupervisorAgent:
                         if isinstance(event, StepFinalChunk):
                             answer.append(event.text)
                         elif isinstance(event, StepDone):
-                            await self._save_streamed_answer(user_id, session_id, resolved_name, answer)
+                            if event.finish_reason != BLOCKED_FINISH_REASON:
+                                await self._save_streamed_answer(user_id, session_id, resolved_name, answer)
                         yield event
                 finally:
                     # Emit RED metrics on completion OR early close (client disconnect / timeout)

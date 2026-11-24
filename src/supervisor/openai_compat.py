@@ -349,7 +349,10 @@ async def sse_stream_agentic(
       6. StepDone → finish_reason delta + [DONE]
 
     Security (S4): step events already contain guardrail-scanned/sanitized text.
-    This encoder trusts the upstream loop's B3 enforcement.
+    This encoder trusts the upstream enforcement: the loop's B3 checks on tool
+    args/results, and ``src.core.stream_output_guard`` (L5 canary + L4 output
+    filter on the final answer and the trace lines; a blocked answer arrives as
+    a refusal chunk + ``finish_reason="content_filter"``).
     """
     from src.core.agentic_loop_streaming import (
         StepDone,

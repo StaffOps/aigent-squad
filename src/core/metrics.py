@@ -354,6 +354,21 @@ guardrail_blocks = meter.create_counter(
     unit="1",
 )
 
+# --- Streaming output guard (L4/L5 on the streaming path) ---
+# Labels: agent_id (bounded by registered agents — max ~10),
+#         action ∈ {blocked, trace_redacted}
+# Cardinality: ~20 series worst case
+stream_output_interventions = meter.create_counter(
+    name="aigent.stream.output_interventions",
+    description=(
+        "Streaming-path output guard interventions. Labels: agent_id, action "
+        "(blocked = final answer refused and stream ended with content_filter; "
+        "trace_redacted = a reasoning/tool-result trace line hidden because it "
+        "contained sensitive data). Never carries payload details."
+    ),
+    unit="1",
+)
+
 # --- (c) Bedrock throttles ---
 # Labels: model (bounded by MODEL_PRICING table — max 3 families)
 # Cardinality: 3 series
