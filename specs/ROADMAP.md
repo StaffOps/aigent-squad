@@ -136,7 +136,7 @@ closed** (Redis/DynamoDB with no error handling), and is **blind/indefensible**
 | 28 | `llm-provider-abstraction` (multi-provider layer: `LLMProvider` Protocol + common `LLMService`; litellm candidate; preserves cost-attribution; clean-room) | reopens ADR-001 |
 | 29 | `openai-compat-bridge` (OpenAI `/v1` API → LibreChat plugs in directly; auto + per-agent models; pseudo-streaming until spec 06) | enables LibreChat (Option A) |
 | 30 | `datasource-cache-layer` (sha256 TTL cache in the adapter base; fail-open; emits `aigent.cache.hits/misses`) | — |
-| 31 | `edge-gateway-worker-pool` (thin FastAPI gateway in front of the supervisor: admission control + WorkerPool backpressure + protocol isolation + global rate/budget; enables multi-replica supervisor; reuses `staffops-chaitops` `agent-api` patterns) | 25, 29 |
+| 31 | `edge-gateway-worker-pool` (thin FastAPI gateway in front of the supervisor: admission control + WorkerPool backpressure + protocol isolation + global rate/budget; enables multi-replica supervisor; reuses the gateway-only `agent-api` patterns of a sibling internal agent platform) | 25, 29 |
 | 32 | `spec-lifecycle-ssot` (**process**: status frontmatter per spec + CI lint script = single source of truth; `specs/README.md` process doc; `specs/BACKLOG.md` for dormant/findings/deferred; HANDOFF overwrite rule; ROADMAP plan-only) | — |
 | 33 | `operational-review-loop` (**process**: recurring review — measure ALL promotion triggers (`specs/TRIGGERS.md`), reconcile real Bedrock cost vs ANALYSIS estimates, triage BACKLOG; dated records in `specs/reviews/`; dormant phases promote ONLY with a review citation) | 32 |
 | 34 | `release-runbook` (**process**: `RELEASE.md` sequencing dev→main→tag→image→chart→overlay→rollout→homologation→close across the 3 repos; tag/appVersion/overlay coherence rule; credential-hygiene close step) | 32, 33 |
@@ -158,7 +158,7 @@ closed** (Redis/DynamoDB with no error handling), and is **blind/indefensible**
 > `allowed_model_arns`.
 
 > See [`ECOSYSTEM.md`](ECOSYSTEM.md): **decision (2026-06-02) = keep SEPARATE**.
-> Specs 14/17/19/21 exist more mature in `staffops-chaitops` → reuse **by copy**
+> Specs 14/17/19/21 exist more mature in a sibling internal agent platform → reuse **by copy**
 > (not dependency). gRPC (20) removed. Docs in English. Real differentiator =
 > lightweight specialists with direct data access (not communication).
 

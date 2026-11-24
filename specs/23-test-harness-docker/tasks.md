@@ -1,6 +1,6 @@
 # Tasks: Dockerized Test Harness
 
-> Verification prerequisite for ALL specs with code (06–22). Spec 08 (CI/CD) reuses this harness. Reuses the pattern from `staffops-chaitops`.
+> Verification prerequisite for ALL specs with code (06–22). Spec 08 (CI/CD) reuses this harness. Reuses the pattern from a sibling internal agent platform.
 
 - [ ] T1: `requirements-dev.txt` (pytest, pytest-asyncio, pytest-cov, fakeredis, respx, moto) — separate from runtime
 - [ ] T2: `Dockerfile.test` (`python:3.11-slim`, cached deps: COPY requirements*.txt before code) (depends on: T1)
@@ -17,7 +17,7 @@
 T1→T2; T3; T4; T5→T6→T7; T8→T9→T10.
 
 ## Notes
-- Reuse the chaitops approach (fakeredis+respx, `pytest --cov`, 3.11-slim) — do not reinvent.
+- Reuse that platform's approach (fakeredis+respx, `pytest --cov`, 3.11-slim) — do not reinvent.
 - The CI (spec 08) MUST call the same Dockerfile/command — no second path.
 - Offline mocks; integration with real services is out of scope (future).
 - Verification pipeline (`verification-independence.md`): T1–T7/T10 author; T8 test-author in a different session; T9 code-review.

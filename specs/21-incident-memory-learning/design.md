@@ -2,7 +2,7 @@
 
 **Spec**: `21-incident-memory-learning`
 **Depends on**: 18 (RCA workflow), 19 (config)
-**Reuses from**: `staffops-chaitops` conversation-distillation (by copy, not dependency)
+**Reuses from**: a sibling internal agent platform's conversation-distillation design (by copy, not dependency)
 
 ---
 
@@ -63,9 +63,9 @@ Sonnet does the heavy lifting (structuring), Opus does the intelligent work (enr
 
 ---
 
-## Reuse from chaitops (by copy)
+## Reuse from the sibling agent platform (by copy)
 
-| Concept from chaitops | Application here |
+| Concept from the sibling platform | Application here |
 |----------------------|------------------|
 | `KbDelta` model (action: create/supersede/noop) | Same schema |
 | Confidence thresholds by type | Same logic (troubleshooting=0.85, decision=always human, pattern=0.90, infrastructure=0.80) |

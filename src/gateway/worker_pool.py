@@ -1,6 +1,6 @@
 """Gateway worker pool — bounded local concurrency + backpressure (spec 31, L2).
 
-Pattern adapted from a sibling internal project (`staffops-chaitops`
+Pattern adapted from a sibling internal project (its
 `agent-api/app/worker_pool.py`, reuse authorized within the org — see
 `steering/licensing-clean-room.md` for the third-party-vs-internal reuse
 distinction). Differences from the reference:

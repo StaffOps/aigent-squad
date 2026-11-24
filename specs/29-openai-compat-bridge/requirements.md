@@ -17,7 +17,7 @@ deferred: []
 Expose the AIgent-squad supervisor through an **OpenAI-compatible HTTP API**
 (`/v1/models`, `/v1/chat/completions`) so that **LibreChat** — or any
 OpenAI-compatible client — can consume the squad directly, with **no extra
-gateway** (no chaitops in the path).
+gateway** (no intermediate agent platform in the path).
 
 This is "Option A": LibreChat talks OpenAI → the squad's own supervisor. The
 squad keeps its native `/query` endpoint; the bridge is an additional surface.

@@ -9,13 +9,13 @@
 
 ## Context
 
-The StaffOps ecosystem already contained `staffops-chaitops` (mature agent
+The StaffOps ecosystem already contained an existing agent platform in the same organization (mature agent
 platform: gateway, worker pool, budget guard, distillation→KB flow, 186
 tests, CI, OTel) and `staffops-anomaly-detection` (correlation engine + ML
 that produces enriched RCA triggers). Much of what AIgent-squad planned
-(specs 14/17/18/19/21) existed in more mature *design* form in chaitops.
+(specs 14/17/18/19/21) existed in more mature *design* form in that platform.
 Continuing standalone meant consciously duplicating platform work; merging
-meant abandoning a distinct product identity. What chaitops does NOT have:
+meant abandoning a distinct product identity. What that platform does NOT have:
 domain specialists with **direct datasource access** (boto3, K8s API,
 Prometheus, GitLab, Athena) and a read-only-by-architecture posture — exactly
 AIgent-squad's core.
@@ -23,7 +23,7 @@ AIgent-squad's core.
 ## Decision
 
 Keep AIgent-squad a **separate product**. Integrate with the ecosystem over
-plain HTTP when needed. Reuse chaitops assets **by copy of pattern/design,
+plain HTTP when needed. Reuse that platform's assets **by copy of pattern/design,
 never by dependency** — no shared libraries, no runtime coupling. Concrete
 reuses executed since: WorkerPool/backpressure shape and gateway-only pattern
 (spec 31), `KbDelta` schema + confidence thresholds (spec 21), auth-via-flag
@@ -33,11 +33,11 @@ scratch, dependencies only via package manager.
 
 ## Alternatives considered
 
-- **Merge into chaitops** (squad becomes its "internal agents" layer) — the
+- **Merge into that platform** (squad becomes its "internal agents" layer) — the
   analysis itself rated standalone as the costlier option; rejected by
   product decision: distinct identity, deploy surface and pace matter more
   than deduplication.
-- **Become a chaitops collector/plugin** — rejected: reduces the squad to a
+- **Become a collector/plugin of that platform** — rejected: reduces the squad to a
   data source, killing the supervisor/classifier/RCA product core.
 - **Reuse by dependency (shared libs)** — rejected: couples release cadence
   and failure modes of two products; a copy diverges freely and cheaply.
@@ -49,7 +49,7 @@ scratch, dependencies only via package manager.
   differentiator (lightweight specialists with direct datasource access +
   read-only posture) stays the center of the product.
 - **Negative / trade-offs:** assumed duplication cost — the squad maintains
-  its own platform layer in parallel with chaitops' (explicitly accepted in
+  its own platform layer in parallel with that platform's (explicitly accepted in
   the decision record).
 - **To watch:** the anomaly-detection → RCA trigger integration should
   **consume** that project's existing enriched-payload contract (spec 18 /

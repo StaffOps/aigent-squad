@@ -30,7 +30,7 @@ async-first        → all I/O non-blocking; Bedrock calls parallelizable
 | Operation | Order of magnitude |
 |-----------|-------------------|
 | Bedrock/Claude/Kiro call | **~2,000–8,000 ms** |
-| CLI-sidecar boot (chaitops model) | ~2,000–15,000 ms |
+| CLI-sidecar boot (sibling agent-platform model) | ~2,000–15,000 ms |
 | HTTP between pods | ~1–3 ms |
 | gRPC / same pod (localhost) | ~0.1–2 ms |
 

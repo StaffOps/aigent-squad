@@ -9,7 +9,7 @@ push/PR ─▶ test (harness spec 23, cov≥90 + ruff) ─▶ build-dev (multi-a
                                                           └─▶ [optional demo] ─▶ release (manual, v<semver>)
 ```
 
-Mirrors the `staffops-chaitops` convention (which already has `.github/workflows/` test/build/lint/docs).
+Mirrors the convention of a sibling internal agent platform (which already has `.github/workflows/` test/build/lint/docs).
 
 ## Stages
 
@@ -24,7 +24,7 @@ Mirrors the `staffops-chaitops` convention (which already has `.github/workflows
 
 ### Decision 1: GitHub Actions (not GitLab CI)
 **Choice**: pipeline in GitHub Actions.
-**Justification**: the repo **is** on GitHub (`github.com:karlipegomes/AIgent-squad`); the docs citing GitLab CI are fiction (gitops F8). The ecosystem (chaitops) already uses GitHub Actions — consistency.
+**Justification**: the repo **is** on GitHub (`github.com:karlipegomes/AIgent-squad`); the docs citing GitLab CI are fiction (gitops F8). The ecosystem (that sibling agent platform) already uses GitHub Actions — consistency.
 **Trade-off**: if ever migrated to GitLab, the 4-stage design translates 1:1.
 
 ### Decision 2: CI reuses the harness from spec 23 (not its own test path)

@@ -97,13 +97,13 @@ omit = ["*/tests/*"]
 
 **Choice**: unit/contract with `fakeredis`/`moto`/`respx`; integration with real services remains out of scope (future).
 
-**Justification**: offline tests are fast, deterministic, and cheap (chaitops does this: 186 tests/~5s, no services). Real Bedrock would cost money and add flakiness from throttling.
+**Justification**: offline tests are fast, deterministic, and cheap (a sibling internal agent platform does this: 186 tests/~5s, no services). Real Bedrock would cost money and add flakiness from throttling.
 
 **Trade-off accepted**: mocks can diverge from real behavior → mitigated by *contract tests* (validate real payloads, e.g., Alertmanager v2) and by 1 dockerized smoke test in the CI from spec 08.
 
-### Decision 3: Reuse the `staffops-chaitops` pattern
+### Decision 3: Reuse the sibling agent platform's pattern
 
-**Choice**: copy the chaitops approach (`requirements-dev.txt` + `pytest --cov` in `python:3.11-slim`, fakeredis+respx) rather than inventing from scratch.
+**Choice**: copy that platform's approach (`requirements-dev.txt` + `pytest --cov` in `python:3.11-slim`, fakeredis+respx) rather than inventing from scratch.
 
 **Justification**: already proven in that repo (see `ECOSYSTEM.md`); reduces risk and maintains consistency in the ecosystem.
 

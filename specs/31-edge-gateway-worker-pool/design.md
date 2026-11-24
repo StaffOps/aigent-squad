@@ -44,7 +44,7 @@ deps); the supervisor scales on Bedrock throughput.
 | # | Component | Where | Responsibility |
 |---|-----------|-------|----------------|
 | G1 | `gateway/main.py` | gateway | FastAPI app, routes, lifespan |
-| G2 | `gateway/worker_pool.py` | gateway | Local bounded concurrency + cancel + timeout + backpressure (ChaitOps pattern) |
+| G2 | `gateway/worker_pool.py` | gateway | Local bounded concurrency + cancel + timeout + backpressure (reference pattern) |
 | G3 | `gateway/admission.py` | gateway | Global rate + budget pre-check (Redis; reuses spec 25 `RateLimiter`) |
 | G4 | `gateway/supervisor_client.py` | gateway | HTTP/SSE client to the supervisor backend (preflight + forward) |
 | G5 | `gateway/auth.py` | gateway | Edge auth (API key allowlist / internal token) |
@@ -59,7 +59,7 @@ by** the gateway — it is a protocol concern, not orchestration. The supervisor
 ### Decision 1: Local concurrency cap is per-replica; global limits are Redis-coordinated
 
 **Choice**: the `WorkerPool` semaphore that gates concurrent jobs is an
-**in-memory, per-replica** `asyncio.Semaphore` (ChaitOps pattern). Account-wide
+**in-memory, per-replica** `asyncio.Semaphore` (reference pattern). Account-wide
 limits (daily $ budget, Bedrock TPS ceiling) are enforced **separately** via Redis
 counters at admission.
 
@@ -74,7 +74,7 @@ counters at admission.
    self-protection survives a Redis outage. The global guard degrades to fail-open
    on Redis loss (per spec 25) — acceptable for budget (you might slightly
    overspend during an outage) but never silently drops pod protection.
-3. **Matches the reference.** ChaitOps proved the per-replica pool in production
+3. **Matches the reference.** The reference platform proved the per-replica pool in production
    shape; we add the global guard it lacks, rather than rebuilding its pool.
 
 **Trade-offs accepted**:
@@ -128,16 +128,16 @@ worker pool for admission. No Kafka/SQS between the tiers.
 1. The interaction is request/response (a user waits for an answer) — a durable
    queue adds latency and operational weight for a workload that isn't fire-and-forget.
 2. Backpressure via bounded pool + `503 Retry-After` is sufficient for this load
-   profile (same call ChaitOps made; spec 25 also rejects persistent queues as
+   profile (same call the reference platform made; spec 25 also rejects persistent queues as
    "exagero pra esse perfil de uso").
 
 **When this would be wrong**: if requests become long-running async jobs (minutes)
 that should survive a gateway restart — then a durable queue + job-result polling
 is justified (a future spec).
 
-### Decision 4: Reuse ChaitOps `WorkerPool` shape (cancel via Redis key polling)
+### Decision 4: Reuse the reference `WorkerPool` shape (cancel via Redis key polling)
 
-**Choice**: adopt ChaitOps' cancellation model — a `cancel:<job_id>` Redis key the
+**Choice**: adopt the reference platform's cancellation model — a `cancel:<job_id>` Redis key the
 worker polls every ~500ms, plus `asyncio.wait_for` timeout and `PoolFullError`.
 
 **Justification**:
@@ -207,7 +207,7 @@ silently open the privileged endpoint. NetworkPolicy is independent of mesh heal
 | `job_timeout` (hard backstop) | **45s** | Investigation p99 ~30s → 50% headroom; 120s would hold zombie slots too long. Stalls caught earlier by idle timeout |
 | `first_byte_timeout` | **15s** | Supervisor must start producing within 15s |
 | `idle_stream_timeout` | **10s** | No data for 10s mid-stream → abort, free the slot (the real stall protection) |
-| `cancel_poll_interval` | **500ms** | ChaitOps reference |
+| `cancel_poll_interval` | **500ms** | Reference platform |
 | `Retry-After` | **dynamic + jitter** `ceil(active/max × avg_latency) + random(0,3)` | Avoid thundering-herd retries |
 | httpx `max_connections` | **`max_concurrent + 5`** | Prevent hidden backpressure below the semaphore |
 
