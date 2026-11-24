@@ -2,7 +2,8 @@
 
 A skill is on-demand knowledge (a `SKILL.md` with YAML frontmatter), NOT a
 tool/action (those are datasources/adapters) and NOT dynamic RAG (that is
-src/core/kb/). Skills live in a global `skills/` directory and are referenced
+src/core/kb/). Skills live in a global directory (`SKILLS_DIR`; the repo ships generic
+examples in `example-skills/`) and are referenced
 per-agent via an allowlist in agent.yaml. Selection is lazy: a skill is only
 injected into the prompt when the query matches its keywords.
 """
@@ -98,7 +99,7 @@ class SkillRegistry:
     """Discovers and parses skills from a global skills directory (once)."""
 
     def __init__(self, skills_dir: str | None = None):
-        self.skills_dir = Path(skills_dir or os.getenv("SKILLS_DIR") or "skills")
+        self.skills_dir = Path(skills_dir or os.getenv("SKILLS_DIR") or "example-skills")
         self.skills: dict[str, Skill] = {}
 
     def discover(self) -> None:

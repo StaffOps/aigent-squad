@@ -35,7 +35,7 @@ RUN adduser -D -u 10001 appuser
 WORKDIR /app
 COPY src/ ./src/
 COPY agents/ ./agents/
-COPY skills/ ./skills/
+COPY example-skills/ ./example-skills/
 
 USER appuser
 
@@ -44,5 +44,8 @@ USER appuser
 #   gateway    → python -m src.gateway.main      (port 8000, public front door)
 #   supervisor → python -m src.supervisor.server (port 8001, backend, default below)
 ENV AGENTS_DIR=/app/agents
+# Generic example skills ship in the image; point SKILLS_DIR at your own catalog
+# (mounted volume) to use environment-specific skills instead.
+ENV SKILLS_DIR=/app/example-skills
 EXPOSE 8000 8001
 CMD ["python", "-m", "src.supervisor.server"]

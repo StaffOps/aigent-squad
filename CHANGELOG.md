@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+### Changed — skills directory holds examples only (2026-11-24)
+- `skills/` → `example-skills/`, reduced to 11 generic examples (the 10 triage skills + `oomkill-investigation`, the canonical example kept by the 2026-07-24 decision); the
+  previous ~110-skill catalog (tool metric catalogs, org runbooks) is removed from the
+  product repo. Your own catalog lives in your environment and loads via `SKILLS_DIR`
+  (image default `/app/example-skills`). Agent allowlists keep only the examples.
+- Removed `scripts/migrate_skills.py` and `scripts/wire_agent_skills.py` (they imported
+  and mass-wired an external catalog into the repo).
+- **Upgrade note:** deployments that relied on the bundled catalog must mount their
+  own skills and set `SKILLS_DIR`, and allowlist those skills in their agents.
+
 ### Fixed — punctuated skill keywords never matched (2026-11-24)
 - `Skill.matches`: a keyword with `-`, `_`, `/`, `.` or `:` and no space was compared
   whole against single query tokens and could never match (~70 skills affected, e.g.
