@@ -163,6 +163,8 @@ curl -X POST http://localhost:8000/query \
 | `401` on `/query` or `/v1/*` | Edge token mismatch | `X-Internal-Token` (or `X-API-Key` / `Authorization: Bearer`) must match `INTERNAL_API_TOKEN` or a `GATEWAY_API_KEYS` entry (NOT `SUPERVISOR_INTERNAL_TOKEN` — that's the gateway→supervisor link only) |
 | `503 backend_unavailable` | Supervisor down/unreachable | `docker compose logs supervisor` — usual cause: invalid `agent.yaml` (Pydantic fails at startup) |
 | `503 service_overloaded` | WorkerPool full (backpressure) | Self-healing; persistent → raise `GATEWAY_MAX_CONCURRENT` |
+| `413 request_too_large` | Edge size cap (F-009) | Input over `GATEWAY_MAX_INPUT_CHARS` (forwarded turn), `/v1` over `GATEWAY_MAX_MESSAGES`, or body over `GATEWAY_MAX_BODY_BYTES` — shorten the input; raise the cap only together with the InputScanner limit |
+| `504 gateway_timeout` | Job ran past a gateway timeout (first-byte / idle / `GATEWAY_JOB_TIMEOUT_SECONDS`) | `aigent.gateway.timeouts{kind}` says which; the job was cancelled |
 | Empty history / no context | DynamoDB fail-open (by design) | Check `dynamodb-local` health; the query still answers |
 | Passes locally, fails CI | Local run used the otel stub (masks deps/telemetry) | The `make test` warning says so; verdict = `gh run list -L 3` |
 | `make up` fails: `dependency failed to start: container …supervisor… is unhealthy` | Supervisor `/ready` failing — the detail names the failing check (redis / dynamodb / agents) | `docker compose logs supervisor`; readiness detail: `docker compose exec supervisor python -c "import http.client as h;c=h.HTTPConnection('127.0.0.1',8001);c.request('GET','/ready');print(c.getresponse().read().decode())"`. Invalid `agent.yaml` → fix it; DynamoDB → `dynamodb-init` logs |
@@ -179,6 +181,7 @@ src/
     worker_pool.py      ← Local semaphore(20), PoolFullError→503, cancel via Redis poll
     supervisor_client.py← httpx client + preflight to the supervisor backend
     auth.py             ← Edge auth (INTERNAL_API_TOKEN / GATEWAY_API_KEYS, fail-closed)
+    feedback.py         ← POST /feedback + response-id records (spec 47, consumer-scoped)
   core/
     generic_agent.py    ← Config-driven agent (all 6 specialists use this)
     llm/                ← LLM chokepoint (spec 28): service.py = LLMService common layer
@@ -295,7 +298,7 @@ No code changes needed — `AgentRegistry` auto-discovers at startup.
 | `AIGENT_TIER_ROUTING_ENABLED` / `AIGENT_TIER_DEEP_ENABLED` | | `true` / `false` (code); `true` in overlay | Spec 38 model-tier pre-routing. `deep`=Opus 4.5, ENABLED via overlay + live-validated (agentic28). **Tier routing wired into ALL paths** (auto-route, fan-out, force_agent, investigation, alertmanager — was inert before agentic28). |
 | `AIGENT_TIER_CONFIDENCE_HIGH` / `BEDROCK_TIER_{FAST,STANDARD,DEEP}_MODEL_ID` | | `0.85` / haiku-4.5, sonnet-4.5, **opus-4.5** | Downshift threshold + tier→model map (spec 38); deep = `us.anthropic.claude-opus-4-5-20251101-v1:0` (Opus 4.0 profile no longer exists in-account) |
 | `BEDROCK_READ_TIMEOUT_SECONDS` | | `120` | boto3 Bedrock read timeout (default 60s cut slow Converse → stream "terminated") |
-| `GATEWAY_JOB/FIRST_BYTE/IDLE_STREAM_TIMEOUT_SECONDS` | | `150`/`140`/`35` | Gateway stream timeouts; first-byte raised 90→140 (agentic28) for Opus deep-tier + non-streaming multi-agent/investigation first-byte ≈ loop completion (~100s); must exceed the loop budget + Bedrock read timeout |
+| `GATEWAY_JOB/FIRST_BYTE/IDLE_STREAM_TIMEOUT_SECONDS` | | `150`/`90` (code; `140` in the deploy overlay)/`35`, all > 0 | Gateway stream timeouts; first-byte raised 90→140 (agentic28) for Opus deep-tier + non-streaming multi-agent/investigation first-byte ≈ loop completion (~100s); must exceed the loop budget + Bedrock read timeout. `JOB` is the overall wall-clock cap on a request (F-009): pooled paths → 504 `gateway_timeout`; `/v1` SSE → 504 before the stream opens, an SSE `gateway_timeout` error event after. First-byte/idle apply to pooled (non-streaming) jobs only |
 | `SELF_SERVICE_INSTRUCTION` / `CALIBRATED_HONESTY_INSTRUCTION` / `DECISIVENESS_INSTRUCTION` | | baked default | Env-overridable shared system-prompt instructions (no rebuild to tune) |
 | `GRAFANA_BASE_URL` | | (empty) | Grafana root URL injected into agent context for clickable DevOps dashboard links; empty default keeps the repo scrub-clean, real value set in the k8s-setup overlay |
 
@@ -303,7 +306,10 @@ No code changes needed — `AgentRegistry` auto-discovers at startup.
 | `INPUT_SCANNER_ENABLED` / `OUTPUT_FILTER_ENABLED` / `CANARY_ENABLED` | | `true` | Spec-14 L2/L4/L5 toggles |
 | `RATE_BUDGET_ENABLED` | | `true` | Gateway admission guards (rate + daily budget) |
 | `GATEWAY_MAX_CONCURRENT` | | `20` | WorkerPool size (+ `GATEWAY_*_TIMEOUT_SECONDS`) |
+| `FEEDBACK_ENABLED` | | `true` | Spec 47 `POST /feedback` + response-id records (off → `/feedback` 404, nothing recorded) |
+| `FEEDBACK_RESPONSE_TTL_SECONDS` / `FEEDBACK_RECORD_TTL_SECONDS` / `FEEDBACK_COMMENT_MAX_CHARS` | | `86400` / `604800` / `1000` | How long an answer can be rated / how long a rating is kept / comment cap |
 | `GATEWAY_JOB_RECORD_TTL_SECONDS` | | `86400` | Expiry of the gateway's `job:<id>` status records in Redis (F-028); must be > 0 |
+| `GATEWAY_MAX_INPUT_CHARS` / `GATEWAY_MAX_MESSAGES` / `GATEWAY_MAX_BODY_BYTES` | | `10000` / `200` / `1048576` | Edge size caps (F-009): forwarded user turn length (= InputScanner limit), `/v1` message count, declared `Content-Length`. Over → 413 `request_too_large`, before admission or any LLM work |
 | `REDIS_HOST` | ✅ | — | Cache + rate/budget + job lifecycle |
 | `REDIS_PASSWORD` | ✅ | — | Cache auth |
 | `REDIS_SSL` | | `true` | Disable in dev |
@@ -317,9 +323,12 @@ No code changes needed — `AgentRegistry` auto-discovers at startup.
 | `SLACK_BOT_TOKEN` | optional | — | Slack integration |
 | `GITLAB_TOKEN` | optional | — | DevOps agent (read-only) |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | optional | `http://otel-collector:4317` | Tracing |
-| `POSTGRES_HOST/USER/PASSWORD/DB` | optional | — | Knowledge base (disabled by default) |
-| `POSTGRES_SSLMODE` | | — (asyncpg default) | TLS mode for the Postgres **history** store: `disable` \| `allow` \| `prefer` \| `require` \| `verify-ca` \| `verify-full`; empty = unset. `require` = encrypted, **not verified**; `verify-*` need a CA bundle (`POSTGRES_SSLROOTCERT`) |
-| `POSTGRES_SSLROOTCERT` | with `verify-*` | — | Path to the PEM CA bundle that verifies the server (e.g. the cloud provider's RDS bundle, mounted); fallback `PGSSLROOTCERT`, then `~/.postgresql/root.crt`; none found → no connect, error logged, history fails open |
+| `POSTGRES_HOST/USER/PASSWORD/DB` | optional | — | Knowledge base store (used when `KB_ENABLED=true` and Postgres is reachable) |
+| `KB_ENABLED` | | `true` | Incident-memory KB (spec 21). `false` = no distillation, no RAG, no KB Postgres connection, `/kb/*` → 503 (F-029) |
+| `KB_REJECTED_RETENTION_DAYS` / `KB_ITEM_MAX_AGE_DAYS` | | `30` / unset | KB retention: rejected+superseded items deleted N days after their status change; active/pending items deleted N days after creation only when the max age is set |
+| `KB_RETENTION_INTERVAL_SECONDS` / `KB_RETENTION_BATCH_SIZE` / `KB_RETENTION_MAX_BATCHES` | | `3600` / `500` / `10` | KB retention sweep: at most once per interval (at start + on KB reads/writes, no cron), bounded batch deletes, fail-open |
+| `POSTGRES_SSLMODE` | | — (asyncpg default) | TLS mode for the Postgres **history** store: `disable` \| `allow` \| `prefer` \| `require` \| `verify-ca` \| `verify-full`; empty = unset. `require` = encrypted, CA-verified only if a bundle is found; `verify-*` always verify and need a CA bundle (`POSTGRES_SSLROOTCERT`) |
+| `POSTGRES_SSLROOTCERT` | with `verify-*` | — | Path to the PEM CA bundle that verifies the server (e.g. the cloud provider's RDS bundle, mounted), or `system`; used by `require` and `verify-*`; fallback `PGSSLROOTCERT`, then `~/.postgresql/root.crt`; missing/invalid under `verify-*` → no connect, error logged, history fails open. Client certs/CRL via the standard `PGSSLCERT`/`PGSSLKEY`/`PGSSLCRL` |
 
 See `.env.example` for full template.
 
@@ -353,14 +362,16 @@ All metrics named `aigent.<domain>.<name>`. Key ones:
 | `aigent.cost.estimated` | agent_id | USD cost per agent |
 | `aigent.cache.hits/misses` | namespace | Datasource cache effectiveness (spec 30) |
 | `aigent.gateway.pool_rejections/pool_depth/queue_wait` | — | Gateway backpressure (spec 31) |
+| `aigent.gateway.input_rejections` / `aigent.gateway.timeouts` | reason / kind | 413 size-cap rejections, 504 timeouts (F-009) |
 | `aigent.rate_limit.blocks` | reason | Admission guard blocks (user/global) |
 | `aigent.fanout.calls` | — | Multi-agent dispatch count |
 | `aigent.investigation.duration` | — | RCA latency |
 | `aigent.circuit_breaker.transitions` | — | Bedrock resilience events |
 | `aigent.llm.provider_errors` | provider, error_class | LLM transport errors (spec 28) |
 | `aigent.llm.guardrail_l1_active` | provider | 0 = Bedrock Guardrail L1 inactive (spec 28) |
+| `aigent.feedback.score` | agent_id, score | User ratings by bucket positive/neutral/negative (spec 47) |
 
-**No high-cardinality labels** — never add `user_id`, `trace_id`, or raw error text as labels.
+**No high-cardinality labels** — never add `user_id`, `session_id`, `trace_id`, a URL, or raw error text as labels (no exceptions; `aigent.token_budget.exceeded` uses a bounded `reason`).
 Every new feature must emit ≥1 custom metric, defined in `src/core/metrics.py` and documented
 in `docs/METRICS.md`.
 

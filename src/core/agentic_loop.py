@@ -27,7 +27,7 @@ from typing import Any
 
 from otel_helper import get_tracer
 
-from src.core.adapters import McpAdapter, log_transport_error, mcp_protocol_error_summary, transport_error_summary
+from src.core.adapters import McpAdapter, McpToolError, classify_mcp_failure, log_transport_error
 from src.core.agent_config import (
     MAX_LOOP_DURATION_MS,
     MAX_LOOP_TOKENS,
@@ -150,6 +150,15 @@ class _McpSessionPool:
                 adapter.call_tool(tool_name, args),
                 timeout=5.0,
             )
+            # McpAdapter.call_tool is fail-open: a failure comes back as an
+            # McpToolError string, not an exception. Its kind decides the
+            # breaker: a transport failure counts, a JSON-RPC error does not.
+            if isinstance(result, McpToolError):
+                if result.kind == "transport_error":
+                    breaker.record_failure()
+                else:
+                    breaker.record_success()
+                return str(result)
             breaker.record_success()
             return result
         except asyncio.TimeoutError:
@@ -159,15 +168,16 @@ class _McpSessionPool:
             # Allowlist violation — don't count as transport failure
             return str(e)
         except Exception as e:
+            # An adapter that raises instead of returning McpToolError.
             log_transport_error(f"mcp:{adapter_name}:{tool_name}", adapter.url, e)
-            protocol = mcp_protocol_error_summary(e)
-            if protocol is not None:
+            kind, summary = classify_mcp_failure(e)
+            if kind == "protocol_error":
                 # The server answered with a JSON-RPC error (bad args, unknown
                 # tool): not a transport failure, and the model can self-correct.
                 breaker.record_success()
-                return f"[mcp:{adapter_name}:{tool_name}] error: {protocol}"
-            breaker.record_failure()
-            return f"[mcp:{adapter_name}:{tool_name}] error: {transport_error_summary(e)}"
+            else:
+                breaker.record_failure()
+            return f"[mcp:{adapter_name}:{tool_name}] error: {summary}"
 
     async def close(self) -> None:
         """Cleanup: no-op for now since McpAdapter manages sessions per call.

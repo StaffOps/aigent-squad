@@ -25,7 +25,7 @@ def _bypass_edge_auth():
 def _admit():
     """Patch admission to allow (returns context managers for use in `with`)."""
     return (
-        patch.object(gw, "settings", **{"rate_budget_enabled": True}),
+        patch.object(gw.settings, "rate_budget_enabled", True),
         patch.object(gw, "admission", **{
             "check_rate": AsyncMock(return_value=(True, 55)),
             "check_budget": AsyncMock(return_value=(True, 40.0)),
@@ -410,4 +410,6 @@ class TestAdmissionAllow:
                 "user_input": "hi", "user_id": "u1", "session_id": "s1"
             })
             assert resp.status_code == 200
-            assert resp.json() == result
+            body = resp.json()
+            assert body.pop("response_id").startswith("resp-")  # spec 47, additive
+            assert body == result

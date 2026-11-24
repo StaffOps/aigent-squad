@@ -123,7 +123,7 @@ class SessionBudgetTracker:
         if self._redis is None:
             used = self._usage.get(session_id, 0)
             if used >= self._max:
-                token_budget_exceeded_blocks.add(1, {"session_id": session_id})
+                token_budget_exceeded_blocks.add(1, {"reason": "exhausted"})
                 raise TokenBudgetExceeded(session_id, used, self._max)
             return
 
@@ -136,11 +136,11 @@ class SessionBudgetTracker:
                 "token_budget check_budget redis error (fail closed — refusing request)",
                 extra={"error": str(exc), "session_id": session_id},
             )
-            token_budget_exceeded_blocks.add(1, {"session_id": session_id})
+            token_budget_exceeded_blocks.add(1, {"reason": "store_unavailable"})
             raise TokenBudgetExceeded(session_id, self._max, self._max) from exc
 
         if used >= self._max:
-            token_budget_exceeded_blocks.add(1, {"session_id": session_id})
+            token_budget_exceeded_blocks.add(1, {"reason": "exhausted"})
             raise TokenBudgetExceeded(session_id, used, self._max)
 
     def record_usage(self, session_id: str, input_tokens: int, output_tokens: int) -> None:

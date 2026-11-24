@@ -27,6 +27,7 @@ All metrics emitted by AIgent-squad, collected via OTel Collector → Prometheus
 |--------|------|--------|-------------|
 | `aigent.tokens.total` | Counter | `agent_id`, `model`, `direction` | Tokens consumed (running total) |
 | `aigent.cost.estimated` | Counter | `agent_id`, `model` | Estimated USD cost |
+| `aigent.token_budget.exceeded` | Counter | `reason` | Requests refused by the per-session token budget (spec 11). `reason` ∈ {`exhausted`, `store_unavailable`} (Redis down → budget fails closed). No `session_id` label: the session id is in the refusal log line only (F-028) |
 | `aigent.tier.routing_decisions` | Counter | `tier` | Spec 38 tier-routing decisions (fast/standard/deep) — % of queries routed to Opus, from VictoriaMetrics without a LogQL hack (3 series) |
 | `aigent.tool.call_duration` | Histogram | `tool_name`, `status` | Per-MCP-tool latency + success/error/timeout (which tool is slow/broken; tool_name bounded by the read-only allowlist) |
 | `aigent.guardrail.blocks` | Counter | `source`, `agent_id` | Guardrail blocks/redactions by source (INPUT/OUTPUT) — safety signal without LogQL |
@@ -65,6 +66,17 @@ These metrics drive KEDA autoscaling: when `aigent_bedrock_queue_depth` stays
 above the threshold (default 5), KEDA provisions additional pods to drain the
 queue. `queue_wait_seconds` p95 > 5s signals the semaphore limit
 (`BEDROCK_MAX_CONCURRENT`) is too low for current traffic.
+
+## Edge gateway (spec 31, F-009)
+
+| Metric | Type | Labels | Description |
+|--------|------|--------|-------------|
+| `aigent.gateway.pool_rejections` | Counter | — | Requests rejected with 503 because the worker pool was at capacity |
+| `aigent.gateway.pool_depth` | UpDownCounter | — | In-flight jobs held by the worker pool |
+| `aigent.gateway.queue_wait` | Histogram | — | Time a job waited for a pool slot (ms) |
+| `aigent.gateway.redis_fallback_active` | Counter | — | Job lifecycle fell back to log-only (Redis unavailable) |
+| `aigent.gateway.input_rejections` | Counter | `reason` | Requests rejected with 413 by the edge size caps; `reason` ∈ {`body_bytes`, `input_chars`, `messages`} |
+| `aigent.gateway.timeouts` | Counter | `kind` | Jobs aborted by a gateway timeout; `kind` ∈ {`first_byte`, `idle`, `job`} |
 
 ## Resilience (spec 06)
 
@@ -115,6 +127,9 @@ will read as sparse/absent unless someone has run an eval recently.
 | `aigent.kb.rag.queries` | Counter | — | RAG injection queries |
 | `aigent.kb.rag.hits` | Counter | — | Queries that returned similar cases |
 | `aigent.kb.budget.exhausted` | Counter | — | Distillations skipped due to budget |
+| `aigent.kb.retention.deleted` | Counter | `rule` | KB items deleted by the retention sweep (`rejected_superseded` \| `max_age`, F-029) |
+| `aigent.kb.retention.errors` | Counter | — | Failed retention sweeps (fail-open) |
+| `aigent.kb.provenance.written` | Counter | — | `kb_provenance` rows written with new KB items |
 
 ## Alert Ingestion (spec 18 Phase 2)
 
@@ -124,6 +139,15 @@ will read as sparse/absent unless someone has run an eval recently.
 | `aigent.alerts.deduplicated` | Counter | — | Skipped due to fingerprint match |
 | `aigent.alerts.investigation_triggered` | Counter | — | Investigations triggered from alerts |
 | `aigent.alerts.postback` | Counter | `status` | Slack post-back attempts |
+
+## User feedback (spec 47)
+
+| Metric | Type | Labels | Description |
+|--------|------|--------|-------------|
+| `aigent.feedback.score` | Counter | `agent_id`, `score` | User ratings accepted by `POST /feedback` (spec 47). `score`: `positive` (up, 4, 5), `neutral` (3), `negative` (down, 1, 2). Proxied `/v1` streams report `agent_id="auto"` (or the forced agent) |
+| `aigent.feedback.errors` | Counter | `reason` | Feedback refusals (`unknown_response`, `already_rated`, `store_unavailable`) and fail-open response-id recording errors (`record_failed`) — spec 47 |
+
+Satisfaction trend for spec 33 reviews: `specs/TRIGGERS.md` (negative-feedback share).
 
 ## Known gaps (not usable yet)
 
@@ -149,7 +173,10 @@ Do not build alerts on these — they do not exist yet.
 | `from` / `to` (circuit breaker) | closed, open, half_open | 3 |
 | `type` (kb) | troubleshooting, decision, pattern, infrastructure | 4 |
 | `status` (kb) | active, pending_review, superseded, rejected | 4 |
+| `rule` (kb retention) | rejected_superseded, max_age | 2 |
 | `has_failures` (synthesizer) | True, False | 2 |
+| `score` (feedback) | positive, neutral, negative | 3 |
+| `reason` (feedback errors) | unknown_response, already_rated, store_unavailable, record_failed | 4 |
 
 ## Dashboards
 

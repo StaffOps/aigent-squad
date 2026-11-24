@@ -14,7 +14,7 @@ Contract under test:
 from __future__ import annotations
 
 import asyncio
-import ssl
+from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -35,7 +35,6 @@ from src.core.adapters import (
     strip_url_query,
     tool_error_summary,
 )
-from src.core.agentic_loop import _McpSessionPool, _server_breakers
 from src.core.config import settings
 from src.core.health import DependencyChecker
 from src.core.history_stores import PostgresHistoryStore, PostgresTLSConfigError
@@ -188,25 +187,6 @@ async def test_mcp_adapter_call_tool_returns_protocol_error_detail():
     assert out == "[mcp:k:get_pods] error: McpError -32602: Invalid params: unknown field 'nmspace'"
 
 
-@pytest.mark.asyncio
-async def test_agentic_pool_protocol_error_is_actionable_and_not_a_breaker_failure():
-    url = "http://mcp-protocol-test:8080"
-    _server_breakers.pop(url, None)
-    adapter = McpAdapter(name="k", url=url, tools=["get_pods"])
-    adapter.call_tool = AsyncMock(side_effect=_mcp_error(-32602, "Invalid params"))  # type: ignore[method-assign]
-    pool = _McpSessionPool([adapter])
-    with patch("src.core.adapters.logger"):
-        out = await pool.call_tool("k", "get_pods", {})
-    assert out == "[mcp:k:get_pods] error: McpError -32602: Invalid params"
-    assert _server_breakers[url].failure_count == 0  # the server answered
-
-    adapter.call_tool = AsyncMock(side_effect=OSError("refused http://mcp-protocol-test:8080"))  # type: ignore[method-assign]
-    with patch("src.core.adapters.logger"):
-        out = await pool.call_tool("k", "get_pods", {})
-    assert out == "[mcp:k:get_pods] error: OSError"
-    _server_breakers.pop(url, None)
-
-
 # ---------------------------------------------------------------------------
 # 1. Postgres TLS
 # ---------------------------------------------------------------------------
@@ -225,15 +205,7 @@ def test_non_verify_modes_pass_through(mode, monkeypatch, no_ca_env):
     assert history_stores._pg_ssl_kwargs() == ({"ssl": mode} if mode else {})
 
 
-@pytest.mark.parametrize("mode,check_hostname", [("verify-ca", False), ("verify-full", True)])
-def test_verify_modes_build_a_verifying_context(mode, check_hostname, monkeypatch, no_ca_env):
-    monkeypatch.setattr(settings, "postgres_sslmode", mode)
-    monkeypatch.setattr(settings, "postgres_sslrootcert", certifi.where())
-    ctx = history_stores._pg_ssl_kwargs()["ssl"]
-    assert isinstance(ctx, ssl.SSLContext)
-    assert ctx.verify_mode == ssl.CERT_REQUIRED and ctx.check_hostname is check_hostname
-    assert ctx.minimum_version >= ssl.TLSVersion.TLSv1_2
-    assert ctx.cert_store_stats()["x509_ca"] > 0
+# verify-* context construction: tests/test_review_62_63.py (asyncpg builds it).
 
 
 def test_ca_resolution_order(monkeypatch, no_ca_env):
@@ -241,7 +213,7 @@ def test_ca_resolution_order(monkeypatch, no_ca_env):
     assert history_stores._pg_ca_file() is None
     home_ca = no_ca_env / ".postgresql" / "root.crt"
     home_ca.parent.mkdir()
-    home_ca.write_text("x")
+    home_ca.write_text(Path(certifi.where()).read_text())
     assert history_stores._pg_ca_file() == str(home_ca)
     monkeypatch.setenv("PGSSLROOTCERT", certifi.where())
     assert history_stores._pg_ca_file() == certifi.where()

@@ -54,7 +54,7 @@ Items between 0.5 and threshold go to `pending_review`.
 | `/kb/{id}/approve` | POST | Move pending → active |
 | `/kb/{id}/reject` | POST | Move pending → rejected |
 
-All endpoints require `X-Internal-Token` header.
+All endpoints require `X-Internal-Token` header. With `KB_ENABLED=false` they answer **503** (`Knowledge base is disabled (KB_ENABLED=false)`), after the token check.
 
 ## RAG injection
 
@@ -94,6 +94,24 @@ When budget is exhausted: distillation is skipped (logged warning); investigatio
 - Container: `pgvector/pgvector:pg16`
 - Schema: `infra/postgres/init.sql` (kb_items + kb_provenance + HNSW index)
 - Connection: `POSTGRES_*` env vars (host, port, user, password, db)
+- Provenance: each new item gets a `kb_provenance` row (source investigation id, confidence,
+  extractor and enricher model) in the same transaction, when the item comes from an
+  investigation with a UUID id. The id is also kept in `metadata.investigation_id`.
+
+## Retention (F-029)
+
+| Items | Deleted when | Setting |
+|-------|--------------|---------|
+| `rejected`, `superseded` | N days after the last status change (`updated_at`) | `KB_REJECTED_RETENTION_DAYS` (default `30`) |
+| `active`, `pending_review` | N days after creation (`created_at`), only if set | `KB_ITEM_MAX_AGE_DAYS` (default unset = keep) |
+
+There is no cron. The sweep runs when the supervisor connects to the KB and then at most once
+per `KB_RETENTION_INTERVAL_SECONDS` (default `3600`), started in the background by KB reads
+and writes. Each rule deletes at most `KB_RETENTION_BATCH_SIZE` x `KB_RETENTION_MAX_BATCHES`
+rows per sweep (defaults `500` x `10`), one transaction per batch, `FOR UPDATE SKIP LOCKED` so
+replicas do not fight over rows. Provenance rows go with their item (`ON DELETE CASCADE`). The
+sweep is fail-open: an error is logged and counted in `aigent.kb.retention.errors`; deletions
+are counted in `aigent.kb.retention.deleted{rule}`.
 
 ## Running locally
 
@@ -115,4 +133,9 @@ The current MVP uses HTTP endpoints for approval. A Slack `#kb-review` integrati
 
 ## Disabling KB (e.g., for testing)
 
-Don't run Postgres → KbStore.connect() fails gracefully → all reads return empty, all writes are no-ops. RAG injection returns empty string. Investigation continues without learning.
+Set `KB_ENABLED=false`: the supervisor does not connect to the KB database, no distillation runs
+(no LLM cost), RAG injection returns an empty string without an embedding call, and `/kb/*`
+answers 503. Investigations continue without learning.
+
+Without the flag, an unreachable Postgres has a similar effect (fail-open: reads return empty,
+writes are no-ops), but the product still tries to connect at start.

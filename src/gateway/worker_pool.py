@@ -28,6 +28,7 @@ from src.core.metrics import (
     gateway_pool_rejections,
     gateway_queue_wait,
     gateway_redis_fallback_active,
+    gateway_timeouts,
 )
 
 
@@ -43,13 +44,55 @@ class IdleStreamTimeout(Exception):
     """The backend stalled mid-stream (no data within idle_timeout)."""
 
 
+class JobTimeout(Exception):
+    """The job ran past its overall wall-clock budget (job_timeout)."""
+
+
+#: Every timeout the gateway maps to 504.
+GATEWAY_TIMEOUTS = (FirstByteTimeout, IdleStreamTimeout, JobTimeout)
+
+
+async def stream_with_deadline(
+    stream: AsyncGenerator[Any, None],
+    timeout: float,
+) -> AsyncGenerator[Any, None]:
+    """Yield from ``stream`` until it ends or ``timeout`` seconds have passed.
+
+    Raises ``JobTimeout`` when the overall wall-clock budget runs out. The pending
+    read is cancelled and ``stream`` is closed, which drops the upstream request.
+    Used by paths that do not go through the pool (the /v1 SSE proxy).
+    """
+    deadline = time.monotonic() + timeout
+    try:
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                gateway_timeouts.add(1, {"kind": "job"})
+                raise JobTimeout("job deadline exceeded")
+            try:
+                chunk = await asyncio.wait_for(stream.__anext__(), timeout=remaining)
+            except StopAsyncIteration:
+                return
+            except asyncio.TimeoutError as exc:
+                gateway_timeouts.add(1, {"kind": "job"})
+                raise JobTimeout("job deadline exceeded") from exc
+            yield chunk
+    finally:
+        try:
+            await stream.aclose()
+        except Exception:  # best-effort cleanup; never shadow the real error
+            pass
+
+
 class WorkerPool:
     """Bounded-concurrency pool for forwarded gateway jobs.
 
     - ``asyncio.Semaphore`` gates concurrent execution (immediate-reject, no queue)
     - cancellation via a Redis key (``cancel:<job_id>``) polled by a side task
     - job status in ``job:<job_id>`` with a TTL (``job_record_ttl``, F-028)
-    - three timeouts: first-byte, idle-stream, and an overall job backstop
+    - three timeouts: first-byte, idle-stream, and an overall job backstop.
+      Each read waits for the smaller of its own budget and the time left
+      before the job deadline, so the job budget caps the whole run.
     """
 
     def __init__(
@@ -124,18 +167,30 @@ class WorkerPool:
         self._active[job_id] = asyncio.current_task()  # type: ignore[assignment]
         poll_task: Optional[asyncio.Task[None]] = asyncio.create_task(self._poll_cancel(job_id))
         first_byte_seen = False
+        # Overall wall-clock budget, measured from slot acquisition (F-009 C1).
+        deadline = time.monotonic() + self._job_timeout
         try:
             while True:
                 # First chunk uses the first-byte budget; later chunks the idle budget.
                 budget = self._idle_timeout if first_byte_seen else self._first_byte_timeout
+                remaining = deadline - time.monotonic()
+                job_bound = remaining <= budget
                 try:
-                    chunk = await asyncio.wait_for(stream.__anext__(), timeout=budget)
+                    chunk = await asyncio.wait_for(
+                        stream.__anext__(), timeout=max(min(budget, remaining), 0)
+                    )
                 except StopAsyncIteration:
                     break
                 except asyncio.TimeoutError as exc:
+                    if job_bound:
+                        gateway_timeouts.add(1, {"kind": "job"})
+                        await self._update_status(job_id, "job_timeout")
+                        raise JobTimeout(job_id) from exc
                     if first_byte_seen:
+                        gateway_timeouts.add(1, {"kind": "idle"})
                         await self._update_status(job_id, "idle_timeout")
                         raise IdleStreamTimeout(job_id) from exc
+                    gateway_timeouts.add(1, {"kind": "first_byte"})
                     await self._update_status(job_id, "first_byte_timeout")
                     raise FirstByteTimeout(job_id) from exc
                 first_byte_seen = True
@@ -144,7 +199,7 @@ class WorkerPool:
         except asyncio.CancelledError:
             await self._update_status(job_id, "cancelled")
             raise
-        except (FirstByteTimeout, IdleStreamTimeout):
+        except GATEWAY_TIMEOUTS:
             raise
         except Exception:
             await self._update_status(job_id, "failed")

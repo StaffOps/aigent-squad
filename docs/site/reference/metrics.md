@@ -68,6 +68,7 @@ and by model.
 |--------|------|--------|-------------|
 | `aigent.tokens.total` | Counter | `agent_id`, `model`, `direction` | Tokens consumed (input and output tracked separately) |
 | `aigent.cost.estimated` | Counter | `agent_id`, `model` | Estimated USD cost from Bedrock pricing |
+| `aigent.token_budget.exceeded` | Counter | `reason` | Requests refused by the per-session token budget; `reason` is `exhausted` or `store_unavailable` (Redis down, the budget fails closed) |
 | `aigent.tier.routing_decisions` | Counter | `tier` | Spec 38 tier-routing decisions (fast/standard/deep) — tier distribution / Opus invocation ratio (3 series) |
 | `aigent.tool.call_duration` | Histogram | `tool_name`, `status` | Per-MCP-tool latency + success/error/timeout (tool_name bounded by read-only allowlist) |
 | `aigent.guardrail.blocks` | Counter | `source`, `agent_id` | Guardrail blocks/redactions by source — safety signal |
@@ -221,6 +222,13 @@ recently.
 | `aigent.quality.confidence` | Counter | `level` | Structured confidence from the groundedness scan (spec 41): `high` (0 ungrounded numeric claims), `medium` (1–2), `low` (≥3) — counted on **distinct** claims. One increment per assessed response; 3 series. Requires `response_quality_enabled`. |
 | `aigent.quality.unverified_claims_per_response` | Histogram | `agent_id` | **Distinct** ungrounded numeric claims per response (deduped, capped at 20). Spec 41 — the counter says *how bad*, this says *how many*. Resource IDs never reach here (they block earlier). Default SDK buckets; explicit boundaries would require a View in the `otel_helper` provider. |
 | `aigent.eval.score` | Histogram | `suite`, `agent_id` | Per-question/scenario score (0-1). `suite="golden"` from `make eval`'s golden-set + LLM-judge run (mechanical checks are the floor — a failure zeroes the score regardless of judge opinion). `suite="rca"` from `make eval-rca`'s fixture-fed scenarios (spec 35 Phase 3, mechanical-only, no judge); `agent_id` holds the scenario id for this suite, not an agent name. |
+
+## User feedback (spec 47)
+
+| Metric | Type | Labels | Description |
+|--------|------|--------|-------------|
+| `aigent.feedback.score` | Counter | `agent_id`, `score` | Ratings accepted by `POST /feedback`; `score` is `positive` (up, 4, 5), `neutral` (3) or `negative` (down, 1, 2) |
+| `aigent.feedback.errors` | Counter | `reason` | `unknown_response`, `already_rated`, `store_unavailable`, or `record_failed` (response id not stored; the query still answered) |
 
 ## Health and readiness (spec 07)
 
