@@ -18,6 +18,7 @@ Per-consumer agent scoping (G-5):
 Fail-closed: if no secret is configured, all requests are denied — the gateway
 never serves unauthenticated by accident.
 """
+import hashlib
 import hmac
 import logging
 import os
@@ -62,6 +63,21 @@ class AuthResult:
             (internal token or plain API key without mapping).
     """
     consumer_default_agent: Optional[str] = None
+    # Stable, non-secret identity of the authenticated credential (F-024): history,
+    # rate limits and sessions are scoped to it so one consumer can never read or
+    # collide with another's data by sending the same user_id/session_id.
+    consumer_id: str = "internal"
+
+
+def consumer_id_for_key(key: str) -> str:
+    """Non-secret id for an API key: a short sha256 prefix (never the key itself)."""
+    return "key-" + hashlib.sha256(key.encode("utf-8")).hexdigest()[:16]
+
+
+def scoped_user_id(auth: Optional["AuthResult"], user_id: str) -> str:
+    """Prefix the client-supplied user id with the authenticated consumer (F-024)."""
+    consumer = auth.consumer_id if auth is not None else "internal"
+    return f"{consumer}:{user_id}"
 
 
 def get_key_agent_map() -> dict[str, str]:
@@ -124,11 +140,12 @@ def require_edge_auth(
     if x_api_key:
         # Check plain API keys
         if x_api_key in api_keys:
-            return AuthResult(consumer_default_agent=_resolve_default_agent(x_api_key))
+            return AuthResult(consumer_default_agent=_resolve_default_agent(x_api_key),
+                              consumer_id=consumer_id_for_key(x_api_key))
         # Check key-agent map keys (timing-safe lookup; they are implicitly valid)
         _mapped = _resolve_default_agent(x_api_key)
         if _mapped is not None:
-            return AuthResult(consumer_default_agent=_mapped)
+            return AuthResult(consumer_default_agent=_mapped, consumer_id=consumer_id_for_key(x_api_key))
 
     # 3. Authorization: Bearer <token>
     bearer = _extract_bearer(authorization)
@@ -136,9 +153,10 @@ def require_edge_auth(
         if expected_token and hmac.compare_digest(bearer.encode(), expected_token.encode()):
             return AuthResult(consumer_default_agent=None)
         if bearer in api_keys:
-            return AuthResult(consumer_default_agent=_resolve_default_agent(bearer))
+            return AuthResult(consumer_default_agent=_resolve_default_agent(bearer),
+                              consumer_id=consumer_id_for_key(bearer))
         _mapped = _resolve_default_agent(bearer)
         if _mapped is not None:
-            return AuthResult(consumer_default_agent=_mapped)
+            return AuthResult(consumer_default_agent=_mapped, consumer_id=consumer_id_for_key(bearer))
 
     raise HTTPException(status_code=401, detail="Unauthorized")

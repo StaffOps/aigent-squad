@@ -197,7 +197,11 @@ Observability counterpart: `aigent.quality.confidence` and
   token-by-token streaming arrives with spec 06. The frame format is already
   OpenAI-compatible, so the client works correctly either way.
 - **`usage` is zero**: token accounting is deferred (spec 10/27).
-- **Identity is self-declared**: `user`/session come from the request; there is
-  no per-user authn yet (same limitation as the rest of the API — see
-  `ANALYSIS.md` SEC-D12). Put the squad behind your own authn for multi-user use.
+- **Identity is self-declared within a key**: `user`/session come from the request;
+  there is no per-user authn yet (same limitation as the rest of the API — see
+  `ANALYSIS.md` SEC-D12). The gateway scopes them to the authenticated credential
+  (`<consumer>:<user>`, consumer = a short hash of the API key, or `internal`), so
+  history, rate limits and sessions never cross API keys; clients sharing one key
+  and sending no `user` still share that key's default session. Put the squad
+  behind your own authn for multi-user use on a single key.
 - **Read-only**: the squad is consultative — it answers, it does not execute.

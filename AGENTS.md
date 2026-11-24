@@ -31,7 +31,8 @@ User (LibreChat /v1 · HTTP /query · Alertmanager · MCP :8006)
          │
          ▼
   Gateway :8000 (public front door — spec 31)
-  ├── Edge auth (INTERNAL_API_TOKEN / GATEWAY_API_KEYS / Authorization: Bearer, fail-closed; per-consumer GATEWAY_KEY_AGENT_MAP scope)
+  ├── Edge auth (INTERNAL_API_TOKEN / GATEWAY_API_KEYS / Authorization: Bearer, fail-closed; per-consumer GATEWAY_KEY_AGENT_MAP scope;
+  │   user ids forwarded as `<consumer>:<user_id>` so history/rate/sessions never cross keys — F-024)
   ├── AdmissionGuard: per-user rate + global daily budget (Redis, fail-open)
   ├── WorkerPool backpressure (semaphore 20, 503 + Retry-After)
   └── OpenAI /v1 shaping (spec 29) · /jobs/{id}/cancel
