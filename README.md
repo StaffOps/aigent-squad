@@ -224,7 +224,8 @@ Its canonical table is generated from each spec's frontmatter and validated in C
 - [`QUICKSTART.md`](QUICKSTART.md) — setup in 3 steps
 - [`CHANGELOG.md`](CHANGELOG.md) — changelog
 - [`RELEASE.md`](RELEASE.md) — release runbook (spec 34)
-- [`docs/VERIFYING-RELEASES.md`](docs/VERIFYING-RELEASES.md) — verify image signatures and attestations
+- [`docs/VERIFYING-RELEASES.md`](docs/VERIFYING-RELEASES.md) — verify image signatures and attestations, and the signed release assets
+- [`docs/OPENSSF-BEST-PRACTICES.md`](docs/OPENSSF-BEST-PRACTICES.md) — OpenSSF Best Practices (passing) criteria mapped to evidence, with open gaps
 - [`docs/site/CI-CD.md`](docs/site/CI-CD.md) — CI/CD pipeline and versioning
 
 ### Technical docs

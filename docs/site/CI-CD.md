@@ -150,6 +150,7 @@ Chart A.B.C ── chart-releaser ──▶ Helm repo (staffops.github.io/helm-c
 |------|---------|---------|
 | `test.yml` | push/PR (main, dev) | `guard` (PR→main from dev) · `lint` · `test` (coverage gate) · `dep_scan` (Trivy fs) |
 | `sast.yml` | push/PR (main, dev) | `bandit` static analysis of Python source |
+| `codeql.yml` | push/PR (main, dev) + weekly | CodeQL (`python`, `actions`) → code-scanning alerts in the Security tab |
 | `build.yml` | push: main | build local → Trivy gate → push `latest`/`sha` + SBOM |
 | `docs.yml` | PR (docs/**): `mkdocs build --strict`; push: main: deploy | MkDocs validation + portal deploy |
-| `release.yml` | tag `v*` / manual | versioned, scan-gated image `:X.Y.Z` + SBOM + Release |
+| `release.yml` | tag `v*` / manual | versioned, scan-gated image `:X.Y.Z`, cosign-signed + attested, `verify` job, then Release with SBOM + signature + provenance assets |
