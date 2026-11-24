@@ -74,8 +74,12 @@
 2. `git tag vX.Y.Z && git push origin vX.Y.Z`
 3. `release.yml` fires: single-arch build → **Trivy gate** (CRITICAL/HIGH,
    `.trivyignore` exceptions) → multi-arch (`linux/amd64,linux/arm64`) build +
-   push to GHCR (`ghcr.io/staffops/aigent-squad:X.Y.Z` + `:latest`) → SBOM →
-   GitHub Release (auto-generated notes).
+   push to GHCR (`ghcr.io/staffops/aigent-squad:X.Y.Z` + `:latest`) → cosign
+   sign + provenance/SBOM attestations → `verify` job (outside-in) → GitHub
+   Release (auto-generated notes) with assets `sbom.cdx.json`,
+   `sbom.cdx.json.sigstore.json` and `aigent-squad-X.Y.Z.intoto.jsonl`.
+   Check the three assets are on the Release; a missing one means the
+   `github-release` job did not run (it depends on `verify`).
 4. **Verify the published image actually contains this milestone's code** —
    this is the 0.2.0 lesson (the `0.2.0` tag was published WITHOUT the
    gateway, only `latest` had it, because the tag was cut before the gateway

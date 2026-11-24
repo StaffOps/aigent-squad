@@ -7,7 +7,9 @@
 #          -e OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317 \
 #          -e AWS_REGION=us-east-1 \
 #          aigent-test
-FROM python:3.11-slim
+# Pinned by manifest-list digest (multi-arch index), tag kept for readability; Renovate
+# (`pinDigests: true`) bumps the digest. Same policy as the production Dockerfile (spec 45 T2.5).
+FROM python:3.11-slim@sha256:61e01f72680f86a5279ad510818ab7b2ee9f049822589d4e34e33e044360356c
 
 RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
 
