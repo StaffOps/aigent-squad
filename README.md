@@ -1,571 +1,278 @@
-# Agent Squad - Multi-Agent System for AWS/Kubernetes Operations
+# AIgent Squad — multi-agent AWS/Kubernetes operations
 
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/StaffOps/aigent-squad/badge)](https://scorecard.dev/viewer/?uri=github.com/StaffOps/aigent-squad)
 
-**Version**: 0.4.0 (dev: 0.5.0-rc)
-**Status**: ✅ Cluster-validated (devops-core) | dev: mypy strict, supply-chain signed, GHCR — see `specs/ROADMAP.md`
-**Architecture**: Two-tier (edge gateway → supervisor), in-process specialists, Bedrock-direct
+An edge gateway, a supervisor with six in-process specialist agents, and an MCP
+server. Read-only by default. Config-driven (no agent framework). The LLM is AWS
+Bedrock by default, or any OpenAI-compatible API.
 
-> **Real state**: stabilization (Phase 0) and hardening are done — the squad runs
-> end-to-end in a real EKS cluster (gateway + supervisor, IRSA → Bedrock, Istio
-> HTTPRoute) with defense-in-depth anti-prompt-injection (spec 14, L1–L6).
-> Remaining work is tracked in [`specs/ROADMAP.md`](specs/ROADMAP.md) (authoritative)
-> and [`docs/handoff.md`](docs/handoff.md) (session state). The original audit that seeded the
-> spec backlog is kept as a historical record in [`specs/AUDIT.md`](specs/AUDIT.md).
-> Work happens on the `dev` branch.
+| | |
+|---|---|
+| **Latest release** | `0.5.0` — tag [`v0.5.0`](https://github.com/StaffOps/aigent-squad/releases/tag/v0.5.0) (2026-08-18), image `ghcr.io/staffops/aigent-squad:0.5.0` (cosign-signed, SBOM attested) |
+| **On `dev` since then** | Pluggable LLM provider: Bedrock or any OpenAI-compatible API (spec 28, done) · secret settings as `SecretStr` · a fresh clone reaches a healthy stack with `make up` (spec 36 T11) · CI brings the compose stack up on every PR · ruff/mypy pinned in one file for `make` and CI · Backstage TechDocs + catalog · specs 06, 17 and 33 closed. Full list: [`CHANGELOG.md`](CHANGELOG.md) `[Unreleased]` |
+| **Status per spec** | [`specs/ROADMAP.md`](specs/ROADMAP.md) (canonical, CI-validated table) |
+| **Session state** | [`docs/handoff.md`](docs/handoff.md) |
+
+Work happens on `dev`; releases go through a PR `dev → main` plus a tag ([`RELEASE.md`](RELEASE.md)).
 
 ---
 
 ## 🎯 Overview
 
-Agent Squad is a multi-agent system with 1 supervisor + 6 specialist agents for AWS/Kubernetes operations, designed for ChatOps integration with Slack and proactive monitoring.
+**Routing and agents**
+- An LLM classifier (Haiku by default) routes each query to 1–3 specialists; cross-domain queries fan out in parallel and a synthesizer merges the answers.
+- Six specialists, all the same `GenericAgent` driven by `agents/<name>/agent.yaml` + `prompt.md`: **aws**, **kubernetes**, **finops**, **devops**, **observability**, **security**. A new agent is a new directory, with no code change ([`docs/HOW-TO-NEW-AGENT.md`](docs/HOW-TO-NEW-AGENT.md)).
+- Agentic tool-calling (spec 37): the LLM picks read-only MCP tools and arguments in a bounded loop (defaults: 8 steps, 120 s, 300K tokens; set by `AIGENT_MAX_*` env vars). A new MCP server is a URL plus an allowlist.
+- Model tiering per role and per query complexity (specs 11, 38), context trimming for long tool loops (spec 40), lazy-loaded markdown skills (`skills/`, spec 26).
+- RCA investigations, from a query or an Alertmanager alert (spec 18), plus an optional incident-memory knowledge base on PostgreSQL + pgvector (spec 21).
+- Per-agent isolated conversation history in DynamoDB (24 h TTL).
 
-**Key Features**:
-- 🤖 Intelligent classifier-based routing
-- 💬 Conversation history with context switching
-- 🔍 RAG (Retrieval-Augmented Generation) support
-- 📚 Agent skills (lazy-loaded markdown knowledge, shared across agents)
-- 📊 OpenTelemetry distributed tracing
-- 🔒 Read-only by default (current posture; execution is an open roadmap item, gated by guardrails + human-in-the-loop)
-- 🚀 Kubernetes-native deployment
-- 🔌 MCP integration (squad as server for Kiro + agents as **agentic** MCP clients — the LLM selects read-only tools+args via Bedrock Converse, spec 37)
-- 🎚️ Complexity-aware model **pre-routing** (spec 38) — simple→Haiku, standard→Sonnet, complex→Opus 4.5, one-shot from the classifier; **live on all request paths** (auto-route/fan-out/force_agent/investigation)
-- ✂️ Agentic **context-trimming** (spec 40) — keeps the last N tool-result turns verbatim + summarizes older, so deep multi-step queries don't exhaust the token budget
-- 🧭 **Self-service** posture — never suggests `kubectl`; the agent fetches data itself or points to the specific Grafana/ArgoCD dashboard
-- 🧠 Collapsible **Thinking** trace (LibreChat `<think>`) with model narration + routing focus
-- 🤖 OpenAI-compatible API (`/v1`) — plugs into LibreChat or any OpenAI client ([docs](docs/LIBRECHAT.md))
-- 💲 Per-agent Bedrock cost attribution (Application Inference Profiles + token metrics)
+**Security** (details: [`docs/SECURITY.md`](docs/SECURITY.md))
+- Read-only today, enforced by the system prompt, IAM deny, K8s RBAC and response templates, plus a fail-closed tool allowlist for agentic calls ([`docs/READ_ONLY_POLICY.md`](docs/READ_ONLY_POLICY.md)).
+- Anti-prompt-injection in depth, layers L1–L6 (spec 14): Bedrock Guardrail, InputScanner, context isolation, output filter, canary tokens. The security layers fail closed (403); availability dependencies (Redis, DynamoDB) fail open.
+- Two-tier trust boundary: only the gateway can call the supervisor's `/internal/*` routes (separate `SUPERVISOR_INTERNAL_TOKEN`).
+- Supply chain (spec 45): GitHub Actions pinned to commit SHAs, release images signed with cosign and attested ([`docs/VERIFYING-RELEASES.md`](docs/VERIFYING-RELEASES.md)).
+
+**LLM** (spec 28, [ADR-0009](docs/architecture/decisions/0009-llm-provider-abstraction.md))
+- Every call goes through one `LLMService` layer (circuit breaker, retry, guardrail, token and cost metrics, per-session token budget).
+- `LLM_PROVIDER=bedrock` (default; prompt caching, per-agent cost attribution through Application Inference Profiles) or `LLM_PROVIDER=openai` for any OpenAI-compatible `/chat/completions` API.
+- With a provider other than Bedrock, the Bedrock Guardrail (L1) is **off**. The service logs a startup warning, sets `aigent.llm.guardrail_l1_active=0` and reports it in `/ready`. L2–L6 still run.
+
+**Integrations**
+- OpenAI-compatible `/v1` API on the gateway, used by LibreChat or any OpenAI client ([`docs/LIBRECHAT.md`](docs/LIBRECHAT.md)). Each agent is also exposed as a model (`aigent-squad-<agent>`).
+- MCP: the squad as an MCP server (`mcp-server/`, port 8006) and agents as MCP clients ([`docs/MCP_INTEGRATION.md`](docs/MCP_INTEGRATION.md)).
+- Alertmanager webhook (`POST /alerts/incoming`) that starts an RCA and can post the result back to Slack ([`docs/ALERTING.md`](docs/ALERTING.md)).
+
+**Observability**
+- OpenTelemetry traces and metrics through the Collector, JSON logs, custom `aigent.*` metrics ([`docs/METRICS.md`](docs/METRICS.md), [`docs/OBSERVABILITY.md`](docs/OBSERVABILITY.md)).
+- A quality eval harness with golden queries and RCA scenarios (`evals/`, spec 35; `make eval`, `make eval-rca`).
 
 ---
 
 ## 🏗️ Architecture
 
-### System Architecture (two-tier, spec 31)
-
 ```
-        Clients: LibreChat (/v1) · curl (/query) · Alertmanager · MCP Server (8006)
-                                 │
-                                 ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│                       EDGE GATEWAY (:8000, public)                       │
-│   edge auth · rate limit + daily budget (Redis) · WorkerPool             │
-│   backpressure (503 + Retry-After) · OpenAI /v1 shaping · /jobs cancel   │
-└────────────────────────────────┬────────────────────────────────────────┘
-                                 │ POST /internal/process (SUPERVISOR_INTERNAL_TOKEN)
-                                 ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│                    SUPERVISOR (:8001, backend-only)                      │
-│  ┌──────────────────────────────────────────────────────────────────┐  │
-│  │  InputScanner (L2) → Classifier (Bedrock Haiku) → routes 1–3     │  │
-│  │  agents · fan-out (asyncio.gather) → synthesizer · RCA           │  │
-│  │  investigation · Bedrock Guardrail (fail-closed 403) ·           │  │
-│  │  canary tokens + output filter · per-agent history (DynamoDB)    │  │
-│  └──────────────────────────────────────────────────────────────────┘  │
-│                                                                          │
-│   In-process specialists (GenericAgent, config-driven, NO ports):       │
-│      aws · kubernetes · finops · devops · observability                 │
-│   Each: agents/<name>/agent.yaml + prompt.md → datasource adapters      │
-│   (boto3, kubernetes, http, athena, mcp) + lazy skills                  │
-└────────────────────────────────┬────────────────────────────────────────┘
-                                 │
-                                 ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│                         Shared Services                                  │
-│  Bedrock (Haiku classifier / Sonnet agents, prompt caching, AIP cost    │
-│  attribution) · DynamoDB (history, 24h TTL) · Redis (datasource cache,  │
-│  rate/budget counters) · PostgreSQL+pgvector (incident-memory KB)       │
-└─────────────────────────────────────────────────────────────────────────┘
+  LibreChat / OpenAI clients (/v1) · curl (/query) · MCP server (:8006)
+                                   │
+                                   ▼
+  ┌───────────────────────────────────────────────────────────────────┐
+  │ GATEWAY :8000 (public, spec 31)                                   │
+  │ edge auth (fail-closed) · per-user rate + daily budget (Redis)    │
+  │ WorkerPool backpressure (503 + Retry-After) · /v1 shaping · cancel│
+  └─────────────────────────────────┬─────────────────────────────────┘
+                                    │ POST /internal/process
+                                    │ (SUPERVISOR_INTERNAL_TOKEN)
+                                    │          Alertmanager webhook
+                                    │          (POST /alerts/incoming)
+                                    │                 │
+  ┌─────────────────────────────────▼─────────────────▼───────────────┐
+  │ SUPERVISOR :8001 (backend-only)                                   │
+  │ InputScanner (L2) → classifier → 1–3 agents → synthesizer         │
+  │ RCA investigation · guardrail on input, tool args/results, output │
+  │ canary + output filter · per-agent history                        │
+  │                                                                   │
+  │ In-process specialists (GenericAgent, no ports):                  │
+  │   aws · kubernetes · finops · devops · observability · security   │
+  │ datasource adapters: boto3 · kubernetes · http · athena · mcp     │
+  └─────────────────────────────────┬─────────────────────────────────┘
+                                    │
+  ┌─────────────────────────────────┴─────────────────────────────────┐
+  │ LLMService (src/core/llm/) → Bedrock (default) | OpenAI-compatible│
+  │ DynamoDB (history, 24 h TTL) · Redis (datasource cache, rate,     │
+  │ budget, jobs) · PostgreSQL + pgvector (incident memory, optional) │
+  └───────────────────────────────────────────────────────────────────┘
 ```
 
-Specialists are **in-process** (spec 02/22): the supervisor instantiates
-`GenericAgent` per config directory — there are no per-agent HTTP services or
-ports. Adding an agent = adding `agents/<name>/agent.yaml` + `prompt.md`
-(zero code, auto-discovered at startup).
+**Request path**: the gateway authenticates and admits the request, then forwards it
+to the supervisor. The supervisor scans the input, classifies it, loads the history
+for each selected agent and runs the agents (in parallel when there are several).
+Each agent fetches data through its adapters (cached in Redis, 1–60 min TTL) and
+calls the LLM. The supervisor filters the output, saves the history and returns
+`{role, content, timestamp, agent_id}`.
 
-### Agent Communication Flow
-
-```
-User Query: "How many EC2 instances are running?"
-     │
-     ▼
-┌─────────────────────────────────────────────────────────────┐
-│ Supervisor                                                   │
-│                                                              │
-│  Step 1: Classifier Analysis                                │
-│  ┌────────────────────────────────────────────────────────┐ │
-│  │ Input: "How many EC2 instances are running?"          │ │
-│  │ History: [previous conversation context]              │ │
-│  │                                                        │ │
-│  │ Classifier (Claude Sonnet):                           │ │
-│  │  - Analyzes intent                                    │ │
-│  │  - Detects follow-ups                                 │ │
-│  │  - Considers context                                  │ │
-│  │                                                        │ │
-│  │ Output:                                               │ │
-│  │  - selected_agent: "aws"                              │ │
-│  │  - confidence: 0.95                                   │ │
-│  │  - reasoning: "User asking about EC2 instances"       │ │
-│  └────────────────────────────────────────────────────────┘ │
-│                                                              │
-│  Step 2: Fetch Conversation History                         │
-│  ┌────────────────────────────────────────────────────────┐ │
-│  │ DynamoDB Query:                                        │ │
-│  │  - Global history (for classifier)                    │ │
-│  │  - Agent-specific history (for AWS agent)             │ │
-│  └────────────────────────────────────────────────────────┘ │
-│                                                              │
-│  Step 3: Route to Agent (in-process)                        │
-│  ┌────────────────────────────────────────────────────────┐ │
-│  │ await generic_agent.process_request(                   │ │
-│  │   input_text="How many EC2 instances...",              │ │
-│  │   user_id="user123",                                   │ │
-│  │   session_id="session456",                             │ │
-│  │   chat_history=[...],                                  │ │
-│  │ )   # 1–3 agents in parallel when cross-domain         │ │
-│  └────────────────────────────────────────────────────────┘ │
-└──────────────────────────┬───────────────────────────────────┘
-                           │
-                           ▼
-┌─────────────────────────────────────────────────────────────┐
-│ AWS Agent (GenericAgent, in-process)                        │
-│                                                              │
-│  Step 1: Check Cache                                        │
-│  ┌────────────────────────────────────────────────────────┐ │
-│  │ Redis GET "ec2:instances:us-east-1"                    │ │
-│  │ TTL: 5 minutes                                         │ │
-│  └────────────────────────────────────────────────────────┘ │
-│                                                              │
-│  Step 2: Fetch Real Data (if cache miss)                   │
-│  ┌────────────────────────────────────────────────────────┐ │
-│  │ AWS API: ec2.describe_instances()                      │ │
-│  │ Result: 640 instances                                  │ │
-│  │ Cache result in Redis                                  │ │
-│  └────────────────────────────────────────────────────────┘ │
-│                                                              │
-│  Step 3: RAG Enhancement (optional)                         │
-│  ┌────────────────────────────────────────────────────────┐ │
-│  │ Bedrock Knowledge Base Query:                          │ │
-│  │  - Search: "EC2 best practices"                        │ │
-│  │  - Returns: historical context, recommendations       │ │
-│  └────────────────────────────────────────────────────────┘ │
-│                                                              │
-│  Step 4: Generate Response                                  │
-│  ┌────────────────────────────────────────────────────────┐ │
-│  │ Bedrock Claude Sonnet 4.5:                             │ │
-│  │  - System prompt: AWS Senior Principal Engineer       │ │
-│  │  - Context: 640 instances + RAG data                  │ │
-│  │  - Generate: detailed analysis + recommendations      │ │
-│  └────────────────────────────────────────────────────────┘ │
-│                                                              │
-│  Response: "Found 640 EC2 instances in us-east-1..."       │
-└──────────────────────────┬───────────────────────────────────┘
-                           │
-                           ▼
-┌─────────────────────────────────────────────────────────────┐
-│ Supervisor                                                   │
-│                                                              │
-│  Step 4: Save to History                                    │
-│  ┌────────────────────────────────────────────────────────┐ │
-│  │ DynamoDB PUT:                                          │ │
-│  │  - User message                                        │ │
-│  │  - Agent response                                      │ │
-│  │  - Metadata (agent, confidence, timestamp)            │ │
-│  │  - TTL: 24 hours                                       │ │
-│  └────────────────────────────────────────────────────────┘ │
-│                                                              │
-│  Step 5: Return to User                                     │
-└──────────────────────────┬───────────────────────────────────┘
-                           │
-                           ▼
-                    User receives response
-```
-
-### Production Deployment (EKS)
-
-> ✅ **Validated deploy (devops-core, 2026-07)**: the real cluster runs the
-> **inProcess topology** — `gateway` + `supervisor` Deployments only (specialists
-> in-process), Istio Gateway API HTTPRoute, IRSA → Bedrock, DynamoDB, Bedrock
-> Guardrail, Redis StatefulSet, agents from ConfigMap or git. The diagram below
-> shows the **aspirational distributed topology** (per-agent pods) which the
-> chart can render but the supervisor does not yet support (see
-> `specs/ROADMAP.md` backlog — deliberately deferred per ADR-001).
-
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                              AWS Cloud                                   │
-│                                                                          │
-│  ┌────────────────────────────────────────────────────────────────────┐ │
-│  │                         EKS Cluster                                 │ │
-│  │                                                                     │ │
-│  │  ┌─────────────────────────────────────────────────────────────┐  │ │
-│  │  │  Namespace: agent-squad-prod                                │  │ │
-│  │  │                                                              │  │ │
-│  │  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │  │ │
-│  │  │  │  Supervisor  │  │  AWS Agent   │  │  K8s Agent   │     │  │ │
-│  │  │  │  (2-10 pods) │  │  (3-15 pods) │  │  (2-10 pods) │     │  │ │
-│  │  │  └──────────────┘  └──────────────┘  └──────────────┘     │  │ │
-│  │  │                                                              │  │ │
-│  │  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │  │ │
-│  │  │  │ FinOps Agent │  │ DevOps Agent │  │  Obs Agent   │     │  │ │
-│  │  │  │  (1-5 pods)  │  │  (1-5 pods)  │  │  (2-8 pods)  │     │  │ │
-│  │  │  └──────────────┘  └──────────────┘  └──────────────┘     │  │ │
-│  │  │                                                              │  │ │
-│  │  │  ┌──────────────┐  ┌──────────────────────────────────┐   │  │ │
-│  │  │  │  MCP Server  │  │      OpenSearch Cluster          │   │  │ │
-│  │  │  │  (2-5 pods)  │  │  (Vector store for Knowledge     │   │  │ │
-│  │  │  └──────────────┘  │   Bases - 3 nodes)               │   │  │ │
-│  │  │                    └──────────────────────────────────┘   │  │ │
-│  │  │                                                              │  │ │
-│  │  │  ┌──────────────────────────────────────────────────────┐  │  │ │
-│  │  │  │              Ingress Controller                       │  │ │ │
-│  │  │  │  - /api/supervisor → Supervisor                       │  │ │ │
-│  │  │  │  - /api/mcp → MCP Server                              │  │ │ │
-│  │  │  └──────────────────────────────────────────────────────┘  │  │ │
-│  │  └─────────────────────────────────────────────────────────────┘  │ │
-│  │                                                                     │ │
-│  │  ┌─────────────────────────────────────────────────────────────┐  │ │
-│  │  │  Namespace: monitoring                                      │  │ │
-│  │  │  - Prometheus                                               │  │ │
-│  │  │  - Grafana                                                  │  │ │
-│  │  │  - OpenTelemetry Collector                                 │  │ │
-│  │  └─────────────────────────────────────────────────────────────┘  │ │
-│  └────────────────────────────────────────────────────────────────────┘ │
-│                                                                          │
-│  ┌────────────────────────────────────────────────────────────────────┐ │
-│  │                      AWS Managed Services                           │ │
-│  │                                                                     │ │
-│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────────┐│ │
-│  │  │  DynamoDB    │  │ ElastiCache  │  │   Bedrock                ││ │
-│  │  │  (Sessions)  │  │    Redis     │  │   - Claude Sonnet 4.5    ││ │
-│  │  │              │  │  Serverless  │  │   - Knowledge Bases (5)  ││ │
-│  │  └──────────────┘  └──────────────┘  └──────────────────────────┘│ │
-│  │                                                                     │ │
-│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────────┐│ │
-│  │  │     ECR      │  │      S3      │  │   Secrets Manager        ││ │
-│  │  │  (Images)    │  │  (KB docs)   │  │   (Tokens, Keys)         ││ │
-│  │  └──────────────┘  └──────────────┘  └──────────────────────────┘│ │
-│  └────────────────────────────────────────────────────────────────────┘ │
-│                                                                          │
-│  ┌────────────────────────────────────────────────────────────────────┐ │
-│  │                      External Integrations                          │ │
-│  │                                                                     │ │
-│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────────┐│ │
-│  │  │    Slack     │  │    GitLab    │  │   Cost Explorer          ││ │
-│  │  │  (ChatOps)   │  │  (DevOps)    │  │   (FinOps)               ││ │
-│  │  └──────────────┘  └──────────────┘  └──────────────────────────┘│ │
-│  └────────────────────────────────────────────────────────────────────┘ │
-└─────────────────────────────────────────────────────────────────────────┘
-```
-
-### Components
-
-**Edge Gateway (:8000, public — spec 31)**:
-- Edge auth (`X-Internal-Token` or `GATEWAY_API_KEYS` allowlist, fail-closed)
-- WorkerPool backpressure (local semaphore, `503 + Retry-After`)
-- Global admission: per-user rate limit + daily budget (Redis, fail-open)
-- Hosts `/query`, OpenAI `/v1/*`, `/jobs/{id}/cancel`
-- Clients (LibreChat, MCP server, Alertmanager, anomaly-detection) hit the
-  gateway, never the supervisor directly — see
-  [`docs/site/architecture.md`](docs/site/architecture.md)
-
-**Supervisor (:8001, backend-only)**:
-- `/internal/process` + `/internal/agents`, gated by `SUPERVISOR_INTERNAL_TOKEN`
-- Classifier routing (Bedrock Haiku), fan-out + synthesizer, RCA investigation
-- Anti-prompt-injection defense-in-depth (spec 14, L1–L6): Bedrock Guardrail
-  (fail-closed 403), InputScanner, context isolation, output filter, canary tokens
-- Manages per-agent isolated conversation history (DynamoDB)
-
-**Specialist Agents** (in-process `GenericAgent`, config-driven — no ports):
-1. **aws**: EC2, RDS, S3, Lambda, VPC, IAM
-2. **kubernetes**: Pods, nodes, deployments, services
-3. **finops**: AWS costs (Cost Explorer), Kubecost, optimization
-4. **devops**: CI/CD, GitLab, documentation
-5. **observability**: Metrics, logs, anomalies, SIEM-like correlation
-
-**Infrastructure**:
-- **DynamoDB**: Conversation state (24h TTL)
-- **Redis**: Datasource cache (1-60min TTL) + rate/budget counters + job lifecycle
-- **Bedrock**: complexity-aware model tiering (spec 11 + **spec 38**) — Haiku classifier;
-  agents **pre-routed** per query complexity (fast Haiku / standard Sonnet / deep Opus 4.5 one-shot,
-  live on all paths); prompt caching; **context-trimming** (spec 40) to bound per-turn context;
-  Application Inference Profiles for cost attribution
-- **Knowledge Base**: incident-memory RAG via PostgreSQL+pgvector (spec 21). The Bedrock Knowledge Bases / OpenSearch path in the diagram above is an aspirational alternative, not the current implementation.
+**Deployment**: the validated Kubernetes topology is the in-process one, with only
+`gateway` and `supervisor` Deployments. The Helm chart lives in the sibling
+`helm-charts` repo (`charts/aigent-squad`). Architecture decisions:
+[`docs/architecture/decisions/`](docs/architecture/decisions/README.md); more detail:
+[`docs/site/architecture.md`](docs/site/architecture.md).
 
 ---
 
-## 🚀 Quick Start
+## 🚀 Quick start
 
-### Prerequisites
-- Docker & Docker Compose, `make`
-- AWS CLI configured (`~/.aws` mounted read-only in dev)
-- kubectl configured (optional — for the kubernetes agent)
-- No local Python needed — everything (run, tests, lint) goes through Docker
-
-### Local Development
+**Prerequisites**: Docker with Compose, `make`, and AWS credentials in `~/.aws` (mounted
+read-only, used for Bedrock). kubectl is optional (only for the kubernetes agent). No
+local Python is needed: run, test and lint all go through Docker.
 
 ```bash
-# 1. Clone repository
 git clone git@github.com:StaffOps/aigent-squad.git
 cd aigent-squad
 
-# 2. Start the stack (dev-safe defaults in docker-compose.yaml; no .env needed —
-#    create one from .env.example only to override settings)
-make up
-
-# 3. Prove it works end-to-end (health + 1 real Bedrock query + /v1/models)
-make smoke
-
-# 4. Tests, lint, stop
-make test && make lint
-make down
+make up          # build + start the two-tier stack, wait for gateway /ready
+make smoke       # health + 1 real query + /v1/models
+make test        # full suite + 90% coverage gate (Docker)
+make lint        # ruff, same scope as CI
+make typecheck   # mypy gate (CI blocks tests on it)
+make down        # stop (V=1 also drops volumes)
 ```
 
-Full walkthrough: [`QUICKSTART.md`](QUICKSTART.md).
+`docker-compose.yaml` ships dev-safe defaults, so no `.env` is needed. Copy
+[`.env.example`](.env.example) only to override settings. `make help` lists every
+target. Full walkthrough: [`QUICKSTART.md`](QUICKSTART.md). Common failures and
+fixes: the playbook in [`AGENTS.md`](AGENTS.md#playbook--common-failure-modes-spec-36).
 
-**Services** (two-tier, spec 31):
-- Gateway (public): http://localhost:8000  — `/query`, `/v1/*`, `/jobs/{id}/cancel`
-- Supervisor (backend): internal port 8001, not published — `/internal/*` (gateway-only)
-- MCP Server: http://localhost:8006  (→ gateway)
-- Redis: localhost:6379
-- DynamoDB Local: http://localhost:8100
-- PostgreSQL (KB, optional): localhost:5432
-- Prometheus: http://localhost:9099 · Grafana: http://localhost:3001
-- LibreChat: http://localhost:3080 (+ MongoDB, internal) — see `docs/LIBRECHAT.md`
+**Local services**
 
----
-
-## 📖 Documentation
-
-### Product & Decisions
-- [`docs/prd/aigent-squad.md`](docs/prd/aigent-squad.md) - **PRD**: problem, personas, success metrics, scope (initiative level)
-- [`docs/architecture/decisions/`](docs/architecture/decisions/README.md) - **ADRs** 0001–0006: Bedrock-direct, in-process agents, read-only posture, fail-closed vs fail-open, two-tier gateway, standalone product
-
-### Specs & Planning (spec-driven — `specs/`)
-- [`specs/README.md`](specs/README.md) - **How the spec process works** — lifecycle, status frontmatter (the SSOT), spec tiers (full spec vs `bugfix.md`), verification pipeline, conventions
-- [`specs/ROADMAP.md`](specs/ROADMAP.md) - Phased plan + the single **canonical status table** (CI-validated by `scripts/specs_status.py`; status itself is authored in each spec's frontmatter)
-- [`specs/BACKLOG.md`](specs/BACKLOG.md) - Live items: findings (`F-*`), product backlog (`B-*`), dormant work, deferred register
-- [`specs/VISION.md`](specs/VISION.md) - Long-term maturity levels (autonomous multi-agent north star)
-- [`specs/AUDIT.md`](specs/AUDIT.md) - Historical audit (2026-05-30) that seeded the spec backlog — findings since fixed (frozen)
-- [`docs/handoff.md`](docs/handoff.md) - Current session + next steps (overwritten each session; prior sessions in `archive/handoffs/`)
-- [`specs/01-fix-blockers/`](specs/01-fix-blockers/) - Unblock build and broken code
-- [`specs/02-unify-agent-architecture/`](specs/02-unify-agent-architecture/) - Unify agents on the base pattern
-- [`specs/03-fix-cache-observability/`](specs/03-fix-cache-observability/) - Deterministic cache + OTel
-- [`specs/04-harden-security/`](specs/04-harden-security/) - Auth, non-root, prompt injection
-- [`specs/05-helm-chart/`](specs/05-helm-chart/) - Helm chart for EKS (Phase 2 — deploy)
-- [`specs/26-agent-skills/`](specs/26-agent-skills/) - Skills: per-agent lazy-loaded markdown knowledge
-- [`specs/27-bedrock-cost-attribution/`](specs/27-bedrock-cost-attribution/) - Bedrock cost attribution (AIP per model + per-agent showback)
-- [`specs/ADR-001-bedrock-direct-vs-strands.md`](specs/ADR-001-bedrock-direct-vs-strands.md) - Decision: Bedrock-direct vs. the Strands framework
-- [`steering/project.md`](steering/project.md) - Project rules and invariants
-
-### Getting Started
-- [QUICKSTART.md](QUICKSTART.md) - Setup in 3 steps
-- [CHANGELOG.md](CHANGELOG.md) - Changelog
-- [archive/IMPLEMENTATION_HISTORY.md](archive/IMPLEMENTATION_HISTORY.md) - Historical roadmap (v2.0, Phases 1-13)
-
-### Technical Docs
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) - Architecture
-- [docs/MCP_INTEGRATION.md](docs/MCP_INTEGRATION.md) - MCP: squad as server (Kiro) + agents as clients (`type: mcp`)
-- [docs/LIBRECHAT.md](docs/LIBRECHAT.md) - LibreChat integration via the OpenAI-compatible bridge (`/v1`)
-- [docs/HOW-TO-NEW-AGENT.md](docs/HOW-TO-NEW-AGENT.md) - Create an agent (datasources, skills, MCP)
-- [docs/KNOWLEDGE-BASE.md](docs/KNOWLEDGE-BASE.md) - KB / RAG (pgvector)
-- [docs/OBSERVABILITY.md](docs/OBSERVABILITY.md) - Logging & tracing
-- [docs/METRICS.md](docs/METRICS.md) - Custom metrics catalog
-- [docs/ALERTING.md](docs/ALERTING.md) - Alertmanager ingestion + Slack post-back
-- [docs/READ_ONLY_POLICY.md](docs/READ_ONLY_POLICY.md) - Read-only policy (4 layers)
-- [docs/SECURITY.md](docs/SECURITY.md) - Security model
-- [docs/SETUP.md](docs/SETUP.md) - Local setup
-- [docs/PREREQUISITES.md](docs/PREREQUISITES.md) - Infrastructure requirements
-- [docs/COMPETITIVE-ANALYSIS.md](docs/COMPETITIVE-ANALYSIS.md) - Comparison vs. AI SRE agents (Aurora, OpenSRE, etc.) + positioning
-
-### Infrastructure (Terraform)
-- [infra/terraform/README.md](infra/terraform/README.md) - AWS modules (IAM/IRSA, DynamoDB, Bedrock endpoints, cost AIP)
-- [infra/terraform/bedrock-aip/README.md](infra/terraform/bedrock-aip/README.md) - Application Inference Profiles + cost attribution
-
-### Agents
-Agents are config-driven (`agent.yaml` + `prompt.md`) under [`agents/`](agents/) — see [docs/HOW-TO-NEW-AGENT.md](docs/HOW-TO-NEW-AGENT.md). Supervisor internals: [src/supervisor/README.md](src/supervisor/README.md).
-
-### AI tooling (tool-agnostic)
-Repo guidance is **tool-neutral**: [`AGENTS.md`](AGENTS.md) is the canonical guide
-that any AI coding assistant reads (Claude Code, Cursor, Copilot, Aider, …), with
-detailed rules in [`steering/`](steering/) and plans in [`specs/`](specs/).
-Tool-specific files are thin pointers — [`CLAUDE.md`](CLAUDE.md) is just
-`See @AGENTS.md`. Per-tool local dirs (`.claude/`, `.cursor/`, …) are git-ignored.
+| Service | Address |
+|---------|---------|
+| Gateway (public: `/query`, `/v1/*`, `/jobs/{id}/cancel`) | http://localhost:8000 |
+| Supervisor (`/internal/*`, gateway-only) | port 8001, internal |
+| MCP server | http://localhost:8006 |
+| Redis / PostgreSQL / DynamoDB Local | localhost:6379 / :5432 / :8100 |
+| Prometheus / Grafana | http://localhost:9099 / http://localhost:3001 |
+| LibreChat | http://localhost:3080 ([`docs/LIBRECHAT.md`](docs/LIBRECHAT.md)) |
 
 ---
 
 ## 🧪 Testing
 
-### Test the gateway
 ```bash
+make test                                  # full suite, ≥90% coverage gate
+make test-one FILE=tests/test_gateway_main.py
+```
+
+The suite runs in random order (`pytest-randomly`, seed not pinned). Locally,
+`make test` replaces the `otel-helper` dependency with a stub and prints a warning, so
+CI (`gh run list`) has the final verdict.
+
+Query the running stack:
+
+```bash
+# Auto-routed query
 curl -X POST http://localhost:8000/query \
   -H 'Content-Type: application/json' \
   -H 'X-Internal-Token: dev-secret-token' \
-  -d '{
-    "user_input": "How many EC2 instances are running?",
-    "user_id": "test-user",
-    "session_id": "test-session"
-  }'
-```
+  -d '{"user_input": "How many EC2 instances are running?", "user_id": "u1", "session_id": "s1"}'
 
-### Test a specific agent (OpenAI bridge, bypasses the classifier)
-```bash
-# List available models (aigent-squad + aigent-squad-<agent> per agent)
+# List models (aigent-squad + aigent-squad-<agent>), then force one specialist
 curl -H 'X-Internal-Token: dev-secret-token' http://localhost:8000/v1/models
-
 curl -X POST http://localhost:8000/v1/chat/completions \
   -H 'Content-Type: application/json' \
   -H 'X-Internal-Token: dev-secret-token' \
-  -d '{
-    "model": "aigent-squad-aws",
-    "messages": [{"role": "user", "content": "List EC2 instances"}]
-  }'
+  -d '{"model": "aigent-squad-aws", "messages": [{"role": "user", "content": "List EC2 instances"}]}'
 ```
-
-> Agents are in-process — there is no per-agent port. Use the gateway's
-> `aigent-squad-<agent>` model to force a specific specialist.
 
 ---
 
 ## 🔒 Security
 
-### Read-Only Policy (4 Layers) — current posture
+The squad is read-only today. Executing actions is an open roadmap item (specs 43–44),
+and it depends on capability tiers and human-in-the-loop. The read-only posture has
+four layers: system prompts, IAM explicit deny on write actions, K8s RBAC limited to
+`get`/`list`/`watch`, and response templates that suggest automation instead of manual
+changes. For agentic tool calls, a fail-closed tool allowlist and the MCP server's own
+ServiceAccount RBAC hold it (checked by `make mcp-rbac-audit`).
 
-Read-only is today's operating mode (not a permanent lock — executing actions is
-an open roadmap item, conditional on the spec 14 guardrails + human-in-the-loop).
-See [docs/READ_ONLY_POLICY.md](docs/READ_ONLY_POLICY.md) and
-[specs/14-security-hardening/](specs/14-security-hardening/).
-
-1. **System Prompts**: Explicit read-only instructions
-2. **IAM Policies**: Explicit deny on write operations
-3. **K8s RBAC**: Only get, list, watch verbs
-4. **Response Templates**: Suggest automation instead of manual changes
-
-### IAM Policy Example
-```json
-{
-  "Effect": "Deny",
-  "Action": [
-    "*:Create*", "*:Delete*", "*:Update*",
-    "*:Put*", "*:Modify*", "*:Terminate*"
-  ],
-  "Resource": "*"
-}
-```
+See [`docs/SECURITY.md`](docs/SECURITY.md), [`docs/READ_ONLY_POLICY.md`](docs/READ_ONLY_POLICY.md)
+and [`specs/14-security-hardening/`](specs/14-security-hardening/).
 
 ---
 
-## 💰 Cost Estimates
+## 🛠️ Technology stack
 
-### Basic (No RAG)
-- DynamoDB: $5-15/month
-- Redis: $20-40/month
-- Bedrock: $5-15/month
-- EKS: $10-30/month
-- **Total**: $40-100/month
-
-### With RAG (5 Knowledge Bases)
-- Bedrock: $50-150/month
-- Knowledge Bases: $500-3750/month
-- OpenSearch: $700-1500/month
-- **Total**: $1327-5595/month
-
-### With Advanced Features (Phases 8-13)
-- Cohere Rerank: $50-200/month
-- ML Models: $100-500/month
-- **Total**: $950-3700/month
-
-**Strategy**: Start basic, add RAG incrementally
-
----
-
-## 🛠️ Technology Stack
-
-- **Language**: Python 3.11 (Alpine runtime image; `python:3.11-slim` for tests)
-- **Framework**: FastAPI (gateway + supervisor)
-- **LLM**: AWS Bedrock (Claude) — model tiering per role (spec 11): `BEDROCK_CLASSIFIER_MODEL_ID` (Haiku) / `BEDROCK_MODEL_ID` (Sonnet), resolved in `src/core/model_tier.py`, config-driven (see `src/core/config.py`)
-- **State**: DynamoDB
-- **Cache**: Redis
-- **Observability**: OpenTelemetry + JSON logging
-- **Deployment**: Docker + Kubernetes (EKS)
-- **CI/CD**: GitHub Actions (`.github/workflows/`)
+| Layer | Technology |
+|-------|------------|
+| Language | Python 3.11 (`python:3.11-alpine` runtime image, non-root; `python:3.11-slim` for tests) |
+| API | FastAPI + uvicorn (gateway and supervisor), httpx |
+| LLM | AWS Bedrock (Claude, via boto3) or any OpenAI-compatible API, behind `LLMService` |
+| State and cache | DynamoDB (history), Redis (cache, rate/budget, jobs), PostgreSQL + pgvector (optional KB) |
+| Integrations | MCP (`mcp` SDK), Kubernetes client, Slack SDK |
+| Config | pydantic-settings (env vars are the single source) |
+| Observability | OpenTelemetry (`otel-helper`), Prometheus client, JSON logs |
+| Quality gates | pytest (≥90% coverage), ruff, mypy, bandit, harness score |
+| CI/CD | GitHub Actions; multi-arch images (amd64/arm64) on GHCR, signed with cosign |
+| Deploy | Docker Compose (local), Kubernetes/EKS via Helm, Terraform for AWS ([`infra/terraform/`](infra/terraform/README.md)) |
 
 ---
 
 ## 📊 Roadmap
 
-> **Authoritative roadmap**: [`specs/ROADMAP.md`](specs/ROADMAP.md)
-> (spec-numbered, phase-based, reflects the real state). The phase list below is
-> the original aspirational outline, kept for reference — where the two differ,
-> ROADMAP.md wins.
+The roadmap and the status of every spec are in [`specs/ROADMAP.md`](specs/ROADMAP.md).
+Its canonical table is generated from each spec's frontmatter and validated in CI
+(`make specs-status`). Open findings, backlog items and deferred work are in
+[`specs/BACKLOG.md`](specs/BACKLOG.md); the long-term direction is in
+[`specs/VISION.md`](specs/VISION.md).
 
-### Phase 1: Testing & Validation (1-2 days)
-- Test all agents with 10+ questions each
-- Validate conversation history
-- Optimize Kubernetes Agent timeout
+---
 
-### Phase 2: RAG & Knowledge Bases (2-3 days)
-- Create 5 Bedrock Knowledge Bases
-- Enable RAG in all agents
+## 📖 Documentation
 
-### Phase 3: Production Deploy (3-5 days)
-- Terraform infrastructure — ✅ modules ready (IAM/IRSA, DynamoDB, Bedrock endpoints, cost AIP); see [infra/terraform/](infra/terraform/)
-- CI/CD pipeline (GitHub Actions)
-- EKS deployment
+### Product and decisions
+- [`docs/prd/aigent-squad.md`](docs/prd/aigent-squad.md) — PRD: problem, personas, success metrics, scope
+- [`docs/architecture/decisions/`](docs/architecture/decisions/README.md) — ADRs 0001–0009 (Bedrock-direct, in-process agents, read-only posture, fail-closed vs fail-open, two-tier gateway, standalone product, internal-first vs OSS, agentic tool-calling, LLM provider abstraction)
 
-### Phase 4: Slack Integration (2-3 days)
-- Slack App setup
-- Event handlers
-- Interactive buttons
+### Specs and planning (`specs/`)
+- [`specs/README.md`](specs/README.md) — how the spec process works (lifecycle, status frontmatter, tiers, review)
+- [`specs/ROADMAP.md`](specs/ROADMAP.md) — phased plan + canonical status table
+- [`specs/BACKLOG.md`](specs/BACKLOG.md) — findings (`F-*`), product backlog (`B-*`), decisions (`D-*`), deferred work
+- [`specs/VISION.md`](specs/VISION.md) — long-term maturity levels
+- [`specs/AUDIT.md`](specs/AUDIT.md) — historical audit (2026-05-30), kept as a record
+- [`docs/handoff.md`](docs/handoff.md) — current session and next steps (prior sessions in `archive/handoffs/`)
+- [`steering/project.md`](steering/project.md) — project rules and invariants
 
-### Phase 5: Proactive Agents (2-3 days)
-- CronJobs for monitoring
-- Intelligent alerts
+### Getting started and releases
+- [`QUICKSTART.md`](QUICKSTART.md) — setup in 3 steps
+- [`CHANGELOG.md`](CHANGELOG.md) — changelog
+- [`RELEASE.md`](RELEASE.md) — release runbook (spec 34)
+- [`docs/VERIFYING-RELEASES.md`](docs/VERIFYING-RELEASES.md) — verify image signatures and attestations
+- [`docs/site/CI-CD.md`](docs/site/CI-CD.md) — CI/CD pipeline and versioning
 
-### Phases 6-13: Advanced Features
-- Observability MCP Servers
-- Advanced RAG (hybrid search, re-ranking)
-- Long-term memory
-- Continuous learning
-- Enriched context (Confluence, Jira, GitHub)
-- Predictive analysis
-- Multi-modal (screenshots, diagrams)
+### Technical docs
+- [`docs/site/architecture.md`](docs/site/architecture.md) — architecture
+- [`docs/HOW-TO-NEW-AGENT.md`](docs/HOW-TO-NEW-AGENT.md) — create an agent (datasources, skills, MCP)
+- [`docs/MCP_INTEGRATION.md`](docs/MCP_INTEGRATION.md) — MCP server and clients
+- [`docs/LIBRECHAT.md`](docs/LIBRECHAT.md) — LibreChat through the `/v1` bridge
+- [`docs/ALERTING.md`](docs/ALERTING.md) — Alertmanager ingestion + Slack post-back
+- [`docs/KNOWLEDGE-BASE.md`](docs/KNOWLEDGE-BASE.md) — incident-memory KB (pgvector)
+- [`docs/OBSERVABILITY.md`](docs/OBSERVABILITY.md) — logging and tracing
+- [`docs/METRICS.md`](docs/METRICS.md) — custom metrics catalog
+- [`docs/SECURITY.md`](docs/SECURITY.md) · [`docs/READ_ONLY_POLICY.md`](docs/READ_ONLY_POLICY.md) — security model and read-only policy
+- [`docs/SETUP.md`](docs/SETUP.md) · [`docs/PREREQUISITES.md`](docs/PREREQUISITES.md) — local setup and infrastructure requirements
+- [`docs/LOAD-TESTING.md`](docs/LOAD-TESTING.md) — k6 load tests
+- [`docs/COMPETITIVE-ANALYSIS.md`](docs/COMPETITIVE-ANALYSIS.md) — comparison with other AI SRE agents
+- [`src/supervisor/README.md`](src/supervisor/README.md) — supervisor internals
 
-**See**: [archive/IMPLEMENTATION_HISTORY.md](archive/IMPLEMENTATION_HISTORY.md) for complete roadmap
+### Infrastructure (Terraform)
+- [`infra/terraform/README.md`](infra/terraform/README.md) — AWS modules (IAM/IRSA, DynamoDB, Bedrock endpoints, cost AIP)
+- [`infra/terraform/bedrock-aip/README.md`](infra/terraform/bedrock-aip/README.md) — Application Inference Profiles and cost attribution
+
+### AI tooling (tool-agnostic)
+[`AGENTS.md`](AGENTS.md) is the canonical guide for any AI coding assistant, with
+detailed rules in [`steering/`](steering/) and plans in [`specs/`](specs/).
+[`CLAUDE.md`](CLAUDE.md) only points to it. Per-tool local directories (`.claude/`,
+`.cursor/`, …) are git-ignored.
 
 ---
 
 ## 🤝 Contributing
 
-This is a reference implementation based on AWS Labs Agent Squad best practices.
+Branch from `dev` and open a PR back to `dev`. Every PR runs lint, typecheck, tests
+with the ≥90% coverage gate, dependency and SAST scans, and a compose stack-up check.
+Releases are a PR `dev → main` plus a `vX.Y.Z` tag. See
+[`CONTRIBUTING.md`](CONTRIBUTING.md) and [`docs/site/CI-CD.md`](docs/site/CI-CD.md).
 
-**Key Principles**:
-- Classifier-based routing (not manual)
-- Sorted conversation contexts (global + isolated)
-- Standardized agent interface
-- Read-only by default (execution = future, gated)
-- Production-grade observability
-
-**Workflow**: work on `dev` (every push runs lint + tests + coverage ≥90% +
-dep/SAST scans); release via PR `dev → main` (scan-gated image publish) and a
-`vX.Y.Z` tag. See [docs/site/CI-CD.md](docs/site/CI-CD.md) for the full pipeline and
-versioning model.
+Conventions: spec-driven (update the spec's `design.md` before implementing), tests,
+metrics and docs ship with the code, Conventional Commits. The details are in
+[`AGENTS.md`](AGENTS.md#workflow-rules).
 
 ---
 
 ## 📚 References
 
-- **AWS Labs Agent Squad**: https://github.com/awslabs/agent-squad
-- **AWS Bedrock**: https://aws.amazon.com/bedrock/
-- **Model Context Protocol**: https://modelcontextprotocol.io/
-
----
+- AWS Labs Agent Squad (original inspiration): https://github.com/awslabs/agent-squad
+- AWS Bedrock: https://aws.amazon.com/bedrock/
+- Model Context Protocol: https://modelcontextprotocol.io/
 
 ## 📝 License
 
-Apache 2.0 — See [LICENSE](LICENSE) for details.
-
----
-
-**Last Updated**: 2026-07-16
-**Version**: 0.4.0 (dev: 0.5.0-rc)
-**Status**: ✅ Cluster-validated (devops-core) — see `specs/ROADMAP.md` for what's next
+Apache 2.0. See [LICENSE](LICENSE).
