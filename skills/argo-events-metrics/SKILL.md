@@ -9,7 +9,7 @@ Prometheus metrics emitted by the **Argo Events** controllers and user workloads
 (EventSource pods, Sensor pods), as deployed in this environment.
 
 **Deployed version**: Argo Events **v1.9.10** via Helm chart `argo/argo-events`
-**2.4.22** (namespace `argo`, `devops-core` cluster).
+**2.4.22** (namespace `argo`, `<cluster>` cluster).
 
 **Question answered**: "Are events flowing from sources through the EventBus to
 sensor actions, or are they being lost/failing?"

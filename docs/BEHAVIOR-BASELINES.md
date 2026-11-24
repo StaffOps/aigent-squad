@@ -3,7 +3,7 @@
 **Status**: living guide (v1, 2026-07-04)
 **Scope decision (D-03, corrected 2026-07-04)**: the squad is **reactive by design** —
 it acts ONLY when triggered (a user question or an incoming alert). Proactive
-watching/alerting is a **separate product** (`staffops-anomaly-detection`'s job; its
+watching/alerting is a **separate product** (an external anomaly-detection system's job; its
 integration remains optional). What the squad MUST have is **on-trigger comprehension**:
 when it receives something, it minimally understands what that thing is and whether the
 behavior it observes is normal — instead of handing raw numbers to the LLM and hoping.
@@ -115,7 +115,7 @@ honesty) · **sustain requirement** (M of N samples; single spikes are `borderli
 not `abnormal`) · **incident exclusion** when computing baselines over windows that
 contain known incidents (KB lookup) · **simple first, ML never by default** — the four
 methods cover ~90% at $0; a signal that defeats all four is the ONLY justification to
-import ML (that is where the optional anomaly-detection integration/patterns earn a
+import ML (that is where the optional anomaly-detection-system integration/patterns earn a
 place — as a baseline SOURCE, not as the trigger).
 
 Cost note: verdicts are window queries + arithmetic — pennies of datasource load,
@@ -172,7 +172,7 @@ verdict) and TRIGGERS.md (spec 33) for trend review.
 ## Appendix — proactive reuse (explicitly OUT of this product)
 
 If a proactive watcher is ever wanted, it is a SEPARATE product/process that CONSUMES
-these same worksheets/baselines on a schedule (that is `staffops-anomaly-detection`'s
+these same worksheets/baselines on a schedule (that is an external anomaly-detection system's
 territory — or its enriched alerts simply arrive at `/alerts/incoming` like any other).
 Nothing in the squad polls, watches or pages. This appendix exists so the boundary is
 never blurred again.

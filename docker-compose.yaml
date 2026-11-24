@@ -209,7 +209,7 @@ services:
       timeout: 3s
       retries: 5
 
-  # Runs standalone against the REAL devops-core squad by default (only mongo
+  # Runs standalone against the REAL deployed squad by default (only mongo
   # is a local dependency — gateway/supervisor are NOT started for this).
   # `docker compose up -d mongo librechat` is enough; no need for `make up`.
   # To point at a fully-local squad instead, override AIGENT_SQUAD_BASE_URL to

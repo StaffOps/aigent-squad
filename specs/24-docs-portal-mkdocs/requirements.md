@@ -12,7 +12,7 @@ deferred: []
 **Spec**: `24-docs-portal-mkdocs`
 **Severity**: 🟠 High (open-source project — docs are the community's entry point)
 **Origin**: user requirement (organize extensive/confusing docs; markdown portal Material-style, inspired by the DevOps portal); docs findings (`ANALYSIS.md` D6–D15, AUDIT D2–D4)
-**Relation**: consumes "Proposal 1 — Documentation restructure" and "Proposal 2 — ADR" from the documentation specialist (`ANALYSIS.md`); follows the MkDocs Material convention from a sibling internal agent platform and `staffops-anomaly-detection`.
+**Relation**: consumes "Proposal 1 — Documentation restructure" and "Proposal 2 — ADR" from the documentation specialist (`ANALYSIS.md`); follows the MkDocs Material convention from a sibling internal agent platform and an external anomaly-detection system.
 
 The current documentation is scattered and contradictory: ~32KB README + `CHANGES.md` + `IMPLEMENTATION_HISTORY.md` + `VERSIONS.md` + `GENERIC_VERSION.md` + `QUICKSTART.md` + 9 files in `docs/`, with overlap (3 docs explain "how to run"), ghost content (`server_new.py`, `terraform/`) and corrupted encoding. To distribute to the community, consolidate everything into a **MkDocs Material portal** (`docs_dir: src` → `site_dir: public`), with the README becoming a lean index, organized by **Diátaxis** (tutorial / how-to / reference / explanation).
 
@@ -34,7 +34,7 @@ WHEN ghost/redundant docs exist today THEN they SHALL be **removed or absorbed**
 
 ## Acceptance Criteria
 
-- [ ] `mkdocs.yml` (Material theme, `docs_dir: src`, `site_dir: public`, plugins search + git-revision-date, Mermaid) consistent with the sibling agent-platform/anomaly-detection portals.
+- [ ] `mkdocs.yml` (Material theme, `docs_dir: src`, `site_dir: public`, plugins search + git-revision-date, Mermaid) consistent with the sibling agent-platform and anomaly-detection-system portals.
 - [ ] Structure `docs/src/` by section: `getting-started/`, `architecture/`, `agents/`, `api/`, `operations/`, `development/` (each with `index.md`).
 - [ ] README reduced to index: overview + diagram + link table to the portal (does not duplicate content).
 - [ ] **Consolidation**: `QUICKSTART.md` + `docs/LOCAL_DEVELOPMENT.md` + `docs/SETUP.md` + `docs/PREREQUISITES.md` → `getting-started/`; `docs/ARCHITECTURE.md` (rewritten, no LangGraph) → `architecture/`; `docs/READ_ONLY_POLICY.md` → `architecture/` or `agents/`; `docs/OBSERVABILITY.md` → `operations/`; `docs/RAG_IMPLEMENTATION.md` → mark real status.

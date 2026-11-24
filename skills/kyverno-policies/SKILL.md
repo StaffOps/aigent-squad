@@ -92,7 +92,7 @@ spec:
               spec:
                 containers:
                   - name: "{{ element.name }}"
-                    image: "harbor.<org>.com/proxy-cache/{{ regex_replace_all('^[^/]+/', element.image, '') }}"
+                    image: "<registry>/proxy-cache/{{ regex_replace_all('^[^/]+/', element.image, '') }}"
 ```
 
 **You do NOT need to manually prefix images** — Kyverno handles it transparently.
@@ -133,7 +133,7 @@ spec:
                 - "btc-*"
       verifyImages:
         - imageReferences:
-            - "harbor.<org>.com/<org>-images/*"
+            - "<registry>/<project>/*"
           attestors:
             - entries:
                 - keys:

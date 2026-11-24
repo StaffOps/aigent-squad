@@ -7,7 +7,7 @@ keywords: [sonarqube, ce, jvm, jmx, lta]
 
 Prometheus metrics exposed by SonarQube Server on Kubernetes.
 
-**Grounded on**: Helm chart `sonarqube/sonarqube` version **2025.4.2** (SonarQube Server 2025.4 LTA), deployed to `sonarqube` namespace on `devops-core` cluster.
+**Grounded on**: Helm chart `sonarqube/sonarqube` version **2025.4.2** (SonarQube Server 2025.4 LTA), deployed to `sonarqube` namespace on `<cluster>` cluster.
 
 ---
 

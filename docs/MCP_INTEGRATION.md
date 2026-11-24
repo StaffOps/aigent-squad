@@ -111,7 +111,7 @@ is streamable-http by default (`/mcp`), SSE opt-in (`transport: sse`).
 datasources:
   - type: mcp
     name: k8s-mcp
-    url: ${K8S_MCP_URL}              # e.g. http://kube-mcp.mcp-servers.svc.cluster.local:8080/mcp
+    url: ${K8S_MCP_URL}              # e.g. http://<kubernetes-mcp-service>.<namespace>.svc.cluster.local:8080/mcp
     transport: streamable-http
     tools: [pods_list, nodes_top, events_list]         # read-only allowlist
     tool_arguments:                  # static args merged into every call
@@ -173,16 +173,16 @@ The audit script enumerates the ServiceAccount's EFFECTIVE permissions via
 
 ```bash
 # Single ServiceAccount
-make mcp-rbac-audit SA=kube-mcp NS=mcp-servers
+make mcp-rbac-audit SA=<mcp-service-account> NS=<namespace>
 
 # With explicit context
-make mcp-rbac-audit SA=kube-mcp NS=mcp-servers CTX=<org>-workloads-dev-nv
+make mcp-rbac-audit SA=<mcp-service-account> NS=<namespace> CTX=<kube-context>
 
 # Direct invocation
 python3 scripts/mcp_rbac_audit.py \
-  --serviceaccount kube-mcp \
-  --namespace mcp-servers \
-  --context <org>-workloads-dev-nv
+  --serviceaccount <mcp-service-account> \
+  --namespace <namespace> \
+  --context <kube-context>
 ```
 
 ### CI integration
@@ -226,8 +226,8 @@ rbac-audit:
 ======================================================================
 MCP ServiceAccount RBAC Audit
 ======================================================================
-  ServiceAccount: kube-mcp
-  Namespace:      mcp-servers
+  ServiceAccount: <mcp-service-account>
+  Namespace:      <namespace>
   Parse format:   json
   Total rules:    5
 ----------------------------------------------------------------------

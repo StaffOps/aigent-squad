@@ -56,7 +56,7 @@ Without `costCenter`, the OTel Collector `k8sattributesprocessor` will NOT enric
 
 ```yaml
 image:
-  repository: harbor.<org>.com/<org>-images/dpm-people-api
+  repository: <registry>/<project>/dpm-people-api
   tag: "a1b2c3d"          # Immutable SHA tag from CI
   pullPolicy: IfNotPresent
 ```
@@ -323,7 +323,7 @@ Port 8081 is the standard metrics port (separate from application port).
 deploymentType: Rollout
 strategy: Canary
 image:
-  repository: harbor.<org>.com/<org>-images/dpm-people-api
+  repository: <registry>/<project>/dpm-people-api
   tag: "a1b2c3d"
 service:
   port: 8080

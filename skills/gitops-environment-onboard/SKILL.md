@@ -16,7 +16,7 @@ Onboarding a new service into <ORG>'s GitOps pipeline requires changes across 3-
 Before starting:
 - [ ] Service code exists in its own Git repo
 - [ ] Dockerfile builds successfully (multi-arch: amd64 + arm64)
-- [ ] Image pushed to Harbor (`harbor.<org>.com/<org>-images/<service>`)
+- [ ] Image pushed to Harbor (`<registry>/<project>/<service>`)
 - [ ] Image signed with cosign
 - [ ] CostCenter identified (from official `tags.md`)
 - [ ] Namespace exists or will be created
@@ -113,7 +113,7 @@ deploymentType: Rollout
 strategy: Canary
 
 image:
-  repository: harbor.<org>.com/<org>-images/dpm-my-new-service
+  repository: <registry>/<project>/dpm-my-new-service
   tag: "initial"    # CI pipeline will update this
 
 service:
@@ -195,7 +195,7 @@ deploymentType: Rollout
 strategy: Canary
 
 image:
-  repository: harbor.<org>.com/<org>-images/dpm-my-new-service
+  repository: <registry>/<project>/dpm-my-new-service
   tag: "initial"
 
 service:

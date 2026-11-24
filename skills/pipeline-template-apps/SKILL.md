@@ -150,7 +150,7 @@ build:sign:
 | `<short_sha>-arm64-graviton` | Every build (arm64) | `a1b2c3d-arm64-graviton` |
 | `latest` | Merge to main/production only | `latest` |
 
-Registry: `harbor.<org>.com/<HARBOR_PROJECT>/<service-name>`
+Registry: `<registry>/<HARBOR_PROJECT>/<service-name>`
 
 ## Deploy Patterns
 
@@ -208,7 +208,7 @@ rollback:
 ```yaml
 variables:
   CI_COMMIT_SHORT_SHA: ${CI_COMMIT_SHORT_SHA}  # Auto-set by GitLab
-  IMAGE: "harbor.<org>.com/${HARBOR_PROJECT}/${CI_PROJECT_NAME}"
+  IMAGE: "<registry>/${HARBOR_PROJECT}/${CI_PROJECT_NAME}"
   HARBOR_PROJECT: "<org>-images"
   COSIGN_KEY_PATH: "/run/secrets/cosign.key"
   AWS_REGION: "us-east-1"

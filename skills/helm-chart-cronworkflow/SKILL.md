@@ -163,7 +163,7 @@ retryStrategy:
 steps:
   - name: sync-data
     container:
-      image: harbor.<org>.com/<org>-images/dpm-people-batch:a1b2c3d
+      image: <registry>/<project>/dpm-people-batch:a1b2c3d
       imagePullPolicy: IfNotPresent
       command: ["python"]
       args: ["/app/sync.py", "--full"]
@@ -189,7 +189,7 @@ steps:
 steps:
   - name: extract
     container:
-      image: harbor.<org>.com/<org>-images/dpm-etl:a1b2c3d
+      image: <registry>/<project>/dpm-etl:a1b2c3d
       command: ["python", "/app/extract.py"]
       resources:
         requests: { cpu: 250m, memory: 512Mi }
@@ -198,7 +198,7 @@ steps:
   - name: transform
     when: "{{steps.extract.status}} == Succeeded"
     container:
-      image: harbor.<org>.com/<org>-images/dpm-etl:a1b2c3d
+      image: <registry>/<project>/dpm-etl:a1b2c3d
       command: ["python", "/app/transform.py"]
       resources:
         requests: { cpu: 1000m, memory: 2Gi }
@@ -297,7 +297,7 @@ retryStrategy:
 steps:
   - name: sync-people
     container:
-      image: harbor.<org>.com/<org>-images/dpm-people-batch:f4e5d6c
+      image: <registry>/<project>/dpm-people-batch:f4e5d6c
       imagePullPolicy: IfNotPresent
       command: ["dotnet", "DPM.PeopleBatch.dll"]
       args: ["--mode", "full-sync"]

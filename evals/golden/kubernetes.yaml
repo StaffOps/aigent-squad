@@ -5,7 +5,7 @@
 # namespaces_list, events_list, nodes_top, pods_top, pods_get, pods_log,
 # resources_get/list, helm_list, kiali_*, configuration_view, nodes_log,
 # nodes_stats_summary, pods_list_in_namespace — see F-003 in BACKLOG.md).
-# Only reachable from inside the cluster network (kube-mcp.mcp-servers.svc.
+# Only reachable from inside the cluster network (<kubernetes-mcp-service>.<namespace>.svc.
 # cluster.local) — running `make eval` from a machine without that network
 # path will show these as honest capability-gap answers, which is still a
 # valid (if less useful) signal; run against the real cluster for full value.

@@ -1,6 +1,6 @@
 # Tasks: Documentation Portal (MkDocs)
 
-> Follows the MkDocs Material convention from a sibling internal agent platform and `staffops-anomaly-detection`. Consumes Proposals 1/2 from the `ANALYSIS.md`. Fixes D6–D15 + AUDIT D2–D4.
+> Follows the MkDocs Material convention from a sibling internal agent platform and an external anomaly-detection system. Consumes Proposals 1/2 from the `ANALYSIS.md`. Fixes D6–D15 + AUDIT D2–D4.
 
 - [ ] T1: `docs/mkdocs.yml` (Material, `docs_dir: src`, `site_dir: public`, search + git-revision-date, Mermaid) mirroring existing portals
 - [ ] T2: Skeleton `docs/src/` with `index.md` per section (getting-started, architecture, agents, api, operations, development) (depends on: T1)

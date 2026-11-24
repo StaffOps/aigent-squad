@@ -198,12 +198,12 @@ python-backend (gRPC server)
 ## Harbor images
 
 ```
-harbor.<org>.com/labs/dotnet-api
-harbor.<org>.com/labs/dotnet-backend
-harbor.<org>.com/labs/dotnet-process
-harbor.<org>.com/labs/python-api
-harbor.<org>.com/labs/python-backend
-harbor.<org>.com/labs/python-process
+<registry>/<project>/dotnet-api
+<registry>/<project>/dotnet-backend
+<registry>/<project>/dotnet-process
+<registry>/<project>/python-api
+<registry>/<project>/python-backend
+<registry>/<project>/python-process
 ```
 
 Tags:

@@ -12,7 +12,7 @@ read-only by default, defense-in-depth anti-prompt-injection (spec 14).
 > **Status**: `0.4.0` released 2026-07-15 (tag `v0.4.0`, GitHub Release, image
 > `ghcr.io/staffops/aigent-squad:0.4.0` on GHCR — spec 34's `RELEASE.md` executed for
 > real, Phases 0-2). Specs 11 (model tiering), 14 (security L1–L6, all findings closed),
-> 35 (quality eval harness, complete), and 36 (dev loop) shipped. The devops-core cluster
+> 35 (quality eval harness, complete), and 36 (dev loop) shipped. The test cluster
 > runs `0.5.0-dev-205fb21` from Harbor (cluster deploy 2026-08-18). Registry migrated to GHCR;
 > B-25 closed. CI publishes to `ghcr.io/staffops/aigent-squad` on merge to `main`.
 > **dev branch (2026-08-17)**: mypy strict, spec 45 (supply-chain) closed, registry → GHCR,

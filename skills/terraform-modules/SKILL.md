@@ -81,7 +81,7 @@ module "people_api" {
 
   service_name    = "dpm-people-api"
   cluster_name    = "<org>-ecs-prd"
-  container_image = "harbor.<org>.com/<org>-images/dpm-people-api:a1b2c3d"
+  container_image = "<registry>/<project>/dpm-people-api:a1b2c3d"
   container_port  = 8080
   desired_count   = 3
   cpu             = 512
@@ -142,7 +142,7 @@ module "nightly_sync" {
   task_name         = "dpm-nightly-sync"
   cluster_arn       = module.prd_cluster.arn
   schedule          = "cron(0 3 * * ? *)"  # 03:00 UTC daily
-  container_image   = "harbor.<org>.com/<org>-images/dpm-sync:a1b2c3d"
+  container_image   = "<registry>/<project>/dpm-sync:a1b2c3d"
   cpu               = 1024
   memory            = 2048
 
@@ -218,7 +218,7 @@ CloudFront distribution for frontend applications.
 module "portal_cdn" {
   source = "../../MODULES/aws-cloudfront"
 
-  domain_aliases = ["portal.<org>.app.br"]
+  domain_aliases = ["portal.example.com"]
   acm_cert_arn   = data.aws_acm_certificate.portal.arn
 
   origins = [

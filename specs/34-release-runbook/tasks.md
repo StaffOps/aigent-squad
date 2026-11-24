@@ -67,7 +67,7 @@
       + all checks green), tag `v0.4.0` pushed, `release.yml` green (1m37s,
       cache-warm from the same-commit `build.yml` push moments earlier),
       GitHub Release auto-published, image content verified
-      (`karlipegomes/aigent-squad:0.4.0` contains the groundedness module —
+      (`<personal-dockerhub-user>/aigent-squad:0.4.0` contains the groundedness module —
       Phase 2's "does the tag contain this milestone's code" check, passed).
       This is the FIRST time the Docker-Hub/tag path has ever been exercised
       for real (see `specs/BACKLOG.md` B-25) — friction found and folded back

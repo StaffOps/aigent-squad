@@ -23,7 +23,7 @@ came from. This spec does the thing they would only have reported missing.
 
 `aigent-squad` is a public, Apache-2.0 container image that runs **inside customer infrastructure**
 with read access to observability and cloud data. A consumer who pulls
-`karlipegomes/aigent-squad:v0.4.0` today cannot prove any of the following:
+`<personal-dockerhub-user>/aigent-squad:v0.4.0` today cannot prove any of the following:
 
 1. That the image was built from the commit they read on GitHub.
 2. That nobody with the `DOCKERHUB_TOKEN` overwrote the tag after the build.

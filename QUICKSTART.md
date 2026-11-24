@@ -69,7 +69,7 @@ curl -H 'X-Internal-Token: dev-secret-token' http://localhost:8000/v1/models
 | LibreChat | 3080 | http://localhost:3080 | `/health` |
 | MongoDB (LibreChat storage) | — (internal) | — | — |
 
-> LibreChat points at the remote devops-core squad by default, not at the local
+> LibreChat points at the remote deployed squad by default, not at the local
 > gateway; see `docs/LIBRECHAT.md` and the comment in `docker-compose.yaml` to
 > point it at `http://gateway:8000/v1`.
 

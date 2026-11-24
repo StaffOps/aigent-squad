@@ -2,7 +2,7 @@
 
 ## Architecture
 
-MkDocs Material portal, identical in convention to the portals of a sibling internal agent platform and `staffops-anomaly-detection` (ecosystem consistency). README becomes an index; content lives in `docs/src/`; specs remain in `specs/` (SSOT) and are **linked**, not duplicated.
+MkDocs Material portal, identical in convention to the portals of a sibling internal agent platform and an external anomaly-detection system (ecosystem consistency). README becomes an index; content lives in `docs/src/`; specs remain in `specs/` (SSOT) and are **linked**, not duplicated.
 
 ```
 README.md            ← short index (overview + diagram + link table)
@@ -53,7 +53,7 @@ Follow the format from the docs specialist (`ANALYSIS.md` Proposal 2): Status ·
 
 ### Decision 1: MkDocs Material identical to the other StaffOps portals
 
-**Choice**: reuse the exact convention (`docs_dir: src`→`site_dir: public`, Material, Mermaid, git-revision-date, section-based nav) from the sibling agent-platform/anomaly-detection portals.
+**Choice**: reuse the exact convention (`docs_dir: src`→`site_dir: public`, Material, Mermaid, git-revision-date, section-based nav) from the sibling agent-platform and anomaly-detection-system portals.
 
 **Justification, in order of strength**:
 1. **Ecosystem consistency**: anyone navigating one StaffOps portal navigates all the same way — reduces friction for the community and for yourself.

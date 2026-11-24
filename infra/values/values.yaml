@@ -222,7 +222,7 @@ services:
     networkPolicy:
       enabled: true
       # In-cluster callers reach the squad through the gateway (auth+admission),
-      # never the supervisor directly. Add Alertmanager / anomaly-detection here.
+      # never the supervisor directly. Add Alertmanager / an anomaly-detection system here.
       allowFrom: []
 
   supervisor:
@@ -265,7 +265,7 @@ services:
 
 # -----------------------------------------------------------------------------
 # Routing — expose the gateway via Istio Gateway API (HTTPRoute), org-specific pattern
-# (istio-internal-gateway on devops-core; TLS terminated at the Gateway listener).
+# (istio-internal-gateway on the test cluster; TLS terminated at the Gateway listener).
 # Switch routing.type to "ingress" to use traefik-internal instead.
 # -----------------------------------------------------------------------------
 routing:

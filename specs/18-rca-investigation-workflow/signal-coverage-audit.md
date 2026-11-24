@@ -27,7 +27,7 @@
 | C5 | Traffic change (>2σ) | ✅ YES | observability: `query_prometheus` / VM `query_range` with baseline comparison | Requires recording rule or inline baseline calc |
 | C6 | Scaling event (KEDA) | ✅ YES | kubernetes: `get_events` filtering `involvedObject.kind=ScaledObject` | — |
 | C7 | cert-manager/ExternalSecret sync fail | ✅ YES | kubernetes: `get_events` filtering `reason=SyncFailed` | — |
-| C8 | Anomaly-ctrl pre-correlated alert | ❌ NO | anomaly-ctrl: no MCP/API integration today | Requires anomaly-detection-controller API adapter |
+| C8 | Anomaly-ctrl pre-correlated alert | ❌ NO | anomaly-ctrl: no MCP/API integration today | Requires external anomaly-detection controller API adapter |
 
 ---
 

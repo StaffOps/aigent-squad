@@ -25,7 +25,7 @@ the spec was "✅ done" with no process slot to receive them.
 ## Thesis
 
 The spec lifecycle is build-centric: requirements → design → tasks → verify → done. Since
-2026-07-01 the squad runs in devops-core, which creates a class of work the lifecycle has
+2026-07-01 the squad runs in the test cluster, which creates a class of work the lifecycle has
 no stage for: **operating evidence**. Promotion triggers were the project's mechanism for
 deciding "when is phase 2 justified" — but a trigger nobody measures is a dead letter, and
 phase-2 decisions silently regress to intuition. This spec adds the missing stage: a
@@ -76,7 +76,7 @@ following a fixed template — reviews are comparable across time.
 - [ ] Cost reconciliation recipe written down (the exact CE filter by `CostProject` tag +
       the MetricsQL per-agent attribution query from spec 27's design) — copy-pasteable.
 - [ ] **First review executed** as part of this spec (dogfood): real measurements from
-      devops-core, first `specs/reviews/2026-07.md` produced, BACKLOG triaged once.
+      the test cluster, first `specs/reviews/2026-07.md` produced, BACKLOG triaged once.
 - [ ] Metric gaps discovered by the first review are recorded in TRIGGERS.md as gaps
       (each with the ~1-metric fix suggestion) — implementing them is out of scope here.
 - [ ] specs/README.md (from spec 32) lifecycle diagram includes the operate/measure stage

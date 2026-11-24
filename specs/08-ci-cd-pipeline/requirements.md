@@ -14,7 +14,7 @@ deferred: ["T7 demo stage"]
 **Origin**: `../ANALYSIS.md` gitops F8 (zero CI; docs cite GitLab but the repo is on GitHub), AUDIT "no tests"
 **Depends on**: `01-fix-blockers` (images need to build), `23-test-harness-docker` (reuses the harness)
 
-The repo is on **GitHub** (`github.com:karlipegomes/AIgent-squad`) and **has no CI at all** — docs mention GitLab CI that doesn't exist. Nothing builds the images that `05-helm-chart` assumes. This spec creates the GitHub Actions pipeline, reusing the dockerized harness from `23`.
+The repo is on **GitHub** (`github.com/StaffOps/aigent-squad`) and **has no CI at all** — docs mention GitLab CI that doesn't exist. Nothing builds the images that `05-helm-chart` assumes. This spec creates the GitHub Actions pipeline, reusing the dockerized harness from `23`.
 
 ## User Stories
 

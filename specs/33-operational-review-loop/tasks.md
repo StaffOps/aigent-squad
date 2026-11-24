@@ -18,7 +18,7 @@
 
 ## Phase 2 — Dogfood (first real review)
 
-- [x] T5: Run the first review against devops-core: measure every T1 row (value or `GAP:`),
+- [x] T5: Run the first review against the test cluster: measure every T1 row (value or `GAP:`),
       run the cost reconciliation, triage BACKLOG.md (depends on: T1–T3)
 - [x] T6: Produce `specs/reviews/2026-07.md` from the template; every Decision row cites a
       spec or BACKLOG id (depends on: T5)

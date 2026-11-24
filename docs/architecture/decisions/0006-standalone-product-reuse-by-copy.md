@@ -11,7 +11,7 @@
 
 The StaffOps ecosystem already contained an existing agent platform in the same organization (mature agent
 platform: gateway, worker pool, budget guard, distillation→KB flow, 186
-tests, CI, OTel) and `staffops-anomaly-detection` (correlation engine + ML
+tests, CI, OTel) and an external anomaly-detection system (correlation engine + ML
 that produces enriched RCA triggers). Much of what AIgent-squad planned
 (specs 14/17/18/19/21) existed in more mature *design* form in that platform.
 Continuing standalone meant consciously duplicating platform work; merging
@@ -51,7 +51,7 @@ scratch, dependencies only via package manager.
 - **Negative / trade-offs:** assumed duplication cost — the squad maintains
   its own platform layer in parallel with that platform's (explicitly accepted in
   the decision record).
-- **To watch:** the anomaly-detection → RCA trigger integration should
+- **To watch:** the external anomaly-detection → RCA trigger integration should
   **consume** that project's existing enriched-payload contract (spec 18 /
   `/alerts/incoming`) rather than inventing a second one; divergence there is
   the first sign this decision needs revisiting.

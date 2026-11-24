@@ -6,7 +6,7 @@ keywords: [backstage, node, otel, prometheus, victoriametrics]
 # Backstage Metrics — Status: NOT SCRAPED
 
 **Grounded on**: Helm chart `backstage/backstage` version **2.5.2** from
-`https://backstage.github.io/charts`. Image: `harbor.<org>.com/<org>-images/backstage:latest`.
+`https://backstage.github.io/charts`. Image: `<registry>/<project>/backstage:latest`.
 Backstage stable version: aligned with **v1.52.0** (current stable as of 2026-07).
 
 ---

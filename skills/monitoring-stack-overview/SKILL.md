@@ -62,7 +62,7 @@ Three-tier architecture in the core cluster:
 | Service | URL |
 |---------|-----|
 | OTel Collector (TLS) | `https://otelcollector-prd.<org>.internal:443` |
-| OTel Gateway instances | `otel-gateway-{0,1,2}.<org>.app.br:4317` |
+| OTel Gateway instances | `otel-gateway-{0,1,2}.example.com:4317` |
 | OTel MDT | `https://otel-mdt.<org>.internal:443` |
 
 ## Backend components
@@ -81,10 +81,10 @@ Three-tier architecture in the core cluster:
 
 | Service | URL |
 |---------|-----|
-| VictoriaMetrics | `https://victoria-metrics-read.<org>.app.br/select/0/prometheus` |
-| Loki | `https://loki.<org>.app.br` |
-| Alertmanager | `https://alertmanager.<org>.app.br` |
-| Grafana | `https://grafana.<org>.app.br` |
+| VictoriaMetrics | `https://victoria-metrics-read.example.com/select/0/prometheus` |
+| Loki | `https://loki.example.com` |
+| Alertmanager | `https://alertmanager.example.com` |
+| Grafana | `https://grafana.example.com` |
 
 ## Grafana datasources
 

@@ -85,7 +85,7 @@ with repeated-char (403); the oversized payload also burned a classifier invoke 
   to the new oversized contract. Independent security review: **APPROVE-WITH-NITS**, A/B/C/D
   confirmed CLOSED with code-path evidence.
 
-### Cluster re-homologation (2026-07-11, image digest `657d9a35`, devops-core)
+### Cluster re-homologation (2026-07-11, image digest `657d9a35`, test cluster)
 
 Rebuilt multi-arch image with the Phase-6 fixes → Harbor `labs/aigent-squad:0.3.0-dev`
 (digest `sha256:657d9a35…`); rolled out gateway+supervisor (2/2 each) and re-ran the attack

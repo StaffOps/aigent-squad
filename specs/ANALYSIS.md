@@ -188,7 +188,7 @@ app fallback + distinguish transient from permanent errors.
 
 ### GITOPS
 - **F8 — ZERO CI/CD** (HIGH): docs reference GitLab CI, but the repo is **GitHub**
-  (`github.com:karlipegomes/AIgent-squad`). There's no `.gitlab-ci.yml` nor
+  (`github.com/StaffOps/aigent-squad`). There's no `.gitlab-ci.yml` nor
   `.github/workflows/`. **Nothing builds the images the `05-helm-chart` spec
   assumes exist.** It's the missing link between code and deploy.
 - **F4 — Dockerfiles**: single-stage, `python:3.12-alpine` (should be
@@ -259,7 +259,7 @@ Ordered by dependency. The 4 AUDIT specs (01–04) remain the prerequisite; thes
 > **See [`ECOSYSTEM.md`](ECOSYSTEM.md)**: decision made (2026-06-02) = **keep
 > AIgent-squad SEPARATE** (no merge, not becoming a collector of a sibling agent platform). Specs
 > like 14/17/19/21 exist more mature in that sibling agent platform and should be
-> **reused by copy** (AgentRegistry, BudgetGuard, KbDelta, the anomaly-detection
+> **reused by copy** (AgentRegistry, BudgetGuard, KbDelta, the external anomaly-detection system's
 > payload contract), not by dependency. gRPC (20) removed. Docs in English.
 
 ### Tests & verification (cross-cutting — affects every spec with code)

@@ -19,7 +19,7 @@ collecting the benefits of neither:
   private repo — external users **cannot even run the tests**), quickstart that
   requires provisioning a Bedrock Guardrail via Terraform to work with secure
   defaults, image on a personal Docker Hub namespace, deploys and homologation
-  exclusively on the <ORG> devops-core cluster, zero community surface (no
+  exclusively on the <ORG> internal cluster, zero community surface (no
   issues, no demo, no external users).
 
 Every roadmap decision (interface choice, quickstart investment, dependency
@@ -36,7 +36,7 @@ Option B's own consequence list, same day:
 - Spec 35 (quality eval harness) as the public quality bar — **shipped**
   (2026-07-15, same session).
 - **Resolved 2026-07-15**: `CONTRIBUTING.md` written; real-org references
-  (`.<org>.app.br` hostnames, "<ORG>-internal" comments) scrubbed from
+  (company hostnames, org-internal comments) scrubbed from
   `infra/values/values.yaml`, `infra/librechat/librechat.yaml`,
   `agents/kubernetes/agent.yaml`, `src/gateway/worker_pool.py`, and several
   spec/doc files — real infra examples stay as internal reference material
