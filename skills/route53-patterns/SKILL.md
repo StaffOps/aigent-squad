@@ -47,7 +47,7 @@ resource "aws_route53_zone" "private" {
     CostCenter  = "<cost-center>"
     CostScope   = "INFRASTRUCTURE"
     CostProject = "DNS"
-    Name        = "<org>-internal-private-zone"
+    Name        = "internal-private-zone"
   }
 }
 ```

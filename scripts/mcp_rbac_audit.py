@@ -9,7 +9,7 @@ a new MCP server = URL + read-only allowlist + proven SA RBAC.
 
 Usage:
     python3 scripts/mcp_rbac_audit.py --serviceaccount <name> --namespace <ns> [--context <ctx>]
-    python3 scripts/mcp_rbac_audit.py --config mcp-servers.yaml
+    python3 scripts/mcp_rbac_audit.py --config mcp-service-accounts.yaml
 
 Exit codes:
     0 = PASS (all permissions are read-only)
@@ -359,9 +359,9 @@ def load_config(path: str) -> list[dict]:
     Expected format (YAML or JSON):
         service_accounts:
           - name: kube-mcp
-            namespace: mcp-servers
+            namespace: <namespace>
           - name: vm-mcp
-            namespace: mcp-servers
+            namespace: <namespace>
     """
     import os
 

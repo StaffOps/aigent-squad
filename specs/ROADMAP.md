@@ -20,7 +20,7 @@ state and the current work order are below; live items are in [`BACKLOG.md`](BAC
 published, image `ghcr.io/staffops/aigent-squad:0.4.0` on GHCR — spec 34's
 `RELEASE.md` executed for real, Phases 0-2: pre-flight, PR `dev→main` #19
 merged, tag pushed, `release.yml` green, image content verified to contain
-this milestone's code). Cluster (devops-core) still runs via the separate
+this milestone's code). The test cluster still runs via the separate
 Harbor path (`labs/aigent-squad:0.3.0-dev`, digest `e94a901`, redeployed +
 homologated 2026-07-15, same code content as the 0.4.0 tag) — RELEASE.md
 Phases 3-5 (chart bump/publish, overlay revert to the published chart, a
@@ -47,7 +47,7 @@ next real roadmap item.
 >    candidate `38-on-trigger-comprehension` — entity resolution + baseline verdicts
 >    computed in code at trigger time (requirements seed: `docs/BEHAVIOR-BASELINES.md`;
 >    entity #1 = the squad itself). Enters the queue after 35/18-Phase-1.5 (consumes
->    B-01 adapters + feedback loop); anomaly-detection integration stays OPTIONAL.
+>    B-01 adapters + feedback loop); integration with an external anomaly-detection system stays OPTIONAL.
 >
 > Full critical-review reasoning: `specs/PRODUCT-REVIEW-2026-07.md` (PR-01..38, §§A–F).
 > Live item tracking: `specs/BACKLOG.md` (findings F-*, product B-*, decisions D-*).

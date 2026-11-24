@@ -111,7 +111,7 @@ same change.
   answer correctly," and score better against a real cluster/production
   GitLab token.
 - `kubernetes`'s MCP datasource (`${K8S_MCP_URL}`, set per deployment)
-  is only resolvable from inside the devops-core cluster network — a local
+  is only resolvable from inside the test cluster network — a local
   `make eval` run will see honest "couldn't reach the cluster" answers
   rather than real cluster data. Still a valid signal (tests the honesty
   path — see `evals/golden/kubernetes.yaml`), just not full-value scoring.

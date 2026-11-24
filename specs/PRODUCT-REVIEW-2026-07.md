@@ -65,11 +65,11 @@ force context stuffing costs tokens/latency on every request.
 → Orientation: selective collection by query relevance (keyword/intent match per
 datasource — NO tool-loop, ADR-001 intact). → Tracked: BACKLOG.
 
-**PR-07 · 🟠 · The ecosystem's best trigger is unwired.** `staffops-anomaly-detection`
+**PR-07 · 🟠 · The ecosystem's best trigger is unwired.** An external anomaly-detection system
 produces enriched alerts ("~80% of the diagnosis ready" — ECOSYSTEM.md) and spec 18 was
 designed to consume that contract. It never was wired. This is the highest-leverage
 integration available: it makes the squad valuable WITHOUT anyone asking a question.
-→ Orientation: wire anomaly-detection → `/alerts/incoming` as the **CASE-001 pathway**
+→ Orientation: wire the anomaly-detection system → `/alerts/incoming` as the **CASE-001 pathway**
 (spec 18 T15) — one integration, two goals. → Tracked: spec 18 Phase 1.5 T15 note + BACKLOG.
 
 **PR-08 · 🟡 · Skills mechanism built, knowledge starved.** Lazy-skill machinery is
@@ -169,7 +169,7 @@ eval machinery at answer time. → Tracked: BACKLOG B-16.
 **PR-29 · 🟠 · No environment model — every query rediscovers the world.** Agents see
 raw API responses per request; nothing persists "what this environment IS" (services,
 namespaces, ownership, cost drivers, normal baselines). A **periodic environment
-snapshot** (cron: summarize inventory + baselines — reuse anomaly-detection's baselines
+snapshot** (cron: summarize inventory + baselines — reuse the anomaly-detection system's baselines
 — into a compact cached context block) makes answers sound situated ("cluster X's
 node group Y, which grew 20% this week…") and CUTS live API calls. Cost: ~1
 summarization call/day, cached in Redis/KB. → Tracked: BACKLOG B-17.
@@ -213,7 +213,7 @@ multi-turn breakage); the datasource cache + PR-27 tiers capture the savings saf
 > **Product decision D-03 (owner: Carlos, 2026-07-04, refined same day)**: the squad is
 > **reactive by design** — it acts ONLY when triggered (user question or incoming
 > alert). Proactive watching/alerting is a **SEPARATE product** (that is
-> `staffops-anomaly-detection`'s territory; its integration stays optional — enriched
+> an external anomaly-detection system's territory; its integration stays optional — enriched
 > alerts arrive at `/alerts/incoming` like any other trigger). What IS core: when
 > triggered, the squad must **minimally understand what it received** — which entity,
 > what the data means, whether the behavior is normal. The methodology the user asked
@@ -242,7 +242,7 @@ implementation.** BEHAVIOR-BASELINES.md §§2–4 answer the definition problem:
 (W1–W8, including W8 declared blind spots), signal catalog with mandatory
 failure-hypothesis column, 4-method baseline decision tree (static / robust-z
 median+MAD / seasonal-naive / derivative — ML never by default; a signal defeating all
-four is the ONLY door through which anomaly-detection's ML earns a place, as a baseline
+four is the ONLY door through which the anomaly-detection system's ML earns a place, as a baseline
 SOURCE, not a trigger). → Tracked: B-22 + the living doc.
 
 **PR-36 · 🟠 · Comprehension needs quality metrics of its own.** Verdict precision

@@ -150,7 +150,7 @@ does not regress.
 
 - [ ] T11: **One real distributed query homologated end-to-end in a live
   environment.** Not a unit test. Deploy at least one specialist as an
-  independent service in devops-core (or equivalent staging), route real traffic,
+  independent service in the test cluster (or equivalent staging), route real traffic,
   and verify: answer quality, latency, tracing, budget accounting, degraded
   synthesis on kill. Acceptance: documented evidence (screenshots/logs/traces)
   of a real query served via the distributed path with no regression vs the

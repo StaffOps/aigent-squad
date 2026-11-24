@@ -4,7 +4,7 @@
 
 ```
  build stage (existing)                operate stage (NEW)
- requirements → design → tasks         devops-core runtime
+ requirements → design → tasks         deployed runtime
       → verify → done                        │ emits aigent.* metrics + AIP cost tags
             ▲                                ▼
             │                     ┌─────────────────────────┐
@@ -99,7 +99,7 @@ the review is a gate for *planned* promotion, never an excuse to delay incident 
 
 ## Verification
 
-- First review record exists with real numbers from devops-core (or explicit GAP rows).
+- First review record exists with real numbers from the test cluster (or explicit GAP rows).
 - Each TRIGGERS.md row resolves: run its query verbatim → a value or a clean gap.
 - Negative check: BACKLOG item promoted without review citation should be rejected in
   review (process check, exercised in the dogfood run).

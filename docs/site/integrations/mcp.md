@@ -108,7 +108,7 @@ duplicate tool names across merged datasources — dedupe the allowlist when bin
 datasources:
   - type: mcp
     name: k8s-mcp
-    url: ${K8S_MCP_URL}                            # e.g. http://kube-mcp.mcp-servers.svc.cluster.local:8080/mcp
+    url: ${K8S_MCP_URL}                            # e.g. http://<kubernetes-mcp-service>.<namespace>.svc.cluster.local:8080/mcp
     transport: streamable-http
     tools: [pods_list, nodes_top, events_list]     # read-only allowlist
     tool_arguments:                                # static args merged into every call

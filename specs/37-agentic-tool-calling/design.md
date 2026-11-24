@@ -207,7 +207,7 @@ are **preserved and extended**, not reversed.
 
 ## Post-homologation findings (2026-07-20)
 
-Landed after the live homolog on devops-core:
+Landed after the live homolog on the test cluster:
 
 - **G-1 (unknown model → auto-route):** the gateway `resolve_target` maps an unknown/`base`/`large`
   model id to auto-route (None) instead of HTTP 400; known `aigent-squad-<agent>` still forces. Lets

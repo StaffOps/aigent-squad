@@ -6,7 +6,7 @@ keywords: [kubescape, go, prometheus, could]
 # Kubescape Operator Metrics
 
 **Chart**: `kubescape/kubescape-operator` v1.27.7 (Helm repo `https://kubescape.github.io/helm-charts`).
-**Deployed on**: `devops-core` cluster, namespace `kubescape`.
+**Deployed on**: `<cluster>` cluster, namespace `kubescape`.
 
 ---
 

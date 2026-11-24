@@ -24,7 +24,7 @@ scraped into VictoriaMetrics by vmagent via ServiceMonitor.
 | **App version** | GitLab Runner ~v17.10 |
 | **Releases** | `<org>` (3 replicas, amd64), `<org>-graviton` (2 replicas, arm64) |
 | **Namespace** | `gitlab-runner` |
-| **Cluster** | `devops-core` |
+| **Cluster** | `<cluster>` |
 | **Executor** | Kubernetes (pods spawned per job) |
 | **Metrics enabled** | ✅ `metrics.enabled: true` |
 | **ServiceMonitor** | ✅ `metrics.serviceMonitor.enabled: true` |

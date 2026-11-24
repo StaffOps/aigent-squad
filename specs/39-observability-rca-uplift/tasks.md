@@ -13,7 +13,7 @@ Legend: `[ ]` pending · `[~]` partial · `[x]` done. Code follows the harness
 > to `<think>` (LibreChat-collapsible; raw `<details>` showed as plain text) — configurable via
 > `AIGENT_TRACE_STYLE`; `session_token_budget` raised 200K→2M (agentic queries cost ~30-60K each,
 > old cap blocked chats after ~5 queries), env `SESSION_TOKEN_BUDGET`. Open "tempo" levers: vmselect
-> OOM on devops-core (slow queries) + agent decisiveness on open-ended asks.
+> OOM on the test cluster (slow queries) + agent decisiveness on open-ended asks.
 
 ## Phase 0 — Spec & round-table
 - [ ] T0.1 Round-table (observability + security + sre + code-review) — refute WS1/WS2/WS3.

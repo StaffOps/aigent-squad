@@ -24,7 +24,7 @@ Mirrors the convention of a sibling internal agent platform (which already has `
 
 ### Decision 1: GitHub Actions (not GitLab CI)
 **Choice**: pipeline in GitHub Actions.
-**Justification**: the repo **is** on GitHub (`github.com:karlipegomes/AIgent-squad`); the docs citing GitLab CI are fiction (gitops F8). The ecosystem (that sibling agent platform) already uses GitHub Actions — consistency.
+**Justification**: the repo **is** on GitHub (`github.com/StaffOps/aigent-squad`); the docs citing GitLab CI are fiction (gitops F8). The ecosystem (that sibling agent platform) already uses GitHub Actions — consistency.
 **Trade-off**: if ever migrated to GitLab, the 4-stage design translates 1:1.
 
 ### Decision 2: CI reuses the harness from spec 23 (not its own test path)

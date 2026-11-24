@@ -214,7 +214,7 @@ A candidate learning is rejected if ANY layer fails. Rejection is an audit event
 |-------|----------------|-----------------|
 | Instruction injection | `ignore previous`, `system:`, `<\|im_start\|>`, `[INST]`, `Human:`, `Assistant:` | REJECT + audit |
 | Executable code | Shell commands (`rm -rf`, `curl \| bash`), SQL injection patterns, script tags | REJECT + audit |
-| URL allowlist | Any URL not matching internal domains (`*.bigdatacorp.com.br`, `*.bdc.app.br`, GitLab internal) | REJECT + audit |
+| URL allowlist | Any URL not matching internal domains (e.g. `*.example.com`, internal GitLab) | REJECT + audit |
 | Length anomaly | Content >5000 chars (learnings should be concise) | FLAG for manual review |
 | Repetition anomaly | >3 KB entries from the same source investigation within 1 hour | FLAG for manual review |
 

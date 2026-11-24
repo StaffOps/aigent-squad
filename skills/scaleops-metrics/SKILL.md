@@ -19,7 +19,7 @@ keywords: [scaleops, prometheus]
 | CRD API group | `analysis.scaleops.sh/v1alpha1` |
 
 Grounded on: helmfile at `k8s-setup/scaleops/helmfile.yaml.gotmpl` (deployed to
-`devops-core`, `applications-dev-nv`, `applications-prd-nv` clusters).
+`<core-cluster>`, `<dev-cluster>`, `<prd-cluster>` clusters).
 
 ---
 

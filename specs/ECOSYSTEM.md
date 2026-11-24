@@ -5,13 +5,13 @@
 > spec-process convention (`specs/README.md`).
 
 **Date**: 2026-06-02
-**Scope**: analysis of a sibling agent platform, `staffops-anomaly-detection` and
-`01-DEVOPS/LABS/anomaly-detection` for reuse/integration into AIgent-squad.
+**Scope**: analysis of a sibling agent platform, an external anomaly-detection system and
+a lab copy of it for reuse/integration into AIgent-squad.
 
 > **Central finding**: there is a StaffOps ecosystem where **much of what we plan
 > for AIgent-squad (specs 14, 17, 18, 19, 21) is already designed — and in
 > several cases more mature — in that sibling agent platform.** The flow you want (RCA +
-> learning) **is already the product** that the agent platform + anomaly-detection form
+> learning) **is already the product** that the agent platform + the anomaly-detection system form
 > together. This requires a positioning decision before continuing to implement
 > AIgent-squad in isolation.
 
@@ -38,7 +38,7 @@ Specs already written (`specs/`):
 
 It also has `.kiro/skills/`: `kiro-cli-auth`, `mcp-deployment`, `documentation-audit`.
 
-### 2. `staffops-anomaly-detection` — source of the RCA trigger (Go + Python ML)
+### 2. An external anomaly-detection system — source of the RCA trigger (Go + Python ML)
 Controller + gRPC workers (static/adaptive Z-score/log/events detection),
 **correlation engine** (workload extraction, dedup cooldown, ≥3 sibling pods →
 workload-level alert, metric+log+ML severity escalation), enrichment, replay-mode,
@@ -50,7 +50,7 @@ correlation + Grafana/Tempo/Loki links) to the agent platform's Agent API —
 fire-and-forget, circuit breaker, dedup, 64KB cap. **It's the RCA trigger that
 delivers ~80% of the diagnosis ready.**
 
-### 3. `01-DEVOPS/LABS/anomaly-detection` — lab/old version of #2 (ignore; use #2).
+### 3. A lab copy of #2 — old version (ignore; use #2).
 
 ---
 
@@ -130,7 +130,7 @@ Communication is not on the list.
 | 11 bedrock-cost (Haiku) | **Keep** — high impact on cost+latency |
 | 14 security | **Keep** — copy the `api-authentication` pattern (auth via flag) |
 | 17 multi-agent (fan-out) | **Keep — it's THE speed engine.** Reuse `BudgetGuard`+cycle detection from `multi-agent-coordinator` by copy |
-| 18 RCA | **Keep — the differentiator.** Consume the anomaly-detection payload contract (don't invent another) |
+| 18 RCA | **Keep — the differentiator.** Consume the anomaly-detection system's payload contract (don't invent another) |
 | 19 config | **Keep** — copy the `AgentRegistry` (already our design). 22 replaces/extends it |
 | **20 gRPC** | **❌ REMOVED** — irrelevant latency gain (~3ms over 5s). Don't build |
 | 21 learning | **Keep** — reuse the `KbDelta` schema + thresholds from `conversation-distillation` by copy |
@@ -147,7 +147,7 @@ Communication is not on the list.
    iterative" question of 18.
 4. **`KbDelta` schema + thresholds + training mode** (conversation-distillation)
    — learning design of 21.
-5. **anomaly-detection payload contract** (agent-api-integration) — 18 should
+5. **anomaly-detection system payload contract** (agent-api-integration) — 18 should
    **consume** this contract.
 6. **`kiro-cli-auth` skill** — API key vs SSO vs IRSA auth.
 7. **Platform patterns**: worker-pool, OpenAI-compat bridge, OTel Collector in

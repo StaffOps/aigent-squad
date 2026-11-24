@@ -210,5 +210,5 @@ datanucleus_query_execution_time_ms_avg > 500
 
 - [Dependency-Track Official Monitoring Docs (v4.14)](https://docs.dependencytrack.org/getting-started/monitoring/)
 - [DependencyTrack/helm-charts — Chart v0.44.0](https://github.com/DependencyTrack/helm-charts/releases/tag/dependency-track-0.44.0)
-- Deployed config: `k8s-setup/dependency-track/dependency-track/values.yaml.gotmpl` (serviceMonitor enabled, devops-core cluster)
+- Deployed config: `k8s-setup/dependency-track/dependency-track/values.yaml.gotmpl` (serviceMonitor enabled, `<cluster>` cluster)
 - Metric names sourced from official docs example output (DataNucleus, HikariCP, Alpine, Executor, Search Index, Resilience4j namespaces)

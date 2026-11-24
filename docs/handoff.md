@@ -21,7 +21,7 @@ Tag `v0.5.0` pushed 2026-08-18. All CI workflows green:
 - **Test**: 1982 passed, 92.96% coverage, mypy strict, lint, specs-status
 
 ### Cluster
-- Image: `harbor.bigdatacorp.com.br/labs/aigent-squad:0.5.0-dev-205fb21`
+- Image: `<registry>/<project>/aigent-squad:0.5.0-dev-205fb21`
 - 4 pods healthy (2 gateway + 2 supervisor)
 - Grafana dashboard: `DevOps-Testing/StaffOps` (uid: `a4j5w8`)
 

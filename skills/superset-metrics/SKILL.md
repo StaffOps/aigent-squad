@@ -12,7 +12,7 @@ keywords: [superset, postgres, prometheus, python, redis]
 | Helm chart | `superset/superset` (from `http://apache.github.io/superset/`) |
 | Chart version | **0.14.0** |
 | Namespace | `superset` |
-| Cluster | `devops-core` |
+| Cluster | `<cluster>` |
 
 ---
 

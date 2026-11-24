@@ -43,7 +43,7 @@ helm/aigent-squad/
 ```yaml
 global:
   image:
-    repository: harbor.<org>.app.br/aigent-squad   # Kyverno rewrites to proxy
+    repository: <registry>/<project>/aigent-squad   # Kyverno rewrites to proxy
     tag: ""                                       # default = .Chart.AppVersion
   environment: DEV                                # DEV/HML/PRD/BTC
   costCenter: Platform-Infrastructure             # CONFIRM with tags.md
@@ -67,8 +67,8 @@ ingress:
   enabled: true
   className: alb
   hosts:
-    supervisor: aigent.<org>.app.br
-    mcp: aigent-mcp.<org>.app.br
+    supervisor: aigent.example.com
+    mcp: aigent-mcp.example.com
 
 # Service map — source of truth for the range
 services:
@@ -234,7 +234,7 @@ KEDA, Argo Rollouts, External Secrets Operator, cert-manager, Istio Ambient, Kyv
 ## Open decisions (CONFIRM with user)
 
 1. Correct `CostCenter` (steering `clarification-protocol`: don't invent). Placeholder `Platform-Infrastructure`.
-2. Ingress domains (`aigent.<org>.app.br`?).
+2. Ingress domains (`aigent.example.com`?).
 3. AWS account / IRSA role ARNs.
 4. Target namespace (`aigent-squad-<env>`?).
 5. Does `kubernetes-agent` really need `ClusterRole` (all namespaces) or can it be scoped per namespace?

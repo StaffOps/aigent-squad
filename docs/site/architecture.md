@@ -79,7 +79,7 @@ availability).
 |----------|-----------|
 | Edge gateway in front of the supervisor | Independent scaling; admission/backpressure before the expensive tier; client-protocol isolation (spec 31) |
 | One image, command override per tier | No second build; gateway and supervisor can never drift in deps |
-| Gateway is the single front door | External (LibreChat) AND in-cluster callers (Alertmanager, anomaly-detection, Falco) go through one authenticated, rate-limited entry — never the supervisor directly |
+| Gateway is the single front door | External (LibreChat) AND in-cluster callers (Alertmanager, an anomaly-detection system, Falco) go through one authenticated, rate-limited entry — never the supervisor directly |
 | Single image, in-process agents | No inter-container HTTP between agents; simpler; lower footprint |
 | Config-driven agents (`agent.yaml` + `prompt.md`) | Zero-code agent creation; git-managed; hot-reload on restart |
 | DatasourceAdapter pattern | Decouples data fetching from agent logic; enforces read-only at the code level |

@@ -22,7 +22,7 @@ ExternalDNS pod (:7979/metrics) → vmagent (ServiceMonitor) → VictoriaMetrics
 - **Port**: 7979 (default metrics port)
 - **ServiceMonitor**: enabled via `serviceMonitor.enabled: true` in Helm values
 - **Two instances deployed per cluster**:
-  - `external-dns-private` — manages private zones (`<org>.app.br`, `<org>.api.br`, `<org>.internal`), `--aws-zone-type=private`
+  - `external-dns-private` — manages private zones (e.g. `app.example.com`, `api.example.com`, `example.internal`), `--aws-zone-type=private`
   - `external-dns-public` — manages public zones (`<org>.com`, `<org>.info`), `--aws-zone-type=public`
 - **Namespace**: `external-dns`
 - **Sync interval**: `1m` (configured via `interval: 1m`)

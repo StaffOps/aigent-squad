@@ -359,7 +359,7 @@ omitted silently. Every test injected the dataclass, so every test passed.
   via a real `json.dumps`/`json.loads` round-trip; the other asserts a malformed assessment
   neither breaks the response nor passes unlogged.
 
-Homologated live on devops-core (helm rev 65): `x_aigent.quality` = `{confidence: "high",
+Homologated live on the test cluster (helm rev 65): `x_aigent.quality` = `{confidence: "high",
 unverified_claims: []}` on a real agentic query. The rest of the chain was already confirmed
 working in production before this fix — `aigent.quality.confidence{level="high"}` and
 `aigent.quality.unverified_claims_per_response` were both being emitted and scraped, which is
@@ -434,7 +434,7 @@ structural and observable.
 - 30 independent-author tests (verification-independence); suite 1811 passed, coverage 93.36%.
 
 ### Deployed / cleanup / CI (2026-07-24)
-- Deployed **agentic29** to devops-core (helm rev 62, multi-arch) — the observability metric improvements are live in-process; VM visibility pending a scrape-path fix (app custom metrics have no VMServiceScrape — pre-existing gap, affects all `aigent.*` incl. the agentic28 tier counter).
+- Deployed **agentic29** to the test cluster (helm rev 62, multi-arch) — the observability metric improvements are live in-process; VM visibility pending a scrape-path fix (app custom metrics have no VMServiceScrape — pre-existing gap, affects all `aigent.*` incl. the agentic28 tier counter).
 - Cleanup (audit #3): removed dead `src/agents/` package tree + accidentally-committed root `otel_helper/` stub (now gitignored); archived 2 superseded eval baselines.
 - CI drift repaired (audit #6-9): re-pointed the `CALIBRATED_HONESTY` import (moved to `settings`), scaled the truncation test fixture past the raised 40k cap, aligned ~38 marker assertions to the current strings, added `fakeredis[lua]` test dep.
 - Changelog hygiene: consolidated 3 stray dated `[Unreleased]` sections into `[0.1.0]`; `Dockerfile.test` dropped the vestigial `github_token` secret (otel-helper public since B-28).
@@ -496,15 +496,15 @@ zero vanity, full RED+USE+cost+quality). Acted on the findings:
   (RCA/why/investigate) + **alertmanager webhook** bypassed it → 17/17 live invocations were Sonnet,
   Opus/Haiku NEVER activated. Fixed (harness pipeline dev→dev-test→code-review, 103 tests): force_agent
   uses a heuristic complexity (no extra classify), investigation/alertmanager route as `complex`.
-  **Live-validated on devops-core (agentic28): simple→Haiku (2.4s), complex RCA→Opus 4.5 (15 Opus
+  **Live-validated on the test cluster (agentic28): simple→Haiku (2.4s), complex RCA→Opus 4.5 (15 Opus
   invocations, `tier=deep` logged).** Also raised `GATEWAY_FIRST_BYTE_TIMEOUT` 90→140s — Opus + the
   non-streaming multi-agent/investigation path make first-byte = loop completion (~100s), which 90s cut → 500.
-- _P1 DEPLOYED to devops-core (test=prod): GitLab prompts pushed (git-synced), image `agentic28` built
+- _P1 DEPLOYED to the test cluster (test=prod): GitLab prompts pushed (git-synced), image `agentic28` built
   + deployed (rev 61), Opus 4.5 deep tier LIVE + validated. App code committed on branch
   `fix/openai-compat-drop-system-messages` (not yet merged to dev — pending PR)._
 
 ### Added — grafana-mcp + kubectl-mcp read-only bindings
-- **grafana-mcp bound to the observability agent** (2026-07-22) — the deployed `mcp-servers/grafana-mcp`
+- **grafana-mcp bound to the observability agent** (2026-07-22) — the deployed `<namespace>/grafana-mcp`
   server is now wired as a datasource with a **strict read-only tool allowlist** (44 read tools:
   Loki logs, Tempo traces, Pyroscope profiles, Prometheus, dashboards, alerts/incidents/OnCall/Sift
   read). The allowlist is a whitelist and **excludes every mutating tool** (create/update/delete/add/
@@ -582,7 +582,7 @@ zero vanity, full RED+USE+cost+quality). Acted on the findings:
   "empty" mis-catalog); wired into observability/kubernetes/devops.
 - **Observability Rule 5 (health-verdict discipline):** never declare "healthy/EXCELENTE" without a
   tool result this turn; recurring OOM/restarts/errors = degraded, lead with the findings.
-- **Security scrub:** all BigDataCorp/BDC references removed from the project → `<ORG>` placeholders
+- **Security scrub:** all company-specific references removed from the project → `<ORG>` placeholders
   (`scripts/scrub_org.py`); 6 skills renamed; zero traces remain.
 
 ### Known / blocked
@@ -605,7 +605,7 @@ zero vanity, full RED+USE+cost+quality). Acted on the findings:
   result / answer) so LibreChat shows the subagent think + act live; `stream:true`
   makes exactly one agentic invocation (replaces pseudo-streaming). Forced-agent
   models today; auto-route deferred.
-- Homologated live on devops-core: the "pods in namespace monitoring" query that
+- Homologated live on the test cluster: the "pods in namespace monitoring" query that
   previously returned a false negative now calls the right tool and answers from
   real data.
 - **Scale** — `MAX_TOOL_RESULT_CHARS` 8K→40K + `MAX_LOOP_TOKENS` 50K→150K + count-framing:
@@ -627,7 +627,7 @@ zero vanity, full RED+USE+cost+quality). Acted on the findings:
 - **G-5 / G-3 per-consumer scope** — `GATEWAY_KEY_AGENT_MAP` maps a consumer key → a default agent
   (e.g. observability) on auto-route models (an explicit `aigent-squad-<agent>` still wins; not an
   auth bypass).
-- **G-3 endpoint** — stable prod exposure confirmed (HTTPRoute `aigent-squad.<org>.app.br/v1` +
+- **G-3 endpoint** — stable prod exposure confirmed (HTTPRoute `aigent-squad.example.com/v1` +
   in-cluster `aigent-squad-gateway.staffops.svc:8000/v1`); per-consumer key mechanism ready.
 - **MCP SA-RBAC audit gate** — `scripts/mcp_rbac_audit.py` (+ Makefile + REQUIRED onboarding doc)
   proves a new MCP server's ServiceAccount is read-only (fails on any mutating verb). Live-validated:
@@ -796,7 +796,7 @@ runbook), and a full re-homologation against the real cluster.
   found during cluster homologation.
 
 ### Deployed
-- Re-homologated in-cluster 2026-07-15 (devops-core, Harbor digest
+- Re-homologated in-cluster 2026-07-15 (test cluster, registry digest
   `e94a901`): F-007's fix confirmed live via the classifier's own reasoning
   field, new `security` agent answering real IAM questions, all 6 agents
   visible via `/v1/models`, zero errors across the rollout.
@@ -805,7 +805,7 @@ runbook), and a full re-homologation against the real cluster.
 
 First cluster-validated release: the edge gateway + supervisor (spec 31) and the
 OpenAI-compatible bridge (spec 29) run end-to-end on a real EKS cluster
-(devops-core), serving live queries through Bedrock with real AWS inventory via
+(test cluster), serving live queries through Bedrock with real AWS inventory via
 IRSA. Promotes the accumulated `0.3.0-dev` work to a stable cut.
 
 ### Cluster validation & fixes (2026-07-02)
@@ -826,7 +826,7 @@ IRSA. Promotes the accumulated `0.3.0-dev` work to a stable cut.
 - `Dockerfile`: documents one-image/two-command model (EXPOSE 8000+8001). Pipelines confirmed aligned — `test.yml` coverage gate already covers `src/gateway` via `.coveragerc` (`source=src`); one image + command override needs no build split. Full suite green: 402 tests, 93.28% coverage. L5 pending: k6 load test (T21), final independent review (T23).
 
 ### Added (Spec 31 L4: two-tier deploy)
-- **Helm** (in the `StaffOps/helm-charts` repo, chart `aigent-squad`): the existing `services` map gains a `gateway` entry (public, port 8000) alongside `supervisor` (now backend-only, port 8001). The chart's per-service `networkPolicy.allowFrom` makes gateway ingress customizable — the gateway fronts BOTH external traffic AND in-cluster callers (Alertmanager → spec 18, anomaly-detection, Falco, …). Supervisor NetworkPolicy stays gateway-only (the `/internal/*` trust boundary). `SUPERVISOR_INTERNAL_TOKEN` as a distinct ExternalSecret. CostCenter `devops-team`. (Chart changes live in that repo, not here.)
+- **Helm** (in the `StaffOps/helm-charts` repo, chart `aigent-squad`): the existing `services` map gains a `gateway` entry (public, port 8000) alongside `supervisor` (now backend-only, port 8001). The chart's per-service `networkPolicy.allowFrom` makes gateway ingress customizable — the gateway fronts BOTH external traffic AND in-cluster callers (Alertmanager → spec 18, an anomaly-detection system, Falco, …). Supervisor NetworkPolicy stays gateway-only (the `/internal/*` trust boundary). `SUPERVISOR_INTERNAL_TOKEN` as a distinct ExternalSecret. CostCenter `devops-team`. (Chart changes live in that repo, not here.)
 - `docker-compose.yaml`: two-tier local stack — supervisor now backend-only (`expose: 8001`, `command: src.supervisor.server`, `SUPERVISOR_INTERNAL_TOKEN`), new `gateway` service (`:8000`, forwards to supervisor). `mcp-server` repointed to `http://gateway:8000/query` (T19c).
 - `mcp-server/mcp-server.py`: default `SUPERVISOR_URL` → gateway `/query` (supervisor public `/query` no longer exists).
 
@@ -941,7 +941,7 @@ version linkage (`appVersion` 0.2.0, scan-gated `release.yml`).
 - `Dockerfile.test`: reproducible test image (`python:3.11-slim` + SSH for private `otel-helper` dep); run via volume mount — no rebuild on code change
 
 ### Added (CI: Docker Hub image publishing)
-- `.github/workflows/build.yml`: new `build-dockerhub` job — builds true multi-arch manifest (`linux/amd64,linux/arm64`) and pushes `karlipegomes/aigent-squad:latest` + `:sha-<short>` on every merge to `main`
+- `.github/workflows/build.yml`: new `build-dockerhub` job — builds true multi-arch manifest (`linux/amd64,linux/arm64`) and pushes `<personal-dockerhub-user>/aigent-squad:latest` + `:sha-<short>` on every merge to `main`
 - Fixed `build-ecr` SSH agent setup: now uses `webfactory/ssh-agent` (exposes `SSH_AUTH_SOCK` to Docker buildx) instead of checkout-only `ssh-key`
 
 ### Added (Helm chart — repo `helm-charts`, chart `aigent-squad` 0.5.0)
@@ -977,7 +977,7 @@ version linkage (`appVersion` 0.2.0, scan-gated `release.yml`).
 
 ### Added (MCP outbound — agents as MCP clients)
 - `McpAdapter` (`type: mcp` datasource): read-only tool allowlist (fail-closed), SSE transport, `inject_query_as` opt-in
-- Wired the kubernetes agent to the cluster's `devops-mcp-kube` server (read-only tools only; mutating tools excluded by allowlist)
+- Wired the kubernetes agent to the cluster's Kubernetes MCP server (read-only tools only; mutating tools excluded by allowlist)
 - `tests/test_adapters.py`: +7 MCP tests; validated end-to-end against the real cluster MCP server
 - `docs/MCP_INTEGRATION.md`: documented both directions (inbound server / outbound client)
 

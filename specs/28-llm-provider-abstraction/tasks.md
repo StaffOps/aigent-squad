@@ -45,8 +45,8 @@ live endpoint check.
 - [x] Task 11: Independent code review (no blockers; findings applied as Task 10b) —
       the "real server" refutation is folded into Task 12 below (2026-11-15)
 - [x] Task 12: Live validation against a real OpenAI-compatible endpoint — done
-      2026-11-15 on k8s01 (throwaway ns `aigent-squad-dev`, image
-      `harbor.staffops.space/development/aigent-squad:0.5.0-dev-spec28`, chart 0.9.6,
+      2026-11-15 on a test cluster (throwaway ns `aigent-squad-dev`, image
+      `<registry>/<project>/aigent-squad:0.5.0-dev-spec28`, chart 0.9.6,
       llama.cpp server CPU, Qwen2.5-1.5B-Instruct Q4_K_M, `--jinja`, 16k ctx). Proven:
       `invoke()` (classifier, aws/finops/devops, RCA synthesis + T13 ceiling) and
       `converse()` (kubernetes, incl. timeout→retry→success); 4xx (context overflow)

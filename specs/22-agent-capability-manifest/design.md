@@ -174,7 +174,7 @@ Adapters are **stateless** and **read-only** (the `Boto3Adapter` only calls `des
 ```yaml
 # values.yaml
 image:
-  repository: harbor.company.com/aigent-squad
+  repository: <registry>/<project>/aigent-squad
   tag: "0.3.0"
 
 agentsSource:

@@ -5,7 +5,7 @@ Legend: `[ ]` pending · `[~]` partial · `[x]` done. Each code task follows the
 
 > **Status 2026-07-20 (done-with-deferrals):** Phases 1–4 implemented, each via an
 > independent `dev`→`dev`(tests)→`code-review` pipeline, + **homologated LIVE** on
-> devops-core (agentic tool-calling + streaming steps + read-only + guardrail 3-tier).
+> the test cluster (agentic tool-calling + streaming steps + read-only + guardrail 3-tier).
 > Round-table B1–B8 fixes landed. Deferred (BACKLOG Deferred register + Grafana section):
 > count-framing (headline count), auto-route streaming, MCP SA-RBAC CI gate, G-1..G-5, R1–R7.
 
@@ -43,7 +43,7 @@ Legend: `[ ]` pending · `[~]` partial · `[x]` done. Each code task follows the
 
 ## Phase 4 — Rollout (kube-mcp / vm-mcp first — already 100% read-only)
 - [ ] T15: `code-review` of the full change.
-- [ ] T16: Build + push multi-arch image; deploy to devops-core homolog.
+- [ ] T16: Build + push multi-arch image; deploy to the test cluster homolog.
 - [ ] T17: **Homologate the regression**: "pods in ns monitoring" returns the real count (263);
       cross-agent smoke (aws/observability read-only queries) via the loop.
 - [ ] T18: Docs: update MCP_INTEGRATION.md (agentic, not Caminho A), read-only-policy, CHANGES.

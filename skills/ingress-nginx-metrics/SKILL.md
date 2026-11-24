@@ -42,7 +42,7 @@ Controller Pod :10254/metrics → ServiceMonitor → vmagent scrape → Victoria
 
 **How enabled**: `controller.metrics.enabled: true` + `controller.metrics.serviceMonitor.enabled: true` in each instance's values.yaml. PrometheusRules are also enabled via `controller.metrics.prometheusRule.enabled: true`.
 
-**Clusters**: devops-core, applications-dev-nv, applications-prd-nv (all instances on dev/prd; only external+internal on core).
+**Clusters**: <core-cluster>, <dev-cluster>, <prd-cluster> (all instances on dev/prd; only external+internal on core).
 
 ---
 

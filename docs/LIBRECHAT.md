@@ -39,8 +39,8 @@ backpressure in front of it.
 ## Setup — in-cluster LibreChat (Helm chart, optional)
 
 The chart ships an **optional** in-cluster LibreChat + single-pod MongoDB
-(`librechat.enabled`, default `false`; requires chart **≥ 0.9.5**). Enabled on
-devops-core (`staffops` namespace) for homologation.
+(`librechat.enabled`, default `false`; requires chart **≥ 0.9.5**). Can be enabled on
+a test cluster (e.g. in the `staffops` namespace) for homologation.
 
 Enable it in the release values:
 
@@ -49,11 +49,11 @@ librechat:
   enabled: true
   route:                      # expose the UI via an Istio GatewayAPI HTTPRoute
     enabled: true
-    host: librechat-ais.<org>.app.br
+    host: librechat.example.com
     annotations:
-      external-dns.alpha.kubernetes.io/hostname: librechat-ais.<org>.app.br
+      external-dns.alpha.kubernetes.io/hostname: librechat.example.com
     parentRef:                # omit to inherit routing.gatewayapi.parentRef
-      name: istio-dvps-internal
+      name: <internal-gateway>
       namespace: istio-gateway
       sectionName: https-<org>-app-br
 ```
@@ -92,8 +92,8 @@ signup) — so there is **no default user/password**; you create the first accou
 ## Setup — local LibreChat against the real cluster (default, recommended)
 
 The squad itself doesn't need to run anywhere near LibreChat — only
-`mongo` + `librechat` run locally, pointed at the real devops-core gateway
-(`https://aigent-squad.<org>.app.br`). No Helm chart, no in-cluster LibreChat
+`mongo` + `librechat` run locally, pointed at the real deployed gateway
+(`https://aigent-squad.example.com`). No Helm chart, no in-cluster LibreChat
 deployment: same call a sibling internal agent platform made for its own LibreChat
 (docker-compose only; a K8s migration is explicitly deferred there until a
 real trigger — `TODO.md` §1). `infra/librechat/librechat.yaml`'s `baseURL` is

@@ -1,7 +1,7 @@
 # Reference variables for the aigent-squad infra composition.
 # Copy to `<cluster>.auto.tfvars` (gitignored) and fill with real values.
 #
-#   cp example.tfvars devops-core.auto.tfvars
+#   cp example.tfvars my-cluster.auto.tfvars
 #   # edit, then: terraform plan
 #
 # Values below are PLACEHOLDERS — replace all of them.
