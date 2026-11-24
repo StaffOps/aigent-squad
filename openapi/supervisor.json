@@ -174,7 +174,7 @@
     "/ready": {
       "get": {
         "summary": "Ready",
-        "description": "Readiness probe — checks Redis, DynamoDB, and ≥1 in-process agent loaded.",
+        "description": "Readiness probe — checks Redis, the history backend (spec 46), and ≥1 in-process agent.",
         "operationId": "ready_ready_get",
         "responses": {
           "200": {
