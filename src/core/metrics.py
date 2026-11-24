@@ -140,6 +140,19 @@ gateway_redis_fallback_active = meter.create_counter(
     unit="1",
 )
 
+# F-009: edge input-size caps and job timeouts. Labels are bounded enums.
+gateway_input_rejections = meter.create_counter(
+    name="aigent.gateway.input_rejections",
+    description="Requests rejected with 413 by the gateway input-size caps (reason=body_bytes|input_chars|messages)",
+    unit="1",
+)
+
+gateway_timeouts = meter.create_counter(
+    name="aigent.gateway.timeouts",
+    description="Gateway jobs aborted by a timeout (kind=first_byte|idle|job)",
+    unit="1",
+)
+
 rate_limit_blocks = meter.create_counter(
     name="aigent.rate_limit.blocks",
     description="Requests blocked by admission guards (rate or budget)",

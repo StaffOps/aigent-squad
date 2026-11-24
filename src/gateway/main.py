@@ -5,6 +5,9 @@ from otel_helper import metrics_app, setup_telemetry
 # Otherwise those modules capture ProxyMeter and never export.
 setup_telemetry()
 
+import asyncio  # noqa: E402
+import json  # noqa: E402
+import time  # noqa: E402
 import uuid  # noqa: E402
 from contextlib import asynccontextmanager  # noqa: E402
 from typing import Any, AsyncGenerator, Optional  # noqa: E402
@@ -16,6 +19,7 @@ from pydantic import BaseModel  # noqa: E402
 import uvicorn  # noqa: E402
 
 from src.core.config import reveal, settings  # noqa: E402
+from src.core.metrics import gateway_input_rejections, gateway_timeouts  # noqa: E402
 from src.core.rate_limiter import AdmissionGuard, estimate_cost  # noqa: E402
 from src.gateway import __version__  # noqa: E402
 from src.gateway.auth import AuthResult, get_key_agent_map, require_edge_auth, scoped_user_id  # noqa: E402
@@ -23,7 +27,13 @@ from src.gateway.supervisor_client import (  # noqa: E402
     SupervisorClient,
     SupervisorUnavailableError,
 )
-from src.gateway.worker_pool import PoolFullError, WorkerPool  # noqa: E402
+from src.gateway.worker_pool import (  # noqa: E402
+    GATEWAY_TIMEOUTS,
+    JobTimeout,
+    PoolFullError,
+    WorkerPool,
+    stream_with_deadline,
+)
 from src.supervisor.openai_compat import (  # noqa: E402
     ChatCompletionRequest,
     UnknownModelError,
@@ -116,6 +126,87 @@ app = FastAPI(title="AIgent-squad Gateway", version=__version__, lifespan=lifesp
 app.mount("/metrics", metrics_app())
 
 
+def _too_large(reason: str, message: str) -> JSONResponse:
+    """413 for an oversized request (F-009), OpenAI-shaped like every gateway error."""
+    gateway_input_rejections.add(1, {"reason": reason})
+    return JSONResponse(
+        status_code=413,
+        content={"error": {"type": "invalid_request_error", "code": "request_too_large", "message": message}},
+    )
+
+
+def _timeout_response() -> JSONResponse:
+    """504 when a job hits a gateway timeout (first-byte, idle or overall job)."""
+    return JSONResponse(
+        status_code=504,
+        content={"error": {"type": "gateway_timeout", "message": "the request took too long and was cancelled"}},
+    )
+
+
+class _BodySizeCap:
+    """Pure ASGI middleware: cap the request body at GATEWAY_MAX_BODY_BYTES (F-009).
+
+    A declared Content-Length over the cap is rejected before the body is read.
+    A body without one (chunked) is counted as it is received; once it passes the
+    cap, the app's own response is discarded and a 413 is sent instead. Pure ASGI
+    (not BaseHTTPMiddleware) so streamed SSE responses pass through untouched.
+    """
+
+    def __init__(self, app: Any) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Any, receive: Any, send: Any) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        limit = settings.gateway_max_body_bytes
+        declared = dict(scope.get("headers") or []).get(b"content-length")
+        if declared is not None:
+            try:
+                too_big = int(declared) > limit
+            except ValueError:
+                too_big = False
+            if too_big:
+                await _too_large("body_bytes", "request body exceeds the gateway size limit")(scope, receive, send)
+                return
+
+        received = 0
+        exceeded = False
+        response_started = False
+
+        async def limited_receive() -> Any:
+            nonlocal received, exceeded
+            message = await receive()
+            if message["type"] == "http.request":
+                received += len(message.get("body", b""))
+                if received > limit:
+                    exceeded = True
+                    raise _BodyTooLargeError()
+            return message
+
+        async def guarded_send(message: Any) -> None:
+            nonlocal response_started
+            if exceeded and not response_started:
+                return  # drop the app's error response; the 413 below replaces it
+            if message["type"] == "http.response.start":
+                response_started = True
+            await send(message)
+
+        try:
+            await self.app(scope, limited_receive, guarded_send)
+        except _BodyTooLargeError:
+            pass
+        if exceeded and not response_started:
+            await _too_large("body_bytes", "request body exceeds the gateway size limit")(scope, receive, send)
+
+
+class _BodyTooLargeError(Exception):
+    """Raised from receive() when a streamed body passes the cap."""
+
+
+app.add_middleware(_BodySizeCap)
+
+
 class QueryRequest(BaseModel):  # type: ignore[misc]
     user_input: str
     user_id: str
@@ -177,6 +268,8 @@ async def query(request: QueryRequest, auth: AuthResult = Depends(require_edge_a
     """Native entrypoint — admission control, then forward to the supervisor."""
     # F-024: scope the client-supplied user to the authenticated consumer, so history,
     # rate limits and sessions never cross API keys.
+    if len(request.user_input) > settings.gateway_max_input_chars:
+        return _too_large("input_chars", "user_input exceeds the gateway character limit")
     user_id = scoped_user_id(auth, request.user_id)
     denied = await _check_admission(user_id)
     if denied is not None:
@@ -205,6 +298,8 @@ async def query(request: QueryRequest, auth: AuthResult = Depends(require_edge_a
             result = item
     except PoolFullError:
         return _busy_response("service_overloaded", "server busy — worker pool at capacity")
+    except GATEWAY_TIMEOUTS:
+        return _timeout_response()
     except SupervisorUnavailableError:
         return _busy_response("backend_unavailable", "supervisor backend unavailable")
     except Exception as exc:
@@ -231,6 +326,16 @@ async def openai_chat_completions(
       (b) Auto-route model + consumer has mapped default agent → use that.
       (c) Else → normal classifier auto-route (None).
     """
+    # F-009: size caps before any network call, admission or LLM work. The char
+    # cap applies to the turn actually forwarded (the last user message, the same
+    # text the supervisor InputScanner checks); history size is bounded by the
+    # message count and the body-size cap.
+    if len(request.messages) > settings.gateway_max_messages:
+        return _too_large("messages", "messages exceeds the gateway message-count limit")
+    user_input = messages_to_user_input(request.messages)
+    if len(user_input) > settings.gateway_max_input_chars:
+        return _too_large("input_chars", "user message exceeds the gateway character limit")
+
     names = _agent_names or await _refresh_agents()
     try:
         force_agent = resolve_target(request.model, names)
@@ -255,7 +360,6 @@ async def openai_chat_completions(
     if not await supervisor_client.is_supervisor_ready():
         return _busy_response("backend_unavailable", "supervisor backend is not ready")
 
-    user_input = messages_to_user_input(request.messages)
     session_id = x_session_id or f"openai-{user_id}"
     job_id = str(uuid.uuid4())
 
@@ -264,23 +368,43 @@ async def openai_chat_completions(
     # Only on failure does it fall back to non-streaming process() + pseudo-stream.
     # This prevents the double-invocation that was 2x-ing token cost + latency.
     if request.stream:
+        # The SSE path does not go through the pool, so the overall job budget
+        # (GATEWAY_JOB_TIMEOUT_SECONDS) is enforced here across the whole request:
+        # opening the stream, proxying it, and the non-streaming fallback (F-009 C1).
+        job_deadline = time.monotonic() + settings.gateway_job_timeout_seconds
+
+        def _remaining() -> float:
+            return max(job_deadline - time.monotonic(), 0.0)
+
         try:
-            resp = await supervisor_client.process_stream(
-                user_input=user_input,
-                user_id=user_id,
-                session_id=session_id,
-                force_agent=force_agent,
+            resp = await asyncio.wait_for(
+                supervisor_client.process_stream(
+                    user_input=user_input,
+                    user_id=user_id,
+                    session_id=session_id,
+                    force_agent=force_agent,
+                ),
+                timeout=_remaining(),
             )
 
             async def _proxy_sse() -> Any:
                 """Proxy supervisor SSE body verbatim to the client.
 
                 The supervisor already emits properly-framed SSE (data: ...\n\n).
-                We forward raw bytes as-is to preserve valid SSE framing.
+                We forward raw bytes as-is to preserve valid SSE framing. Headers
+                are already sent, so a job timeout ends the stream with an SSE
+                error event instead of a 504.
                 """
+                at_frame_boundary = True
                 try:
-                    async for chunk in resp.aiter_bytes():
+                    async for chunk in stream_with_deadline(resp.aiter_bytes(), _remaining()):
+                        at_frame_boundary = chunk.endswith(b"\n\n")
                         yield chunk
+                except JobTimeout:
+                    error = {"error": {"type": "gateway_timeout", "message": "the request took too long and was cancelled"}}
+                    # Chunk boundaries are arbitrary; close a half-sent frame first.
+                    prefix = b"" if at_frame_boundary else b"\n\n"
+                    yield prefix + f"data: {json.dumps(error)}\n\n".encode()
                 finally:
                     await resp.aclose()
 
@@ -289,6 +413,9 @@ async def openai_chat_completions(
                 media_type="text/event-stream",
                 headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
             )
+        except asyncio.TimeoutError:
+            gateway_timeouts.add(1, {"kind": "job"})
+            return _timeout_response()
         except (SupervisorUnavailableError, Exception):
             # Streaming endpoint unavailable — fall back to non-streaming
             # process() + pseudo-stream (single invocation fallback).
@@ -296,12 +423,18 @@ async def openai_chat_completions(
 
         # Fallback: non-streaming call + pseudo-stream to the client
         try:
-            fallback_result = await supervisor_client.process(
-                user_input=user_input,
-                user_id=user_id,
-                session_id=session_id,
-                force_agent=force_agent,
+            fallback_result = await asyncio.wait_for(
+                supervisor_client.process(
+                    user_input=user_input,
+                    user_id=user_id,
+                    session_id=session_id,
+                    force_agent=force_agent,
+                ),
+                timeout=_remaining(),
             )
+        except asyncio.TimeoutError:
+            gateway_timeouts.add(1, {"kind": "job"})
+            return _timeout_response()
         except SupervisorUnavailableError:
             return _busy_response("backend_unavailable", "supervisor backend unavailable")
         except Exception as exc:
@@ -329,6 +462,8 @@ async def openai_chat_completions(
             result = item
     except PoolFullError:
         return _busy_response("service_overloaded", "server busy — worker pool at capacity")
+    except GATEWAY_TIMEOUTS:
+        return _timeout_response()
     except SupervisorUnavailableError:
         return _busy_response("backend_unavailable", "supervisor backend unavailable")
     except Exception as exc:
