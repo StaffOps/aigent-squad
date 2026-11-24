@@ -208,6 +208,10 @@ async def ready() -> Any:
 
     agents_ok = len(supervisor.agents) > 0
     results["agents"] = {"ok": agents_ok, "detail": f"{len(supervisor.agents)} agent(s) loaded"}
+    # Spec 46: datasources unconfigured in this environment — degraded, not an outage.
+    degraded = getattr(supervisor.registry, "degraded_datasources", None)
+    if isinstance(degraded, list) and degraded:
+        results["agents"]["degraded"] = [d.as_dict() for d in degraded]
 
     # Spec 28 Decision 10: informational — exposes the LLM provider and whether
     # the Bedrock Guardrail (L1) is active. Never fails readiness.

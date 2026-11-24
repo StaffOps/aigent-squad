@@ -545,7 +545,7 @@ def test_mcp_ready_200_when_supervisor_ok():
 # ---------------------------------------------------------------------------
 
 
-def _ready_with_backend(backend: str, history_ok: bool = True):
+def _ready_with_backend(backend: str, history_ok: bool = True, degraded=None):
     from src.core.config import settings
     from src.core.health import DepResult
 
@@ -564,6 +564,8 @@ def _ready_with_backend(backend: str, history_ok: bool = True):
         mock_sup.close = AsyncMock()
         mock_sup.agents = {"aws": MagicMock()}
         mock_sup.registry = MagicMock()
+        if degraded is not None:
+            mock_sup.registry.degraded_datasources = degraded
         mock_checker.check_redis = AsyncMock(return_value=DepResult(ok=history_ok, detail="redis: pong"))
         mock_checker.check_dynamodb = AsyncMock(return_value=DepResult(ok=True, detail="dynamodb: table reachable"))
         mock_checker.check_history = AsyncMock(
@@ -573,7 +575,8 @@ def _ready_with_backend(backend: str, history_ok: bool = True):
         import importlib
         import src.supervisor.server as srv_mod
         importlib.reload(srv_mod)
-        with patch("src.supervisor.server._checker", mock_checker):
+        with patch("src.supervisor.server._checker", mock_checker), \
+             patch("src.supervisor.server.supervisor", mock_sup):
             from fastapi.testclient import TestClient
             client = TestClient(srv_mod.app, raise_server_exceptions=False)
             return client.get("/ready"), mock_checker
@@ -608,3 +611,18 @@ async def test_check_history_ok_down_and_error():
     boom = MagicMock(backend="postgres", ping=AsyncMock(side_effect=OSError("refused")))
     r = await checker.check_history(boom)
     assert r.ok is False and "refused" in r.detail
+
+
+def test_ready_reports_degraded_datasources_but_stays_ready():
+    from src.core.agent_env import DegradedDatasource
+    d = DegradedDatasource("kubernetes", "k8s-mcp", ("K8S_MCP_URL",))
+    response, _ = _ready_with_backend("redis", degraded=[d])
+    assert response.status_code == 200
+    assert response.json()["checks"]["agents"]["degraded"] == [
+        {"agent": "kubernetes", "datasource": "k8s-mcp", "missing_env": ["K8S_MCP_URL"]}
+    ]
+
+
+def test_ready_omits_degraded_when_none():
+    response, _ = _ready_with_backend("redis", degraded=[])
+    assert "degraded" not in response.json()["checks"]["agents"]

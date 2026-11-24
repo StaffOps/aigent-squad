@@ -80,6 +80,21 @@ The system prompt sent to the LLM. Can be as long as needed. Tips:
 | `athena` | AWS Athena queries | `database`, `table`, `workgroup` |
 | `mcp` | External MCP server (read-only) | `name`, `url` (SSE, supports `${ENV_VAR}`), `tools` (allowlist), `tool_arguments` |
 
+### Per-environment addresses (spec 46)
+
+Environments change **where** a datasource is, never **what** the agent may do:
+
+- `${VAR}` is expanded at startup only in datasource `url`, `name`, `headers` values and
+  `tool_arguments` values. Anywhere else (`tools`, `read_only`, `capability_tier`,
+  `required_env`, prompt fields…) a `${` fails startup.
+- If a variable is unset or empty, **that datasource is dropped** (the agent still loads):
+  startup WARNING `datasource_unconfigured` and `/ready` → `checks.agents.degraded`
+  (variable names only, never values). `/ready` stays 200.
+- `AGENT_<NAME>_ENABLED=false` turns an agent off in an environment (e.g. `aws`/`finops`
+  off-AWS) without copying its config or prompt.
+- Repo agents ship MCP addresses as `${K8S_MCP_URL}` / `${VM_MCP_URL}`; each deployment
+  profile sets them.
+
 ## Skills (lazy-loaded knowledge)
 
 A **skill** is reusable markdown knowledge (a `SKILL.md`) — *not* a tool/action

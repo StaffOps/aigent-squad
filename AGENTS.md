@@ -304,6 +304,8 @@ No code changes needed — `AgentRegistry` auto-discovers at startup.
 | `REDIS_HOST` | ✅ | — | Cache + rate/budget + job lifecycle |
 | `REDIS_PASSWORD` | ✅ | — | Cache auth |
 | `REDIS_SSL` | | `true` | Disable in dev |
+| `K8S_MCP_URL` / `VM_MCP_URL` | | — | MCP addresses for the kubernetes / observability agents (spec 46); unset → that datasource is dropped (degraded, agent still loads) |
+| `AGENT_<NAME>_ENABLED` | | — | Per-environment agent on/off (spec 46), e.g. `AGENT_AWS_ENABLED=false` off-AWS |
 | `HISTORY_BACKEND` | | `redis` | Conversation-history store (spec 46): `redis` \| `dynamodb` \| `postgres`; **AWS deployments set `dynamodb` explicitly**; 24h retention on every backend |
 | `DYNAMODB_SESSIONS_TABLE` | | `agent-sessions` | Conversation history (when `HISTORY_BACKEND=dynamodb`) |
 | `DYNAMODB_ENDPOINT` | | AWS | Set to `http://dynamodb-local:8000` for dev |

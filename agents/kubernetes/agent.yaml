@@ -22,7 +22,7 @@ datasources:
   # through the public ingress (extra latency + an extra failure domain).
   - type: mcp
     name: k8s-mcp
-    url: http://kube-mcp.mcp-servers.svc.cluster.local:8080/mcp
+    url: "${K8S_MCP_URL}"  # spec 46: per-environment address (AWS: http://kube-mcp.mcp-servers.svc.cluster.local:8080/mcp)
     tools:
       - configuration_view
       - events_list

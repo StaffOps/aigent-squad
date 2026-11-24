@@ -17,10 +17,14 @@
 
 ## Phase 2 — Environment-addressed agents/MCPs
 
-- [ ] T7 `${VAR}` expansion in allowed datasource fields; unset → datasource disabled + WARNING + `/ready` degraded (AC 6)
-- [ ] T8 Reject expansion/override on `tools`, `read_only`, `capability_tier`, `required_env` (AC 7)
-- [ ] T9 `AGENT_<NAME>_ENABLED` override (AC 9 app side)
-- [ ] T10 Default `agents/*/agent.yaml` MCP URLs → `${…}`; document env names (AC 8)
+> Done 2026-11-24 (`src/core/agent_env.py`, wired in `AgentRegistry.discover`). Side fix: `http`
+> datasource `headers` were never expanded before (the devops agent sent a literal
+> `${GITLAB_TOKEN}`); expansion now happens once, at load, for every address field.
+
+- [x] T7 `${VAR}` expansion in allowed datasource fields; unset → datasource disabled + WARNING + `/ready` degraded (AC 6)
+- [x] T8 Reject expansion/override on `tools`, `read_only`, `capability_tier`, `required_env` (AC 7)
+- [x] T9 `AGENT_<NAME>_ENABLED` override (AC 9 app side)
+- [x] T10 Default `agents/*/agent.yaml` MCP URLs → `${…}`; document env names (AC 8)
 
 ## Phase 3 — Chart profiles (helm-charts repo)
 

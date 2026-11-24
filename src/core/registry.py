@@ -6,6 +6,7 @@ from typing import Optional
 import yaml
 
 from src.core.agent_config import AgentConfig
+from src.core.agent_env import DegradedDatasource, apply_environment
 from src.core.logger import logger
 
 
@@ -16,18 +17,23 @@ class AgentRegistry:
         self.agents_dir = Path(agents_dir or os.getenv("AGENTS_DIR") or "agents")
         self.agents: dict[str, AgentConfig] = {}
         self.prompts: dict[str, str] = {}
+        # Spec 46: datasources dropped because their ${VAR} is unset in this environment.
+        self.degraded_datasources: list[DegradedDatasource] = []
 
     def discover(self) -> None:
         """Scan AGENTS_DIR, parse and validate all agent configs."""
         if not self.agents_dir.exists():
             raise RuntimeError(f"AGENTS_DIR not found: {self.agents_dir}")
 
+        self.degraded_datasources = []
         for agent_dir in sorted(self.agents_dir.iterdir()):
             config_path = agent_dir / "agent.yaml"
             if not agent_dir.is_dir() or not config_path.exists():
                 continue
 
             raw = yaml.safe_load(config_path.read_text())
+            # Spec 46: environment profile — addresses + on/off only, never capabilities.
+            raw, degraded = apply_environment(raw)
             config = AgentConfig(**raw)
 
             if not config.enabled:
@@ -48,6 +54,13 @@ class AgentRegistry:
             # Set cache namespace default
             if not config.cache.namespace:
                 config.cache.namespace = config.name
+
+            for d in degraded:
+                logger.warning(
+                    "datasource_unconfigured — dropped for this environment (agent still loads)",
+                    extra=d.as_dict(),
+                )
+            self.degraded_datasources.extend(degraded)
 
             self.agents[config.name] = config
             self.prompts[config.name] = prompt
