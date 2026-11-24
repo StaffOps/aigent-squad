@@ -10,14 +10,21 @@ may do. So, applied to the raw ``agent.yaml`` dict before schema validation:
   reported as degraded; expanded values are never logged (headers carry secrets).
 - ``AGENT_<NAME>_ENABLED`` can switch an agent off or back on, nothing else.
 """
+import ipaddress
 import os
 import re
 from dataclasses import dataclass
 from typing import Any, Mapping, Optional
+from urllib.parse import urlsplit
 
 _PLACEHOLDER = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
 _ADDRESS_FIELDS = ("url", "name")
 _ADDRESS_MAPS = ("headers", "tool_arguments")
+_ALLOWED_SCHEMES = {"http", "https"}
+# Cloud instance-metadata endpoints: a datasource pointed here would put node
+# credentials into the LLM context. Opt in explicitly if you really need it.
+_METADATA_HOSTS = {"metadata.google.internal", "metadata", "instance-data"}
+ALLOW_LINK_LOCAL_ENV = "AIGENT_ALLOW_LINK_LOCAL_DATASOURCES"
 _TRUE = {"1", "true", "yes", "on"}
 _FALSE = {"0", "false", "no", "off"}
 
@@ -31,10 +38,48 @@ class DegradedDatasource:
     agent: str
     datasource: str
     missing: tuple[str, ...]
+    reason: str = "unset_env"  # unset_env | invalid_url
 
     def as_dict(self) -> dict[str, Any]:
-        # Variable NAMES only — never values.
-        return {"agent": self.agent, "datasource": self.datasource, "missing_env": list(self.missing)}
+        # Variable NAMES and a reason code only — never values.
+        out: dict[str, Any] = {"agent": self.agent, "datasource": self.datasource, "missing_env": list(self.missing)}
+        if self.reason != "unset_env":
+            out["reason"] = self.reason
+        return out
+
+
+def url_problem(url: str, env: Mapping[str, str]) -> Optional[str]:
+    """Why a (fully expanded) datasource URL is refused, or None if acceptable.
+
+    Only http(s); no user-info (credentials belong in headers from Secrets); no
+    control characters; no link-local / instance-metadata targets unless
+    ``AIGENT_ALLOW_LINK_LOCAL_DATASOURCES`` is true. Loopback stays allowed
+    (sidecar MCP servers are a legitimate pattern).
+    """
+    if any(ord(c) < 32 or ord(c) == 127 for c in url):
+        return "control characters"
+    try:
+        parts = urlsplit(url)
+    except ValueError:
+        return "unparseable"
+    if parts.scheme.lower() not in _ALLOWED_SCHEMES:
+        return f"scheme {parts.scheme or '(none)'!r} not allowed (http/https only)"
+    if parts.username is not None or parts.password is not None:
+        return "credentials in URL (use headers from a Secret)"
+    host = (parts.hostname or "").lower()
+    if not host:
+        return "no host"
+    if str(env.get(ALLOW_LINK_LOCAL_ENV, "")).strip().lower() in _TRUE:
+        return None
+    if host in _METADATA_HOSTS:
+        return "instance-metadata host"
+    try:
+        ip = ipaddress.ip_address(host)
+    except ValueError:
+        return None
+    if ip.is_link_local or ip == ipaddress.ip_address("fd00:ec2::254"):
+        return "link-local / instance-metadata address"
+    return None
 
 
 def enabled_env_var(agent_name: str) -> str:
@@ -118,10 +163,18 @@ def apply_environment(
                     _reject_placeholders(k, f"{where}.{key}")
             else:
                 _reject_placeholders(value, f"{where}.{key}")
+        label = str(ds.get("name") or ds.get("type") or i)
         if missing:
-            label = str(ds.get("name") or ds.get("type") or i)
             degraded.append(DegradedDatasource(name, label, tuple(dict.fromkeys(missing))))
             continue
+        url = new_ds.get("url")
+        if isinstance(url, str) and url:
+            problem = url_problem(url, env)
+            if problem:
+                # Refuse the datasource (safe), keep the agent (available); the reason
+                # is generic so an expanded value never reaches logs or /ready.
+                degraded.append(DegradedDatasource(name, label, (), reason="invalid_url"))
+                continue
         kept.append(new_ds)
     if "datasources" in raw:
         resolved["datasources"] = kept

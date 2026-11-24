@@ -2,8 +2,6 @@
 from __future__ import annotations
 
 import hashlib
-import os
-import re
 import time
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
@@ -197,12 +195,11 @@ class HttpAdapter(DatasourceAdapter):
 
     def __init__(self, name: str, url: str, headers: dict[str, str]):
         self.name = name
-        self.url = self._interpolate_env(url)
+        # ${VAR} is expanded exactly once, at agent load (spec 46, src/core/agent_env.py).
+        # Never expand again here: an env VALUE containing "${OTHER}" must stay literal,
+        # or a non-secret setting could pull a secret env var into an outbound URL.
+        self.url = url
         self.headers = headers
-
-    @staticmethod
-    def _interpolate_env(url: str) -> str:
-        return re.sub(r"\$\{(\w+)\}", lambda m: os.environ.get(m.group(1), m.group(0)), url)
 
     def _cache_id(self) -> str:
         return f"http:{self.name}:{self.url}"
@@ -290,7 +287,7 @@ class McpAdapter(DatasourceAdapter):
         transport: str = "streamable-http",
     ):
         self.name = name or "mcp"
-        self.url = HttpAdapter._interpolate_env(url)
+        self.url = url  # already expanded once at load (spec 46); never re-expand
         self.tools = tools or []
         self.headers = headers or {}
         self.tool_arguments = tool_arguments or {}
@@ -414,8 +411,10 @@ class McpAdapter(DatasourceAdapter):
                 f"not in read-only allowlist. Refusing execution."
             )
 
-        # Merge static tool_arguments
-        merged_args = {**self.tool_arguments, **args}
+        # Static tool_arguments (operator/environment config) win over model-chosen
+        # args: they pin scope (e.g. a namespace) and must not be overridable by a
+        # prompt-injected tool call.
+        merged_args = {**args, **self.tool_arguments}
 
         try:
             from mcp import ClientSession

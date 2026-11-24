@@ -297,8 +297,9 @@ def test_supervisor_ready_503_when_redis_down():
         assert body["checks"]["redis"]["ok"] is False
 
 
-def test_supervisor_ready_503_when_dynamodb_down():
-    """/ready returns 503 when DynamoDB check fails (HISTORY_BACKEND=dynamodb, spec 46)."""
+def test_supervisor_ready_reports_dynamodb_down_but_stays_ready():
+    """DynamoDB history down → reported in /ready, still 200: history is fail-open
+    (invariant 6, spec 46 review F1), so it must not take the squad out of rotation."""
     from src.core.config import settings
     from src.core.health import DepResult
 
@@ -332,8 +333,14 @@ def test_supervisor_ready_503_when_dynamodb_down():
         from fastapi.testclient import TestClient
         client = TestClient(srv_mod.app, raise_server_exceptions=False)
 
-        response = client.get("/ready")
-        assert response.status_code == 503
+        # reload() rebuilt the checker: keep Redis (a real gate) healthy and make
+        # only the DynamoDB history check fail.
+        with patch.object(srv_mod._checker, "check_redis",
+                          AsyncMock(return_value=DepResult(ok=True, detail="redis: pong"))), \
+             patch.object(srv_mod._checker, "check_dynamodb",
+                          AsyncMock(return_value=DepResult(ok=False, detail="dynamodb: no endpoint"))):
+            response = client.get("/ready")
+        assert response.status_code == 200
         body = response.json()
         assert body["checks"]["dynamodb"]["ok"] is False
         history = body["checks"]["history"]
@@ -566,7 +573,9 @@ def _ready_with_backend(backend: str, history_ok: bool = True, degraded=None):
         mock_sup.registry = MagicMock()
         if degraded is not None:
             mock_sup.registry.degraded_datasources = degraded
-        mock_checker.check_redis = AsyncMock(return_value=DepResult(ok=history_ok, detail="redis: pong"))
+        # Redis is a readiness gate; only the redis backend ties history to it.
+        redis_ok = history_ok if backend == "redis" else True
+        mock_checker.check_redis = AsyncMock(return_value=DepResult(ok=redis_ok, detail="redis: pong"))
         mock_checker.check_dynamodb = AsyncMock(return_value=DepResult(ok=True, detail="dynamodb: table reachable"))
         mock_checker.check_history = AsyncMock(
             return_value=DepResult(ok=history_ok, detail=f"history: {backend} reachable")
@@ -594,7 +603,7 @@ def test_ready_redis_backend_reuses_redis_check_and_skips_dynamodb():
 def test_ready_postgres_backend_uses_history_check():
     response, checker = _ready_with_backend("postgres", history_ok=False)
     checks = response.json()["checks"]
-    assert response.status_code == 503
+    assert response.status_code == 200  # history is informational (spec 46 review F1)
     assert checks["history"] == {"ok": False, "backend": "postgres", "detail": "history: postgres reachable"}
     checker.check_history.assert_awaited_once()
 

@@ -3,7 +3,6 @@
 Tests what the registry SHOULD do per spec, not how it does it internally.
 """
 import pytest
-from pydantic import ValidationError
 
 from src.core.registry import AgentRegistry
 
@@ -112,7 +111,8 @@ class TestGetPromptReturnsContent:
 
 class TestDiscoverFailsOnInvalidSchema:
     def test_discover_fails_on_invalid_schema(self, tmp_path):
-        """YAML with missing required field → ValidationError."""
+        """YAML with missing required field → startup error naming the file and fields
+        (spec 46: re-raised without input values, which may hold expanded secrets)."""
         agent_dir = tmp_path / "bad-agent"
         agent_dir.mkdir()
         # Missing required fields: name, description, domain, capabilities
@@ -121,5 +121,5 @@ class TestDiscoverFailsOnInvalidSchema:
 
         registry = AgentRegistry(agents_dir=str(tmp_path))
 
-        with pytest.raises(ValidationError):
+        with pytest.raises(RuntimeError, match=r"Invalid agent config .*bad-agent.*'loc': 'name'"):
             registry.discover()

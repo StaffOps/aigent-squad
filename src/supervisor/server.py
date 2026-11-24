@@ -188,14 +188,16 @@ async def healthz() -> dict[str, str]:
 
 @app.get("/ready")  # type: ignore[untyped-decorator]
 async def ready() -> Any:
-    """Readiness probe — checks Redis, the history backend (spec 46), and ≥1 in-process agent."""
+    """Readiness probe — gates on Redis and ≥1 in-process agent; reports the history backend (informational, spec 46)."""
     results = {}
 
     redis_result = await _checker.check_redis(_health_redis)
     results["redis"] = {"ok": redis_result.ok, "detail": redis_result.detail}
 
-    # Spec 46: the history check follows HISTORY_BACKEND. Redis history reuses
-    # the Redis check above; DynamoDB keeps its `dynamodb` key for existing readers.
+    # Spec 46: the history check follows HISTORY_BACKEND and is INFORMATIONAL —
+    # history is fail-open (invariant 6), so a history outage must never 503 the
+    # squad (queries answer with empty history). Redis itself stays a gate: it is a
+    # hard dependency (rate/budget, jobs, sessions). DynamoDB keeps its `dynamodb` key.
     backend = settings.history_backend
     if backend == "dynamodb":
         history_result = await _checker.check_dynamodb(_health_dynamodb_table)
@@ -218,7 +220,7 @@ async def ready() -> Any:
     from src.core.llm.factory import provider_status
     results["llm"] = provider_status()
 
-    all_ok = redis_result.ok and history_result.ok and agents_ok
+    all_ok = redis_result.ok and agents_ok
     status_code = 200 if all_ok else 503
     return JSONResponse(
         status_code=status_code,
