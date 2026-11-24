@@ -292,6 +292,7 @@ ROADMAP is plan-only from here.
 | 45-supply-chain-hardening | done | 2026-08-17 | depends_on: 08-ci-cd-pipeline, 36-agent-native-dev-loop |
 | 46-portable-deployment-profiles | done | 2026-11-24 | depends_on: 28-llm-provider-abstraction, 37-agentic-tool-calling |
 | 47-user-feedback | in-progress | — | depends_on: 31-edge-gateway-worker-pool, 33-operational-review-loop |
+| 48-on-trigger-comprehension | not-started | — | depends_on: 18-rca-investigation-workflow, 30-datasource-cache-layer, 35-quality-eval-harness, 37-agentic-tool-calling, 41-calibrated-honesty-structured, 46-portable-deployment-profiles |
 
 
 
