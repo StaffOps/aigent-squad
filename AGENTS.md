@@ -317,7 +317,8 @@ No code changes needed — `AgentRegistry` auto-discovers at startup.
 | `GITLAB_TOKEN` | optional | — | DevOps agent (read-only) |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | optional | `http://otel-collector:4317` | Tracing |
 | `POSTGRES_HOST/USER/PASSWORD/DB` | optional | — | Knowledge base (disabled by default) |
-| `POSTGRES_SSLMODE` | | — (asyncpg default) | TLS mode for the Postgres **history** store, passed to asyncpg as `ssl=`: `disable` \| `allow` \| `prefer` \| `require` \| `verify-ca` \| `verify-full`; empty = unset |
+| `POSTGRES_SSLMODE` | | — (asyncpg default) | TLS mode for the Postgres **history** store: `disable` \| `allow` \| `prefer` \| `require` \| `verify-ca` \| `verify-full`; empty = unset. `require` = encrypted, **not verified**; `verify-*` need a CA bundle (`POSTGRES_SSLROOTCERT`) |
+| `POSTGRES_SSLROOTCERT` | with `verify-*` | — | Path to the PEM CA bundle that verifies the server (e.g. the cloud provider's RDS bundle, mounted); fallback `PGSSLROOTCERT`, then `~/.postgresql/root.crt`; none found → no connect, error logged, history fails open |
 
 See `.env.example` for full template.
 

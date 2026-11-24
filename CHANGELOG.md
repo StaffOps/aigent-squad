@@ -9,12 +9,33 @@
   non-streaming path; an interrupted stream saves nothing; a history error never breaks
   the stream.
 
+### Fixed — F-025 independent review findings (2026-11-24)
+- Postgres history TLS: `verify-ca`/`verify-full` now work with a mounted CA bundle through the
+  new `POSTGRES_SSLROOTCERT` (fallback `PGSSLROOTCERT`, `~/.postgresql/root.crt`); with no CA file
+  the store logs an error, counts `op=connect` and fails open. Docs now say plainly that
+  `require` encrypts without verifying the server.
+- boto3, Kubernetes and Athena datasource errors in the LLM context are now the exception class
+  only, plus the AWS error code for API errors (`ClientError (AccessDenied)`); the full message
+  (ARNs, account ids, hosts, S3 locations) goes to the logs.
+- MCP protocol (JSON-RPC) errors such as invalid params or an unknown tool reach the model with
+  their code and message (URLs removed, capped at 200 chars) so the agentic loop can correct the
+  call; they no longer count as circuit-breaker failures. Transport failures stay class-only.
+- Logged URLs and error text drop URL credentials (`user:pass@`), not only query strings.
+- The Postgres startup purge runs in a background task after the pool is ready, outside the
+  connect lock, so a readiness probe can no longer wait on or cancel it.
+- Two agents with the identical name now fail discovery (the shared-switch check missed it).
+- `/ready` HTTP check details no longer include the probed URL (logged instead), including the
+  timeout path.
+- Opt-in live Postgres test (`AIGENT_LIVE_POSTGRES=1`, not run in CI) covering the purge, the
+  table-exists check and a DML-only role.
+
 ### Fixed — spec 46 follow-ups (BACKLOG F-025 a/b/c/e/f, 2026-11-24)
 - Postgres history: expired rows also purged at connect and (at most every 5 min) on
   read; DDL skipped when the table already exists (lets a migration role pre-create it);
   optional `POSTGRES_SSLMODE`.
-- Datasource/tool transport errors reaching the LLM context carry only the error class and
-  HTTP status (the full message, with query strings removed, goes to the logs).
+- HTTP datasource and MCP transport errors reaching the LLM context carry only the error class
+  and HTTP status (the full message, with query strings removed, goes to the logs). boto3,
+  Kubernetes and Athena errors were not covered by this change; see the review fixes above.
 - `HISTORY_MAX_MESSAGE_CHARS` (default 16000) caps stored message content on every history
   backend; Redis `maxmemory-policy` guidance documented.
 - Agents whose names map to the same `AGENT_<NAME>_ENABLED` switch fail discovery.

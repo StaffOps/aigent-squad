@@ -266,6 +266,11 @@ class Settings(BaseSettings):  # type: ignore[misc]
         Optional[Literal["disable", "allow", "prefer", "require", "verify-ca", "verify-full"]],
         BeforeValidator(_empty_is_unset),
     ] = None
+    # CA bundle (PEM path) that verifies the server certificate when
+    # POSTGRES_SSLMODE is verify-ca / verify-full. `require` encrypts WITHOUT
+    # verifying; verify-* need a CA (e.g. the cloud provider's RDS bundle mounted
+    # in the pod). Unset falls back to PGSSLROOTCERT, then ~/.postgresql/root.crt.
+    postgres_sslrootcert: Annotated[Optional[str], BeforeValidator(_empty_is_unset)] = None
 
     # RAG / Knowledge Base (FinOps)
     finops_knowledge_base_id: Optional[str] = None  # Bedrock Knowledge Base ID

@@ -83,6 +83,9 @@ async def _connect(conn: _Conn, **settings_overrides: Any) -> tuple[PostgresHist
     with patch("asyncpg.create_pool", create_pool), \
          patch.multiple(settings, **settings_overrides) if settings_overrides else nullcontext():
         assert await store.ping() is True
+        # The startup purge runs in the background after the connect (finding 5).
+        if store._purge_task is not None:
+            await store._purge_task
     return store, create_pool
 
 
@@ -166,8 +169,8 @@ def test_deleted_rows_parses_command_tags():
 
 @pytest.mark.asyncio
 async def test_sslmode_is_passed_to_asyncpg_when_set():
-    _, create_pool = await _connect(_Conn(), postgres_sslmode="verify-full")
-    assert create_pool.call_args.kwargs["ssl"] == "verify-full"
+    _, create_pool = await _connect(_Conn(), postgres_sslmode="require")
+    assert create_pool.call_args.kwargs["ssl"] == "require"
 
 
 @pytest.mark.asyncio

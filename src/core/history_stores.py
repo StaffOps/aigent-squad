@@ -11,9 +11,12 @@ import asyncio
 import hashlib
 import itertools
 import json
+import os
+import ssl
 import time
 import uuid
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Any, List, Optional
 
 import redis.asyncio as aioredis
@@ -209,9 +212,64 @@ def _deleted_rows(status: Any) -> int:
 
 # Seconds to wait before retrying a failed pool connect (fail-open meanwhile).
 PG_RECONNECT_SECONDS = 30.0
-# Connect timeout, kept below the readiness check timeout (2 s) so a /ready probe
-# never cancels an in-flight connect attempt.
+# Connect timeout, kept below the readiness check timeout (2 s). The connect
+# critical section is only create_pool + the table check (+ DDL on first boot);
+# the startup purge runs afterwards in the background, outside the lock, so a
+# /ready probe never waits on (or cancels) it.
 PG_CONNECT_TIMEOUT_SECONDS = 1.5
+
+_PG_VERIFY_MODES = ("verify-ca", "verify-full")
+
+
+class PostgresTLSConfigError(RuntimeError):
+    """POSTGRES_SSLMODE=verify-* without a CA bundle that resolves to a file."""
+
+
+def _pg_ca_file() -> Optional[str]:
+    """CA bundle for verify-*: POSTGRES_SSLROOTCERT, PGSSLROOTCERT, ~/.postgresql/root.crt.
+
+    An explicitly configured path that is not a file is an error, never a
+    silent fall-through to the next candidate.
+    """
+    explicit = settings.postgres_sslrootcert or os.environ.get("PGSSLROOTCERT") or None
+    if explicit:
+        if not Path(explicit).is_file():
+            raise PostgresTLSConfigError(
+                f"POSTGRES_SSLMODE={settings.postgres_sslmode}: CA bundle {explicit!r} is not a readable file"
+            )
+        return explicit
+    try:
+        default = Path.home() / ".postgresql" / "root.crt"
+    except RuntimeError:  # no resolvable home directory (e.g. a bare UID)
+        return None
+    return str(default) if default.is_file() else None
+
+
+def _pg_ssl_kwargs() -> dict[str, Any]:
+    """``ssl=`` argument for asyncpg, from POSTGRES_SSLMODE / POSTGRES_SSLROOTCERT.
+
+    ``require`` and below are passed through as asyncpg mode strings (``require``
+    encrypts but does not verify the server). ``verify-ca`` / ``verify-full``
+    get an explicit SSLContext loaded with the resolved CA bundle, so they work
+    with a mounted bundle (e.g. the cloud provider's RDS CA) instead of only
+    ``~/.postgresql/root.crt``; no CA -> :class:`PostgresTLSConfigError`.
+    """
+    mode = settings.postgres_sslmode
+    if not mode:
+        return {}
+    if mode not in _PG_VERIFY_MODES:
+        return {"ssl": mode}
+    cafile = _pg_ca_file()
+    if cafile is None:
+        raise PostgresTLSConfigError(
+            f"POSTGRES_SSLMODE={mode} needs a CA bundle: set POSTGRES_SSLROOTCERT to a mounted PEM file"
+        )
+    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    ctx.minimum_version = ssl.TLSVersion.TLSv1_2
+    ctx.check_hostname = mode == "verify-full"
+    ctx.verify_mode = ssl.CERT_REQUIRED
+    ctx.load_verify_locations(cafile=cafile)
+    return {"ssl": ctx}
 # Serializes schema creation across replicas starting together (any constant).
 _PG_SCHEMA_LOCK_KEY = 4646046
 
@@ -223,7 +281,7 @@ class PostgresHistoryStore:
     creates it and its indexes (``_PG_SCHEMA``), which needs CREATE on the target
     schema. To run with a DML-only role (SELECT/INSERT/DELETE), pre-create the
     table and indexes with a migration role: an existing table is used as-is and
-    no DDL runs. TLS: ``POSTGRES_SSLMODE``.
+    no DDL runs. TLS: ``POSTGRES_SSLMODE`` (+ ``POSTGRES_SSLROOTCERT`` for verify-*).
     """
 
     backend = "postgres"
@@ -234,16 +292,38 @@ class PostgresHistoryStore:
         self._last_failure: float = 0.0
         # monotonic time of the last read-path purge (0 = never)
         self._last_read_purge: float = 0.0
+        # background startup purge (kept referenced so it is not GC'd mid-run)
+        self._purge_task: Optional[asyncio.Task[None]] = None
 
-    async def _purge_on_ready(self, conn: Any) -> None:
-        """Bounded backlog purge once the schema is ready; never fails the connect."""
+    async def _purge_on_ready(self, pool: Any) -> None:
+        """Bounded backlog purge once the schema is ready; never fails anything.
+
+        Runs as a background task started after the pool is published, outside
+        the connect lock, on its own connection: requests never wait for it.
+        """
         try:
-            for _ in range(PG_STARTUP_PURGE_BATCHES):
-                if _deleted_rows(await conn.execute(_PG_PURGE)) < PG_PURGE_BATCH:
-                    break
+            async with pool.acquire() as conn:
+                for _ in range(PG_STARTUP_PURGE_BATCHES):
+                    if _deleted_rows(await conn.execute(_PG_PURGE)) < PG_PURGE_BATCH:
+                        break
         except Exception as e:
             _record_error("postgres", "purge")
             logger.warning("Postgres history startup purge failed (fail-open)", extra={"error": str(e)})
+
+    def _start_startup_purge(self, pool: Any) -> None:
+        task = asyncio.create_task(self._purge_on_ready(pool), name="aigent-history-startup-purge")
+        self._purge_task = task
+
+        def _done(t: "asyncio.Task[None]") -> None:
+            if self._purge_task is t:
+                self._purge_task = None
+            if not t.cancelled() and t.exception() is not None:  # _purge_on_ready catches Exception
+                _record_error("postgres", "purge")
+                logger.warning("Postgres history startup purge crashed (fail-open)", extra={
+                    "error_type": type(t.exception()).__name__,
+                })
+
+        task.add_done_callback(_done)
 
     async def _maybe_purge_on_read(self, conn: Any) -> None:
         """One bounded batch at most every PG_READ_PURGE_INTERVAL_SECONDS."""
@@ -278,6 +358,7 @@ class PostgresHistoryStore:
             pool = None
             try:
                 import asyncpg
+                ssl_kwargs = _pg_ssl_kwargs()
                 pool = await asyncpg.create_pool(
                     host=settings.postgres_host,
                     port=settings.postgres_port,
@@ -287,7 +368,7 @@ class PostgresHistoryStore:
                     min_size=1,
                     max_size=5,
                     timeout=PG_CONNECT_TIMEOUT_SECONDS,
-                    **({"ssl": settings.postgres_sslmode} if settings.postgres_sslmode else {}),
+                    **ssl_kwargs,
                 )
                 async with pool.acquire() as conn:
                     # A table pre-created by a migration role is used as-is: no
@@ -298,7 +379,6 @@ class PostgresHistoryStore:
                             await conn.execute(_PG_SCHEMA)
                         finally:
                             await conn.execute("SELECT pg_advisory_unlock($1)", _PG_SCHEMA_LOCK_KEY)
-                    await self._purge_on_ready(conn)
                 self._pool, pool = pool, None
             except BaseException as e:
                 # Never leak a half-initialized pool (e.g. no CREATE privilege on
@@ -314,8 +394,13 @@ class PostgresHistoryStore:
                     raise  # cancellation: propagate, but the pool is closed
                 self._last_failure = time.monotonic()
                 _record_error("postgres", "connect")
-                logger.warning("Postgres history unavailable (fail-open)", extra={"error": str(e)})
+                if isinstance(e, PostgresTLSConfigError):
+                    # Misconfiguration, not an outage: say so loudly (still fail-open).
+                    logger.error("Postgres history TLS misconfigured (fail-open)", extra={"error": str(e)})
+                else:
+                    logger.warning("Postgres history unavailable (fail-open)", extra={"error": str(e)})
                 return None
+        self._start_startup_purge(self._pool)
         return self._pool
 
     async def save_chat_message(

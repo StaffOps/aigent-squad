@@ -1,9 +1,9 @@
 """Health check primitives — DependencyChecker with per-dep caching and timeout.
 
 ``DepResult.detail`` is served by the unauthenticated ``/ready`` endpoint, so it
-never carries raw exception text (hostnames, DSNs, driver messages): only the
-dependency, a short state and the exception CLASS. The full error is logged
-server-side instead (BACKLOG F-025 f).
+never carries raw exception text (hostnames, DSNs, driver messages) nor a probed
+URL: only the dependency, a short state and the exception CLASS. The full error
+(and, for HTTP checks, the URL) is logged server-side instead (BACKLOG F-025 f).
 """
 import asyncio
 import time
@@ -20,12 +20,25 @@ class DepResult:
     checked_at: float = field(default_factory=time.monotonic)
 
 
-def failure(subject: str, exc: BaseException) -> DepResult:
+def failure(subject: str, exc: BaseException, **log_extra: Any) -> DepResult:
     """Generic, probe-safe failure result; the full error goes to the log only."""
     logger.warning("readiness check failed", extra={
-        "dependency": subject, "error_type": type(exc).__name__, "error": str(exc),
+        "dependency": subject, "error_type": type(exc).__name__, "error": str(exc), **log_extra,
     })
     return DepResult(ok=False, detail=f"{subject} unreachable ({type(exc).__name__})")
+
+
+def _log_url(url: str) -> str:
+    # Lazy: adapters pulls in boto3/kubernetes, which the probe module must not need.
+    from src.core.adapters import strip_url_query
+
+    return strip_url_query(url)
+
+
+def _subject(key: str) -> str:
+    # Cache keys are "<dependency>" or "<dependency>:<target>" (http:<url>);
+    # only the dependency part is probe-safe.
+    return key.split(":", 1)[0]
 
 
 class DependencyChecker:
@@ -49,9 +62,13 @@ class DependencyChecker:
         try:
             result = await asyncio.wait_for(coro_fn(), timeout=self._timeout)
         except asyncio.TimeoutError:
-            result = DepResult(ok=False, detail=f"{key}: timeout after {self._timeout}s")
+            if _subject(key) != key:
+                logger.warning("readiness check timed out", extra={
+                    "dependency": _subject(key), "target": _log_url(key.split(":", 1)[1]),
+                })
+            result = DepResult(ok=False, detail=f"{_subject(key)}: timeout after {self._timeout}s")
         except Exception as exc:
-            result = failure(key.split(":", 1)[0], exc)
+            result = failure(_subject(key), exc)
         self._cache[key] = result
         return result
 
@@ -109,9 +126,12 @@ class DependencyChecker:
             try:
                 resp = await client.get(url, timeout=self._timeout)
                 if resp.status_code < 500:
-                    return DepResult(ok=True, detail=f"http {url}: {resp.status_code}")
-                return DepResult(ok=False, detail=f"http {url}: status {resp.status_code}")
+                    return DepResult(ok=True, detail=f"http: {resp.status_code}")
+                logger.warning("readiness check failed", extra={
+                    "dependency": "http", "url": _log_url(url), "status": resp.status_code,
+                })
+                return DepResult(ok=False, detail=f"http: status {resp.status_code}")
             except Exception as exc:
-                return failure(f"http {url}", exc)
+                return failure("http", exc, url=_log_url(url))
 
         return await self._run(key, _check)

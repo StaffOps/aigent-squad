@@ -178,7 +178,7 @@ async def test_check_history_and_http_are_generic():
         history = await checker.check_history(store)
         http = await checker.check_http("http://svc/health", client)
     assert history.detail == "history: postgres unreachable (ConnectionError)"
-    assert "cache.internal" not in http.detail and http.detail.endswith("unreachable (ConnectionError)")
+    assert http.detail == "http unreachable (ConnectionError)"  # no URL at all (review fix 7)
 
 
 @pytest.mark.asyncio

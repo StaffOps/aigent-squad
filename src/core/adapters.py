@@ -62,6 +62,26 @@ def mcp_error_detail(exc: BaseException, _depth: int = 0) -> str:
     return f"{name}: {msg}" if msg else name
 
 
+def _aws_error_code(exc: BaseException) -> str | None:
+    """botocore ClientError code (e.g. ``AccessDenied``); None for anything else.
+
+    Duck-typed on ``exc.response["Error"]["Code"]`` (the botocore shape) and
+    restricted to a code-like token, so a message, ARN or account id can never
+    ride along.
+    """
+    response = getattr(exc, "response", None)
+    if not isinstance(response, dict):
+        return None
+    error = response.get("Error")
+    code = error.get("Code") if isinstance(error, dict) else None
+    if isinstance(code, str) and _AWS_CODE.fullmatch(code):
+        return code
+    return None
+
+
+_AWS_CODE = re.compile(r"[A-Za-z0-9._-]{1,64}")
+
+
 def _http_status(exc: BaseException) -> int | None:
     response = getattr(exc, "response", None)
     status = getattr(response, "status_code", None)
@@ -78,6 +98,9 @@ def transport_error_summary(exc: BaseException, _depth: int = 0) -> str:
     HTTP status when there is one; the full message goes to the log through
     :func:`log_transport_error` (BACKLOG F-025 b).
     """
+    aws_code = _aws_error_code(exc)
+    if aws_code is not None:
+        return f"{type(exc).__name__} ({aws_code})"
     status = _http_status(exc)
     if _depth < _MAX_UNWRAP_DEPTH and status is None:
         subs = getattr(exc, "exceptions", None)
@@ -92,23 +115,96 @@ def transport_error_summary(exc: BaseException, _depth: int = 0) -> str:
     return f"{name} (HTTP {status})" if status is not None else name
 
 
+# Userinfo (``//user:pass@``) anywhere in free text, and a query/fragment tail
+# after a URL: both are where credentials live.
+_URL_USERINFO = re.compile(r"(?i)(\b[a-z][a-z0-9+.-]*://)[^\s/@'\"]*@")
 _URL_TAIL = re.compile(r"(https?://[^\s'\"?#]*)[?#][^\s'\"]*")
 
 
+def scrub_urls(text: str) -> str:
+    """``text`` with URL userinfo and query strings/fragments removed."""
+    return _URL_TAIL.sub(r"\1", _URL_USERINFO.sub(r"\1", text))
+
+
 def strip_url_query(url: str) -> str:
-    """``url`` without query string or fragment (where credentials tend to live)."""
+    """``url`` without userinfo, query string or fragment (where credentials live)."""
     parts = urlsplit(url)
-    return urlunsplit((parts.scheme, parts.netloc, parts.path, "", ""))
+    try:
+        port = parts.port
+    except ValueError:  # malformed port: keep nothing we cannot parse
+        port = None
+    host = parts.hostname or ""
+    if ":" in host:  # IPv6 literal
+        host = f"[{host}]"
+    netloc = f"{host}:{port}" if port is not None else host
+    return urlunsplit((parts.scheme, netloc, parts.path, "", ""))
 
 
-def log_transport_error(source: str, url: str, exc: BaseException) -> None:
-    """Operator-side record of a datasource failure: full root cause, no query strings."""
-    logger.warning("datasource transport error (fail-open)", extra={
+def log_transport_error(source: str, url: str | None, exc: BaseException) -> None:
+    """Operator-side record of a datasource failure: full root cause, no credentials."""
+    extra: dict[str, Any] = {
         "datasource": source,
-        "url": strip_url_query(url),
         "error_type": type(exc).__name__,
-        "error": _URL_TAIL.sub(r"\1", mcp_error_detail(exc)),
-    })
+        "error": scrub_urls(mcp_error_detail(exc)),
+    }
+    if url:
+        extra["url"] = strip_url_query(url)
+    logger.warning("datasource transport error (fail-open)", extra=extra)
+
+
+# MCP protocol (JSON-RPC) error text handed back to the model, capped.
+MCP_PROTOCOL_ERROR_MAX_CHARS = 200
+
+
+def _find_mcp_error(exc: BaseException, _depth: int = 0) -> BaseException | None:
+    """The ``McpError`` behind ``exc`` (unwrapping groups/causes), if any."""
+    from mcp.shared.exceptions import McpError  # lazy, like the other mcp imports here
+
+    # Kept as a bool: mcp ships no type info, so isinstance() would narrow exc to Any.
+    is_mcp_error = isinstance(exc, McpError)
+    if is_mcp_error:
+        return exc
+    if _depth >= _MAX_UNWRAP_DEPTH:
+        return None
+    subs = getattr(exc, "exceptions", None)
+    if subs:
+        for sub in subs:
+            found = _find_mcp_error(sub, _depth + 1)
+            if found is not None:
+                return found
+        return None
+    cause = getattr(exc, "__cause__", None)
+    if cause is not None and cause is not exc:
+        return _find_mcp_error(cause, _depth + 1)
+    return None
+
+
+def mcp_protocol_error_summary(exc: BaseException) -> str | None:
+    """``McpError <code>: <message>`` for a JSON-RPC error, None for anything else.
+
+    A JSON-RPC error (invalid params, unknown tool, ...) is the SERVER answering:
+    an application error the model can act on in the agentic loop, so its code
+    and message go back, scrubbed of URLs/credentials and capped. Transport
+    failures keep the class-only :func:`transport_error_summary`.
+    """
+    err = _find_mcp_error(exc)
+    if err is None:
+        return None
+    data = getattr(err, "error", None)
+    code = getattr(data, "code", None)
+    message = getattr(data, "message", None)
+    if not isinstance(message, str):
+        message = str(err)
+    message = " ".join(scrub_urls(message).split())
+    if len(message) > MCP_PROTOCOL_ERROR_MAX_CHARS:
+        message = message[: MCP_PROTOCOL_ERROR_MAX_CHARS - 3] + "..."
+    head = f"McpError {code}" if isinstance(code, int) else "McpError"
+    return f"{head}: {message}" if message else head
+
+
+def tool_error_summary(exc: BaseException) -> str:
+    """LLM-facing summary of an MCP tool failure: protocol error detail or transport class."""
+    return mcp_protocol_error_summary(exc) or transport_error_summary(exc)
 
 
 
@@ -183,7 +279,8 @@ class Boto3Adapter(DatasourceAdapter):
             try:
                 parts.append(self._collect_service(svc))
             except Exception as e:
-                parts.append(f"[{svc}] error: {e}")
+                log_transport_error(f"boto3:{svc}", None, e)
+                parts.append(f"[{svc}] error: {transport_error_summary(e)}")
         return "\n".join(parts)
 
     def _collect_service(self, svc: str) -> str:
@@ -239,7 +336,8 @@ class KubernetesAdapter(DatasourceAdapter):
                 f"{len(namespaces)} namespaces"
             )
         except Exception as e:
-            return f"[k8s] error: {e}"
+            log_transport_error("k8s", None, e)
+            return f"[k8s] error: {transport_error_summary(e)}"
 
 
 class HttpAdapter(DatasourceAdapter):
@@ -305,7 +403,8 @@ class AthenaAdapter(DatasourceAdapter):
                 lines.append(", ".join(c.get("VarCharValue", "") for c in row["Data"]))
             return f"[athena:{self.table}]\n" + "\n".join(lines)
         except Exception as e:
-            return f"[athena:{self.table}] error: {e}"
+            log_transport_error(f"athena:{self.table}", None, e)
+            return f"[athena:{self.table}] error: {transport_error_summary(e)}"
 
 
 class McpAdapter(DatasourceAdapter):
@@ -491,7 +590,7 @@ class McpAdapter(DatasourceAdapter):
             raise  # Re-raise allowlist violations
         except Exception as e:
             log_transport_error(f"mcp:{self.name}:{server_name}", self.url, e)
-            return f"[mcp:{self.name}:{server_name}] error: {transport_error_summary(e)}"
+            return f"[mcp:{self.name}:{server_name}] error: {tool_error_summary(e)}"
 
     def _resolve_server_name(self, converse_name: str) -> str:
         """Resolve a Converse tool name back to the MCP server's real name.
@@ -564,7 +663,7 @@ class McpAdapter(DatasourceAdapter):
                 results.append(f"[mcp:{self.name}:{tool_name}] {self._render(res)}")
             except Exception as e:  # one tool failing must not kill the rest
                 log_transport_error(f"mcp:{self.name}:{tool_name}", self.url, e)
-                results.append(f"[mcp:{self.name}:{tool_name}] error: {transport_error_summary(e)}")
+                results.append(f"[mcp:{self.name}:{tool_name}] error: {tool_error_summary(e)}")
         return results
 
     @staticmethod

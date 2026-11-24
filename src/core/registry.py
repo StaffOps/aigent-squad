@@ -49,13 +49,17 @@ class AgentRegistry:
 
             # Two names that normalize to one AGENT_<NAME>_ENABLED (e.g. `a-b` and
             # `a_b`) would share a single on/off switch: refuse, whatever their state.
+            # The same name twice is the degenerate case: refuse it too.
             switch = enabled_env_var(config.name)
-            owner = switches.setdefault(switch, config.name)
-            if owner != config.name:
-                raise RuntimeError(
-                    f"Agents '{owner}' and '{config.name}' share the switch {switch}; "
-                    "rename one of them"
+            owner = switches.get(switch)
+            if owner is not None:
+                what = (
+                    f"Two agents named '{owner}'"
+                    if owner == config.name
+                    else f"Agents '{owner}' and '{config.name}'"
                 )
+                raise RuntimeError(f"{what} share the switch {switch}; rename one of them")
+            switches[switch] = config.name
 
             if not config.enabled:
                 logger.info(f"Agent '{config.name}' disabled, skipping")
