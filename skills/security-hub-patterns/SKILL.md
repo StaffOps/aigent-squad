@@ -384,7 +384,7 @@ aws securityhub batch-update-findings \
 - **3 EKS clusters** generate findings on EC2 nodes, EBS, SGs, IAM roles, S3
 - Resources missing `CostCenter`/`Environment` tags → tagging compliance gap (cross-ref `aws-tag-policies` steering)
 - **Future pipeline**: Kyverno admission failures → K8s Event → EventBridge → Lambda → `BatchImportFindings` (unifies cloud + K8s posture)
-- **Slack**: `#eks-notifications` could receive HIGH/CRITICAL via EventBridge → Lambda → webhook (same `alertmanager-slack-webhook` secret)
+- **Slack**: `#alerts` could receive HIGH/CRITICAL via EventBridge → Lambda → webhook (same `alertmanager-slack-webhook` secret)
 
 ## Anti-patterns
 

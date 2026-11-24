@@ -298,7 +298,7 @@ curl -s "https://alertmanager.<org-domain>/api/v2/alerts?filter=alertname%3DVMSt
 
 | Contact | When | How |
 |---------|------|-----|
-| DevOps team | PVC expansion needed | `#eks-notifications` |
+| DevOps team | PVC expansion needed | `#alerts` |
 | SRE | Cardinality investigation | `#incidents-active` |
 
 ## History

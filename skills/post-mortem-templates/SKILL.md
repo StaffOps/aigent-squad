@@ -309,5 +309,5 @@ Incident resolved
 
 - Google SRE Book Ch. 15: Postmortem Culture
 - Related skills: `incident-response-runbook`, `alerting-strategy`, `sla-slo-design`
-- <org> Slack: `#postmortem` (sharing), `#eks-notifications-*` (alert history)
+- <org> Slack: `#postmortem` (sharing), `#alerts-*` (alert history)
 - Grafana: `https://grafana.<org-domain>` (evidence dashboards)

@@ -11,7 +11,7 @@ keywords: [pipeline-apps, pipeline, apps, "pipeline apps", gitlab, ci, cd]
 
 ## Domain-Specific Pipeline Repos
 
-9 repos in `/home/karlipegomes/Documents/<ORG>/00-GITLAB/PIPELINES/`:
+9 repos in `<pipelines-group>/`:
 
 | Repo | Domain | CostCenter |
 |------|--------|------------|

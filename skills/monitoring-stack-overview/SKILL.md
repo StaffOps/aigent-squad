@@ -119,7 +119,7 @@ VMAlert (evaluates VMRules) → fires alerts → Alertmanager → routes → Sla
 | Alertmanager | Deduplication, grouping, routing, silencing |
 | Slack | Final notification destination |
 
-Slack channels: `#eks-notifications`, `#eks-notifications-teams`, `#eks-notifications-workload-prd`
+Slack channels: `#alerts`, `#alerts-teams`, `#alerts-workload-prd`
 
 ## Cross-signal correlation
 

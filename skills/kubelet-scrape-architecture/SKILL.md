@@ -1,6 +1,6 @@
 ---
 name: kubelet-scrape-architecture
-description: ""
+description: "Scrape configuration for kubelet /metrics and /metrics/cadvisor aligned with kubernetes-mixin dashboards. Use when kubelet or cAdvisor container metrics are missing, duplicated or mislabelled."
 keywords: [kubelet-scrape-architecture, kubelet, scrape, architecture, "kubelet scrape", "scrape architecture"]
 ---
 # Kubelet Scrape Architecture

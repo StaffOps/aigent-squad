@@ -49,7 +49,7 @@ class TestResourceIdGroundedness:
     def test_ungrounded_arn_blocked(self):
         guard = _make_guard(enabled=True)
         infra_data = "No IAM policies found."
-        response = "The role arn:aws:iam::524040971621:role/made-up-role has wildcard access."
+        response = "The role arn:aws:iam::123456789012:role/made-up-role has wildcard access."
         with pytest.raises(GuardrailBlockedError) as exc_info:
             guard.scan(response, agent_id="security", infra_data=infra_data)
         assert "quality:ungrounded_resource_id" in exc_info.value.categories

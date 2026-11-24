@@ -12,7 +12,7 @@ ArgoCD is the **sole deployment mechanism** for PRD/HML/BTC at <org>. It runs on
 - **Namespace**: `argo` (core-devops cluster)
 - **Chart**: `argo/argo-cd` v9.5.14
 - **UI**: internal (via ingress)
-- **Notifications**: `#eks-notifications-argo` Slack channel
+- **Notifications**: `#alerts-argocd` Slack channel
 
 ## ApplicationSet Generators
 
@@ -336,8 +336,8 @@ template.slack-sync-failed: |
 ```
 
 Channels:
-- `#eks-notifications-argo` — all sync issues
-- `#eks-notifications-teams` — team-specific routing
+- `#alerts-argocd` — all sync issues
+- `#alerts-teams` — team-specific routing
 
 ## Anti-patterns
 

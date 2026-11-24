@@ -104,7 +104,7 @@ kind: ServiceAccount
 metadata:
   name: argo-workflow
   annotations:
-    eks.amazonaws.com/role-arn: arn:aws:iam::524040971621:role/ArgoWorkflowsAccessRole-<org>-eks-prd
+    eks.amazonaws.com/role-arn: arn:aws:iam::<ACCOUNT_ID>:role/ArgoWorkflowsAccessRole-<org>-eks-prd
 ```
 
 ### Node Configuration

@@ -395,7 +395,7 @@ Grafana dashboard: query `securityhub_*` metrics for trend visualization.
 | Channel | Purpose | Trigger |
 |---------|---------|---------|
 | `#security-findings` (proposed) | HIGH+ findings notification | EventBridge → Lambda → Slack |
-| `#eks-notifications` | Infrastructure alerts (overlap) | Alertmanager |
+| `#alerts` | Infrastructure alerts (overlap) | Alertmanager |
 | Weekly SecOps meeting | Triage MEDIUM, review backlog | Calendar |
 
 ### Weekly SecOps review agenda

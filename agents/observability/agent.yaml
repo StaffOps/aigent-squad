@@ -48,6 +48,7 @@ delegates_to:
     when: "latency regression correlates with recent deploy"
 port: 8005
 skills:
+  - metric-discovery-before-query
   - alerting-strategy
   - alertmanager-slack-config
   - apm-metrics-cross-runtime
@@ -122,3 +123,5 @@ skills:
   - victoriametrics-self-metrics
   - vm-cardinality-management
   - vmalert-configuration
+  - victoriametrics-troubleshooting
+  - victoriametrics-tuning

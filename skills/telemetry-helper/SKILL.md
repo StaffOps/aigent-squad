@@ -9,7 +9,7 @@ Quick reference for the `<org>telemetryhelper` monorepo state.
 
 ## Repository
 
-**Path**: `/home/karlipegomes/Documents/<ORG>/01-DEVOPS/LABS/<org>telemetryhelper`
+**Path**: `<telemetry-helper-repo>`
 
 GitLab: <ORG>'s internal GitLab.
 
@@ -271,7 +271,7 @@ The `feat/pyroscope` branch (commit `824171a`) has the previous Pyroscope integr
 
 ### .NET (always via Docker)
 ```bash
-cd /home/karlipegomes/Documents/<ORG>/01-DEVOPS/LABS/<org>telemetryhelper/dotnet
+cd <telemetry-helper-repo>/dotnet
 
 # Build
 docker run --rm -v $(pwd):/src -w /src mcr.microsoft.com/dotnet/sdk:8.0 dotnet build
@@ -285,7 +285,7 @@ docker run --rm -v $(pwd):/src -w /src mcr.microsoft.com/dotnet/sdk:8.0 dotnet p
 
 ### Python (always via Docker)
 ```bash
-cd /home/karlipegomes/Documents/<ORG>/01-DEVOPS/LABS/<org>telemetryhelper/python
+cd <telemetry-helper-repo>/python
 
 # Test
 docker run --rm -v $(pwd):/app -w /app python:3.11-slim sh -c \
@@ -322,7 +322,7 @@ docker run --rm -v $(pwd):/app -w /app python:3.11-slim sh -c \
 
 ## Reference links
 
-- Repo: `/home/karlipegomes/Documents/<ORG>/01-DEVOPS/LABS/<org>telemetryhelper`
+- Repo: `<telemetry-helper-repo>`
 - Sample apps: `<org>telemetryhelper/{dotnet,python}/example/`
 - Dashboards: `<org>telemetryhelper/dashboards/`
 - Tests docs: `<org>telemetryhelper/{dotnet,python}/TESTS.md`

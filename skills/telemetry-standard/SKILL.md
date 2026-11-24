@@ -33,7 +33,7 @@ Apps that don't comply are not production-ready.
 
 ## Lib repositories
 
-Monorepo: `/home/karlipegomes/Documents/<ORG>/01-DEVOPS/LABS/<org>telemetryhelper`
+Monorepo: `<telemetry-helper-repo>`
 
 ```
 <org>telemetryhelper/
