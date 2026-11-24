@@ -15,7 +15,7 @@ multi-replica goal: no admission control (a flood is accepted until OOM
 instead of a clean 503), client protocols (OpenAI `/v1`, future Slack/Teams)
 bleeding into the orchestrator, and one coarse scaling unit for two very
 different load profiles (cheap IO-bound edge vs Bedrock-bound orchestration).
-The sibling `staffops-chaitops` `agent-api` had already proven the
+The `agent-api` of a sibling internal agent platform had already proven the
 gateway-only shape, and reuse of its patterns was authorized.
 
 ## Decision
@@ -41,7 +41,7 @@ local concurrency caps are per-replica in-memory, account-wide limits
   over-engineering — the multi-replica goal is the justifying trigger.
 - **Message queue between tiers (Kafka/SQS)** — rejected: request/response
   workload (a human waits); bounded pool + `503 Retry-After` is sufficient;
-  a durable queue adds latency and ops weight (same call chaitops made).
+  a durable queue adds latency and ops weight (same call that sibling platform made).
 - **Global (Redis) semaphore for local concurrency** — rejected: pod
   self-protection must survive a Redis outage; only shared-resource limits
   need coordination (this also corrected spec 25's framing, whose in-memory

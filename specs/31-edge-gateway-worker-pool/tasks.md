@@ -1,7 +1,7 @@
 # Tasks: Edge Gateway + Worker Pool
 
 Order by structural risk. L1 is the big move (security ships WITH it, day-1); later
-layers add admission, scaling, validation. Reuses `staffops-chaitops` patterns
+layers add admission, scaling, validation. Reuses the patterns of a sibling internal agent platform
 (authorized). Round-table sign-off 2026-06-22 (dev + security + sre + gitops).
 
 ## Phase 1 — Extract the gateway service (structural + security day-1)
@@ -14,12 +14,12 @@ layers add admission, scaling, validation. Reuses `staffops-chaitops` patterns
 - [ ] T5c: (day-1 security) NetworkPolicy — supervisor `/internal/*` ingress only from gateway; gateway ingress only from ingress-controller
 - [ ] T6: Tests T1–T5c (independent author) — routes forward, preflight returns clean 404/503, supervisor refuses without internal token
 
-## Phase 2 — Worker pool + backpressure (ChaitOps pattern)
+## Phase 2 — Worker pool + backpressure (reference pattern)
 - [ ] T7: `gateway/worker_pool.py` — global `asyncio.Semaphore(20)`, `PoolFullError`, cancel via `cancel:<job_id>` Redis poll (500ms), `wait_for` job timeout (45s)
 - [ ] T7b: Two-timeout model — first-byte (15s) + idle-stream (10s) on top of the 45s hard backstop (idle timeout is the real stall guard)
 - [ ] T8: Wire pool into forward path; `PoolFullError → 503 + dynamic Retry-After (jitter)`; body distinguishes `service_overloaded` vs `backend_unavailable`
 - [ ] T8b: httpx client `max_connections = max_concurrent + 5` (avoid hidden backpressure)
-- [ ] T9: Job lifecycle in Redis (`job:<id>`, `audit`) — ChaitOps shape; log-based fallback + `aigent.gateway.redis_fallback_active` metric when Redis down
+- [ ] T9: Job lifecycle in Redis (`job:<id>`, `audit`) — reference shape; log-based fallback + `aigent.gateway.redis_fallback_active` metric when Redis down
 - [ ] T10: `POST /jobs/{id}/cancel` endpoint
 - [ ] T11: Metrics `aigent.gateway.pool_rejections`/`pool_depth`/`queue_wait`
 - [ ] T12: Tests (independent author) — backpressure 503, cancel within ~500ms, first-byte/idle/job timeouts

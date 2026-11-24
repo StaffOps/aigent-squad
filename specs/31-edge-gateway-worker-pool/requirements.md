@@ -12,7 +12,7 @@ deferred: ["T21 k6 load test"]
 **Spec**: `31-edge-gateway-worker-pool`
 **Severity**: 🟠 High (prerequisite for scaling the supervisor beyond a single replica)
 **Depends on**: `25-multi-tenant-concurrency` (distributed state), `29-openai-compat-bridge` (the `/v1` surface this gateway will front)
-**Reference architecture**: `staffops-chaitops` (`agent-api/` — gateway-only FastAPI + `WorkerPool` + channel adapters). ChaitOps is a <ORG>-internal project; reuse of its patterns/code is explicitly permitted by the user (exception to `licensing-clean-room`).
+**Reference architecture**: a sibling internal agent platform (its `agent-api/` — gateway-only FastAPI + `WorkerPool` + channel adapters). It is a <ORG>-internal project; reuse of its patterns/code is explicitly permitted by the user (exception to `licensing-clean-room`).
 
 ---
 
@@ -38,7 +38,7 @@ admission control (worker pool + backpressure), auth, rate-limit, client protoco
 translation (OpenAI `/v1`, native), and clean degradation. The supervisor becomes
 a **backend service** the gateway calls — and can scale independently.
 
-> ChaitOps already runs exactly this shape (`agent-api` is "gateway only — no
+> The reference platform already runs exactly this shape (`agent-api` is "gateway only — no
 > CLIs"; orchestration lives behind it). We adopt its `WorkerPool`, preflight,
 > and backpressure patterns, adapted to our Bedrock-direct (not sidecar) backend.
 
@@ -52,7 +52,7 @@ a **backend service** the gateway calls — and can scale independently.
 | **Global** budget/rate (account-wide $/TPS) | **25 + 31** | Logic from 25; **enforced at the gateway** (admission) per this spec |
 | **Local** concurrency cap (pod resource) | **31** | New: worker pool semaphore at the gateway |
 | Backpressure (`503` when full) | **31** | New |
-| Per-replica admission + job lifecycle | **31** | New: `WorkerPool` (ChaitOps pattern) |
+| Per-replica admission + job lifecycle | **31** | New: `WorkerPool` (reference pattern) |
 | Edge auth (API key / token) | **31** | Consolidated at the gateway; supervisor trusts the gateway |
 
 This spec does **not** re-implement the circuit breaker or session lock (those
@@ -88,7 +88,7 @@ in Redis/DynamoDB, per spec 25), and in-flight jobs fail cleanly (no zombie work
 - [ ] **Gateway service** (`src/gateway/`): FastAPI front door, no orchestration
       logic. Hosts native `/query`, OpenAI `/v1/*` (delegating to spec 29 shaping),
       health probes, and admission control.
-- [ ] **WorkerPool** (ChaitOps pattern): bounded local concurrency (semaphore),
+- [ ] **WorkerPool** (reference pattern): bounded local concurrency (semaphore),
       cancellation via Redis key polling, per-job timeout, `PoolFullError → 503`.
 - [ ] **Preflight checks** before streaming starts (return clean HTTP errors, not
       mid-stream failures): supervisor reachable (503), agent known (404), budget
@@ -101,7 +101,7 @@ in Redis/DynamoDB, per spec 25), and in-flight jobs fail cleanly (no zombie work
       `process` endpoint; the gateway forwards (HTTP, streaming-capable). Supervisor
       trusts the gateway's internal token (mesh/mTLS later).
 - [ ] **Job lifecycle in Redis**: `job:<id>` status, `cancel:<id>` signal, `audit`
-      trail (ChaitOps shape).
+      trail (reference shape).
 - [ ] **Backpressure metric**: `aigent.gateway.pool_rejections` (counter),
       `aigent.gateway.pool_depth` (gauge), `aigent.gateway.queue_wait` (histogram).
 - [ ] **Health**: `/healthz` (liveness, no deps), `/ready` (readiness — checks
@@ -120,10 +120,10 @@ in Redis/DynamoDB, per spec 25), and in-flight jobs fail cleanly (no zombie work
   unchanged — the gateway forwards to it).
 - True token streaming (spec 06) — gateway forwards whatever the supervisor emits.
 - Channel adapters themselves (Slack/Teams/Discord) — separate spec; this spec only
-  guarantees they can sit in front of the gateway (HTTP client, like ChaitOps
+  guarantees they can sit in front of the gateway (HTTP client, like the reference platform's
   `channels/common/agent_api_client`).
 - A persistent job queue (Kafka/SQS) — backpressure via bounded pool is enough for
-  this load profile (same call ChaitOps made).
+  this load profile (same call the reference platform made).
 - Distributed **local** semaphore — local cap is intentionally per-replica (see
   Rationale); only budget/TPS is global.
 

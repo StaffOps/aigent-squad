@@ -94,7 +94,7 @@ signup) — so there is **no default user/password**; you create the first accou
 The squad itself doesn't need to run anywhere near LibreChat — only
 `mongo` + `librechat` run locally, pointed at the real devops-core gateway
 (`https://aigent-squad.<org>.app.br`). No Helm chart, no in-cluster LibreChat
-deployment: same call `staffops-chaitops` made for its own LibreChat
+deployment: same call a sibling internal agent platform made for its own LibreChat
 (docker-compose only; a K8s migration is explicitly deferred there until a
 real trigger — `TODO.md` §1). `infra/librechat/librechat.yaml`'s `baseURL` is
 hardcoded to the real cluster (LibreChat doesn't template that particular
