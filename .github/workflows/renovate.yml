@@ -7,13 +7,17 @@ on:
     - cron: "0 6 * * 1"   # Monday 6am UTC (3am BRT)
   workflow_dispatch:
 
+# Read-only by default (OpenSSF Scorecard Token-Permissions); the job declares what Renovate
+# needs to push update branches and open PRs.
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
 
 jobs:
   renovate:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write       # push renovate/* branches
+      pull-requests: write  # open/update the update PRs
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 

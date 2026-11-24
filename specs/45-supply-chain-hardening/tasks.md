@@ -41,7 +41,10 @@ by a pipeline that can be hijacked signs the wrong thing convincingly.
         write the real workflow before this passes.
   - [ ] Q3 — whether Scorecard has an SBOM check (read `docs/checks/internal/checks.yaml`).
   - [ ] Q4 — CycloneDX predicate-type URI actually emitted by our Trivy version.
-  - [ ] Q5 — how the `.intoto.jsonl` release asset is produced (T3.4).
+  - [x] Q5 — how the `.intoto.jsonl` release asset is produced (T3.4). **Settled 2026-11-24**:
+        exported from the `actions/attest-build-provenance` step's `bundle-path` output (the same
+        attestation pushed to GHCR), not regenerated; the SBOM file gets its own keyless
+        `cosign sign-blob --new-bundle-format` bundle (`sbom.cdx.json.sigstore.json`).
   - [ ] Q6 — re-check design D6's promotion trigger: `otel-helper` is now a **public** git dependency,
         but `pip --require-hashes` still cannot hash a VCS URL, so hash-pinning stays blocked until it
         is consumed from an index rather than by git URL. Confirm this reading before leaving D6
@@ -146,6 +149,15 @@ stop: that is the invariant, not an implementation detail.
       `Signed-Releases` check reads. Mechanics: `softprops/action-gh-release` currently has **no
       `files:` input** — it must be added. Settle in T0.3 how the `.intoto.jsonl` is produced (export
       from the attestation vs a `cosign` output); do not assume a file simply appears on disk.
+      **Correction 2026-11-24**: marked done on 2026-08-17 but only `sbom.cdx.json` was attached
+      (v0.5.0 shipped without a signature or provenance asset; OpenSSF Scorecard Signed-Releases
+      0/10). Now completed in `release.yml`: the Release is created by a separate `github-release`
+      job (the only job with `contents: write`, runs after `verify`) and attaches `sbom.cdx.json`,
+      `sbom.cdx.json.sigstore.json` and `aigent-squad-<v>.intoto.jsonl`. Consumer commands in
+      `docs/VERIFYING-RELEASES.md` → "Release assets"; the `verify` job runs those same commands
+      before the Release exists. Proven only on the next real tag. Scorecard Signed-Releases
+      averages the last 5 releases, so it climbs ~2 points per signed release (≈2/10 after the
+      first), reaching 10 only after 5.
 - [x] T3.5: **`verify` job** — `needs: publish`, runs in a clean job, and verifies from outside:
       `cosign verify` with `--certificate-identity-regexp` + `--certificate-oidc-issuer`, plus
       attestation verification for provenance and SBOM. **Fails the pipeline** on any miss. Add
