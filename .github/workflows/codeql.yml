@@ -1,0 +1,56 @@
+name: CodeQL
+
+# Semantic SAST with results in the Security tab (code scanning). Complements — does not
+# replace — the Bandit job in sast.yml: Bandit is a fast pattern gate that fails the PR;
+# CodeQL does data-flow analysis (taint from request → sink) for Python, and audits the
+# workflows themselves (`actions` language: script injection, untrusted checkout, excessive
+# token permissions). Available because the repository is public.
+#
+# Not a merge gate by itself: findings land as code-scanning alerts on the PR. Make the
+# "CodeQL" check required in branch protection only once the baseline is triaged.
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+  schedule:
+    # Weekly, so new CodeQL queries run against unchanged code too.
+    - cron: "41 5 * * 2"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read          # checkout
+      security-events: write  # upload results to code scanning
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [python, actions]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      # build-mode none: both are interpreted — nothing to compile, no dependency install.
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@5595ccaf912efad79be6eef63a5619ff05969be3 # v4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: none
+          queries: security-extended
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@5595ccaf912efad79be6eef63a5619ff05969be3 # v4
+        with:
+          category: "/language:${{ matrix.language }}"
