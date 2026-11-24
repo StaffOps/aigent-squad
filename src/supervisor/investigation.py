@@ -155,6 +155,7 @@ async def run_investigation(
         rca = await _synthesize_rca(
             symptom, state.evidence, timeline, user_id=user_id, session_id=session_id,
         )
+        rca.investigation_id = state.id
 
         log_response("investigation", user_id, session_id, len(rca.hypothesis), 0.0)
 

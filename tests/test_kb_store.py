@@ -18,6 +18,8 @@ class AsyncContextManagerMock:
 
 def _make_store_with_pool(mock_conn):
     store = KbStore()
+    # insert() runs in a transaction (F-029: item + provenance together).
+    mock_conn.transaction = MagicMock(return_value=AsyncContextManagerMock(None))
     mock_pool = MagicMock()
     mock_pool.acquire = MagicMock(return_value=AsyncContextManagerMock(mock_conn))
     store._pool = mock_pool

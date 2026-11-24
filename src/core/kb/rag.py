@@ -1,4 +1,5 @@
 """RAG injection: query KB by symptom embedding, format <similar_cases> block."""
+from src.core.config import settings
 from src.core.kb.store import kb_store
 from src.core.kb.embedder import embed
 from src.core.logger import logger
@@ -10,6 +11,8 @@ async def inject_similar_cases(
     top_k: int = 3, threshold: float = 0.75,
 ) -> str:
     """Returns a <similar_cases> XML block to inject in the synthesizer prompt, or empty string."""
+    if not settings.kb_enabled:
+        return ""  # KB_ENABLED=false: no lookup, and no embedding call either
     try:
         emb = await embed(symptom)
         if emb is None:

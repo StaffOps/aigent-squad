@@ -222,7 +222,7 @@ class SupervisorAgent:
                         session_id=session_id,
                         model_id_override=inv_tier_model_id,
                     )
-                    asyncio.create_task(distill_rca(rca))
+                    asyncio.create_task(distill_rca(rca, investigation_id=rca.investigation_id or None))
                     duration_ms = (time.time() - start_time) * 1000
                     request_counter.add(1, {"agent_id": "investigation"})
                     request_duration.record(duration_ms, {"agent_id": "investigation"})

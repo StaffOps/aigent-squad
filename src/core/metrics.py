@@ -476,3 +476,22 @@ history_backend_errors = meter.create_counter(
     ),
     unit="1",
 )
+
+# === F-029: KB retention sweep + provenance (spec 21) ===
+kb_retention_deleted = meter.create_counter(
+    name="aigent.kb.retention.deleted",
+    description="KB items deleted by the retention sweep, by rule (rejected_superseded | max_age)",
+    unit="1",
+)
+
+kb_retention_errors = meter.create_counter(
+    name="aigent.kb.retention.errors",
+    description="KB retention sweeps that failed (fail-open: the KB keeps serving)",
+    unit="1",
+)
+
+kb_provenance_written = meter.create_counter(
+    name="aigent.kb.provenance.written",
+    description="kb_provenance rows written alongside new KB items",
+    unit="1",
+)
