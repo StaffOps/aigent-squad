@@ -69,10 +69,13 @@ async def test_http_adapter_collect():
 
 
 @pytest.mark.asyncio
-async def test_http_adapter_env_interpolation():
-    with patch.dict(os.environ, {"MY_HOST": "resolved.host"}):
-        adapter = HttpAdapter(name="env-test", url="http://${MY_HOST}/api", headers={})
-    assert adapter.url == "http://resolved.host/api"
+async def test_http_adapter_never_re_expands_env():
+    """Spec 46 review (M1/F4): ${VAR} is expanded once, at agent load. The adapter must
+    keep its URL literal — an env value holding "${SECRET}" must not pull a secret in."""
+    with patch.dict(os.environ, {"SECRET_TOK": "s3cr3t"}):
+        adapter = HttpAdapter(name="env-test", url="https://h/api?x=${SECRET_TOK}", headers={})
+    assert adapter.url == "https://h/api?x=${SECRET_TOK}"
+    assert "s3cr3t" not in adapter._cache_id()
 
 
 # --- Boto3Adapter tests ---
@@ -159,12 +162,40 @@ async def test_mcp_adapter_fail_closed_empty_allowlist():
 
 
 @pytest.mark.asyncio
-async def test_mcp_adapter_env_interpolation_in_url():
+async def test_mcp_adapter_never_re_expands_env():
     from src.core.adapters import McpAdapter
 
-    with patch.dict(os.environ, {"MCP_HOST": "k8s-mcp.internal"}):
-        adapter = McpAdapter(name="x", url="http://${MCP_HOST}/mcp", tools=["t"])
-    assert adapter.url == "http://k8s-mcp.internal/mcp"
+    with patch.dict(os.environ, {"SECRET_TOK": "s3cr3t"}):
+        adapter = McpAdapter(name="x", url="https://mcp.example/mcp?t=${SECRET_TOK}", tools=["t"])
+    assert adapter.url == "https://mcp.example/mcp?t=${SECRET_TOK}"
+
+
+@pytest.mark.asyncio
+async def test_mcp_static_tool_arguments_win_over_model_args():
+    """Spec 46 review (L4): operator-pinned tool_arguments cannot be overridden by a
+    (possibly prompt-injected) model tool call."""
+    from unittest.mock import AsyncMock, MagicMock
+    from src.core.adapters import McpAdapter
+
+    adapter = McpAdapter(name="x", url="https://mcp.example/mcp", tools=["pods_list"],
+                         tool_arguments={"namespace": "team-a"})
+    session = MagicMock()
+    session.initialize = AsyncMock()
+    session.call_tool = AsyncMock(return_value=MagicMock(content=[]))
+    cm = MagicMock()
+    cm.__aenter__ = AsyncMock(return_value=session)
+    cm.__aexit__ = AsyncMock(return_value=False)
+    transport = MagicMock()
+    transport.__aenter__ = AsyncMock(return_value=(MagicMock(), MagicMock(), None))
+    transport.__aexit__ = AsyncMock(return_value=False)
+    with patch("mcp.client.streamable_http.streamablehttp_client", return_value=transport), \
+         patch("mcp.ClientSession", return_value=cm):
+        try:
+            await adapter.call_tool("pods_list", {"namespace": "kube-system", "label": "x"})
+        except Exception:
+            pass
+    args = session.call_tool.await_args.args[1]
+    assert args["namespace"] == "team-a" and args["label"] == "x"
 
 
 @pytest.mark.asyncio

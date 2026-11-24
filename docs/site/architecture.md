@@ -143,7 +143,7 @@ Backpressure: `503` with `Retry-After` and a body `error.type` of
 | Path | Method | Auth | Purpose |
 |------|:------:|:----:|---------|
 | `/healthz` | GET | — | Liveness |
-| `/ready` | GET | — | Readiness (Redis + history backend + agents; degraded datasources listed) |
+| `/ready` | GET | — | Readiness: gates on Redis + ≥1 agent; reports the history backend (informational — history is fail-open) and degraded datasources |
 | `/internal/process` | POST | `X-Supervisor-Token` | Orchestration entry (gateway-only) |
 | `/internal/agents` | GET | `X-Supervisor-Token` | Agent names for `/v1/models` |
 | `/alerts/incoming` | POST | `X-Internal-Token` | Alertmanager webhook → auto-RCA |

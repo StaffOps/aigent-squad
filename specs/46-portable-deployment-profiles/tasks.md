@@ -53,9 +53,16 @@
 
 - [x] T14 Docs: ARCHITECTURE, HOW-TO-NEW-AGENT, AGENTS.md env table, chart README, CHANGELOG upgrade note (AWS must set `HISTORY_BACKEND=dynamodb`), RELEASE.md check (AC 12)
 - [x] T15 Live verification on a Kubernetes cluster outside AWS: `/ready` 200 without DynamoDB, history across 2 turns, 1 agentic MCP call via an OpenAI-compatible LLM (AC 11)
-- [ ] T16 Independent test authorship (different session than the implementer)
-- [ ] T17 Independent code review (fresh context)
-- [ ] T18 Security review (mandatory: datasource addressing / data egress, header secrets, capability widening)
+- [x] T16 Independent test authorship (different session than the implementer)
+- [x] T17 Independent code review (fresh context)
+- [x] T18 Security review (mandatory: datasource addressing / data egress, header secrets, capability widening)
+
+> T16–T18 done 2026-11-24 (three separate fresh-context agents). T16: 76 independent tests
+> (`tests/test_spec46_independent_*.py`), 2 low bugs found and fixed. T17 (code review,
+> request changes) and T18 (security review, no critical/high) findings fixed in the review
+> PR — notably `/ready` history made informational, single-pass `${VAR}` expansion, expanded
+> URL validation, Postgres pool leak/backoff, Redis cluster hash tags. Chart findings fixed on
+> the helm-charts branch. Deferred items: BACKLOG F-024, F-025.
 
 ## Order
 

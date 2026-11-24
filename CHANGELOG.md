@@ -2,6 +2,25 @@
 
 ## [Unreleased]
 
+### Fixed — spec 46 independent review findings (2026-11-24)
+- `/ready`: the history check is informational (history is fail-open); only Redis and
+  agents gate readiness. A Postgres/DynamoDB history outage no longer 503s every query.
+- `${VAR}` is expanded exactly once: the http/MCP adapters no longer re-expand URLs, so an
+  env value containing `${OTHER}` cannot pull another (secret) env var into a URL.
+- Expanded datasource URLs are validated (http/https only, no user-info, no control
+  characters, no link-local/metadata targets unless `AIGENT_ALLOW_LINK_LOCAL_DATASOURCES`);
+  a refused URL drops that datasource (`reason: invalid_url` in `/ready`).
+- Invalid `agent.yaml` errors are re-raised without input values (could hold expanded
+  secrets).
+- MCP static `tool_arguments` now win over model-chosen arguments.
+- Postgres history: a failed schema step closes its pool (no connection leak on retry);
+  queued requests honour the reconnect backoff; connect timeout below the probe timeout;
+  DDL serialized with an advisory lock across replicas.
+- Redis history: keys share a hash tag (valid on Redis Cluster); write order kept on equal
+  timestamps; Redis/Postgres keys no longer collide for ids containing `#`.
+- Note: the DynamoDB store keeps its legacy key and orders "all agents" reads by agent,
+  then time (Redis/Postgres order by time) — BACKLOG F-025(g).
+
 ### Changed — skills directory holds examples only (2026-11-24)
 - `skills/` → `example-skills/`, reduced to 11 generic examples (the 10 triage skills + `oomkill-investigation`, the canonical example kept by the 2026-07-24 decision); the
   previous ~110-skill catalog (tool metric catalogs, org runbooks) is removed from the

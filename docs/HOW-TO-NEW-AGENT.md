@@ -94,6 +94,13 @@ Environments change **where** a datasource is, never **what** the agent may do:
   off-AWS) without copying its config or prompt.
 - Repo agents ship MCP addresses as `${K8S_MCP_URL}` / `${VM_MCP_URL}`; each deployment
   profile sets them.
+- Expansion happens **once**, at load: an env value containing `${OTHER}` stays literal.
+- Every datasource `url` (after expansion) must be `http`/`https`, without
+  `user:pass@` (put credentials in `headers` from a Secret) and not on a link-local /
+  instance-metadata address (`169.254.0.0/16`, `fd00:ec2::254`, `metadata.google.internal`)
+  unless `AIGENT_ALLOW_LINK_LOCAL_DATASOURCES=true`. A refused URL drops that datasource
+  (`/ready` → `degraded` with `reason: invalid_url`); loopback stays allowed for sidecars.
+- MCP `tool_arguments` are **pinned**: they win over arguments the model chooses.
 
 ## Skills (lazy-loaded knowledge)
 

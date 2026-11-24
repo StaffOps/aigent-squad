@@ -9,6 +9,7 @@ agents (DynamoDB orders that query by sort key, i.e. agent name first).
 """
 import asyncio
 import hashlib
+import itertools
 import json
 import time
 import uuid
@@ -28,7 +29,18 @@ REDIS_MAX_MESSAGES_PER_KEY = 200
 
 
 def _pk(user_id: str, session_id: str) -> str:
-    return f"{user_id}#{session_id}"
+    # JSON-encoded pair, not "user#session": ids containing "#" must not collide
+    # (("a#b", "c") vs ("a", "b#c")). The DynamoDB store keeps its legacy key.
+    return json.dumps([user_id, session_id], separators=(",", ":"))
+
+
+# Per-process write sequence: tie-break for writes that share a timestamp (or a
+# clock step back) so oldest-first order is preserved within a replica.
+_SEQ = itertools.count()
+
+
+def _order_prefix() -> str:
+    return f"{next(_SEQ):016d}"
 
 
 def _digest(value: str) -> str:
@@ -71,7 +83,9 @@ class RedisHistoryStore:
 
     @staticmethod
     def _session_key(pk: str) -> str:
-        return f"aigent:history:{_digest(pk)}"
+        # {hash tag}: both keys of a session land in the same Redis Cluster slot,
+        # so the MULTI/EXEC write below is valid in cluster mode too.
+        return f"aigent:history:{{{_digest(pk)}}}"
 
     @classmethod
     def _agent_key(cls, pk: str, agent_id: str) -> str:
@@ -89,7 +103,10 @@ class RedisHistoryStore:
             pk = _pk(user_id, session_id)
             now = time.time()
             member = json.dumps({
-                "id": uuid.uuid4().hex,  # identical messages stay distinct members
+                # First field: on equal scores Redis orders members lexicographically,
+                # so this prefix keeps write order; it also keeps identical messages distinct.
+                "seq": _order_prefix(),
+                "id": uuid.uuid4().hex,
                 "agent_id": agent_id,
                 "role": message.role,
                 "content": message.content,
@@ -177,6 +194,11 @@ DELETE FROM aigent_history WHERE ctid IN (
 
 # Seconds to wait before retrying a failed pool connect (fail-open meanwhile).
 PG_RECONNECT_SECONDS = 30.0
+# Connect timeout, kept below the readiness check timeout (2 s) so a /ready probe
+# never cancels an in-flight connect attempt.
+PG_CONNECT_TIMEOUT_SECONDS = 1.5
+# Serializes schema creation across replicas starting together (any constant).
+_PG_SCHEMA_LOCK_KEY = 4646046
 
 
 class PostgresHistoryStore:
@@ -189,16 +211,24 @@ class PostgresHistoryStore:
         self._lock: Optional[asyncio.Lock] = None
         self._last_failure: float = 0.0
 
+    def _in_backoff(self) -> bool:
+        return bool(self._last_failure) and time.monotonic() - self._last_failure < PG_RECONNECT_SECONDS
+
     async def _get_pool(self) -> Optional[Any]:
         if self._pool is not None:
             return self._pool
-        if time.monotonic() - self._last_failure < PG_RECONNECT_SECONDS and self._last_failure:
+        if self._in_backoff():
             return None
         if self._lock is None:
             self._lock = asyncio.Lock()
         async with self._lock:
+            # Re-check both after waiting: a queued request must not repeat a
+            # connect that just failed (or redo one that just succeeded).
             if self._pool is not None:
                 return self._pool
+            if self._in_backoff():
+                return None
+            pool = None
             try:
                 import asyncpg
                 pool = await asyncpg.create_pool(
@@ -209,12 +239,27 @@ class PostgresHistoryStore:
                     database=settings.postgres_db,
                     min_size=1,
                     max_size=5,
-                    timeout=5,
+                    timeout=PG_CONNECT_TIMEOUT_SECONDS,
                 )
                 async with pool.acquire() as conn:
-                    await conn.execute(_PG_SCHEMA)
-                self._pool = pool
-            except Exception as e:
+                    await conn.execute("SELECT pg_advisory_lock($1)", _PG_SCHEMA_LOCK_KEY)
+                    try:
+                        await conn.execute(_PG_SCHEMA)
+                    finally:
+                        await conn.execute("SELECT pg_advisory_unlock($1)", _PG_SCHEMA_LOCK_KEY)
+                self._pool, pool = pool, None
+            except BaseException as e:
+                # Never leak a half-initialized pool (e.g. no CREATE privilege on
+                # the schema): it would hold connections on every retry.
+                if pool is not None:
+                    try:
+                        await pool.close()
+                    except Exception:
+                        terminate = getattr(pool, "terminate", None)
+                        if callable(terminate):
+                            terminate()
+                if not isinstance(e, Exception):
+                    raise  # cancellation: propagate, but the pool is closed
                 self._last_failure = time.monotonic()
                 _record_error("postgres", "connect")
                 logger.warning("Postgres history unavailable (fail-open)", extra={"error": str(e)})

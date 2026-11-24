@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Optional
 
 import yaml
+from pydantic import ValidationError
 
 from src.core.agent_config import AgentConfig
 from src.core.agent_env import DegradedDatasource, apply_environment
@@ -34,7 +35,16 @@ class AgentRegistry:
             raw = yaml.safe_load(config_path.read_text())
             # Spec 46: environment profile — addresses + on/off only, never capabilities.
             raw, degraded = apply_environment(raw)
-            config = AgentConfig(**raw)
+            try:
+                config = AgentConfig(**raw)
+            except ValidationError as e:
+                # Re-raise WITHOUT input values: after expansion they may hold
+                # secrets (e.g. a header token) that must never reach the logs.
+                errors = [
+                    {"loc": ".".join(str(p) for p in err.get("loc", ())), "msg": err.get("msg", "")}
+                    for err in e.errors(include_input=False, include_url=False)
+                ]
+                raise RuntimeError(f"Invalid agent config {config_path}: {errors}") from None
 
             if not config.enabled:
                 logger.info(f"Agent '{config.name}' disabled, skipping")

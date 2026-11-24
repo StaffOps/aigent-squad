@@ -213,7 +213,7 @@ async def test_postgres_save_inserts_with_expiry_and_purges():
     (insert_sql, args), (purge_sql, _) = conn.executed
     assert "INSERT INTO aigent_history" in insert_sql
     pk, sk, agent, role, content, ts, created, expires = args
-    assert (pk, agent, role, content, ts) == ("u1#s1", "aws", "user", "hello", "ts-hello")
+    assert (pk, agent, role, content, ts) == ('["u1","s1"]', "aws", "user", "hello", "ts-hello")
     assert sk.startswith("aws#")
     assert (expires - created).total_seconds() == HISTORY_TTL_SECONDS
     assert "DELETE FROM aigent_history" in purge_sql and "LIMIT 100" in purge_sql
@@ -231,7 +231,7 @@ async def test_postgres_fetch_chat_filters_agent_and_returns_oldest_first():
     assert [m.content for m in got] == ["q1", "a1"]
     sql, args = conn.executed[0]
     assert "agent_id = $2" in sql and "expires_at > now()" in sql and "ORDER BY created_at DESC" in sql
-    assert args == ("u1#s1", "aws", 7)
+    assert args == ('["u1","s1"]', "aws", 7)
 
 
 @pytest.mark.asyncio
@@ -241,7 +241,7 @@ async def test_postgres_fetch_all_chats_no_agent_filter():
     got = await store.fetch_all_chats("u1", "s1", max_messages=4)
     assert got[0].agent_id == "finops"
     sql, args = conn.executed[0]
-    assert "agent_id" not in sql.split("WHERE", 1)[1] and args == ("u1#s1", 4)
+    assert "agent_id" not in sql.split("WHERE", 1)[1] and args == ('["u1","s1"]', 4)
 
 
 @pytest.mark.asyncio
@@ -277,7 +277,10 @@ async def test_postgres_connect_creates_schema_once():
         await store.ping()
         await store.ping()
     assert create_pool.await_count == 1
-    schema_sql = conn.executed[0][0]
+    statements = [sql for sql, _ in conn.executed]
+    schema_sql, = [sql for sql in statements if "CREATE TABLE" in sql]
+    # DDL runs under a session advisory lock (replicas starting together)
+    assert "pg_advisory_lock" in statements[0] and "pg_advisory_unlock" in statements[-1]
     assert "CREATE TABLE IF NOT EXISTS aigent_history" in schema_sql
     assert "vector" not in schema_sql.lower()
 
@@ -298,3 +301,60 @@ async def test_postgres_live_roundtrip():  # pragma: no cover - opt-in integrati
     assert [m.content for m in await store.fetch_chat(user, "s1", "aws")] == ["q", "a"]
     assert [m.content for m in await store.fetch_all_chats(user, "s1")] == ["q", "f", "a"]
     assert await store.ping() is True
+
+
+# ---------------------------------------------------------------------------
+# Spec 46 review fixes (F2, F3, F10, T16 bugs)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_redis_keys_share_a_cluster_hash_tag(redis_store):
+    await redis_store.save_chat_message("u1", "s1", "aws", _msg("x"))
+    keys = sorted(await redis_store.redis.keys("aigent:history:*"))
+    tags = {k[k.index("{"):k.index("}") + 1] for k in keys}
+    assert len(keys) == 2 and len(tags) == 1  # same slot → MULTI valid on Redis Cluster
+
+
+@pytest.mark.asyncio
+async def test_postgres_schema_failure_closes_the_pool():
+    class _DenyConn(_FakeConn):
+        async def execute(self, sql: str, *args: Any) -> str:
+            if "CREATE TABLE" in sql:
+                raise PermissionError("permission denied for schema public")
+            return await super().execute(sql, *args)
+
+    class _ClosablePool(_FakePool):
+        closed = 0
+
+        async def close(self) -> None:
+            type(self).closed += 1
+
+    pool = _ClosablePool(_DenyConn())
+    store = PostgresHistoryStore()
+    with patch("asyncpg.create_pool", AsyncMock(return_value=pool)), \
+         patch("src.core.history_stores._record_error"):
+        assert await store.fetch_chat("u1", "s1", "aws") == []
+    assert _ClosablePool.closed == 1  # no leaked connections on retry
+    # the advisory lock is always released, even when the DDL fails
+    assert "pg_advisory_unlock" in pool.conn.executed[-1][0]
+
+
+@pytest.mark.asyncio
+async def test_postgres_concurrent_requests_do_not_repeat_a_failed_connect():
+    import asyncio
+
+    async def slow_fail(*_a: Any, **_k: Any) -> Any:
+        await asyncio.sleep(0.01)
+        raise OSError("blackholed")
+
+    create_pool = AsyncMock(side_effect=slow_fail)
+    store = PostgresHistoryStore()
+    with patch("asyncpg.create_pool", create_pool), patch("src.core.history_stores._record_error"):
+        await asyncio.gather(*[store.fetch_chat("u", "s", "aws") for _ in range(5)])
+    assert create_pool.await_count == 1
+
+
+def test_postgres_connect_timeout_below_readiness_probe():
+    from src.core import history_stores as hs
+    from src.core.health import DependencyChecker
+    assert hs.PG_CONNECT_TIMEOUT_SECONDS < DependencyChecker()._timeout

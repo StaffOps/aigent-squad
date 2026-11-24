@@ -174,7 +174,7 @@
     "/ready": {
       "get": {
         "summary": "Ready",
-        "description": "Readiness probe — checks Redis, the history backend (spec 46), and ≥1 in-process agent.",
+        "description": "Readiness probe — gates on Redis and ≥1 in-process agent; reports the history backend (informational, spec 46).",
         "operationId": "ready_ready_get",
         "responses": {
           "200": {

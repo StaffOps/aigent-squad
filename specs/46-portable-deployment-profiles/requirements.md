@@ -1,7 +1,7 @@
 ---
 spec: 46-portable-deployment-profiles
-status: in-progress
-completed: null
+status: done
+completed: 2026-11-24
 superseded_by: null
 depends_on: ["28-llm-provider-abstraction", "37-agentic-tool-calling"]
 deferred: []

@@ -221,3 +221,54 @@ def test_repo_agents_have_no_hardcoded_mcp_urls():
         for ds in cfg.get("datasources") or []:
             if ds.get("type") == "mcp":
                 assert ds["url"].startswith("${"), f"{path}: MCP url must be ${{VAR}} (spec 46)"
+
+
+# ---------------------------------------------------------------------------
+# Spec 46 review fixes: expanded URL validation (L2) + sanitized schema errors (L1)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("url,ok", [
+    ("http://mcp.example.internal:8080/mcp", True),
+    ("https://api.example.com/v1", True),
+    ("http://127.0.0.1:9000/mcp", True),              # sidecar on loopback is legitimate
+    ("file:///etc/passwd", False),
+    ("ftp://h/x", False),
+    ("http://user:pass@h/x", False),                   # credentials belong in headers
+    ("http://169.254.169.254/latest/meta-data/", False),
+    ("http://[fd00:ec2::254]/latest/", False),
+    ("http://metadata.google.internal/computeMetadata/v1/", False),
+    ("http://h/x\r\nX-Evil: 1", False),
+    ("mcp.example:8080", False),                       # no scheme
+])
+def test_expanded_url_validation(url, ok):
+    raw, degraded = apply_environment(_cfg(), {"K8S_MCP_URL": url})
+    urls = [d.get("url") for d in raw["datasources"]]
+    if ok:
+        assert url in urls and degraded == []
+    else:
+        assert url not in urls
+        assert [d.as_dict() for d in degraded] == [
+            {"agent": "kubernetes", "datasource": "k8s-mcp", "missing_env": [], "reason": "invalid_url"}
+        ]
+        assert url not in repr(degraded[0].as_dict())  # the value never reaches /ready
+
+
+def test_link_local_allowed_only_with_explicit_opt_in():
+    env = {"K8S_MCP_URL": "http://169.254.170.2/v2/metadata", "AIGENT_ALLOW_LINK_LOCAL_DATASOURCES": "true"}
+    raw, degraded = apply_environment(_cfg(), env)
+    assert degraded == [] and raw["datasources"][0]["url"].startswith("http://169.254.")
+
+
+def test_registry_schema_error_never_prints_expanded_secret(tmp_path, make_agent_dir, monkeypatch):
+    monkeypatch.setenv("GITLAB_TOKEN", "glpat-SUPER-SECRET")
+    make_agent_dir("bad", yaml_override=(
+        "name: bad\ndescription: d\ndomain: x\ncapabilities: [x]\n"
+        "datasources:\n  - typ: http\n    name: gl\n    url: https://gl.example\n"
+        "    headers:\n      PRIVATE-TOKEN: \"${GITLAB_TOKEN}\"\n"
+    ))
+    reg = AgentRegistry(agents_dir=str(tmp_path))
+    with pytest.raises(RuntimeError) as exc:
+        reg.discover()
+    assert "Invalid agent config" in str(exc.value)
+    assert "glpat-SUPER-SECRET" not in str(exc.value)
+    assert exc.value.__cause__ is None and exc.value.__suppress_context__
