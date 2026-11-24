@@ -4,8 +4,8 @@ This file is the **vulnerability disclosure policy**: how to report a problem an
 
 It is deliberately *not* the security architecture. For the threat model — authentication between
 components, container hardening, secret handling, the read-only enforcement layers — see
-[`docs/SECURITY.md`](../docs/SECURITY.md). For verifying that a released image is authentic, see
-`docs/VERIFYING-RELEASES.md` (arriving with spec 45 Phase 3).
+[`docs/SECURITY.md`](../docs/SECURITY.md). For verifying that a released image (and its release
+assets) is authentic, see [`docs/VERIFYING-RELEASES.md`](../docs/VERIFYING-RELEASES.md).
 
 ## Supported versions
 
@@ -18,11 +18,17 @@ fixes. There are no backports to older tags.
 | any earlier tag | ❌ — upgrade |
 | `latest` / commit-SHA images from `main` | ⚠️ built continuously, not a release; unsigned by design |
 
+The released versions and their notes are listed at
+<https://github.com/StaffOps/aigent-squad/releases>.
+
 ## Reporting a vulnerability
 
-**Use GitHub Private Vulnerability Reporting** — the "Report a vulnerability" button under the
-repository's **Security** tab. It keeps the report private until a fix exists and gives us a place to
-collaborate with you on the details.
+**Use GitHub Private Vulnerability Reporting**: open
+<https://github.com/StaffOps/aigent-squad/security/advisories/new> (the same form as the
+"Report a vulnerability" button under the repository's **Security** tab). It keeps the report private
+until a fix exists, notifies the maintainers, and gives us a private place to collaborate with you on
+the details and a fix. How it works for reporters:
+<https://docs.github.com/en/code-security/security-advisories/guidance-on-reporting-and-writing-information-about-vulnerabilities/privately-reporting-a-security-vulnerability>.
 
 Please do **not** open a public issue for a security problem, and do not disclose it publicly before
 a fix is available.
@@ -49,6 +55,21 @@ SLA:
 | Initial assessment (is it a vulnerability, and how severe) | 10 business days |
 | Fix or a documented mitigation for high/critical | 30 days from assessment |
 | Public disclosure | after a fix ships, coordinated with you |
+
+## Disclosure policy
+
+We follow coordinated disclosure:
+
+1. The report stays private in a draft GitHub Security Advisory while we triage and fix.
+2. When a fix (or a documented mitigation) is released, we publish the advisory at
+   <https://github.com/StaffOps/aigent-squad/security/advisories>, request a CVE through GitHub
+   when the issue warrants one, and reference it in the release notes.
+3. We aim to publish no later than **90 days** after the initial report, even if a complete fix
+   is not ready — in that case the advisory documents the mitigation. We will agree an earlier or
+   later date with you if there is a good reason (active exploitation, a fix that depends on an
+   upstream release).
+4. Fixes ship only in the latest release (see *Supported versions*); the advisory names the first
+   fixed version.
 
 If a report turns out not to be a vulnerability we will say so and explain why, rather than closing
 it silently.

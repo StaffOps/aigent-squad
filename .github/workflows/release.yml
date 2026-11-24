@@ -13,8 +13,11 @@ on:
         required: true
         type: string
 
+# Read-only by default (OpenSSF Scorecard Token-Permissions). Every write grant is
+# declared on the one job that uses it: `publish` pushes/signs/attests, `github-release`
+# is the ONLY job that can write to this repository (it creates the Release).
 permissions:
-  contents: write    # create the GitHub Release + attach assets
+  contents: read
 
 env:
   REGISTRY: ghcr.io
@@ -25,7 +28,7 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     permissions:
-      contents: write       # GitHub Release + assets
+      contents: read        # checkout
       packages: write       # push to GHCR
       id-token: write       # cosign keyless (OIDC) + attestations
       attestations: write   # GitHub attestation API
@@ -36,13 +39,22 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
+      # The dispatch input reaches the shell through env, never `${{ }}` inside `run:` (no
+      # script injection), and is validated as semver because it ends up in tags and file names.
       - name: Resolve version
         id: ver
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_VERSION: ${{ inputs.version }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            V="${{ inputs.version }}"
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            V="$INPUT_VERSION"
           else
             V="${GITHUB_REF_NAME#v}"
+          fi
+          if ! printf '%s' "$V" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
+            echo "::error::not a semver version: '$V'"
+            exit 1
           fi
           echo "version=$V" >> "$GITHUB_OUTPUT"
           echo "Releasing version: $V"
@@ -119,6 +131,7 @@ jobs:
 
       # 6) Build provenance attestation (D2 — GitHub-native).
       - name: Attest build provenance
+        id: provenance
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-name: ${{ steps.meta.outputs.image }}
@@ -141,22 +154,40 @@ jobs:
           sbom-path: sbom.cdx.json
           push-to-registry: true
 
-      # 8) Attach SBOM to GitHub Release (D3).
-      - name: Create GitHub Release
-        if: github.event_name == 'push'
-        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+      # 8) Release assets that let a consumer verify WITHOUT registry access (spec 45 D3/T3.4,
+      #    OpenSSF Scorecard Signed-Releases):
+      #    - sbom.cdx.json.sigstore.json: keyless cosign signature (Sigstore bundle v0.3) over the
+      #      SBOM file itself, same workflow identity as the image signature.
+      #    - aigent-squad-<v>.intoto.jsonl: the build-provenance attestation produced in step 6
+      #      (JSON Lines of Sigstore bundles wrapping the DSSE in-toto SLSA statement for the image
+      #      digest). Exported, not regenerated — it is the same attestation pushed to GHCR.
+      - name: Sign SBOM blob + export provenance bundle
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+          PROVENANCE_BUNDLE: ${{ steps.provenance.outputs.bundle-path }}
+        run: |
+          cosign sign-blob --yes --new-bundle-format \
+            --bundle sbom.cdx.json.sigstore.json sbom.cdx.json
+          cp "$PROVENANCE_BUNDLE" "aigent-squad-${VERSION}.intoto.jsonl"
+
+      - name: Upload release assets for the release job
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          tag_name: v${{ steps.ver.outputs.version }}
-          generate_release_notes: true
-          files: |
+          name: release-assets
+          path: |
             sbom.cdx.json
+            sbom.cdx.json.sigstore.json
+            aigent-squad-${{ steps.ver.outputs.version }}.intoto.jsonl
+          if-no-files-found: error
+          retention-days: 7
 
   # ─── Job 2: verify from outside (T3.5) ────────────────────────────────────
   verify:
     needs: publish
     runs-on: ubuntu-latest
     permissions:
-      packages: read
+      contents: read        # checkout
+      packages: read        # pull signatures/attestations from GHCR
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
@@ -183,9 +214,37 @@ jobs:
         run: |
           gh attestation verify \
             "oci://${{ needs.publish.outputs.image }}@${{ needs.publish.outputs.digest }}" \
-            --owner StaffOps
+            --repo StaffOps/aigent-squad \
+            --signer-workflow StaffOps/aigent-squad/.github/workflows/release.yml
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Verify the release assets with the exact consumer commands from
+      # docs/VERIFYING-RELEASES.md, so the first tag proves them BEFORE the Release
+      # exists (github-release needs this job). Tag pushes only: a dispatch run's
+      # certificate SAN is refs/heads/..., which the consumer regexp rejects by design.
+      - name: Download release assets
+        if: github.event_name == 'push'
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-assets
+
+      - name: Verify release assets (SBOM signature + provenance bundle)
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.publish.outputs.version }}
+          IMAGE_REF: ${{ needs.publish.outputs.image }}@${{ needs.publish.outputs.digest }}
+        run: |
+          cosign verify-blob \
+            --new-bundle-format \
+            --bundle sbom.cdx.json.sigstore.json \
+            --certificate-identity-regexp '^https://github\.com/StaffOps/aigent-squad/\.github/workflows/release\.yml@refs/tags/v' \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            sbom.cdx.json
+          gh attestation verify "oci://${IMAGE_REF}" \
+            --bundle "aigent-squad-${VERSION}.intoto.jsonl" \
+            --repo StaffOps/aigent-squad
 
       # T3.6: Negative test — verify an unsigned image FAILS.
       - name: Negative test (must fail)
@@ -200,3 +259,29 @@ jobs:
           else
             echo "✅ Negative test passed: unsigned image correctly rejected"
           fi
+
+  # ─── Job 3: GitHub Release (the only job with write access to the repo) ───
+  # Runs after `verify`, so a Release is only created for an image that passed the
+  # outside-in signature + provenance check.
+  github-release:
+    needs: [publish, verify]
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write       # create the GitHub Release + attach assets
+    steps:
+      - name: Download release assets
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-assets
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+        with:
+          tag_name: v${{ needs.publish.outputs.version }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: |
+            sbom.cdx.json
+            sbom.cdx.json.sigstore.json
+            aigent-squad-${{ needs.publish.outputs.version }}.intoto.jsonl
