@@ -69,10 +69,11 @@ async def test_fetch_chat_returns_empty_on_error(chat_storage):
 @pytest.mark.asyncio
 async def test_fetch_all_chats_aggregates_across_agents(chat_storage):
     store, mock_table = chat_storage
+    # Key (sk) order is agent-name order; the result is time order, oldest first.
     mock_table.query.return_value = {
         "Items": [
-            {"role": "user", "content": "q1", "timestamp": "t1", "agent_id": "aws"},
-            {"role": "assistant", "content": "a1", "timestamp": "t2", "agent_id": "obs"},
+            {"role": "assistant", "content": "a1", "timestamp": "2026-11-24T10:02:00+00:00", "agent_id": "aws"},
+            {"role": "user", "content": "q1", "timestamp": "2026-11-24T10:01:00+00:00", "agent_id": "obs"},
         ]
     }
 

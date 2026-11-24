@@ -4,8 +4,7 @@ Both mirror the DynamoDB store's contract (``src.core.state_store.HistoryStore``
 per-agent isolated history for ``user#session``, 24 h retention per message,
 oldest-first results, fail-open on every error.
 
-Unlike the DynamoDB store, "all agents" reads are ordered by time across
-agents (DynamoDB orders that query by sort key, i.e. agent name first).
+"All agents" reads are ordered by time across agents, as in the DynamoDB store.
 """
 import asyncio
 import hashlib
@@ -18,6 +17,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, List, Optional
+from urllib.parse import urlencode
 
 import redis.asyncio as aioredis
 
@@ -167,6 +167,9 @@ class RedisHistoryStore:
             })
             return []
 
+    async def aclose(self) -> None:
+        """No-op: the Redis client is shared, lazy and closed with the process."""
+
     async def ping(self) -> bool:
         return bool(await self.redis.ping())
 
@@ -222,54 +225,113 @@ _PG_VERIFY_MODES = ("verify-ca", "verify-full")
 
 
 class PostgresTLSConfigError(RuntimeError):
-    """POSTGRES_SSLMODE=verify-* without a CA bundle that resolves to a file."""
+    """TLS misconfiguration: a CA bundle that is missing, unreadable or not PEM."""
+
+
+def _home_root_crt() -> Optional[Path]:
+    try:
+        return Path.home() / ".postgresql" / "root.crt"
+    except RuntimeError:  # no resolvable home directory (e.g. a bare UID)
+        return None
+
+
+def _explicit_ca() -> Optional[str]:
+    """POSTGRES_SSLROOTCERT, else PGSSLROOTCERT; ``system`` -> the OpenSSL default CA file.
+
+    asyncpg 0.29 has no ``sslrootcert=system`` (it would try to open a file named
+    "system"), so the product resolves it to the system store's CA bundle.
+    """
+    explicit = settings.postgres_sslrootcert or os.environ.get("PGSSLROOTCERT") or None
+    if explicit != "system":
+        return explicit
+    paths = ssl.get_default_verify_paths()
+    system_ca = paths.cafile or paths.openssl_cafile
+    if not system_ca or not Path(system_ca).is_file():
+        raise PostgresTLSConfigError(
+            "sslrootcert=system: no system CA bundle file found "
+            f"({paths.openssl_cafile!r}); mount a PEM bundle and set POSTGRES_SSLROOTCERT"
+        )
+    return system_ca
+
+
+def _check_ca_bundle(path: str) -> None:
+    """Fail fast on a CA bundle that would make every connect fail later."""
+    if not Path(path).is_file():
+        raise PostgresTLSConfigError(
+            f"POSTGRES_SSLMODE={settings.postgres_sslmode}: CA bundle {path!r} is not a readable file"
+        )
+    try:
+        ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT).load_verify_locations(cafile=path)
+    except (OSError, ssl.SSLError, ValueError) as e:
+        raise PostgresTLSConfigError(
+            f"POSTGRES_SSLMODE={settings.postgres_sslmode}: CA bundle {path!r} cannot be loaded "
+            f"({type(e).__name__})"
+        ) from e
 
 
 def _pg_ca_file() -> Optional[str]:
-    """CA bundle for verify-*: POSTGRES_SSLROOTCERT, PGSSLROOTCERT, ~/.postgresql/root.crt.
+    """CA bundle for verification: POSTGRES_SSLROOTCERT, PGSSLROOTCERT, ~/.postgresql/root.crt.
 
-    An explicitly configured path that is not a file is an error, never a
+    An explicitly configured path that is not a usable file is an error, never a
     silent fall-through to the next candidate.
     """
-    explicit = settings.postgres_sslrootcert or os.environ.get("PGSSLROOTCERT") or None
+    explicit = _explicit_ca()
     if explicit:
-        if not Path(explicit).is_file():
-            raise PostgresTLSConfigError(
-                f"POSTGRES_SSLMODE={settings.postgres_sslmode}: CA bundle {explicit!r} is not a readable file"
-            )
+        _check_ca_bundle(explicit)
         return explicit
-    try:
-        default = Path.home() / ".postgresql" / "root.crt"
-    except RuntimeError:  # no resolvable home directory (e.g. a bare UID)
+    default = _home_root_crt()
+    if default is None or not default.is_file():
         return None
-    return str(default) if default.is_file() else None
+    _check_ca_bundle(str(default))
+    return str(default)
 
 
 def _pg_ssl_kwargs() -> dict[str, Any]:
-    """``ssl=`` argument for asyncpg, from POSTGRES_SSLMODE / POSTGRES_SSLROOTCERT.
+    """TLS arguments for ``asyncpg.create_pool``, from POSTGRES_SSLMODE / POSTGRES_SSLROOTCERT.
 
-    ``require`` and below are passed through as asyncpg mode strings (``require``
-    encrypts but does not verify the server). ``verify-ca`` / ``verify-full``
-    get an explicit SSLContext loaded with the resolved CA bundle, so they work
-    with a mounted bundle (e.g. the cloud provider's RDS CA) instead of only
-    ``~/.postgresql/root.crt``; no CA -> :class:`PostgresTLSConfigError`.
+    The mode goes to asyncpg as a string and asyncpg builds the SSLContext
+    itself, so everything libpq-style keeps working: client certificates
+    (``PGSSLCERT``/``PGSSLKEY`` or ``~/.postgresql/postgresql.crt``/``.key``),
+    the CRL (``PGSSLCRL`` or ``~/.postgresql/root.crl``) and
+    ``PGSSLMINPROTOCOLVERSION``/``PGSSLMAXPROTOCOLVERSION`` (TLS 1.2 floor by
+    default). The CA bundle is resolved and checked here and handed over as a
+    query-only DSN (``postgresql://?sslrootcert=...``) — the one way to give
+    asyncpg a path without the ``PGSSLROOTCERT`` process env.
+
+    Semantics (asyncpg 0.29, like libpq): ``require`` encrypts, and ALSO
+    verifies the CA when a bundle is configured (POSTGRES_SSLROOTCERT,
+    PGSSLROOTCERT) or ``~/.postgresql/root.crt`` exists; ``verify-ca`` /
+    ``verify-full`` always verify (full: hostname too) and with no CA raise
+    :class:`PostgresTLSConfigError`. Weaker modes pass through unchanged.
     """
     mode = settings.postgres_sslmode
     if not mode:
         return {}
-    if mode not in _PG_VERIFY_MODES:
+    if mode not in _PG_VERIFY_MODES and mode != "require":
         return {"ssl": mode}
     cafile = _pg_ca_file()
     if cafile is None:
+        if mode == "require":
+            return {"ssl": mode}  # encrypt-only: nothing to verify against
         raise PostgresTLSConfigError(
             f"POSTGRES_SSLMODE={mode} needs a CA bundle: set POSTGRES_SSLROOTCERT to a mounted PEM file"
         )
-    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-    ctx.minimum_version = ssl.TLSVersion.TLSv1_2
-    ctx.check_hostname = mode == "verify-full"
-    ctx.verify_mode = ssl.CERT_REQUIRED
-    ctx.load_verify_locations(cafile=cafile)
-    return {"ssl": ctx}
+    return {"ssl": mode, "dsn": "postgresql://?" + urlencode({"sslrootcert": cafile})}
+
+
+def _is_tls_misconfig(exc: BaseException) -> bool:
+    """A connect failure that is configuration, not an outage: CA bundle, client
+    cert/key or CRL file problems and certificate verification failures."""
+    if isinstance(exc, (PostgresTLSConfigError, ssl.SSLError, FileNotFoundError,
+                        IsADirectoryError, PermissionError)):
+        return True
+    try:
+        from asyncpg.exceptions import ClientConfigurationError
+    except ImportError:  # pragma: no cover - asyncpg is a hard dependency
+        return False
+    return isinstance(exc, ClientConfigurationError)
+
+
 # Serializes schema creation across replicas starting together (any constant).
 _PG_SCHEMA_LOCK_KEY = 4646046
 
@@ -288,6 +350,8 @@ class PostgresHistoryStore:
 
     def __init__(self, pool: Optional[Any] = None) -> None:
         self._pool = pool
+        # An injected pool belongs to the caller; aclose() only closes its own.
+        self._owns_pool = pool is None
         self._lock: Optional[asyncio.Lock] = None
         self._last_failure: float = 0.0
         # monotonic time of the last read-path purge (0 = never)
@@ -337,6 +401,25 @@ class PostgresHistoryStore:
             # Never cost the read its result: the rows were already fetched.
             _record_error("postgres", "purge")
             logger.warning("Postgres history read purge failed (fail-open)", extra={"error": str(e)})
+
+    async def aclose(self) -> None:
+        """Shutdown: cancel and await the background purge, then close the pool.
+
+        Called from the supervisor lifespan so no task is left pending (and no
+        connection half-used) when the event loop stops. Idempotent; never raises.
+        """
+        task = self._purge_task
+        if task is not None and not task.done():
+            task.cancel()
+            await asyncio.wait({task})  # never raises the task's outcome
+        self._purge_task = None
+        pool, self._pool = self._pool, None
+        if pool is None or not self._owns_pool:
+            return
+        try:
+            await pool.close()
+        except Exception as e:
+            logger.warning("Postgres history pool close failed", extra={"error_type": type(e).__name__})
 
     def _in_backoff(self) -> bool:
         return bool(self._last_failure) and time.monotonic() - self._last_failure < PG_RECONNECT_SECONDS
@@ -394,7 +477,7 @@ class PostgresHistoryStore:
                     raise  # cancellation: propagate, but the pool is closed
                 self._last_failure = time.monotonic()
                 _record_error("postgres", "connect")
-                if isinstance(e, PostgresTLSConfigError):
+                if _is_tls_misconfig(e):
                     # Misconfiguration, not an outage: say so loudly (still fail-open).
                     logger.error("Postgres history TLS misconfigured (fail-open)", extra={"error": str(e)})
                 else:
