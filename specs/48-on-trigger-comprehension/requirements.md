@@ -42,7 +42,12 @@ cost zero LLM tokens to produce. Nothing polls, watches or pages.
 ## User Stories
 
 WHEN a deployment provides an entity registry file THEN the squad SHALL load and validate it at
-startup, and an invalid registry SHALL fail startup with a message naming the entry and field.
+startup.
+
+WHEN the registry file is invalid or unreadable THEN comprehension SHALL be disabled, a startup
+WARNING SHALL name the problem (entry and field, never values), `/ready` SHALL report it as an
+informational detail (never 503), a metric SHALL record it, and the rest of the squad SHALL run
+normally (owner decision 2026-11-24).
 
 WHEN no registry is configured THEN comprehension SHALL be off, the squad SHALL behave exactly as
 today, and startup SHALL log `comprehension_disabled` once.
@@ -84,7 +89,8 @@ be answered, with `no-baseline` verdicts for the affected signals (fail-open for
 
 WHEN an investigation or alert flow starts (Phase 2) THEN a compact environment snapshot (registry
 inventory + last cached verdicts) SHALL be available as context, computed lazily on that trigger and
-cached with a TTL — never refreshed by a background timer.
+cached with a TTL — never refreshed by a background timer. The snapshot SHALL NOT be injected into
+plain chat queries (owner decision 2026-11-24).
 
 WHEN an operator reviews comprehension quality THEN metrics SHALL expose verdict mix, `no-baseline`
 reasons, coverage, baseline freshness and verdict latency with bounded labels only, and TRIGGERS.md
@@ -97,7 +103,9 @@ SHALL carry the review rows.
 1. Registry schema (Pydantic, versioned `version: 1`) covering entity id, aliases, kind, tier,
    owner, k8s identity, metric identity labels, cost tag, alert match, signals (id, EVIDENCE-MODEL
    id, `why`, query template, unit, method, direction, thresholds) and declared blind spots;
-   loaded from `ENTITY_REGISTRY_FILE`; invalid → startup failure; unset → feature off.
+   loaded from `ENTITY_REGISTRY_FILE`; unset → feature off; invalid/unreadable → feature off +
+   startup WARNING (problem named, no values) + `/ready` informational detail (200) +
+   `aigent.comprehension.registry_load{result}`; the squad otherwise starts normally.
 2. The repo ships ONLY a generic example registry with placeholders (entry #1 = the squad itself,
    using the product's own `aigent_*` metrics); no environment-specific names. The chart mounts a
    registry supplied by the deploying team's own config repo.
@@ -105,8 +113,9 @@ SHALL carry the review rows.
    label match for alerts; ambiguous → candidates listed, no verdict; caps on entities and signals
    per request.
 4. Verdict engine in pure code with four methods — `static`, `robust-z` (median/MAD), `seasonal`
-   (same hour-of-week, K weeks), `derivative` — plus minimum-history and sustain (M of N) rules;
-   unit-tested against synthetic series with known verdicts, including every `no-baseline` reason.
+   (same hour-of-week, K weeks), `derivative` — plus minimum-history and sustain (M of N) rules,
+   with defaults (borderline z = 2, abnormal z = 3, sustain 3 of 5) overridable globally in the
+   registry `defaults` block and per signal; unit-tested against synthetic series with known verdicts, including every `no-baseline` reason.
 5. Query construction substitutes only registry values validated against a safe character set; a
    test proves alert labels and user text cannot reach a query string.
 6. Metrics source = Prometheus-compatible HTTP query API (read-only GET), address and optional
@@ -127,7 +136,7 @@ SHALL carry the review rows.
 13. Eval (spec 35): golden questions with known verdicts against a fixture Prometheus-API stub
     (abnormal, normal, no-baseline cases); the no-baseline honesty case passes 100%.
 14. Environment snapshot (B-17): lazy, TTL-cached, size-capped, injected into investigation and alert
-    flows.
+    flows only — never into plain chat queries.
 15. Diff primitive (B-18): `collect_diff(signal, window_a, window_b)` computed in code over the same
     metrics source, returned as a compact delta (Phase 3).
 16. Docs: `docs/BEHAVIOR-BASELINES.md` (status → implemented parts), `docs/ARCHITECTURE.md`,
@@ -145,8 +154,10 @@ SHALL carry the review rows.
   already arrive at `/alerts/incoming`). The metrics-source interface leaves room for it.
 - Gap-directed round 2 (B-13): it needs the verdicts this spec produces, but it changes the
   investigation loop and belongs in a spec extending 18.
-- Incident exclusion from baseline windows via KB lookup (BEHAVIOR-BASELINES §4) — open question,
-  not Phase 1.
+- Incident exclusion from baseline windows via KB lookup (BEHAVIOR-BASELINES §4) — deferred to after
+  Phase 1 (owner decision 2026-11-24); listed as future work in `tasks.md`.
+- A runtime check that the answer states each `no-baseline` — honesty is eval-gated only (owner
+  decision 2026-11-24).
 - Log/trace-based verdicts (Loki/Tempo). Phase 1–3 cover metric signals only.
 - Verdict precision measurement until a user-feedback signal exists (B-03).
 - Editing `specs/EVIDENCE-MODEL.md` (frozen record).

@@ -3,16 +3,18 @@
 Legend: `[ ]` pending · `[~]` partial · `[x]` done. `(D#)` = design decision, `(AC#)` = acceptance
 criterion in `requirements.md`.
 
-> **Status (not-started):** writing this plan is not a decision to build. Before T1.1 the owner
-> answers the open questions at the end of this file.
+> **Status (not-started):** writing this plan is not a decision to build. The draft's open
+> questions were answered by owner decision 2026-11-24 (see `design.md` "Owner decisions").
 
 ---
 
 ## Phase 1 — Entity registry + metric verdicts in chat (B-21, B-22 core, B-24)
 
 - [ ] T1.1: Registry schema + loader (`src/core/comprehension/registry.py`): Pydantic v1 schema,
-  `ENTITY_REGISTRY_FILE`, validation rules, startup failure on invalid, `comprehension_disabled`
-  log when unset, `registry_hash`. (D1, D2 · AC1)
+  `ENTITY_REGISTRY_FILE`, validation rules, `comprehension_disabled` log when unset; invalid or
+  unreadable → comprehension off + `comprehension_registry_invalid` WARNING (no values) + `/ready`
+  informational detail (200) + `registry_load{result}`; squad starts normally; `registry_hash`.
+  (D1, D2 · AC1)
 - [ ] T1.2: Generic example `config/entity-registry.example.yaml` — placeholders only; entry #1 =
   the squad itself with its `aigent_*` metric names verified per TRIGGERS.md naming conventions.
   Repo-scrub check: no environment-specific names. (D1 · AC2)
@@ -23,7 +25,8 @@ criterion in `requirements.md`.
 - [ ] T1.6: `MetricsSource` Protocol + `PrometheusHttpSource` (GET `query_range`, env address +
   token file, timeouts, step selection ≤ 2 000 points). (D5, D6 · AC6)
 - [ ] T1.7: Verdict methods `verdict.py` (static, robust_z, seasonal, derivative, MAD floor,
-  sustain, since, min history, all `no-baseline` reasons). Pure functions. (D6, D7 · AC4)
+  sustain, since, min history, all `no-baseline` reasons). Thresholds/sustain resolved per signal >
+  registry `defaults` > code defaults (z 2 / 3, 3 of 5). Pure functions. (D6, D7 · AC4)
 - [ ] T1.8: Engine `engine.py`: concurrency, per-request budget, Redis baseline cache (sha256 keys,
   method TTLs), fail-open paths, `registry_signal_no_data` rate-limited log. (D9, D10 · AC7)
 - [ ] T1.9: Supervisor wiring: run resolution + verdicts concurrently with the classifier; pass
@@ -65,8 +68,9 @@ criterion in `requirements.md`.
 ## Phase 4 — Verification gates
 
 - [ ] T4.1: **Independent test authorship** — a different session/agent than the implementer
-  writes or extends the tests for `src/core/comprehension/` (registry rejections, query-injection
-  proofs, verdict fixtures, fail-open paths); ≥ 90 % coverage via `make test`.
+  writes or extends the tests for `src/core/comprehension/` (invalid registry → disabled + WARNING +
+  `/ready` 200 detail + metric with the rest of the squad unaffected, threshold precedence,
+  query-injection proofs, verdict fixtures, fail-open paths); ≥ 90 % coverage via `make test`.
 - [ ] T4.2: **Independent code review** — fresh context, against AGENTS.md invariants, this
   design and the acceptance criteria.
 - [ ] T4.3: **Security review** (mandatory: new datasource / egress destination, alert labels as an
@@ -86,11 +90,8 @@ criterion in `requirements.md`.
 - Phase 3 after Phase 2. T4.1–T4.3 run at the end of each phase that ships code (per phase, not
   once); T4.4 after Phase 2.
 
-## Open questions for the owner (answer before T1.1)
+## Future work (after Phase 1, not planned)
 
-1. Metrics source: Prometheus HTTP API from code (D5) vs reusing the vm-mcp `query_range` tool.
-2. Invalid registry: fail startup (D2) vs disable comprehension with a WARNING.
-3. Incident exclusion from baseline windows (KB lookup) — Phase 1, later, or never?
-4. Should the snapshot (D16) ever reach plain chat queries, or stay investigation/alert-only?
-5. Is a runtime no-baseline post-check wanted, or is the eval gate (D8, D11) enough?
-6. Default thresholds (borderline z = 2, abnormal z = 3, sustain 3 of 5) acceptable as defaults?
+- Incident-window exclusion from baseline history via a KB lookup (BEHAVIOR-BASELINES §4) —
+  deferred by owner decision 2026-11-24. Needs its own design pass (which KB records count as an
+  incident window, cost of the lookup) before it becomes a task.

@@ -8,7 +8,7 @@
 
 ```
 ENTITY_REGISTRY_FILE (mounted from the deploying team's config repo; unset → feature off)
-        │ startup: yaml.safe_load → EntityRegistry (Pydantic) → fail loudly if invalid
+        │ startup: yaml.safe_load → EntityRegistry (Pydantic) → invalid: feature off + WARNING
         ▼
 src/core/comprehension/
   registry.py      EntityRegistry, Entity, Signal; alias index; alert-label index
@@ -33,6 +33,21 @@ agents receive <baseline_verdicts> as data       └─ run_investigation(sympto
 ```
 
 Nothing in this design runs without a trigger. There is no scheduler, no warm-up job, no watch.
+
+## Owner decisions (2026-11-24)
+
+The seven open questions of the first draft were answered by the owner on 2026-11-24 (owner
+decision) and are folded into the decisions below:
+
+| # | Question | Decision | Where |
+|---|----------|----------|-------|
+| 1 | Metrics source | Prometheus-compatible HTTP API (`query_range`) called from code | D5 |
+| 2 | Invalid registry | Do not fail startup: comprehension off + WARNING + `/ready` info detail + metric; rest of the squad runs | D2 |
+| 3 | Incident-window exclusion via the KB | Deferred to after Phase 1 (future work) | D6, `tasks.md` |
+| 4 | Snapshot scope | Investigation and alert flows only, never plain chat | D16 |
+| 5 | `no-baseline` honesty | Eval gate only, no runtime check | D8, D11 |
+| 6 | Thresholds | Defaults accepted (z 2 / 3, sustain 3 of 5), configurable globally and per signal in the registry | D6 |
+| 7 | B-24 catalog ids | Live in this spec + `catalog.py`; `EVIDENCE-MODEL.md` stays frozen | D15 |
 
 ## Decisions
 
@@ -78,10 +93,18 @@ entities:
 Validation at load: unique ids and aliases (an alias shared by two entities is allowed but marked
 ambiguous), `em_id` known to `catalog.py`, `why` non-empty, `static` requires thresholds, every
 `{{…}}` placeholder resolves to a field of the same entity, every substituted value matches
-`^[A-Za-z0-9_.:/-]{1,128}$`. Invalid → startup fails (same contract as an invalid `agent.yaml`).
-*Trade-off*: a typo stops the supervisor instead of degrading. Chosen because a silently partial
-registry produces silently missing verdicts, which reads as "nothing to report"; the chart render
-test and `registry_check` catch it before rollout.
+`^[A-Za-z0-9_.:/-]{1,128}$`. **Invalid or unreadable registry (owner decision 2026-11-24)**: the
+whole registry is rejected (no partial load), comprehension is disabled, and the squad starts
+normally — fail-open for availability. Not silent: startup WARNING
+`comprehension_registry_invalid` naming the entry id and field (never values), a `/ready`
+informational detail `checks.comprehension = {"state": "disabled", "reason": "registry_invalid"}`
+that never turns `/ready` non-200 (same treatment as degraded datasources in spec 46), and
+`aigent.comprehension.registry_load{result="invalid"}`.
+*Trade-off*: a typo silently removes verdicts for the whole environment, and answers fall back to
+raw-only (which reads as "nothing to report" unless someone looks). Mitigated by the WARNING, the
+`/ready` detail, the metric (alertable by the deploying team), the chart render test and
+`registry_check` before rollout. All-or-nothing rather than per-entry skipping keeps the state easy
+to reason about.
 
 ### 3. Entity resolution is deterministic and is not routing
 Alias match on the already-scanned user text (casefolded, NFKC, word boundaries), exact label match
@@ -102,6 +125,7 @@ config written by the deploying team.
 `PrometheusHttpSource` issues read-only `GET /api/v1/query_range` against
 `COMPREHENSION_METRICS_URL` (falls back to `PROMETHEUS_URL`), optional bearer token from
 `COMPREHENSION_METRICS_TOKEN_FILE` (never logged). Works with Prometheus and VictoriaMetrics.
+Confirmed by owner decision 2026-11-24.
 *Alternative rejected*: calling the observability agent's MCP `query_range` tool from code. It
 couples the engine to one MCP server's argument shape and response rendering, and goes through the
 LLM-oriented tool path for a deterministic job. The `MetricsSource` Protocol keeps the door open for
@@ -123,6 +147,14 @@ Let `x` be the recent window (last N samples at the signal's step), `h` the hist
   `normal`; otherwise compute with the floor and mark `deviation` as "vs flat baseline".
 - **since**: scan `x` (then `h` backwards, bounded) to the first sample of the current excursion.
 - **minimum history**: fewer samples than `min_history` covers → `no-baseline: insufficient_history`.
+- **Threshold configuration (owner decision 2026-11-24)**: defaults are borderline z = 2.0,
+  abnormal z = 3.0, sustain 3 of 5 samples. Precedence: per-signal `thresholds` / `sustain` in the
+  registry > the registry's global `defaults` block > the code defaults above. Thresholds live in
+  the registry (per environment), not in env vars, so one file holds all interpretation knowledge;
+  values are validated at load (borderline < abnormal, 1 ≤ required ≤ samples).
+- **Incident-window exclusion** (dropping known-incident windows from `h` via a KB lookup) is
+  deferred to after Phase 1 (owner decision 2026-11-24); until then robustness comes from
+  median/MAD.
 Step selection keeps every series ≤ 2 000 points (`step = ceil(range / 2000)`, floored at 30 s).
 *Trade-off*: thresholds are heuristics, not calibrated per signal. They are per-signal overridable,
 and precision is measured once feedback exists (Decision 10).
@@ -154,8 +186,8 @@ The block is appended to `effective_infra_data` so spec 41's groundedness scan t
 grounded. Non-streaming responses also expose `x_aigent.comprehension` = `[{entity, signal,
 verdict, reason}]` (deterministic, used by the eval harness).
 *Trade-off*: the honesty statement depends on the model following the instruction. It is
-eval-gated at 100% (Decision 11) rather than enforced by a runtime post-check, because a bilingual
-string check on free text would be fragile; a runtime check is a follow-up if the eval shows misses.
+eval-gated at 100% (Decision 11) with no runtime post-check (owner decision 2026-11-24), because a
+bilingual string check on free text would be fragile.
 
 ### 9. Caching and TTLs (reactive cache, warmed only by use)
 Cached item = computed baseline (`med`, `mad`, sample count, computed_at), never the verdict and
@@ -210,7 +242,8 @@ The symptom text and its InputScanner pass are unchanged.
 `raw_query` holds the rendered query for audit. The correlator code is unchanged.
 
 ### 15. EVIDENCE-MODEL catalog extension (B-24)
-`specs/EVIDENCE-MODEL.md` is a frozen record, so the extension lives here and in `catalog.py`:
+`specs/EVIDENCE-MODEL.md` is a frozen record, so the extension lives here and in `catalog.py`
+(confirmed by owner decision 2026-11-24):
 
 | ID | Signal | Layer | Default method | Why |
 |----|--------|-------|----------------|-----|
@@ -222,7 +255,7 @@ The symptom text and its InputScanner pass are unchanged.
 Compact summary: entity count by kind/tier, declared blind spots, and the last cached verdict per
 tier-1 entity with its age (only verdicts already in cache — building the snapshot never triggers a
 fan-out of queries). Size cap `COMPREHENSION_SNAPSHOT_MAX_CHARS=1500`. Injected into investigation
-and alert flows only; chat injection is decided later from eval data. If an external
+and alert flows only, never into plain chat queries (owner decision 2026-11-24). If an external
 anomaly-detection system is integrated (B-05, optional), its baselines are a future
 `MetricsSource`/baseline provider, not part of this spec.
 
@@ -241,6 +274,7 @@ not as a new MCP tool.
 | `aigent.comprehension.requests` | counter | `coverage` (with_verdict/raw_only) | verdict coverage |
 | `aigent.comprehension.duration` | histogram (ms) | `trigger` | verdict step latency |
 | `aigent.comprehension.baseline_age` | histogram (s) | `method` | baseline freshness (< 24 h target) |
+| `aigent.comprehension.registry_load` | counter (startup) | `result` (ok/absent/invalid) | registry state; `invalid` = comprehension off |
 No `entity`, `signal`, `user_id`, query or error-text labels — entity ids are environment-specific
 and unbounded. Cache effectiveness reuses `aigent.cache.*{namespace="comprehension"}`. Verdict
 precision (≥ 80 % target) needs a feedback signal (B-03) and is a TRIGGERS.md GAP row until then;
@@ -250,7 +284,7 @@ honesty rate is measured by the eval (Decision 11).
 
 - **Reactive only** (D-03): no scheduler, poller, background refresh or alert suppression.
 - **Read-only** (invariant 5): one GET-only query API; the registry cannot express tools or writes.
-- **Fail-open for availability**: registry missing → feature off; source/Redis/budget failure →
+- **Fail-open for availability**: registry missing or invalid → feature off (squad runs); source/Redis/budget failure →
   `no-baseline`, request still answered. **Fail-closed security unchanged**: InputScanner, guardrail,
   output filter and canary run exactly as today; verdict data enters through the tagged data region.
 - **Calibrated honesty** (invariant 12): empty data is never `normal`; every `no-baseline` is stated.
@@ -261,7 +295,9 @@ honesty rate is measured by the eval (Decision 11).
 
 ## Verification
 
-- Unit: registry validation (each rejection path), resolution (alias, boundary, ambiguity, caps),
+- Unit: registry validation (each rejection path → comprehension disabled, WARNING without values,
+  `/ready` 200 with the informational detail, `registry_load{result="invalid"}`, other agents
+  unaffected), threshold precedence (signal > registry defaults > code defaults), resolution (alias, boundary, ambiguity, caps),
   query rendering (injection attempts from alert labels and user text never appear in output),
   verdict methods (Decision 11 fixtures), engine budget/timeout/fail-open paths with a fake source
   and a failing Redis, Evidence mapping table, block size cap, `effective_infra_data` inclusion.
@@ -277,7 +313,8 @@ honesty rate is measured by the eval (Decision 11).
 |------|------------|
 | Wrong metric name in the registry silently yields nothing | `no_data` is `no-baseline` + stated; `registry_check`; `aigent.comprehension.no_baseline{reason="no_data"}` |
 | Verdict thresholds produce false "abnormal" | sustain rule, single spike = borderline, per-signal overrides; precision measured once B-03 lands |
-| Baselines poisoned by past incidents | median/MAD robustness; KB-based exclusion is an open question |
+| Baselines poisoned by past incidents | median/MAD robustness; KB-based exclusion is future work after Phase 1 |
+| Invalid registry silently disables verdicts | WARNING + `/ready` detail + `registry_load` metric + `registry_check` |
 | Model ignores the verdict or the no-baseline statement | instruction + eval gate at 100 %; runtime post-check as follow-up |
 | Added latency on every resolved query | concurrent with classifier, hard budget, cache, caps |
 | Datasource load from repeated questions | baseline cache; caps per request; recent window is small |
