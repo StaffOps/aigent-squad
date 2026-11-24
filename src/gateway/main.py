@@ -18,7 +18,7 @@ import uvicorn  # noqa: E402
 from src.core.config import reveal, settings  # noqa: E402
 from src.core.rate_limiter import AdmissionGuard, estimate_cost  # noqa: E402
 from src.gateway import __version__  # noqa: E402
-from src.gateway.auth import AuthResult, get_key_agent_map, require_edge_auth  # noqa: E402
+from src.gateway.auth import AuthResult, get_key_agent_map, require_edge_auth, scoped_user_id  # noqa: E402
 from src.gateway.supervisor_client import (  # noqa: E402
     SupervisorClient,
     SupervisorUnavailableError,
@@ -171,10 +171,13 @@ async def _check_admission(user_id: str, max_tokens: int = 4096) -> Optional[JSO
     return None
 
 
-@app.post("/query", dependencies=[Depends(require_edge_auth)])  # type: ignore[untyped-decorator]
-async def query(request: QueryRequest) -> Any:
+@app.post("/query")  # type: ignore[untyped-decorator]
+async def query(request: QueryRequest, auth: AuthResult = Depends(require_edge_auth)) -> Any:
     """Native entrypoint — admission control, then forward to the supervisor."""
-    denied = await _check_admission(request.user_id)
+    # F-024: scope the client-supplied user to the authenticated consumer, so history,
+    # rate limits and sessions never cross API keys.
+    user_id = scoped_user_id(auth, request.user_id)
+    denied = await _check_admission(user_id)
     if denied is not None:
         return denied
     if not worker_pool.has_capacity():
@@ -187,7 +190,7 @@ async def query(request: QueryRequest) -> Any:
     async def _one_shot() -> Any:
         result = await supervisor_client.process(
             user_input=request.user_input,
-            user_id=request.user_id,
+            user_id=user_id,
             session_id=request.session_id,
             mode=request.mode or "query",
         )
@@ -240,7 +243,9 @@ async def openai_chat_completions(
     if force_agent is None and auth and auth.consumer_default_agent:
         force_agent = auth.consumer_default_agent
 
-    user_id = request.user or "librechat"
+    # F-024: scoped to the authenticated consumer; an anonymous OpenAI client ("user"
+    # unset) gets a per-key default instead of one session shared by every key.
+    user_id = scoped_user_id(auth, request.user or "librechat")
     denied = await _check_admission(user_id, max_tokens=request.max_tokens or 4096)
     if denied is not None:
         return denied

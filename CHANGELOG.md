@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+### Security — history, rate limits and sessions scoped to the API key (BACKLOG F-024, 2026-11-24)
+- The gateway now forwards user ids as `<consumer>:<user_id>`, where consumer is a short
+  sha256 of the authenticated API key (or `internal` for the internal token). A key holder
+  can no longer read another consumer's history by sending its `user_id`/`session_id`, and
+  OpenAI clients without `user` get a per-key default session instead of one
+  `openai-librechat` session shared by every key. Rate limits are scoped the same way.
+- **Upgrade note:** existing conversation history (24 h) is not visible after the upgrade,
+  because the user ids change.
+
 ### Fixed — spec 46 independent review findings (2026-11-24)
 - `/ready`: the history check is informational (history is fail-open); only Redis and
   agents gate readiness. A Postgres/DynamoDB history outage no longer 503s every query.
